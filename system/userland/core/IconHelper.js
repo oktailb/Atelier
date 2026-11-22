@@ -57,6 +57,61 @@
       if (!category) return '📁';
       return CATEGORY_ICONS[category.toLowerCase()] || '📁';
     }
+
+    isSafeIconUrl(val) {
+      if (typeof val !== 'string') return false;
+      const s = val.trim();
+      if (!s || /[\x00-\x1f"'<>]/.test(s)) return false;
+      if (/^https:\/\//i.test(s)) return true;
+      if (/^data:image\/(png|svg\+xml|webp|jpeg|gif|x-icon);/i.test(s)) return true;
+      if (/^(apps|themes|assets|storage)\/[a-zA-Z0-9_./-]+\.(png|svg|webp|ico|jpg|jpeg|gif)$/i.test(s) && !s.includes('..')) {
+        return true;
+      }
+      return false;
+    }
+
+    escapeAttr(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    /**
+     * Renders an application icon as a crisp self-healing <img> when an image URL is available,
+     * falling back cleanly to an emoji if offline or when no image icon exists.
+     */
+    renderAppIcon(manifestOrIcon, fallbackEmoji = '🗔') {
+      let iconUrl = null;
+      let emoji = fallbackEmoji || '🗔';
+
+      if (manifestOrIcon && typeof manifestOrIcon === 'object') {
+        if (this.isSafeIconUrl(manifestOrIcon.icon_url)) {
+          iconUrl = manifestOrIcon.icon_url.trim();
+        } else if (this.isSafeIconUrl(manifestOrIcon.icon)) {
+          iconUrl = manifestOrIcon.icon.trim();
+        }
+        if (typeof manifestOrIcon.icon === 'string' && !this.isSafeIconUrl(manifestOrIcon.icon) && manifestOrIcon.icon.trim()) {
+          emoji = manifestOrIcon.icon.trim();
+        }
+      } else if (typeof manifestOrIcon === 'string') {
+        if (this.isSafeIconUrl(manifestOrIcon)) {
+          iconUrl = manifestOrIcon.trim();
+        } else if (manifestOrIcon.trim()) {
+          emoji = manifestOrIcon.trim();
+        }
+      }
+
+      if (iconUrl) {
+        const safeUrl = this.escapeAttr(iconUrl);
+        const safeFallback = this.escapeAttr(emoji);
+        return `<img src="${safeUrl}" class="webos-app-icon-img" alt="" loading="lazy" draggable="false" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='inline';"><span class="webos-app-icon-fallback" style="display:none;">${safeFallback}</span>`;
+      }
+
+      return emoji;
+    }
   }
 
   window.IconHelper = new IconHelperClass();

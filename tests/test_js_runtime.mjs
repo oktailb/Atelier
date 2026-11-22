@@ -625,6 +625,7 @@ assert("Explorer explorer.js implémente showFileContextMenu (Ouvrir avec)", exp
 });
 
 try {
+  const iconHelperCode = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'core', 'IconHelper.js'), 'utf8');
   const appMgrCode = fs.readFileSync(appMgrPath, 'utf8');
   const mediaRegCode = fs.readFileSync(mediaRegPath, 'utf8');
   const webAppHostCode = fs.readFileSync(webAppHostPath, 'utf8');
@@ -667,6 +668,7 @@ try {
         id: 'mock-studio',
         name: 'MockStudio',
         icon: '🎨',
+        icon_url: 'https://raw.githubusercontent.com/example/mock-studio/main/icon.png',
         category: 'media',
         distribution: 'standalone-web',
         html_entry: 'apps/mock-studio-web-1.0.0/index.html',
@@ -675,6 +677,7 @@ try {
           name: 'MockStudio',
           version: '1.0.0',
           icon: '🎨',
+          icon_url: 'https://raw.githubusercontent.com/example/mock-studio/main/icon.png',
           category: 'media',
           distribution: 'standalone-web',
           runtime: 'iframe',
@@ -703,6 +706,7 @@ try {
     I18nEngine: { t: (k) => k }
   };
 
+  new Function('window', 'document', 'localStorage', iconHelperCode)(sandboxWin, fakeDom, sandboxWin.localStorage);
   new Function('window', 'document', 'localStorage', mediaRegCode)(sandboxWin, fakeDom, sandboxWin.localStorage);
   sandboxWin.MediaViewerRegistry.register({
     id: 'image-viewer',
@@ -739,6 +743,9 @@ try {
   sandboxWin.AppManager.launchApp('mock-studio', { file: { name: 'design.psd', path: 'art/design.psd', extension: 'psd' } });
   assert("AppManager.launchApp('mock-studio', {file}) crée une fenêtre WindowManager dédiée", createdWindows.length === 1 && createdWindows[0].appId === 'mock-studio');
   assert("La fenêtre créée embarque l'iframe avec sandbox allow-downloads et titre du fichier", createdWindows[0].title.includes('design.psd') && createdWindows[0].content.includes('apps/mock-studio-web-1.0.0/index.html') && createdWindows[0].content.includes('allow-downloads'));
+  assert("AppManager.getAppIcon('mock-studio') rend l'image d'icône avec repli emoji hors-ligne", sandboxWin.AppManager.getAppIcon('mock-studio').includes('<img src="https://raw.githubusercontent.com/example/mock-studio/main/icon.png"') && sandboxWin.AppManager.getAppIcon('mock-studio').includes('🎨'));
+  assert("La fenêtre créée utilise l'icône image de l'application tierce", createdWindows[0].icon.includes('webos-app-icon-img'));
+  assert("IconHelper.isSafeIconUrl rejette javascript: et traversal ..", !sandboxWin.IconHelper.isSafeIconUrl('javascript:alert(1)') && !sandboxWin.IconHelper.isSafeIconUrl('apps/../etc/passwd.png'));
 } catch (e) {
   assert("WebAppHost exécution runtime", false, e.stack);
 }

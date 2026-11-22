@@ -52,6 +52,16 @@
       return this.name;
     }
 
+    getAppIconHtml() {
+      if (window.sys && window.sys.appManager && typeof window.sys.appManager.getAppIcon === 'function') {
+        return window.sys.appManager.getAppIcon(this.id);
+      }
+      if (window.IconHelper && typeof window.IconHelper.renderAppIcon === 'function') {
+        return window.IconHelper.renderAppIcon(this.manifest, this.icon);
+      }
+      return this.icon;
+    }
+
     getEffectiveSrc() {
       if (!this.htmlEntry) return 'about:blank';
       if (this.activeRendererFlag) {
@@ -252,7 +262,7 @@
         appId: this.id,
         appName: appTitle,
         title: winTitle,
-        icon: this.icon,
+        icon: this.getAppIconHtml(),
         width,
         height,
         resizable: winCfg.resizable !== false,
@@ -514,7 +524,7 @@
         window.MediaViewerRegistry.register({
           id: appId,
           name: instance.name,
-          icon: instance.icon,
+          icon: instance.getAppIconHtml(),
           priority: 50,
           extensions: exts,
           mimeTypes: mimes,

@@ -1046,10 +1046,11 @@ class GeneralUnitTestSuite {
 
         file_put_contents($tmp_app1 . '/index.html', '<!DOCTYPE html><html><head><title>PixelCraft</title></head><body><canvas id="c"></canvas><script type="module">fetch("./boot.wasm");</script></body></html>');
         file_put_contents($tmp_app1 . '/boot.wasm', "\0asm");
-        file_put_contents($tmp_app1 . '/README.md', "<h1>PixelCraft</h1><p><b>Open-source image editing studio in Rust/WASM.</b></p><h4>Formats</h4>PSD, XCF, .kra, .pcraft, PNG, JPEG, WebP, SVG</td>\n## Downloads\nInstallers: pixelcraft.deb, pixelcraft.rpm, pixelcraft.msi");
+        file_put_contents($tmp_app1 . '/README.md', "<h1>PixelCraft</h1><img src=\"https://raw.githubusercontent.com/example/pixelcraft/main/assets/pixelcraft-icon.png\" alt=\"PixelCraft icon\" width=\"64\"><p><b>Open-source image editing studio in Rust/WASM.</b></p><h4>Formats</h4>PSD, XCF, .kra, .pcraft, PNG, JPEG, WebP, SVG</td>\n## Downloads\nInstallers: pixelcraft.deb, pixelcraft.rpm, pixelcraft.msi");
         file_put_contents($tmp_app1 . '/HOSTING.md', "Flags: `?webgl` and `?cpu`");
 
-        file_put_contents($tmp_app2 . '/index.html', '<!DOCTYPE html><html><head><title>RetroBox</title></head><body></body></html>');
+        file_put_contents($tmp_app2 . '/index.html', '<!DOCTYPE html><html><head><title>RetroBox</title><link rel="icon" href="./favicon.svg"></head><body></body></html>');
+        file_put_contents($tmp_app2 . '/favicon.svg', '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
         file_put_contents($tmp_app2 . '/site.webmanifest', json_encode([
             'name' => 'RetroBox Emulator',
             'description' => 'Classic 8-bit console emulator',
@@ -1067,10 +1068,12 @@ class GeneralUnitTestSuite {
         $this->assert("Manifest synthétique détecte les formats (psd, xcf, kra, png)", in_array('psd', $pc['manifest']['extensions'] ?? [], true) && in_array('xcf', $pc['manifest']['extensions'] ?? [], true) && in_array('kra', $pc['manifest']['extensions'] ?? [], true) && in_array('png', $pc['manifest']['extensions'] ?? [], true));
         $this->assert("Manifest synthétique ignore les extensions d'installateurs (deb, rpm, msi)", !in_array('deb', $pc['manifest']['extensions'] ?? [], true) && !in_array('msi', $pc['manifest']['extensions'] ?? [], true));
         $this->assert("Manifest synthétique détecte la capacité wasm et les flags renderer", in_array('wasm', $pc['manifest']['capabilities'] ?? [], true) && count($pc['manifest']['rendererFlags'] ?? []) === 2);
+        $this->assert("Manifest synthétique extrait l'URL d'icône depuis README.md", ($pc['icon_url'] ?? '') === 'https://raw.githubusercontent.com/example/pixelcraft/main/assets/pixelcraft-icon.png');
 
         $this->assert("PluginDiscovery découvre une web app autonome imbriquée (apps/games/*) avec site.webmanifest", isset($tmp_discovered['retrobox']));
         $rb = $tmp_discovered['retrobox'] ?? [];
         $this->assert("Web app imbriquée hérite de la catégorie 'games' et des file_handlers W3C", ($rb['category'] ?? '') === 'games' && in_array('nes', $rb['manifest']['extensions'] ?? [], true) && in_array('gb', $rb['manifest']['extensions'] ?? [], true));
+        $this->assert("Web app imbriquée extrait l'icône locale depuis <link rel='icon'>", ($rb['icon_url'] ?? '') === 'apps/games/retrobox-v2.1/favicon.svg');
 
         $tmp_trans = \SimpleGallery\Kernel\PluginDiscovery::getAppTranslations($tmp_root, 'fr', true);
         $this->assert("getAppTranslations expose le titre synthétique apps.pixelcraft.title", ($tmp_trans['apps.pixelcraft.title'] ?? '') === 'PixelCraft');
@@ -1096,6 +1099,7 @@ class GeneralUnitTestSuite {
         @rmdir($tmp_app1 . '/app');
         @rmdir($tmp_app1);
         @unlink($tmp_app2 . '/index.html');
+        @unlink($tmp_app2 . '/favicon.svg');
         @unlink($tmp_app2 . '/site.webmanifest');
         @rmdir($tmp_app2);
         @rmdir($tmp_root . '/apps/games');

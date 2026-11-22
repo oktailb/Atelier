@@ -196,7 +196,7 @@ class AppManager {
             results.push({
                 id,
                 name: this.getAppTitle(id),
-                icon: (entry.manifest && entry.manifest.icon) || '🗔',
+                icon: this.getAppIcon(id),
                 category: (entry.manifest && entry.manifest.category) || '',
                 description: this.getAppDescription(id),
                 isDefault: id === defaultId,
@@ -254,6 +254,23 @@ class AppManager {
         if (trans && trans !== key) return trans;
         
         return (manifest && manifest.description) || '';
+    }
+
+    /**
+     * Returns the rendered icon (image <img> with offline emoji fallback, or emoji) for an application
+     */
+    getAppIcon(appId) {
+        const entry = this.apps.get(appId);
+        const manifest = entry ? entry.manifest : null;
+        const discovered = (typeof window !== 'undefined' && window.SG_DISCOVERED_APPS && window.SG_DISCOVERED_APPS[appId]) || null;
+        const iconObj = {
+            icon: (manifest && manifest.icon) || (discovered && discovered.icon) || '🗔',
+            icon_url: (manifest && manifest.icon_url) || (discovered && discovered.icon_url) || null
+        };
+        if (typeof window !== 'undefined' && window.IconHelper && typeof window.IconHelper.renderAppIcon === 'function') {
+            return window.IconHelper.renderAppIcon(iconObj, iconObj.icon);
+        }
+        return iconObj.icon;
     }
 
     /**
@@ -339,7 +356,7 @@ class AppManager {
             list.push({
                 id,
                 name: this.getAppTitle(id),
-                icon: (entry.manifest && entry.manifest.icon) || '🗔',
+                icon: this.getAppIcon(id),
                 category: cat,
                 description: this.getAppDescription(id),
                 enabled: isEnabled,
@@ -449,7 +466,7 @@ class AppManager {
     openFilePicker(appId) {
         const entry = this.apps.get(appId);
         const appTitle = this.getAppTitle(appId);
-        const appIcon = (entry && entry.manifest && entry.manifest.icon) || '🗔';
+        const appIcon = this.getAppIcon(appId);
         const exts = (entry && entry.manifest && entry.manifest.extensions) || [];
 
         const files = (window.explorerApp && window.explorerApp.state && window.explorerApp.state.files) || [];

@@ -218,6 +218,7 @@ class PluginDiscovery {
                 'name'           => $manifest['name'] ?? ucfirst($folder),
                 'version'        => $manifest['version'] ?? '1.0.0',
                 'icon'           => $manifest['icon'] ?? '📱',
+                'icon_url'       => $manifest['icon_url'] ?? null,
                 'category'       => $cat,
                 'parent_folder'  => (strpos($rel_key, '/') !== false ? dirname($rel_key) : ''),
                 'distribution'   => $is_standalone_web ? 'standalone-web' : ($manifest['distribution'] ?? 'native'),

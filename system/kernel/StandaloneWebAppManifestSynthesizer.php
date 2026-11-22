@@ -227,11 +227,12 @@ class StandaloneWebAppManifestSynthesizer {
         $extensions = $extracted_formats['extensions'];
         $mime_types = $extracted_formats['mimeTypes'];
 
-        // 6. Infer Category & Icon
+        // 6. Infer Category & Icon (plus real image icon URL when available)
         $parent_cat = (strpos($rel_key, '/') !== false) ? dirname($rel_key) : '';
         $inferred = self::inferCategoryAndIcon($parent_cat, $w3c, $name, $description, $extensions);
         $category = $inferred['category'];
         $icon = $inferred['icon'];
+        $icon_url = self::extractIconUrl($app_path, $rel_key, $w3c, $html_content, $readme_content, $app_id, $name);
 
         // 7. Capabilities
         $capabilities = ['standalone-web', 'iframe-host', 'fullscreen'];
@@ -249,6 +250,7 @@ class StandaloneWebAppManifestSynthesizer {
             'version'       => $version,
             'description'   => $description,
             'icon'          => $icon,
+            'icon_url'      => $icon_url,
             'category'      => $category,
             'distribution'  => 'standalone-web',
             'runtime'       => 'iframe',
@@ -501,6 +503,178 @@ class StandaloneWebAppManifestSynthesizer {
         }
 
         return ['category' => $category ?: 'utilities', 'icon' => '🌐'];
+    }
+
+    /**
+     * Resolves the best real image icon URL for a standalone web app:
+     * 1. <link rel="icon|shortcut icon|apple-touch-icon"> in index.html (local file or safe data:image URI)
+     * 2. W3C site.webmanifest / manifest.webmanifest icons[] (local file)
+     * 3. Conventional local icon files (icon.svg, favicon.png, logo.svg, etc.)
+     * 4. App icon <img> referenced in README.md (local file, direct https:// icon URL, or GitHub raw fallback)
+     */
+    public static function extractIconUrl(
+        string $app_path,
+        string $rel_key,
+        array $w3c,
+        string $html_content,
+        string $readme_content,
+        string $app_id,
+        string $name
+    ): ?string {
+        $base_web_prefix = 'apps/' . trim($rel_key, '/') . '/';
+
+        // Helper to validate a local relative path strictly inside $app_path
+        $resolve_local = function (string $rel) use ($app_path, $base_web_prefix): ?string {
+            $clean = preg_replace('/[?#].*$/', '', trim($rel));
+            $clean = ltrim(str_replace('\\', '/', $clean), './');
+            if ($clean === '' || strpos($clean, '..') !== false) {
+                return null;
+            }
+            if (file_exists($app_path . '/' . $clean) && is_file($app_path . '/' . $clean)) {
+                return $base_web_prefix . $clean;
+            }
+            return null;
+        };
+
+        // Stage 1: <link rel="...icon..." href="..."> in index.html
+        if ($html_content !== '' && preg_match_all('/<link\b[^>]*>/i', $html_content, $link_tags)) {
+            foreach ($link_tags[0] as $tag) {
+                if (!preg_match('/\brel\s*=\s*["\']([^"\']*icon[^"\']*)["\']/i', $tag)) {
+                    continue;
+                }
+                if (preg_match('/\bhref\s*=\s*["\']([^"\']+)["\']/i', $tag, $hm)) {
+                    $href = trim(html_entity_decode($hm[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+                    if (preg_match('#^data:image/(png|svg\+xml|webp|jpeg|gif|x-icon);#i', $href)) {
+                        return $href;
+                    }
+                    $local = $resolve_local($href);
+                    if ($local !== null) {
+                        return $local;
+                    }
+                }
+            }
+        }
+
+        // Stage 2: W3C Web App Manifest icons[]
+        if (!empty($w3c['icons']) && is_array($w3c['icons'])) {
+            $best_local = null;
+            $best_score = -1;
+            foreach ($w3c['icons'] as $icon_entry) {
+                if (!is_array($icon_entry) || empty($icon_entry['src'])) continue;
+                $local = $resolve_local((string)$icon_entry['src']);
+                if ($local === null) continue;
+                $score = 10;
+                $type = strtolower((string)($icon_entry['type'] ?? ''));
+                $sizes = strtolower((string)($icon_entry['sizes'] ?? ''));
+                if ($type === 'image/svg+xml' || substr(strtolower($local), -4) === '.svg') {
+                    $score = 1000;
+                } elseif (preg_match('/(\d+)x\d+/', $sizes, $sm)) {
+                    $sz = (int)$sm[1];
+                    $score = ($sz >= 48 && $sz <= 256) ? (500 + $sz) : $sz;
+                }
+                if ($score > $best_score) {
+                    $best_score = $score;
+                    $best_local = $local;
+                }
+            }
+            if ($best_local !== null) {
+                return $best_local;
+            }
+        }
+
+        // Stage 3: Conventional local icon files
+        $conventional = [
+            'icon.svg', 'icon.png', 'icon.webp',
+            'app-icon.svg', 'app-icon.png',
+            'logo.svg', 'logo.png',
+            'apple-touch-icon.png',
+            'favicon.svg', 'favicon.png', 'favicon.ico',
+            'assets/icon.svg', 'assets/icon.png', 'assets/logo.svg', 'assets/logo.png'
+        ];
+        foreach ($conventional as $cand) {
+            $local = $resolve_local($cand);
+            if ($local !== null) {
+                return $local;
+            }
+        }
+
+        // Stage 4: README.md icon image (local file, direct https:// icon URL, or GitHub raw fallback)
+        if ($readme_content !== '' && preg_match_all('/<img\b[^>]*>/i', $readme_content, $img_tags)) {
+            $slug_lower = strtolower($app_id);
+            $name_lower = strtolower($name);
+            $direct_https_candidate = null;
+            $relative_icon_candidate = null;
+
+            foreach ($img_tags[0] as $tag) {
+                if (!preg_match('/\bsrc\s*=\s*["\']([^"\']+)["\']/i', $tag, $sm)) {
+                    continue;
+                }
+                $src = trim(html_entity_decode($sm[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+                $alt = '';
+                if (preg_match('/\balt\s*=\s*["\']([^"\']*)["\']/i', $tag, $am)) {
+                    $alt = strtolower(trim(html_entity_decode($am[1], ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+                }
+
+                $src_lower = strtolower($src);
+                // Ignore status badges / shields
+                if (strpos($src_lower, 'shields.io') !== false || strpos($src_lower, 'badge') !== false || strpos($src_lower, 'sonarcloud') !== false) {
+                    continue;
+                }
+
+                $is_image_ext = (bool)preg_match('/\.(png|svg|webp|ico|jpg|jpeg)(\?.*)?$/i', $src_lower);
+                if (!$is_image_ext) {
+                    continue;
+                }
+
+                $looks_like_app_icon = (
+                    strpos($src_lower, 'icon') !== false ||
+                    strpos($alt, 'icon') !== false ||
+                    strpos($src_lower, 'logo') !== false
+                );
+                $matches_app = (
+                    ($slug_lower !== '' && strpos($src_lower, $slug_lower) !== false) ||
+                    ($name_lower !== '' && strpos($alt, $name_lower) !== false)
+                );
+
+                // Local file referenced in README
+                if (!preg_match('#^https?://#i', $src)) {
+                    if ($looks_like_app_icon && $matches_app) {
+                        $local = $resolve_local($src);
+                        if ($local !== null) {
+                            return $local;
+                        }
+                        if ($relative_icon_candidate === null) {
+                            $relative_icon_candidate = ltrim(str_replace('\\', '/', $src), './');
+                        }
+                    }
+                    continue;
+                }
+
+                // Direct https:// icon URL specifically matching this app
+                if (stripos($src, 'https://') === 0 && $looks_like_app_icon && $matches_app) {
+                    if ($direct_https_candidate === null) {
+                        $direct_https_candidate = $src;
+                    }
+                }
+            }
+
+            if ($direct_https_candidate !== null) {
+                return $direct_https_candidate;
+            }
+
+            // Fallback: resolve README relative icon path against GitHub repository URL if present
+            if ($relative_icon_candidate !== null && strpos($relative_icon_candidate, '..') === false) {
+                if (preg_match('#https://github\.com/([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)#i', $readme_content, $gm)) {
+                    $owner = $gm[1];
+                    $repo = rtrim($gm[2], '/');
+                    if (stripos($repo, $slug_lower) !== false || $slug_lower === '') {
+                        return "https://raw.githubusercontent.com/{$owner}/{$repo}/main/{$relative_icon_candidate}";
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     private static function loadAdminOverride(string $project_root, string $app_id, string $folder): array {
