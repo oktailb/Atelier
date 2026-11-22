@@ -62,17 +62,191 @@
       return this.icon;
     }
 
-    getEffectiveSrc() {
+    getEffectiveSrc(startupFile = null) {
       if (!this.htmlEntry) return 'about:blank';
+      const params = [];
       if (this.activeRendererFlag) {
-        const sep = this.htmlEntry.includes('?') ? '&' : '?';
-        return `${this.htmlEntry}${sep}${encodeURIComponent(this.activeRendererFlag)}`;
+        params.push(encodeURIComponent(this.activeRendererFlag));
       }
-      return this.htmlEntry;
+      const openParam = this.manifest && this.manifest.openFileParam;
+      if (startupFile && openParam) {
+        const rawUrl = this.resolveFileUrl(startupFile);
+        if (rawUrl) {
+          let absUrl = rawUrl;
+          try {
+            if (window.location && window.location.href) {
+              absUrl = new URL(rawUrl, window.location.href).href;
+            }
+          } catch (e) {}
+          params.push(`${encodeURIComponent(openParam)}=${encodeURIComponent(absUrl)}`);
+        }
+      }
+      if (params.length === 0) return this.htmlEntry;
+      const sep = this.htmlEntry.includes('?') ? '&' : '?';
+      return `${this.htmlEntry}${sep}${params.join('&')}`;
     }
 
     getIframeElement() {
       return document.getElementById(`webappIframe-${this.id}`);
+    }
+
+    getBootOverlayElement() {
+      return document.getElementById(`webappBootOverlay-${this.id}`);
+    }
+
+    hideBootOverlay() {
+      if (this._slowTimer) {
+        clearTimeout(this._slowTimer);
+        this._slowTimer = null;
+      }
+      if (this._bootPollTimer) {
+        clearInterval(this._bootPollTimer);
+        this._bootPollTimer = null;
+      }
+      const overlay = this.getBootOverlayElement();
+      if (overlay) {
+        overlay.classList.add('is-hidden');
+        setTimeout(() => {
+          if (overlay.classList.contains('is-hidden')) {
+            overlay.style.display = 'none';
+          }
+        }, 280);
+      }
+    }
+
+    showBootOverlay(errorMessage = '') {
+      const overlay = this.getBootOverlayElement();
+      if (!overlay) return;
+      overlay.style.display = 'flex';
+      overlay.classList.remove('is-hidden');
+
+      const spinner = overlay.querySelector('.webapp-boot-spinner');
+      const titleEl = overlay.querySelector('.webapp-boot-title');
+      const hintEl = overlay.querySelector('.webapp-boot-hint');
+      const actionsEl = overlay.querySelector('.webapp-boot-actions');
+
+      if (errorMessage) {
+        if (spinner) spinner.style.display = 'none';
+        if (titleEl) titleEl.textContent = this.t('webapp.load_error', { app: this.getAppTitle() });
+        if (hintEl) {
+          hintEl.textContent = errorMessage;
+          hintEl.style.display = 'block';
+        }
+        if (actionsEl) actionsEl.style.display = 'flex';
+      } else {
+        if (spinner) spinner.style.display = 'block';
+        if (titleEl) titleEl.textContent = this.t('webapp.loading', { app: this.getAppTitle() });
+        if (hintEl) {
+          hintEl.textContent = '';
+          hintEl.style.display = 'none';
+        }
+        if (actionsEl) actionsEl.style.display = 'none';
+      }
+    }
+
+    bindBootLifecycle(iframe, filePassedViaQuery = false) {
+      if (!iframe) return;
+      if (this._slowTimer) clearTimeout(this._slowTimer);
+      if (this._bootPollTimer) clearInterval(this._bootPollTimer);
+
+      const overlay = this.getBootOverlayElement();
+      const isWasm = Array.isArray(this.manifest.capabilities) && this.manifest.capabilities.includes('wasm');
+
+      // Show recovery / renderer fallback buttons if WASM boot takes > 7s
+      this._slowTimer = setTimeout(() => {
+        if (!overlay || overlay.classList.contains('is-hidden')) return;
+        const hintEl = overlay.querySelector('.webapp-boot-hint');
+        const actionsEl = overlay.querySelector('.webapp-boot-actions');
+        if (hintEl && !hintEl.textContent) {
+          hintEl.textContent = this.t('webapp.loading_slow');
+          hintEl.style.display = 'block';
+        }
+        if (actionsEl) actionsEl.style.display = 'flex';
+      }, 7000);
+
+      // Bind overlay recovery buttons
+      if (overlay) {
+        overlay.querySelectorAll('[data-webapp-action]').forEach((btn) => {
+          btn.onclick = () => {
+            const act = btn.dataset.webappAction;
+            if (act === 'retry') this.reload();
+            else if (act === 'new-tab') window.open(this.getEffectiveSrc(), '_blank', 'noopener,noreferrer');
+            else if (act && act.startsWith('renderer:')) this.setRendererFlag(act.slice(9));
+          };
+        });
+      }
+
+      const attachIframeWindowHooks = () => {
+        try {
+          const cw = iframe.contentWindow;
+          if (!cw || cw.__sgBootHooked) return;
+          cw.__sgBootHooked = true;
+
+          cw.addEventListener('TrunkApplicationStarted', () => {
+            this.hideBootOverlay();
+          });
+
+          cw.addEventListener('error', (evt) => {
+            const msg = (evt && (evt.message || (evt.error && evt.error.message))) || 'Runtime error';
+            this.showBootOverlay(String(msg));
+          });
+
+          cw.addEventListener('unhandledrejection', (evt) => {
+            const reason = evt && evt.reason;
+            const msg = (reason && reason.message) ? reason.message : String(reason || 'Unhandled promise rejection');
+            if (/webgpu|webgl|wasm|fetch|network|memory|abort|failed/i.test(msg)) {
+              this.showBootOverlay(msg);
+            }
+          });
+        } catch (e) {}
+      };
+
+      if (this._onIframeLoad) {
+        iframe.removeEventListener('load', this._onIframeLoad);
+      }
+      this._onIframeLoad = () => {
+        this.iframeLoaded = true;
+        attachIframeWindowHooks();
+
+        if (!isWasm) {
+          this.hideBootOverlay();
+        } else {
+          // For WASM apps (especially those without their own loading screen like PdfCraft),
+          // poll until TrunkApplicationStarted or canvas backing store initializes
+          let checks = 0;
+          this._bootPollTimer = setInterval(() => {
+            checks++;
+            attachIframeWindowHooks();
+            try {
+              const doc = iframe.contentDocument;
+              if (doc) {
+                const ownLoader = doc.querySelector('[id$="_loading"]');
+                if (ownLoader && ownLoader.offsetParent !== null) {
+                  // App has its own visible loading UI — let it take over immediately
+                  this.hideBootOverlay();
+                  return;
+                }
+                const canvas = doc.querySelector('canvas');
+                if (canvas && canvas.width > 300 && canvas.height > 150) {
+                  this.hideBootOverlay();
+                  return;
+                }
+              }
+            } catch (e) {
+              this.hideBootOverlay();
+              return;
+            }
+            if (checks >= 60) {
+              this.hideBootOverlay();
+            }
+          }, 300);
+        }
+
+        if (this.activeFile && !filePassedViaQuery) {
+          this.injectFileIntoIframe(this.activeFile);
+        }
+      };
+      iframe.addEventListener('load', this._onIframeLoad);
     }
 
     buildMenuBarDefinition() {
@@ -243,17 +417,34 @@
 
       this.iframeLoaded = false;
 
+      const filePassedViaQuery = !!(file && this.manifest && this.manifest.openFileParam);
+      const effectiveSrc = this.getEffectiveSrc(filePassedViaQuery ? file : null);
+      const flags = Array.isArray(this.manifest.rendererFlags) ? this.manifest.rendererFlags : [];
+      const rendererBtnsHtml = flags.map(f =>
+        `<button type="button" class="webapp-boot-btn" data-webapp-action="renderer:${this.escapeHtml(f.flag)}">🎨 ${this.escapeHtml(f.label || f.flag)}</button>`
+      ).join('');
+
       const contentHtml = `
-        <div class="webapp-iframe-host" data-webapp-id="${this.escapeHtml(this.id)}" style="position:relative;width:100%;height:100%;overflow:hidden;background:#1e1e1e;">
+        <div class="webapp-iframe-host" data-webapp-id="${this.escapeHtml(this.id)}">
+          <div id="webappBootOverlay-${this.escapeHtml(this.id)}" class="webapp-boot-overlay">
+            <div class="webapp-boot-icon">${this.getAppIconHtml()}</div>
+            <div class="webapp-boot-spinner"></div>
+            <div class="webapp-boot-title">${this.escapeHtml(this.t('webapp.loading', { app: appTitle }))}</div>
+            <div class="webapp-boot-hint" style="display:none;"></div>
+            <div class="webapp-boot-actions" style="display:none;">
+              <button type="button" class="webapp-boot-btn" data-webapp-action="retry">${this.escapeHtml(this.t('webapp.retry'))}</button>
+              ${rendererBtnsHtml}
+              <button type="button" class="webapp-boot-btn" data-webapp-action="new-tab">${this.escapeHtml(this.t('webapp.open_new_tab'))}</button>
+            </div>
+          </div>
           <iframe
             id="webappIframe-${this.escapeHtml(this.id)}"
             class="webapp-iframe"
-            src="${this.escapeHtml(this.getEffectiveSrc())}"
+            src="${this.escapeHtml(effectiveSrc)}"
             title="${this.escapeHtml(appTitle)}"
             sandbox="allow-scripts allow-same-origin allow-downloads allow-popups allow-forms allow-modals"
             allow="fullscreen; clipboard-read; clipboard-write"
             allowfullscreen
-            style="width:100%;height:100%;border:0;display:block;"
           ></iframe>
         </div>
       `;
@@ -275,6 +466,8 @@
           }
         },
         onClose: () => {
+          if (this._slowTimer) clearTimeout(this._slowTimer);
+          if (this._bootPollTimer) clearInterval(this._bootPollTimer);
           this.iframeLoaded = false;
           this.win = null;
         }
@@ -284,12 +477,7 @@
 
       const iframe = this.getIframeElement();
       if (iframe) {
-        iframe.addEventListener('load', () => {
-          this.iframeLoaded = true;
-          if (this.activeFile) {
-            this.injectFileIntoIframe(this.activeFile);
-          }
-        });
+        this.bindBootLifecycle(iframe, filePassedViaQuery);
       }
 
       return this.win;
@@ -299,7 +487,10 @@
       const iframe = this.getIframeElement();
       if (!iframe) return;
       this.iframeLoaded = false;
-      iframe.src = this.getEffectiveSrc();
+      this.showBootOverlay('');
+      const filePassedViaQuery = !!(this.activeFile && this.manifest && this.manifest.openFileParam);
+      iframe.src = this.getEffectiveSrc(filePassedViaQuery ? this.activeFile : null);
+      this.bindBootLifecycle(iframe, filePassedViaQuery);
     }
 
     setRendererFlag(flag) {

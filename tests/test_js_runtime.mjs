@@ -746,6 +746,10 @@ try {
   assert("La fenêtre créée embarque l'iframe avec sandbox allow-downloads et titre du fichier", createdWindows[0].title.includes('design.psd') && createdWindows[0].content.includes('apps/mock-studio-web-1.0.0/index.html') && createdWindows[0].content.includes('allow-downloads'));
   assert("AppManager.getAppIcon('mock-studio') rend l'image d'icône avec repli emoji hors-ligne", sandboxWin.AppManager.getAppIcon('mock-studio').includes('<img src="https://raw.githubusercontent.com/example/mock-studio/main/icon.png"') && sandboxWin.AppManager.getAppIcon('mock-studio').includes('🎨'));
   assert("La fenêtre créée utilise l'icône image de l'application tierce", createdWindows[0].icon.includes('webos-app-icon-img'));
+  assert("La fenêtre créée inclut l'overlay de démarrage WebOS (.webapp-boot-overlay)", createdWindows[0].content.includes('webapp-boot-overlay'));
+  hostInst.manifest.openFileParam = 'file';
+  const querySrc = hostInst.getEffectiveSrc({ name: 'doc.pdf', path: 'docs/doc.pdf', file_url: 'system/endpoints/thumb.php?file=docs%2Fdoc.pdf&raw=1' });
+  assert("WebAppHost.getEffectiveSrc injecte ?file=... quand openFileParam est déclaré", querySrc.includes('?file=') && querySrc.includes('doc.pdf'));
   assert("IconHelper.isSafeIconUrl rejette javascript: et traversal ..", !sandboxWin.IconHelper.isSafeIconUrl('javascript:alert(1)') && !sandboxWin.IconHelper.isSafeIconUrl('apps/../etc/passwd.png'));
 } catch (e) {
   assert("WebAppHost exécution runtime", false, e.stack);

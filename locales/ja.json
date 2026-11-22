@@ -742,6 +742,10 @@
     "webapp.opening_file": "{app} で {name} を開いています…",
     "webapp.file_sent": "{name} を {app} に送信しました",
     "webapp.file_send_error": "{name} を {app} に送信できませんでした",
+    "webapp.loading": "{app} を読み込み中…",
+    "webapp.loading_slow": "WebAssembly モジュールの読み込みまたは初期化に時間がかかっています。",
+    "webapp.load_error": "{app} の起動エラー",
+    "webapp.retry": "🔄 再試行",
     "meta.dimensions": "解像度",
     "meta.exif_title": "EXIF / カメラ"
   }

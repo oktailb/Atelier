@@ -218,12 +218,14 @@ class StandaloneWebAppManifestSynthesizer {
             $description = "Application Web autonome ({$name})";
         }
 
-        // 4. Detect WebAssembly / Canvas runtime traits & renderer flags
+        // 4. Detect WebAssembly / Canvas runtime traits, renderer flags & startup file query param
         $is_wasm = self::detectWasmPresence($app_path, $html_content);
-        $renderer_flags = self::extractRendererFlags($hosting_content . "\n" . $readme_content);
+        $combined_docs = $hosting_content . "\n" . $readme_content;
+        $renderer_flags = self::extractRendererFlags($combined_docs);
+        $open_file_param = self::extractOpenFileParam($combined_docs);
 
-        // 5. Extract File Associations (W3C file_handlers -> HTML accept -> README Formats)
-        $extracted_formats = self::extractFileAssociations($w3c, $html_content, $readme_content);
+        // 5. Extract File Associations (W3C file_handlers -> HTML accept -> README Formats -> Name/Desc/Hosting fallback)
+        $extracted_formats = self::extractFileAssociations($w3c, $html_content, $readme_content, $name, $description, $hosting_content);
         $extensions = $extracted_formats['extensions'];
         $mime_types = $extracted_formats['mimeTypes'];
 
@@ -263,6 +265,7 @@ class StandaloneWebAppManifestSynthesizer {
             'mimeTypes'     => $mime_types,
             'capabilities'  => $capabilities,
             'rendererFlags' => $renderer_flags,
+            'openFileParam' => $open_file_param,
             'window'        => [
                 'width'       => 1180,
                 'height'      => 760,
@@ -357,7 +360,30 @@ class StandaloneWebAppManifestSynthesizer {
         return $found;
     }
 
-    private static function extractFileAssociations(array $w3c, string $html_content, string $readme_content): array {
+    /**
+     * Detects whether documentation declares a startup URL query parameter for opening a file (e.g. `?file=<url>`).
+     */
+    private static function extractOpenFileParam(string $docs): ?string {
+        if ($docs === '') {
+            return null;
+        }
+        if (preg_match('/`\?file=/i', $docs) || preg_match('/\?file=<[^>]+>/i', $docs)) {
+            return 'file';
+        }
+        if (preg_match('/`\?url=/i', $docs) && stripos($docs, 'open') !== false) {
+            return 'url';
+        }
+        return null;
+    }
+
+    private static function extractFileAssociations(
+        array $w3c,
+        string $html_content,
+        string $readme_content,
+        string $name = '',
+        string $description = '',
+        string $hosting_content = ''
+    ): array {
         $ext_set = [];
         $mime_set = [];
 
@@ -434,6 +460,31 @@ class StandaloneWebAppManifestSynthesizer {
                                 $ext_set[$w] = true;
                                 $mime_set[self::KNOWN_FORMAT_MIMES[$w]] = true;
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Layer 4: Primary format inference from title / description / HOSTING.md when no explicit Formats list exists
+        if (empty($ext_set)) {
+            $summary = strtolower($name . ' ' . $description . ' ' . substr($hosting_content, 0, 1200));
+            $primary_rules = [
+                '/\bpdf\b/i'                            => ['pdf'],
+                '/\b(svg|vector\s+illustration)\b/i'    => ['svg'],
+                '/\bmarkdown\b/i'                       => ['md'],
+                '/\b(spreadsheet|csv|tableur)\b/i'      => ['csv', 'ods', 'xlsx'],
+                '/\b(word\s+processing|word\s+processor)\b/i' => ['docx', 'odt', 'rtf'],
+                '/\b(video\s+edit|film\s+edit)\b/i'     => ['mp4', 'webm', 'mov', 'mkv'],
+                '/\b(audio\s+edit|audio\s+record|daw)\b/i' => ['mp3', 'wav', 'ogg', 'flac'],
+                '/\b(3d\s+cad|parametric\s+3d|stl)\b/i' => ['obj', 'stl', 'gltf', 'glb', 'dxf']
+            ];
+            foreach ($primary_rules as $pattern => $exts) {
+                if (preg_match($pattern, $summary)) {
+                    foreach ($exts as $e) {
+                        $ext_set[$e] = true;
+                        if (isset(self::KNOWN_FORMAT_MIMES[$e])) {
+                            $mime_set[self::KNOWN_FORMAT_MIMES[$e]] = true;
                         }
                     }
                 }

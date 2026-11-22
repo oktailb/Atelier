@@ -1078,6 +1078,17 @@ class GeneralUnitTestSuite {
         $tmp_trans = \SimpleGallery\Kernel\PluginDiscovery::getAppTranslations($tmp_root, 'fr', true);
         $this->assert("getAppTranslations expose le titre synthétique apps.pixelcraft.title", ($tmp_trans['apps.pixelcraft.title'] ?? '') === 'PixelCraft');
 
+        // Test Layer 4 primary format inference + ?file= openFileParam (e.g. PDF workbench without Formats heading)
+        $tmp_app3 = $tmp_root . '/apps/docbench-web-0.5.0';
+        @mkdir($tmp_app3, 0755, true);
+        file_put_contents($tmp_app3 . '/index.html', '<!DOCTYPE html><html><head><title>DocBench</title></head><body><canvas id="c"></canvas></body></html>');
+        file_put_contents($tmp_app3 . '/README.md', "<h1>DocBench</h1><p><b>Modern PDF reader and editor built in Rust.</b></p>");
+        file_put_contents($tmp_app3 . '/HOSTING.md', "Add `?file=<url>` to open a PDF on startup.");
+        $tmp_discovered_3 = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($tmp_root, true);
+        $db = $tmp_discovered_3['docbench'] ?? [];
+        $this->assert("Inférence Layer 4 associe .pdf sans section Formats explicite", in_array('pdf', $db['manifest']['extensions'] ?? [], true));
+        $this->assert("Détection du paramètre de démarrage openFileParam='file' depuis HOSTING.md", ($db['manifest']['openFileParam'] ?? null) === 'file');
+
         // Verify optional admin override via config/external_apps.json
         file_put_contents($tmp_root . '/config/external_apps.json', json_encode([
             'pixelcraft' => ['icon' => '🖌️', 'category' => 'productivity']
@@ -1102,6 +1113,10 @@ class GeneralUnitTestSuite {
         @unlink($tmp_app2 . '/favicon.svg');
         @unlink($tmp_app2 . '/site.webmanifest');
         @rmdir($tmp_app2);
+        @unlink($tmp_app3 . '/index.html');
+        @unlink($tmp_app3 . '/README.md');
+        @unlink($tmp_app3 . '/HOSTING.md');
+        @rmdir($tmp_app3);
         @rmdir($tmp_root . '/apps/games');
         @rmdir($tmp_root . '/apps');
         @rmdir($tmp_root . '/config');

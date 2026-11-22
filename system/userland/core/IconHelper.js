@@ -107,7 +107,8 @@
       if (iconUrl) {
         const safeUrl = this.escapeAttr(iconUrl);
         const safeFallback = this.escapeAttr(emoji);
-        return `<img src="${safeUrl}" class="webos-app-icon-img" alt="" draggable="false" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='inline';"><span class="webos-app-icon-fallback" style="display:none;">${safeFallback}</span>`;
+        const refAttr = /^https:\/\//i.test(iconUrl) ? ' referrerpolicy="no-referrer"' : '';
+        return `<img src="${safeUrl}" class="webos-app-icon-img" alt="" draggable="false"${refAttr} onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='inline';"><span class="webos-app-icon-fallback" style="display:none;">${safeFallback}</span>`;
       }
 
       return emoji;

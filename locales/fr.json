@@ -742,6 +742,10 @@
     "webapp.opening_file": "Ouverture de {name} dans {app}…",
     "webapp.file_sent": "Fichier {name} transmis à {app}",
     "webapp.file_send_error": "Impossible de transmettre {name} à {app}",
+    "webapp.loading": "Chargement de {app}…",
+    "webapp.loading_slow": "Le module WebAssembly est volumineux ou met du temps à démarrer.",
+    "webapp.load_error": "Erreur au démarrage de {app}",
+    "webapp.retry": "🔄 Réessayer",
     "meta.dimensions": "Dimensions",
     "meta.exif_title": "EXIF / Appareil"
   }

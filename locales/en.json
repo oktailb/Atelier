@@ -742,6 +742,10 @@
     "webapp.opening_file": "Opening {name} in {app}…",
     "webapp.file_sent": "File {name} sent to {app}",
     "webapp.file_send_error": "Unable to send {name} to {app}",
+    "webapp.loading": "Loading {app}…",
+    "webapp.loading_slow": "The WebAssembly module is large or taking longer than usual to start.",
+    "webapp.load_error": "Failed to start {app}",
+    "webapp.retry": "🔄 Retry",
     "meta.dimensions": "Dimensions",
     "meta.exif_title": "EXIF / Camera"
   }
