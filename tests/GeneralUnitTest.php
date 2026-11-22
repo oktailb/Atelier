@@ -1082,6 +1082,11 @@ class GeneralUnitTestSuite {
         $tmp_overridden = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($tmp_root, true);
         $this->assert("config/external_apps.json permet de surcharger icône et catégorie sans modifier l'app tierce", ($tmp_overridden['pixelcraft']['icon'] ?? '') === '🖌️' && ($tmp_overridden['pixelcraft']['category'] ?? '') === 'productivity');
 
+        // Verify .htaccess supports WASM MIME type & split-bundle snippets fallback
+        $root_htaccess = @file_get_contents($this->base_dir . '/.htaccess') ?: '';
+        $this->assert(".htaccess déclare le type MIME application/wasm", strpos($root_htaccess, 'AddType application/wasm .wasm') !== false);
+        $this->assert(".htaccess route le fallback app/snippets/* vers snippets/* pour les apps WASM/Trunk", strpos($root_htaccess, '/app/(snippets/.+)$') !== false);
+
         // Cleanup temporary fixture tree
         @unlink($tmp_root . '/config/external_apps.json');
         @unlink($tmp_app1 . '/index.html');

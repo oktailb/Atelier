@@ -3,12 +3,21 @@
 # Disable Directory Browsing
 Options -Indexes
 
+# Serve WebAssembly modules with the required MIME type for standalone WASM apps
+<IfModule mod_mime.c>
+    AddType application/wasm .wasm
+</IfModule>
+
 # Transparently route legacy root endpoints to system/endpoints/ without leaving stub files at root
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteRule ^api\.php$ system/endpoints/api.php [L,QSA]
     RewriteRule ^thumb\.php$ system/endpoints/thumb.php [L,QSA]
     RewriteRule ^archive\.php$ system/endpoints/archive.php [L,QSA]
+
+    # Fallback for split-bundle WASM/Trunk standalone web apps whose app/*.js imports ./snippets/* located at package root
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^(apps/(?:[^/]+/)?[^/]+)/app/(snippets/.+)$ $1/$2 [L]
 </IfModule>
 
 # Protect Sensitive Dotfiles (.password, .private, .desc, .comment, .title, .theme, .bg, .git, etc.)
