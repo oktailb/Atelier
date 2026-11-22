@@ -739,8 +739,10 @@
             iconContent = shortcut.icon || fallbackIcon;
           }
         } else {
-          // App
-          iconContent = shortcut.icon || (appMgr && appMgr.getAppIcon ? appMgr.getAppIcon(shortcut.appId) : '🗔');
+          // App: always prefer live AppManager icon (supports image icons & offline fallbacks)
+          iconContent = (appMgr && typeof appMgr.getAppIcon === 'function' && shortcut.appId)
+            ? appMgr.getAppIcon(shortcut.appId)
+            : (shortcut.icon || '🗔');
         }
 
         return `

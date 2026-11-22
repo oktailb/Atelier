@@ -63,7 +63,7 @@
       const s = val.trim();
       if (!s || /[\x00-\x1f"'<>]/.test(s)) return false;
       if (/^https:\/\//i.test(s)) return true;
-      if (/^data:image\/(png|svg\+xml|webp|jpeg|gif|x-icon);/i.test(s)) return true;
+      if (/^data:image\/(png|svg\+xml|webp|jpeg|gif|x-icon)(;|,)/i.test(s)) return true;
       if (/^(apps|themes|assets|storage)\/[a-zA-Z0-9_./-]+\.(png|svg|webp|ico|jpg|jpeg|gif)$/i.test(s) && !s.includes('..')) {
         return true;
       }
@@ -107,7 +107,7 @@
       if (iconUrl) {
         const safeUrl = this.escapeAttr(iconUrl);
         const safeFallback = this.escapeAttr(emoji);
-        return `<img src="${safeUrl}" class="webos-app-icon-img" alt="" loading="lazy" draggable="false" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='inline';"><span class="webos-app-icon-fallback" style="display:none;">${safeFallback}</span>`;
+        return `<img src="${safeUrl}" class="webos-app-icon-img" alt="" draggable="false" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='inline';"><span class="webos-app-icon-fallback" style="display:none;">${safeFallback}</span>`;
       }
 
       return emoji;

@@ -66,10 +66,10 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
   <script src="system/userland/core/IconHelper.js?v=<?php echo filemtime(__DIR__ . '/system/userland/core/IconHelper.js'); ?>" defer></script>
   <script src="system/userland/core/EventBus.js" defer></script>
   <script src="system/userland/core/SyscallClient.js" defer></script>
-  <script src="system/userland/core/MenuBarManager.js" defer></script>
-  <script src="system/userland/core/WindowManager.js" defer></script>
+  <script src="system/userland/core/MenuBarManager.js?v=<?php echo filemtime(__DIR__ . '/system/userland/core/MenuBarManager.js'); ?>" defer></script>
+  <script src="system/userland/core/WindowManager.js?v=<?php echo filemtime(__DIR__ . '/system/userland/core/WindowManager.js'); ?>" defer></script>
   <script src="system/userland/core/GalleryViewRegistry.js" defer></script>
-  <script src="system/userland/core/MediaViewerRegistry.js" defer></script>
+  <script src="system/userland/core/MediaViewerRegistry.js?v=<?php echo filemtime(__DIR__ . '/system/userland/core/MediaViewerRegistry.js'); ?>" defer></script>
   <script src="system/userland/core/AppManager.js?v=<?php echo filemtime(__DIR__ . '/system/userland/core/AppManager.js'); ?>" defer></script>
   <script src="system/userland/i18n/I18nEngine.js" defer></script>
   <script src="system/userland/theme/ThemeEngine.js" defer></script>
@@ -81,7 +81,7 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
   <script src="system/userland/services/TaskbarService.js?v=<?php echo filemtime(__DIR__ . '/system/userland/services/TaskbarService.js'); ?>" defer></script>
   <script src="system/userland/desktop/WallpaperManager.js?v=<?php echo filemtime(__DIR__ . '/system/userland/desktop/WallpaperManager.js'); ?>" defer></script>
   <script src="system/userland/desktop/TaskbarClock.js" defer></script>
-  <script src="system/userland/desktop/DesktopShortcuts.js" defer></script>
+  <script src="system/userland/desktop/DesktopShortcuts.js?v=<?php echo filemtime(__DIR__ . '/system/userland/desktop/DesktopShortcuts.js'); ?>" defer></script>
   <script src="system/userland/core/WebOSApp.js" defer></script>
   <script src="system/userland/core/WebAppHost.js?v=<?php echo filemtime(__DIR__ . '/system/userland/core/WebAppHost.js'); ?>" defer></script>
 

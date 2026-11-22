@@ -164,6 +164,7 @@
       ];
 
       return [
+        { id: 'app-badge', badge: true, iconHtml: this.getAppIconHtml(), label: this.getAppTitle() },
         { id: 'file', label: this.t('webapp.menu_file'), items: fileItems },
         { id: 'view', label: this.t('webapp.menu_view'), items: viewItems },
         { id: 'window', label: this.t('webapp.menu_window'), items: windowItems }

@@ -544,7 +544,7 @@ class StandaloneWebAppManifestSynthesizer {
                 }
                 if (preg_match('/\bhref\s*=\s*["\']([^"\']+)["\']/i', $tag, $hm)) {
                     $href = trim(html_entity_decode($hm[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-                    if (preg_match('#^data:image/(png|svg\+xml|webp|jpeg|gif|x-icon);#i', $href)) {
+                    if (preg_match('#^data:image/(png|svg\+xml|webp|jpeg|gif|x-icon)(;|,)#i', $href)) {
                         return $href;
                     }
                     $local = $resolve_local($href);
@@ -582,38 +582,57 @@ class StandaloneWebAppManifestSynthesizer {
             }
         }
 
-        // Stage 3: Conventional local icon files
-        $conventional = [
+        // Stage 3: Conventional local icon files across common static web directories
+        $conventional_dirs = ['', 'assets/', 'icons/', 'img/', 'images/', 'static/', 'public/'];
+        $conventional_names = [
             'icon.svg', 'icon.png', 'icon.webp',
             'app-icon.svg', 'app-icon.png',
             'logo.svg', 'logo.png',
             'apple-touch-icon.png',
-            'favicon.svg', 'favicon.png', 'favicon.ico',
-            'assets/icon.svg', 'assets/icon.png', 'assets/logo.svg', 'assets/logo.png'
+            'favicon.svg', 'favicon.png', 'favicon.ico'
         ];
-        foreach ($conventional as $cand) {
-            $local = $resolve_local($cand);
-            if ($local !== null) {
-                return $local;
+        foreach ($conventional_dirs as $dir_prefix) {
+            foreach ($conventional_names as $fname) {
+                $local = $resolve_local($dir_prefix . $fname);
+                if ($local !== null) {
+                    return $local;
+                }
             }
         }
 
-        // Stage 4: README.md icon image (local file, direct https:// icon URL, or GitHub raw fallback)
-        if ($readme_content !== '' && preg_match_all('/<img\b[^>]*>/i', $readme_content, $img_tags)) {
+        // Stage 4: README.md icon image (HTML <img> and Markdown ![alt](src): local, direct https://, or GitHub raw fallback)
+        if ($readme_content !== '') {
             $slug_lower = strtolower($app_id);
             $name_lower = strtolower($name);
             $direct_https_candidate = null;
             $relative_icon_candidate = null;
 
-            foreach ($img_tags[0] as $tag) {
-                if (!preg_match('/\bsrc\s*=\s*["\']([^"\']+)["\']/i', $tag, $sm)) {
-                    continue;
+            $image_refs = [];
+            if (preg_match_all('/<img\b[^>]*>/i', $readme_content, $img_tags)) {
+                foreach ($img_tags[0] as $tag) {
+                    if (!preg_match('/\bsrc\s*=\s*["\']([^"\']+)["\']/i', $tag, $sm)) continue;
+                    $alt = '';
+                    if (preg_match('/\balt\s*=\s*["\']([^"\']*)["\']/i', $tag, $am)) {
+                        $alt = strtolower(trim(html_entity_decode($am[1], ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+                    }
+                    $image_refs[] = [
+                        'src' => trim(html_entity_decode($sm[1], ENT_QUOTES | ENT_HTML5, 'UTF-8')),
+                        'alt' => $alt
+                    ];
                 }
-                $src = trim(html_entity_decode($sm[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-                $alt = '';
-                if (preg_match('/\balt\s*=\s*["\']([^"\']*)["\']/i', $tag, $am)) {
-                    $alt = strtolower(trim(html_entity_decode($am[1], ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+            }
+            if (preg_match_all('/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/', $readme_content, $md_imgs, PREG_SET_ORDER)) {
+                foreach ($md_imgs as $m) {
+                    $image_refs[] = [
+                        'src' => trim($m[2]),
+                        'alt' => strtolower(trim($m[1]))
+                    ];
                 }
+            }
+
+            foreach ($image_refs as $ref) {
+                $src = $ref['src'];
+                $alt = $ref['alt'];
 
                 $src_lower = strtolower($src);
                 // Ignore status badges / shields
@@ -629,7 +648,8 @@ class StandaloneWebAppManifestSynthesizer {
                 $looks_like_app_icon = (
                     strpos($src_lower, 'icon') !== false ||
                     strpos($alt, 'icon') !== false ||
-                    strpos($src_lower, 'logo') !== false
+                    strpos($src_lower, 'logo') !== false ||
+                    strpos($alt, 'logo') !== false
                 );
                 $matches_app = (
                     ($slug_lower !== '' && strpos($src_lower, $slug_lower) !== false) ||

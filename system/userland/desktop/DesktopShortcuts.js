@@ -72,7 +72,9 @@
             iconContent = shortcut.icon || fallbackIcon;
           }
         } else {
-          iconContent = shortcut.icon || (appMgr && appMgr.getAppIcon ? appMgr.getAppIcon(shortcut.appId) : '🗔');
+          iconContent = (appMgr && typeof appMgr.getAppIcon === 'function' && shortcut.appId)
+            ? appMgr.getAppIcon(shortcut.appId)
+            : (shortcut.icon || '🗔');
         }
 
         return `

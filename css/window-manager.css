@@ -125,6 +125,24 @@
   user-select: none;
 }
 
+.app-launcher-icon .webos-app-icon-img {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  vertical-align: middle;
+}
+
+.window-icon .webos-app-icon-img,
+.taskbar-icon .webos-app-icon-img,
+.app-menu-pill .webos-app-icon-img,
+.explorer-open-with-item .webos-app-icon-img,
+.inspector-open-with-btn .webos-app-icon-img {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
 .desktop-shortcut-icon .webos-app-icon-img {
   width: 44px;
   height: 44px;

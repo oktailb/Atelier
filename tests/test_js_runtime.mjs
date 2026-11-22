@@ -720,9 +720,10 @@ try {
 
   const hostInst = sandboxWin.WebAppHost.get('mock-studio');
   assert("WebAppHost monte automatiquement l'app autonome mock-studio", !!hostInst);
-  assert("WebAppHost enregistre les menus contextuels dans MenuBarManager", Array.isArray(registeredMenus.get('mock-studio')) && registeredMenus.get('mock-studio').length === 3);
+  const studioMenu = registeredMenus.get('mock-studio') || [];
+  assert("WebAppHost enregistre le badge icône + les 3 menus contextuels dans MenuBarManager", Array.isArray(studioMenu) && studioMenu.length === 4 && studioMenu[0].badge === true && studioMenu[0].iconHtml.includes('webos-app-icon-img'));
 
-  const viewMenu = registeredMenus.get('mock-studio').find(m => m.id === 'view');
+  const viewMenu = studioMenu.find(m => m.id === 'view');
   assert("WebAppHost ajoute les sélecteurs de moteur de rendu (?webgl/?cpu) dans le menu Affichage", !!viewMenu && viewMenu.items.some(i => i.id === 'renderer-webgl'));
 
   // File association priorities

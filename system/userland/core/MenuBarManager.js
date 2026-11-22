@@ -120,6 +120,21 @@
         nav.style.cssText = 'display:flex; align-items:center; gap:4px; height:100%;';
 
         menuDef.forEach((menu) => {
+          if (menu && menu.badge) {
+            const badge = document.createElement('span');
+            badge.className = 'app-menu-pill active';
+            badge.style.cssText = 'display:inline-flex; align-items:center; gap:6px; font-weight:600; margin-right:6px;';
+            const iconWrap = document.createElement('span');
+            iconWrap.className = 'webos-menubar-app-icon';
+            iconWrap.innerHTML = menu.iconHtml || '';
+            const labelSpan = document.createElement('span');
+            labelSpan.textContent = menu.label || '';
+            badge.appendChild(iconWrap);
+            badge.appendChild(labelSpan);
+            nav.appendChild(badge);
+            return;
+          }
+
           const menuWrapper = document.createElement('div');
           menuWrapper.className = 'webos-menu-item-wrapper';
           menuWrapper.style.cssText = 'position:relative;';
