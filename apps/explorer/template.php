@@ -186,6 +186,11 @@
               </button>
             </div>
 
+            <div class="inspector-open-with-section" style="display: none;">
+              <div class="inspector-open-with-title" data-i18n="explorer.open_with"><?php echo htmlspecialchars(__t('explorer.open_with'), ENT_QUOTES, 'UTF-8'); ?></div>
+              <div class="inspector-open-with-list"></div>
+            </div>
+
             <dl class="inspector-meta-list">
               <dt data-i18n="meta.filename">Nom</dt>
               <dd class="inspector-meta-name"></dd>

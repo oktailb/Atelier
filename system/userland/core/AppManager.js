@@ -8,6 +8,8 @@ class AppManager {
         this.activeApp = null;
         this.mimeMap = new Map();
         this.extMap = new Map();
+        this.extAppsMap = new Map();
+        this.mimeAppsMap = new Map();
 
         this.initDefaultApps();
     }
@@ -63,23 +65,52 @@ class AppManager {
         }
 
         const existing = this.apps.get(manifest.id);
+        const mergedManifest = { ...(existing ? existing.manifest : {}), ...manifest };
         this.apps.set(manifest.id, {
-            manifest: { ...(existing ? existing.manifest : {}), ...manifest },
+            manifest: mergedManifest,
             instance: appInstance || (existing ? existing.instance : null),
             running: false
         });
 
-        // Register extension associations
-        if (Array.isArray(manifest.extensions)) {
-            manifest.extensions.forEach(ext => {
-                this.extMap.set(ext.toLowerCase(), manifest.id);
+        const isStandaloneWeb = (mergedManifest.runtime === 'iframe' || mergedManifest.distribution === 'standalone-web');
+
+        // Register extension associations (preserving built-in primary defaults over standalone web apps)
+        if (Array.isArray(mergedManifest.extensions)) {
+            mergedManifest.extensions.forEach(rawExt => {
+                const ext = String(rawExt).toLowerCase().replace(/^\./, '');
+                if (!ext) return;
+                if (!this.extAppsMap.has(ext)) {
+                    this.extAppsMap.set(ext, new Set());
+                }
+                this.extAppsMap.get(ext).add(manifest.id);
+
+                const currentPrimaryId = this.extMap.get(ext);
+                const currentPrimary = currentPrimaryId ? this.apps.get(currentPrimaryId) : null;
+                const currentPrimaryIsStandalone = !!(currentPrimary && currentPrimary.manifest && (currentPrimary.manifest.runtime === 'iframe' || currentPrimary.manifest.distribution === 'standalone-web'));
+
+                if (!currentPrimaryId || (!isStandaloneWeb && currentPrimaryIsStandalone)) {
+                    this.extMap.set(ext, manifest.id);
+                }
             });
         }
 
         // Register mime type associations
-        if (Array.isArray(manifest.mimeTypes)) {
-            manifest.mimeTypes.forEach(mime => {
-                this.mimeMap.set(mime.toLowerCase(), manifest.id);
+        if (Array.isArray(mergedManifest.mimeTypes)) {
+            mergedManifest.mimeTypes.forEach(rawMime => {
+                const mime = String(rawMime).toLowerCase();
+                if (!mime) return;
+                if (!this.mimeAppsMap.has(mime)) {
+                    this.mimeAppsMap.set(mime, new Set());
+                }
+                this.mimeAppsMap.get(mime).add(manifest.id);
+
+                const currentPrimaryId = this.mimeMap.get(mime);
+                const currentPrimary = currentPrimaryId ? this.apps.get(currentPrimaryId) : null;
+                const currentPrimaryIsStandalone = !!(currentPrimary && currentPrimary.manifest && (currentPrimary.manifest.runtime === 'iframe' || currentPrimary.manifest.distribution === 'standalone-web'));
+
+                if (!currentPrimaryId || (!isStandaloneWeb && currentPrimaryIsStandalone)) {
+                    this.mimeMap.set(mime, manifest.id);
+                }
             });
         }
     }
@@ -103,9 +134,13 @@ class AppManager {
 
     getAppForFile(file) {
         if (!file) return null;
-        const ext = (file.extension || '').toLowerCase();
-        if (this.extMap.has(ext)) {
-            return this.apps.get(this.extMap.get(ext));
+        if (this.apps.size === 0) this.initDefaultApps();
+        const ext = (file.extension || (file.name && file.name.includes('.') ? file.name.split('.').pop() : '') || '').toLowerCase();
+        if (ext && this.extMap.has(ext)) {
+            const mappedId = this.extMap.get(ext);
+            if (this.isAppEnabled(mappedId)) {
+                return this.apps.get(mappedId);
+            }
         }
         const cat = (file.category || '').toLowerCase();
         if (cat === 'image') return this.apps.get('image-viewer');
@@ -115,6 +150,69 @@ class AppManager {
         if (cat === 'archive') return this.apps.get('archive-manager');
         if (cat === 'videowall') return this.apps.get('video-player');
         return null;
+    }
+
+    /**
+     * Returns all enabled applications able to open a given file (primary default first).
+     */
+    getAppsForFile(file) {
+        if (!file) return [];
+        if (this.apps.size === 0) this.initDefaultApps();
+
+        const ext = (file.extension || (file.name && file.name.includes('.') ? file.name.split('.').pop() : '') || '').toLowerCase();
+        const mime = (file.mime || '').toLowerCase();
+        const defaultEntry = this.getAppForFile(file);
+        const defaultId = defaultEntry && defaultEntry.manifest ? defaultEntry.manifest.id : null;
+
+        const candidateIds = new Set();
+        if (defaultId && this.isAppEnabled(defaultId)) {
+            candidateIds.add(defaultId);
+        }
+
+        if (ext && this.extAppsMap.has(ext)) {
+            this.extAppsMap.get(ext).forEach(id => {
+                if (this.isAppEnabled(id)) candidateIds.add(id);
+            });
+        }
+
+        if (mime) {
+            if (this.mimeAppsMap.has(mime)) {
+                this.mimeAppsMap.get(mime).forEach(id => {
+                    if (this.isAppEnabled(id)) candidateIds.add(id);
+                });
+            }
+            const wildcard = mime.includes('/') ? `${mime.split('/')[0]}/*` : '';
+            if (wildcard && this.mimeAppsMap.has(wildcard)) {
+                this.mimeAppsMap.get(wildcard).forEach(id => {
+                    if (this.isAppEnabled(id)) candidateIds.add(id);
+                });
+            }
+        }
+
+        const results = [];
+        candidateIds.forEach(id => {
+            const entry = this.apps.get(id);
+            if (!entry) return;
+            results.push({
+                id,
+                name: this.getAppTitle(id),
+                icon: (entry.manifest && entry.manifest.icon) || '🗔',
+                category: (entry.manifest && entry.manifest.category) || '',
+                description: this.getAppDescription(id),
+                isDefault: id === defaultId,
+                manifest: entry.manifest
+            });
+        });
+
+        results.sort((a, b) => {
+            if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1;
+            const aStand = !!(a.manifest && (a.manifest.runtime === 'iframe' || a.manifest.distribution === 'standalone-web'));
+            const bStand = !!(b.manifest && (b.manifest.runtime === 'iframe' || b.manifest.distribution === 'standalone-web'));
+            if (aStand !== bStand) return aStand ? 1 : -1;
+            return a.name.localeCompare(b.name);
+        });
+
+        return results;
     }
 
     openFile(file) {

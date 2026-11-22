@@ -1036,6 +1036,68 @@ class GeneralUnitTestSuite {
         $this->assert("BrowserProxyAction injecte la balise <base href='https://example.com/sub/'>", strpos($rewritten, '<base href="https://example.com/sub/"') !== false);
         $this->assert("BrowserProxyAction injecte le helper script de navigation", strpos($rewritten, 'webos-browser-proxy-helper') !== false);
 
+        // 10. Auto-discovery & Synthetic Manifest for Standalone Third-Party Web Apps (HTML/WASM/PWA)
+        $tmp_root = sys_get_temp_dir() . '/sg_standalone_webapp_test_' . md5(uniqid('', true));
+        $tmp_app1 = $tmp_root . '/apps/pixelcraft-web-0.9.5';
+        $tmp_app2 = $tmp_root . '/apps/games/retrobox-v2.1';
+        @mkdir($tmp_app1 . '/app', 0755, true);
+        @mkdir($tmp_app2, 0755, true);
+        @mkdir($tmp_root . '/config', 0755, true);
+
+        file_put_contents($tmp_app1 . '/index.html', '<!DOCTYPE html><html><head><title>PixelCraft</title></head><body><canvas id="c"></canvas><script type="module">fetch("./boot.wasm");</script></body></html>');
+        file_put_contents($tmp_app1 . '/boot.wasm', "\0asm");
+        file_put_contents($tmp_app1 . '/README.md', "<h1>PixelCraft</h1><p><b>Open-source image editing studio in Rust/WASM.</b></p><h4>Formats</h4>PSD, XCF, .kra, .pcraft, PNG, JPEG, WebP, SVG</td>\n## Downloads\nInstallers: pixelcraft.deb, pixelcraft.rpm, pixelcraft.msi");
+        file_put_contents($tmp_app1 . '/HOSTING.md', "Flags: `?webgl` and `?cpu`");
+
+        file_put_contents($tmp_app2 . '/index.html', '<!DOCTYPE html><html><head><title>RetroBox</title></head><body></body></html>');
+        file_put_contents($tmp_app2 . '/site.webmanifest', json_encode([
+            'name' => 'RetroBox Emulator',
+            'description' => 'Classic 8-bit console emulator',
+            'file_handlers' => [
+                ['action' => './', 'accept' => ['application/x-nes-rom' => ['.nes', '.gb']]]
+            ]
+        ]));
+
+        $tmp_discovered = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($tmp_root, true);
+        $this->assert("PluginDiscovery découvre une distribution web autonome sans manifest.json", isset($tmp_discovered['pixelcraft']));
+        $pc = $tmp_discovered['pixelcraft'] ?? [];
+        $this->assert("Manifest synthétique extrait id='pixelcraft' et version='0.9.5'", ($pc['id'] ?? '') === 'pixelcraft' && ($pc['version'] ?? '') === '0.9.5');
+        $this->assert("Manifest synthétique extrait le titre depuis index.html", ($pc['name'] ?? '') === 'PixelCraft');
+        $this->assert("Manifest synthétique définit distribution='standalone-web' et html_entry", ($pc['distribution'] ?? '') === 'standalone-web' && ($pc['html_entry'] ?? '') === 'apps/pixelcraft-web-0.9.5/index.html');
+        $this->assert("Manifest synthétique détecte les formats (psd, xcf, kra, png)", in_array('psd', $pc['manifest']['extensions'] ?? [], true) && in_array('xcf', $pc['manifest']['extensions'] ?? [], true) && in_array('kra', $pc['manifest']['extensions'] ?? [], true) && in_array('png', $pc['manifest']['extensions'] ?? [], true));
+        $this->assert("Manifest synthétique ignore les extensions d'installateurs (deb, rpm, msi)", !in_array('deb', $pc['manifest']['extensions'] ?? [], true) && !in_array('msi', $pc['manifest']['extensions'] ?? [], true));
+        $this->assert("Manifest synthétique détecte la capacité wasm et les flags renderer", in_array('wasm', $pc['manifest']['capabilities'] ?? [], true) && count($pc['manifest']['rendererFlags'] ?? []) === 2);
+
+        $this->assert("PluginDiscovery découvre une web app autonome imbriquée (apps/games/*) avec site.webmanifest", isset($tmp_discovered['retrobox']));
+        $rb = $tmp_discovered['retrobox'] ?? [];
+        $this->assert("Web app imbriquée hérite de la catégorie 'games' et des file_handlers W3C", ($rb['category'] ?? '') === 'games' && in_array('nes', $rb['manifest']['extensions'] ?? [], true) && in_array('gb', $rb['manifest']['extensions'] ?? [], true));
+
+        $tmp_trans = \SimpleGallery\Kernel\PluginDiscovery::getAppTranslations($tmp_root, 'fr', true);
+        $this->assert("getAppTranslations expose le titre synthétique apps.pixelcraft.title", ($tmp_trans['apps.pixelcraft.title'] ?? '') === 'PixelCraft');
+
+        // Verify optional admin override via config/external_apps.json
+        file_put_contents($tmp_root . '/config/external_apps.json', json_encode([
+            'pixelcraft' => ['icon' => '🖌️', 'category' => 'productivity']
+        ]));
+        $tmp_overridden = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($tmp_root, true);
+        $this->assert("config/external_apps.json permet de surcharger icône et catégorie sans modifier l'app tierce", ($tmp_overridden['pixelcraft']['icon'] ?? '') === '🖌️' && ($tmp_overridden['pixelcraft']['category'] ?? '') === 'productivity');
+
+        // Cleanup temporary fixture tree
+        @unlink($tmp_root . '/config/external_apps.json');
+        @unlink($tmp_app1 . '/index.html');
+        @unlink($tmp_app1 . '/boot.wasm');
+        @unlink($tmp_app1 . '/README.md');
+        @unlink($tmp_app1 . '/HOSTING.md');
+        @rmdir($tmp_app1 . '/app');
+        @rmdir($tmp_app1);
+        @unlink($tmp_app2 . '/index.html');
+        @unlink($tmp_app2 . '/site.webmanifest');
+        @rmdir($tmp_app2);
+        @rmdir($tmp_root . '/apps/games');
+        @rmdir($tmp_root . '/apps');
+        @rmdir($tmp_root . '/config');
+        @rmdir($tmp_root);
+
     }
 }
 

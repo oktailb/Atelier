@@ -267,6 +267,8 @@
         inspectorFilenameBadge: root.querySelector('.inspector-filename-badge'),
         inspectorOpenBtn: root.querySelector('.inspector-open-btn'),
         inspectorQuicklookBtn: root.querySelector('.inspector-quicklook-btn'),
+        inspectorOpenWithSection: root.querySelector('.inspector-open-with-section'),
+        inspectorOpenWithList: root.querySelector('.inspector-open-with-list'),
         inspectorMetaName: root.querySelector('.inspector-meta-name'),
         inspectorMetaSize: root.querySelector('.inspector-meta-size'),
         inspectorMetaDim: root.querySelector('.inspector-meta-dim'),
@@ -1030,6 +1032,102 @@
         document.querySelectorAll('.is-dragging').forEach(c => c.classList.remove('is-dragging'));
         document.querySelectorAll('.drag-over').forEach(c => c.classList.remove('drag-over'));
       });
+
+      // 5. Delegated Context Menu ("Ouvrir avec...") on Media Cards
+      this.el.mediaGrid.addEventListener('contextmenu', (e) => {
+        const card = e.target.closest('[data-index]');
+        if (!card || !this.el.mediaGrid.contains(card)) return;
+        const index = parseInt(card.dataset.index, 10);
+        const file = this.state.filteredFiles[index];
+        if (!file) return;
+        e.preventDefault();
+        e.stopPropagation();
+        this.showFileContextMenu(file, index, e.clientX, e.clientY);
+      });
+    }
+
+    showFileContextMenu(file, index, clientX, clientY) {
+      document.querySelectorAll('.explorer-open-with-menu').forEach(m => m.remove());
+
+      const appMgr = window.sys && window.sys.appManager;
+      const compatibleApps = (appMgr && typeof appMgr.getAppsForFile === 'function')
+        ? appMgr.getAppsForFile(file)
+        : [];
+
+      const menu = document.createElement('div');
+      menu.className = 'explorer-open-with-menu';
+
+      const openBtn = document.createElement('button');
+      openBtn.type = 'button';
+      openBtn.className = 'explorer-open-with-item';
+      openBtn.innerHTML = `<span>▶️</span><span>${this.escapeHtml(this.t('explorer.open'))}</span>`;
+      openBtn.onclick = () => {
+        menu.remove();
+        this.openMedia(file, index);
+      };
+      menu.appendChild(openBtn);
+
+      if (compatibleApps.length > 0) {
+        const sep = document.createElement('div');
+        sep.className = 'explorer-open-with-sep';
+        menu.appendChild(sep);
+
+        const hdr = document.createElement('div');
+        hdr.className = 'explorer-open-with-header';
+        hdr.textContent = this.t('explorer.open_with');
+        menu.appendChild(hdr);
+
+        compatibleApps.forEach((app) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'explorer-open-with-item';
+          btn.innerHTML = `<span>${app.icon || '🗔'}</span><span>${this.escapeHtml(app.name)}</span>`;
+          btn.onclick = () => {
+            menu.remove();
+            if (appMgr && typeof appMgr.launchApp === 'function') {
+              appMgr.launchApp(app.id, { file, index });
+            }
+          };
+          menu.appendChild(btn);
+        });
+      }
+
+      const sep2 = document.createElement('div');
+      sep2.className = 'explorer-open-with-sep';
+      menu.appendChild(sep2);
+
+      const inspectBtn = document.createElement('button');
+      inspectBtn.type = 'button';
+      inspectBtn.className = 'explorer-open-with-item';
+      inspectBtn.innerHTML = `<span>ℹ️</span><span>${this.escapeHtml(this.t('explorer.details'))}</span>`;
+      inspectBtn.onclick = () => {
+        menu.remove();
+        this.state.selectedPaths.clear();
+        this.state.selectedPaths.add(file.path);
+        this.updateSelectionUI();
+        this.toggleInspector(true);
+      };
+      menu.appendChild(inspectBtn);
+
+      document.body.appendChild(menu);
+
+      const rect = menu.getBoundingClientRect();
+      const left = Math.min(clientX, Math.max(8, window.innerWidth - rect.width - 8));
+      const top = Math.min(clientY, Math.max(8, window.innerHeight - rect.height - 8));
+      menu.style.left = `${left}px`;
+      menu.style.top = `${top}px`;
+
+      const dismiss = (evt) => {
+        if (!menu.contains(evt.target)) {
+          menu.remove();
+          document.removeEventListener('click', dismiss, true);
+          document.removeEventListener('contextmenu', dismiss, true);
+        }
+      };
+      setTimeout(() => {
+        document.addEventListener('click', dismiss, true);
+        document.addEventListener('contextmenu', dismiss, true);
+      }, 0);
     }
 
     async moveItems(sourcePaths, targetDir) {
@@ -2488,6 +2586,34 @@
           this.el.inspectorPreviewImg.style.display = 'none';
           this.el.inspectorPreviewIcon.style.display = 'block';
           this.el.inspectorPreviewIcon.textContent = window.IconHelper ? window.IconHelper.getFileIcon(file) : '📄';
+        }
+      }
+
+      // Open-with compatible apps (native + standalone third-party web apps)
+      if (this.el.inspectorOpenWithSection && this.el.inspectorOpenWithList) {
+        const appMgr = window.sys && window.sys.appManager;
+        const compatibleApps = (appMgr && typeof appMgr.getAppsForFile === 'function')
+          ? appMgr.getAppsForFile(file)
+          : [];
+
+        if (compatibleApps.length > 0) {
+          this.el.inspectorOpenWithSection.style.display = 'block';
+          this.el.inspectorOpenWithList.innerHTML = '';
+          compatibleApps.forEach((app) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'inspector-open-with-btn';
+            btn.innerHTML = `<span>${app.icon || '🗔'}</span><span>${this.escapeHtml(app.name)}</span>`;
+            btn.onclick = () => {
+              if (appMgr && typeof appMgr.launchApp === 'function') {
+                appMgr.launchApp(app.id, { file });
+              }
+            };
+            this.el.inspectorOpenWithList.appendChild(btn);
+          });
+        } else {
+          this.el.inspectorOpenWithSection.style.display = 'none';
+          this.el.inspectorOpenWithList.innerHTML = '';
         }
       }
     }

@@ -83,6 +83,7 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
   <script src="system/userland/desktop/TaskbarClock.js" defer></script>
   <script src="system/userland/desktop/DesktopShortcuts.js" defer></script>
   <script src="system/userland/core/WebOSApp.js" defer></script>
+  <script src="system/userland/core/WebAppHost.js?v=<?php echo filemtime(__DIR__ . '/system/userland/core/WebAppHost.js'); ?>" defer></script>
 
 
   <script src="system/userland/ui/MetadataInspector.js" defer></script>

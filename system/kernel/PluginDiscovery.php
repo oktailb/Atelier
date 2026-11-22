@@ -104,7 +104,7 @@ class PluginDiscovery {
             $app_path = $apps_dir . '/' . $folder;
             if (!is_dir($app_path)) continue;
 
-            if (file_exists($app_path . '/manifest.json') || file_exists($app_path . '/app.js') || file_exists($app_path . '/' . $folder . '.js')) {
+            if (file_exists($app_path . '/manifest.json') || file_exists($app_path . '/app.js') || file_exists($app_path . '/' . $folder . '.js') || StandaloneWebAppManifestSynthesizer::isStandaloneWebApp($app_path, $folder)) {
                 $app_dirs[$folder] = $app_path;
             } else {
                 // Check 1 level of subdirectories (e.g., apps/games/*)
@@ -112,7 +112,7 @@ class PluginDiscovery {
                 foreach ($sub_folders as $sub) {
                     if ($sub[0] === '.') continue;
                     $sub_path = $app_path . '/' . $sub;
-                    if (is_dir($sub_path) && (file_exists($sub_path . '/manifest.json') || file_exists($sub_path . '/app.js') || file_exists($sub_path . '/' . $sub . '.js'))) {
+                    if (is_dir($sub_path) && (file_exists($sub_path . '/manifest.json') || file_exists($sub_path . '/app.js') || file_exists($sub_path . '/' . $sub . '.js') || StandaloneWebAppManifestSynthesizer::isStandaloneWebApp($sub_path, $sub))) {
                         $app_dirs[$folder . '/' . $sub] = $sub_path;
                     }
                 }
@@ -123,9 +123,14 @@ class PluginDiscovery {
             $folder = basename($app_path);
             $manifest_file = $app_path . '/manifest.json';
             $manifest = [];
+            $is_standalone_web = false;
+
             if (file_exists($manifest_file)) {
                 $content = @file_get_contents($manifest_file);
                 $manifest = @json_decode($content, true) ?: [];
+            } elseif (StandaloneWebAppManifestSynthesizer::isStandaloneWebApp($app_path, $folder)) {
+                $manifest = StandaloneWebAppManifestSynthesizer::synthesize($app_path, $rel_key, $project_root);
+                $is_standalone_web = true;
             }
 
             $app_id = $manifest['id'] ?? $folder;
@@ -138,36 +143,58 @@ class PluginDiscovery {
 
             // Find JS entry point
             $js_entry = null;
-            if (!empty($manifest['entry']['js']) && file_exists($app_path . '/' . $manifest['entry']['js'])) {
-                $js_entry = 'apps/' . $rel_key . '/' . $manifest['entry']['js'];
-            } elseif (file_exists($app_path . '/app.js')) {
-                $js_entry = 'apps/' . $rel_key . '/app.js';
-            } elseif (file_exists($app_path . '/' . $folder . '.js')) {
-                $js_entry = 'apps/' . $rel_key . '/' . $folder . '.js';
+            if (!$is_standalone_web) {
+                if (!empty($manifest['entry']['js']) && file_exists($app_path . '/' . $manifest['entry']['js'])) {
+                    $js_entry = 'apps/' . $rel_key . '/' . $manifest['entry']['js'];
+                } elseif (file_exists($app_path . '/app.js')) {
+                    $js_entry = 'apps/' . $rel_key . '/app.js';
+                } elseif (file_exists($app_path . '/' . $folder . '.js')) {
+                    $js_entry = 'apps/' . $rel_key . '/' . $folder . '.js';
+                }
+            }
+
+            // Find HTML entry point (for standalone third-party web apps or iframe-hosted apps)
+            $html_entry = null;
+            if (!empty($manifest['entry']['html'])) {
+                $candidate_html = $manifest['entry']['html'];
+                if (file_exists($project_root . '/' . $candidate_html)) {
+                    $html_entry = $candidate_html;
+                } elseif (file_exists($app_path . '/' . $candidate_html)) {
+                    $html_entry = 'apps/' . $rel_key . '/' . ltrim($candidate_html, '/');
+                }
+            } elseif ($is_standalone_web) {
+                $detected_html = StandaloneWebAppManifestSynthesizer::detectHtmlEntryFile($app_path);
+                if ($detected_html !== null) {
+                    $html_entry = 'apps/' . $rel_key . '/' . $detected_html;
+                }
             }
 
             // Find CSS entry point
             $css_entry = null;
-            if (!empty($manifest['entry']['css']) && file_exists($app_path . '/' . $manifest['entry']['css'])) {
-                $css_entry = 'apps/' . $rel_key . '/' . $manifest['entry']['css'];
-            } elseif (!empty($manifest['styles'][0]) && file_exists($app_path . '/' . $manifest['styles'][0])) {
-                $css_entry = 'apps/' . $rel_key . '/' . $manifest['styles'][0];
-            } elseif (file_exists($app_path . '/app.css')) {
-                $css_entry = 'apps/' . $rel_key . '/app.css';
-            } elseif (file_exists($app_path . '/style.css')) {
-                $css_entry = 'apps/' . $rel_key . '/style.css';
-            } elseif (file_exists($app_path . '/' . $folder . '.css')) {
-                $css_entry = 'apps/' . $rel_key . '/' . $folder . '.css';
+            if (!$is_standalone_web) {
+                if (!empty($manifest['entry']['css']) && file_exists($app_path . '/' . $manifest['entry']['css'])) {
+                    $css_entry = 'apps/' . $rel_key . '/' . $manifest['entry']['css'];
+                } elseif (!empty($manifest['styles'][0]) && file_exists($app_path . '/' . $manifest['styles'][0])) {
+                    $css_entry = 'apps/' . $rel_key . '/' . $manifest['styles'][0];
+                } elseif (file_exists($app_path . '/app.css')) {
+                    $css_entry = 'apps/' . $rel_key . '/app.css';
+                } elseif (file_exists($app_path . '/style.css')) {
+                    $css_entry = 'apps/' . $rel_key . '/style.css';
+                } elseif (file_exists($app_path . '/' . $folder . '.css')) {
+                    $css_entry = 'apps/' . $rel_key . '/' . $folder . '.css';
+                }
             }
 
             // Find Template / HTML UI entry point
             $template_entry = null;
-            if (!empty($manifest['entry']['template']) && file_exists($app_path . '/' . $manifest['entry']['template'])) {
-                $template_entry = 'apps/' . $rel_key . '/' . $manifest['entry']['template'];
-            } elseif (file_exists($app_path . '/template.php')) {
-                $template_entry = 'apps/' . $rel_key . '/template.php';
-            } elseif (file_exists($app_path . '/template.html')) {
-                $template_entry = 'apps/' . $rel_key . '/template.html';
+            if (!$is_standalone_web) {
+                if (!empty($manifest['entry']['template']) && file_exists($app_path . '/' . $manifest['entry']['template'])) {
+                    $template_entry = 'apps/' . $rel_key . '/' . $manifest['entry']['template'];
+                } elseif (file_exists($app_path . '/template.php')) {
+                    $template_entry = 'apps/' . $rel_key . '/template.php';
+                } elseif (file_exists($app_path . '/template.html')) {
+                    $template_entry = 'apps/' . $rel_key . '/template.html';
+                }
             }
 
             // Category resolution
@@ -193,9 +220,11 @@ class PluginDiscovery {
                 'icon'           => $manifest['icon'] ?? '📱',
                 'category'       => $cat,
                 'parent_folder'  => (strpos($rel_key, '/') !== false ? dirname($rel_key) : ''),
+                'distribution'   => $is_standalone_web ? 'standalone-web' : ($manifest['distribution'] ?? 'native'),
                 'manifest'       => $manifest,
                 'locales'        => $manifest['locales'] ?? [],
                 'js_entry'       => $js_entry,
+                'html_entry'     => $html_entry,
                 'scripts'        => $scripts,
                 'css_entry'      => $css_entry,
                 'template_entry' => $template_entry,
@@ -226,14 +255,14 @@ class PluginDiscovery {
             $app_path = $apps_dir . '/' . $folder;
             if (!is_dir($app_path)) continue;
 
-            if (file_exists($app_path . '/manifest.json') || file_exists($app_path . '/app.js') || file_exists($app_path . '/' . $folder . '.js')) {
+            if (file_exists($app_path . '/manifest.json') || file_exists($app_path . '/app.js') || file_exists($app_path . '/' . $folder . '.js') || StandaloneWebAppManifestSynthesizer::isStandaloneWebApp($app_path, $folder)) {
                 $app_dirs[$folder] = $app_path;
             } else {
                 $sub_folders = @scandir($app_path) ?: [];
                 foreach ($sub_folders as $sub) {
                     if ($sub[0] === '.') continue;
                     $sub_path = $app_path . '/' . $sub;
-                    if (is_dir($sub_path)) {
+                    if (is_dir($sub_path) && (file_exists($sub_path . '/manifest.json') || file_exists($sub_path . '/app.js') || file_exists($sub_path . '/' . $sub . '.js') || StandaloneWebAppManifestSynthesizer::isStandaloneWebApp($sub_path, $sub))) {
                         $app_dirs[$folder . '/' . $sub] = $sub_path;
                     }
                 }
@@ -247,6 +276,8 @@ class PluginDiscovery {
             if (file_exists($manifest_file)) {
                 $content = @file_get_contents($manifest_file);
                 $manifest = @json_decode($content, true) ?: [];
+            } elseif (StandaloneWebAppManifestSynthesizer::isStandaloneWebApp($app_path, $folder)) {
+                $manifest = StandaloneWebAppManifestSynthesizer::synthesize($app_path, $rel_key, $project_root);
             }
             $app_id = $manifest['id'] ?? $folder;
 

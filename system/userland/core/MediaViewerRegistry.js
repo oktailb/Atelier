@@ -47,15 +47,19 @@
 
     findViewer(file) {
       if (!file) return null;
-      const ext = (file.extension || (file.name ? file.name.split('.').pop() : '')).toLowerCase();
+      const ext = (file.extension || (file.name && file.name.includes('.') ? file.name.split('.').pop() : '')).toLowerCase();
       const cat = file.category || '';
       const mime = file.mime || '';
 
-      const all = Array.from(this.viewers.values());
+      const all = Array.from(this.viewers.values()).sort((a, b) => {
+        const pa = (typeof a.priority === 'number') ? a.priority : 100;
+        const pb = (typeof b.priority === 'number') ? b.priority : 100;
+        return pb - pa;
+      });
 
       // 1. Check exact extension match
       if (ext) {
-        const byExt = all.find(v => Array.isArray(v.extensions) && v.extensions.map(e => e.toLowerCase()).includes(ext));
+        const byExt = all.find(v => Array.isArray(v.extensions) && v.extensions.map(e => String(e).toLowerCase()).includes(ext));
         if (byExt) {
           this.loadPluginStyles(byExt);
           return byExt;
@@ -91,6 +95,34 @@
       const fallback = this.viewers.get(this.defaultViewerId) || all[0] || null;
       if (fallback) this.loadPluginStyles(fallback);
       return fallback;
+    }
+
+    getViewersForFile(file) {
+      if (!file) return [];
+      const ext = (file.extension || (file.name && file.name.includes('.') ? file.name.split('.').pop() : '')).toLowerCase();
+      const cat = file.category || '';
+      const mime = file.mime || '';
+
+      const matches = Array.from(this.viewers.values()).filter(v => {
+        if (ext && Array.isArray(v.extensions) && v.extensions.map(e => String(e).toLowerCase()).includes(ext)) {
+          return true;
+        }
+        if (mime && Array.isArray(v.mimeTypes) && v.mimeTypes.some(m => m === mime || (m.endsWith('/*') && mime.startsWith(m.replace('/*', '/'))))) {
+          return true;
+        }
+        if (cat && Array.isArray(v.categories) && v.categories.includes(cat)) {
+          return true;
+        }
+        return false;
+      });
+
+      matches.sort((a, b) => {
+        const pa = (typeof a.priority === 'number') ? a.priority : 100;
+        const pb = (typeof b.priority === 'number') ? b.priority : 100;
+        return pb - pa;
+      });
+
+      return matches;
     }
 
     getViewerForFile(file) {

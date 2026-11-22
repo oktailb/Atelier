@@ -599,6 +599,150 @@ assert("parseLocalDateTime analyse avec succès une chaîne datetime YYYY-MM-DDT
 const parsedDateSec = tribuneInst.parseLocalDateTime('2026-09-13T15:45:30');
 assert("parseLocalDateTime supporte les secondes optionnelles", !!parsedDateSec && parsedDateSec.getSeconds() === 30);
 
+// -------------------------------------------------------------
+// 10. Hôte d'Applications Web Autonomes (WebAppHost, Menus, Fenêtrage & Associations)
+// -------------------------------------------------------------
+console.log('\n🧩 [10/10] Hôte d\'Applications Web Tierces (WebAppHost, Menus, Fenêtres & Ouvrir avec)...');
+
+const webAppHostPath = path.join(rootDir, 'system', 'userland', 'core', 'WebAppHost.js');
+const appMgrPath = path.join(rootDir, 'system', 'userland', 'core', 'AppManager.js');
+const mediaRegPath = path.join(rootDir, 'system', 'userland', 'core', 'MediaViewerRegistry.js');
+const indexPhpPath = path.join(rootDir, 'index.php');
+
+assert("Fichier system/userland/core/WebAppHost.js présent", fs.existsSync(webAppHostPath));
+const indexPhpSrc = fs.readFileSync(indexPhpPath, 'utf8');
+assert("index.php charge system/userland/core/WebAppHost.js", indexPhpSrc.includes('system/userland/core/WebAppHost.js'));
+
+const expTplSrc = fs.readFileSync(path.join(appsDir, 'explorer', 'template.php'), 'utf8');
+const expJsSrc = fs.readFileSync(path.join(appsDir, 'explorer', 'explorer.js'), 'utf8');
+assert("Explorer template.php intègre .inspector-open-with-section", expTplSrc.includes('inspector-open-with-section'));
+assert("Explorer explorer.js implémente showFileContextMenu (Ouvrir avec)", expJsSrc.includes('showFileContextMenu('));
+
+['fr', 'en', 'ja'].forEach(lang => {
+  const loc = JSON.parse(fs.readFileSync(path.join(rootDir, 'locales', `${lang}.json`), 'utf8'));
+  const tr = loc.translations || loc;
+  assert(`Locale [${lang}] déclare explorer.open_with et webapp.menu_file`, !!tr['explorer.open_with'] && !!tr['webapp.menu_file']);
+});
+
+try {
+  const appMgrCode = fs.readFileSync(appMgrPath, 'utf8');
+  const mediaRegCode = fs.readFileSync(mediaRegPath, 'utf8');
+  const webAppHostCode = fs.readFileSync(webAppHostPath, 'utf8');
+
+  const createdWindows = [];
+  const registeredMenus = new Map();
+  const fakeDom = {
+    readyState: 'complete',
+    documentElement: { lang: 'fr' },
+    head: { appendChild: () => {} },
+    body: { contains: () => false },
+    getElementById: () => null,
+    createElement: () => ({ style: {}, addEventListener: () => {} }),
+    addEventListener: () => {}
+  };
+
+  const sandboxWin = {
+    innerWidth: 1440,
+    innerHeight: 900,
+    document: fakeDom,
+    localStorage: { getItem: () => null, setItem: () => {} },
+    SG_DISABLED_APPS: [],
+    SG_DISCOVERED_APPS: {
+      'image-viewer': {
+        id: 'image-viewer',
+        name: 'Image Viewer',
+        icon: '🖼️',
+        category: 'viewer',
+        distribution: 'native',
+        manifest: {
+          id: 'image-viewer',
+          name: 'Image Viewer',
+          icon: '🖼️',
+          category: 'viewer',
+          extensions: ['jpg', 'png', 'webp'],
+          mimeTypes: ['image/*']
+        }
+      },
+      'mock-studio': {
+        id: 'mock-studio',
+        name: 'MockStudio',
+        icon: '🎨',
+        category: 'media',
+        distribution: 'standalone-web',
+        html_entry: 'apps/mock-studio-web-1.0.0/index.html',
+        manifest: {
+          id: 'mock-studio',
+          name: 'MockStudio',
+          version: '1.0.0',
+          icon: '🎨',
+          category: 'media',
+          distribution: 'standalone-web',
+          runtime: 'iframe',
+          synthetic: true,
+          entry: { html: 'apps/mock-studio-web-1.0.0/index.html' },
+          extensions: ['psd', 'xcf', 'png', 'jpg'],
+          mimeTypes: ['image/vnd.adobe.photoshop', 'image/png', 'image/jpeg'],
+          rendererFlags: [{ flag: 'webgl', label: 'WebGL2' }, { flag: 'cpu', label: 'CPU Canvas' }],
+          window: { width: 1180, height: 760, resizable: true }
+        }
+      }
+    },
+    WindowManager: {
+      windows: new Map(),
+      createWindow: (cfg) => {
+        createdWindows.push(cfg);
+        return { id: cfg.id, element: {} };
+      },
+      focusWindow: () => {},
+      setTitle: () => {}
+    },
+    MenuBarManager: {
+      registerAppMenu: (id, def) => registeredMenus.set(id, def),
+      setActiveApp: () => {}
+    },
+    I18nEngine: { t: (k) => k }
+  };
+
+  new Function('window', 'document', 'localStorage', mediaRegCode)(sandboxWin, fakeDom, sandboxWin.localStorage);
+  sandboxWin.MediaViewerRegistry.register({
+    id: 'image-viewer',
+    priority: 100,
+    extensions: ['jpg', 'png', 'webp'],
+    open: () => 'opened-native-image-viewer'
+  });
+
+  new Function('window', 'document', 'localStorage', appMgrCode)(sandboxWin, fakeDom, sandboxWin.localStorage);
+  new Function('window', 'document', 'localStorage', webAppHostCode)(sandboxWin, fakeDom, sandboxWin.localStorage);
+
+  const hostInst = sandboxWin.WebAppHost.get('mock-studio');
+  assert("WebAppHost monte automatiquement l'app autonome mock-studio", !!hostInst);
+  assert("WebAppHost enregistre les menus contextuels dans MenuBarManager", Array.isArray(registeredMenus.get('mock-studio')) && registeredMenus.get('mock-studio').length === 3);
+
+  const viewMenu = registeredMenus.get('mock-studio').find(m => m.id === 'view');
+  assert("WebAppHost ajoute les sélecteurs de moteur de rendu (?webgl/?cpu) dans le menu Affichage", !!viewMenu && viewMenu.items.some(i => i.id === 'renderer-webgl'));
+
+  // File association priorities
+  const defaultForJpg = sandboxWin.AppManager.getAppForFile({ name: 'a.jpg', extension: 'jpg', category: 'image' });
+  const defaultForPsd = sandboxWin.AppManager.getAppForFile({ name: 'a.psd', extension: 'psd', category: 'other' });
+  assert("AppManager préserve image-viewer comme défaut pour .jpg", defaultForJpg && defaultForJpg.manifest.id === 'image-viewer');
+  assert("AppManager associe automatiquement .psd à mock-studio", defaultForPsd && defaultForPsd.manifest.id === 'mock-studio');
+
+  const appsForPng = sandboxWin.AppManager.getAppsForFile({ name: 'a.png', extension: 'png', category: 'image' });
+  assert("AppManager.getAppsForFile('.png') retourne image-viewer ET mock-studio (Ouvrir avec)", appsForPng.length === 2 && appsForPng[0].id === 'image-viewer' && appsForPng[1].id === 'mock-studio');
+
+  const viewerForJpg = sandboxWin.MediaViewerRegistry.findViewer({ name: 'a.jpg', extension: 'jpg' });
+  const viewerForPsd = sandboxWin.MediaViewerRegistry.findViewer({ name: 'a.psd', extension: 'psd' });
+  assert("MediaViewerRegistry préserve la priorité native (image-viewer) pour .jpg", viewerForJpg && viewerForJpg.id === 'image-viewer');
+  assert("MediaViewerRegistry sélectionne mock-studio pour .psd", viewerForPsd && viewerForPsd.id === 'mock-studio');
+
+  // Windowing test
+  sandboxWin.AppManager.launchApp('mock-studio', { file: { name: 'design.psd', path: 'art/design.psd', extension: 'psd' } });
+  assert("AppManager.launchApp('mock-studio', {file}) crée une fenêtre WindowManager dédiée", createdWindows.length === 1 && createdWindows[0].appId === 'mock-studio');
+  assert("La fenêtre créée embarque l'iframe avec sandbox allow-downloads et titre du fichier", createdWindows[0].title.includes('design.psd') && createdWindows[0].content.includes('apps/mock-studio-web-1.0.0/index.html') && createdWindows[0].content.includes('allow-downloads'));
+} catch (e) {
+  assert("WebAppHost exécution runtime", false, e.stack);
+}
+
 
 console.log('\n============================================================');
 console.log(` 📊 SCORECARD DES TESTS ISO-FONCTIONNELS JS : ${passedChecks}/${totalChecks} PASS`);
