@@ -179,7 +179,11 @@
       const attachIframeWindowHooks = () => {
         try {
           const cw = iframe.contentWindow;
-          if (!cw || cw.__sgBootHooked) return;
+          if (!cw) return;
+          if (cw.wasmBindings) {
+            this.hideBootOverlay();
+          }
+          if (cw.__sgBootHooked) return;
           cw.__sgBootHooked = true;
 
           cw.addEventListener('TrunkApplicationStarted', () => {
@@ -201,6 +205,9 @@
         } catch (e) {}
       };
 
+      // Hook immediately so early TrunkApplicationStarted / errors before `load` are never missed
+      attachIframeWindowHooks();
+
       if (this._onIframeLoad) {
         iframe.removeEventListener('load', this._onIframeLoad);
       }
@@ -212,12 +219,17 @@
           this.hideBootOverlay();
         } else {
           // For WASM apps (especially those without their own loading screen like PdfCraft),
-          // poll until TrunkApplicationStarted or canvas backing store initializes
+          // poll until wasmBindings / TrunkApplicationStarted or canvas backing store initializes
           let checks = 0;
           this._bootPollTimer = setInterval(() => {
             checks++;
             attachIframeWindowHooks();
             try {
+              const cw = iframe.contentWindow;
+              if (cw && cw.wasmBindings) {
+                this.hideBootOverlay();
+                return;
+              }
               const doc = iframe.contentDocument;
               if (doc) {
                 const ownLoader = doc.querySelector('[id$="_loading"]');
@@ -227,7 +239,7 @@
                   return;
                 }
                 const canvas = doc.querySelector('canvas');
-                if (canvas && canvas.width > 300 && canvas.height > 150) {
+                if (canvas && canvas.width > 0 && canvas.height > 0 && (canvas.width !== 300 || canvas.height !== 150)) {
                   this.hideBootOverlay();
                   return;
                 }
@@ -442,9 +454,7 @@
             class="webapp-iframe"
             src="${this.escapeHtml(effectiveSrc)}"
             title="${this.escapeHtml(appTitle)}"
-            sandbox="allow-scripts allow-same-origin allow-downloads allow-popups allow-forms allow-modals"
             allow="fullscreen; clipboard-read; clipboard-write"
-            allowfullscreen
           ></iframe>
         </div>
       `;

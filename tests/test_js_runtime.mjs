@@ -743,7 +743,7 @@ try {
   // Windowing test
   sandboxWin.AppManager.launchApp('mock-studio', { file: { name: 'design.psd', path: 'art/design.psd', extension: 'psd' } });
   assert("AppManager.launchApp('mock-studio', {file}) crée une fenêtre WindowManager dédiée", createdWindows.length === 1 && createdWindows[0].appId === 'mock-studio');
-  assert("La fenêtre créée embarque l'iframe avec sandbox allow-downloads et titre du fichier", createdWindows[0].title.includes('design.psd') && createdWindows[0].content.includes('apps/mock-studio-web-1.0.0/index.html') && createdWindows[0].content.includes('allow-downloads'));
+  assert("La fenêtre créée embarque l'iframe avec allow fullscreen/clipboard et titre du fichier", createdWindows[0].title.includes('design.psd') && createdWindows[0].content.includes('apps/mock-studio-web-1.0.0/index.html') && createdWindows[0].content.includes('allow="fullscreen; clipboard-read; clipboard-write"') && !createdWindows[0].content.includes('allowfullscreen'));
   assert("AppManager.getAppIcon('mock-studio') rend l'image d'icône avec repli emoji hors-ligne", sandboxWin.AppManager.getAppIcon('mock-studio').includes('<img src="https://raw.githubusercontent.com/example/mock-studio/main/icon.png"') && sandboxWin.AppManager.getAppIcon('mock-studio').includes('🎨'));
   assert("La fenêtre créée utilise l'icône image de l'application tierce", createdWindows[0].icon.includes('webos-app-icon-img'));
   assert("La fenêtre créée inclut l'overlay de démarrage WebOS (.webapp-boot-overlay)", createdWindows[0].content.includes('webapp-boot-overlay'));
