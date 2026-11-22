@@ -8,6 +8,7 @@ scratch/
 # Fichiers sensibles & authentification
 .admin_password_hash
 .permissions.json
+/storage/tribune_secrets.php
 # Extensions métier / modules privés
 apps/ffs-apps/
 apps/sim-*/

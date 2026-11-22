@@ -44,11 +44,25 @@
 
       if (typeof window.addEventListener === 'function') {
         window.addEventListener('message', (e) => {
-          if (e.data && e.data.type === 'webos-browser-navigated' && e.data.url) {
-            this.onIframeNavigated(e.data.url);
+          if (!e.data || typeof e.data !== 'object' || typeof e.data.url !== 'string') return;
+          const targetUrl = e.data.url.trim();
+          if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) return;
+
+          if (e.data.type === 'webos-browser-navigated') {
+            this.onIframeNavigated(targetUrl);
+          } else if (e.data.type === 'webos-browser-navigate-request') {
+            this.loadUrlInTab(this.activeTabIndex, targetUrl);
           }
         });
       }
+    }
+
+    getIframeSandbox(effectiveUrl) {
+      if (effectiveUrl && effectiveUrl.includes('action=browser_proxy')) {
+        // Proxied same-origin responses MUST NOT receive allow-same-origin
+        return 'allow-scripts allow-forms allow-popups';
+      }
+      return 'allow-scripts allow-same-origin allow-forms allow-popups';
     }
 
     getEffectiveIframeUrl(rawUrl) {
@@ -234,7 +248,11 @@
       setTimeout(() => {
         const frame = document.getElementById(`browserFrame-${tab.id}`);
         if (frame) {
-          frame.src = this.getEffectiveIframeUrl(url);
+          const effectiveUrl = this.getEffectiveIframeUrl(url);
+          if (typeof frame.setAttribute === 'function') {
+            frame.setAttribute('sandbox', this.getIframeSandbox(effectiveUrl));
+          }
+          frame.src = effectiveUrl;
           frame.onload = () => {
             tab.isLoading = false;
             try {
@@ -277,7 +295,11 @@
         if (frame) {
           tab.isLoading = true;
           this.updateToolbarUI();
-          frame.src = tab.url;
+          const effectiveUrl = this.getEffectiveIframeUrl(tab.url);
+          if (typeof frame.setAttribute === 'function') {
+            frame.setAttribute('sandbox', this.getIframeSandbox(effectiveUrl));
+          }
+          frame.src = effectiveUrl;
         }
       }
     }
@@ -384,9 +406,11 @@
             </div>
           `;
         } else {
+          const effectiveUrl = this.getEffectiveIframeUrl(tab.url);
+          const sandboxAttr = this.getIframeSandbox(effectiveUrl);
           framesHtml += `
             <div id="browserTabContent-${tab.id}" class="browser-frame-container ${isActive ? 'active' : ''}">
-              <iframe id="browserFrame-${tab.id}" class="browser-frame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" src="${this.escapeHtml(this.getEffectiveIframeUrl(tab.url))}" title="${this.escapeHtml(tab.title)}"></iframe>
+              <iframe id="browserFrame-${tab.id}" class="browser-frame" sandbox="${sandboxAttr}" src="${this.escapeHtml(effectiveUrl)}" title="${this.escapeHtml(tab.title)}"></iframe>
             </div>
           `;
         }

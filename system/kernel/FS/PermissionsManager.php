@@ -14,8 +14,9 @@ class PermissionsManager {
         'can_move'             => false,
         'can_comment'          => true,
         'can_create_folder'    => false,
-        'can_download_archive' => true,
-        'can_download_item'    => true
+        'can_download_archive'  => true,
+        'can_download_item'     => true,
+        'can_use_browser_proxy' => false
     ];
 
     /**

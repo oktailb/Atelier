@@ -691,7 +691,7 @@ class GeneralUnitTestSuite {
         // 3. Backend Endpoints in API / Tribune API
         $api_code = $this->getActionCode();
         $this->assert("api.php déclare l'action tribune_get", strpos($api_code, "tribune_get") !== false);
-        $this->assert("api.php déclare l'action tribune_post dans les actions mutantes", in_array('tribune_post', \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true) || strpos($api_code, 'tribune_post') !== false);
+        $this->assert("ActionRouter déclare l'action tribune_post dans les actions mutantes (CSRF)", in_array('tribune_post', \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true));
         $this->assert("api.php déclare l'action tribune_proxy_fetch", strpos($api_code, "tribune_proxy_fetch") !== false);
         $this->assert("api.php déclare l'action tribune_file_upload dans les actions mutantes", in_array('tribune_file_upload', \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true) || strpos($api_code, 'tribune_file_upload') !== false);
         $this->assert("api.php déclare l'action tribune_file_get", strpos($api_code, "tribune_file_get") !== false);

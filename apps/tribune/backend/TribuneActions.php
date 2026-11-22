@@ -99,79 +99,22 @@ class TribuneActions {
     }
 
     public static function isSafePublicUrl(string $url): bool {
-        if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
-            return false;
-        }
-
-        $parts = parse_url($url);
-        $scheme = strtolower($parts['scheme'] ?? '');
-        if (!in_array($scheme, ['http', 'https'], true)) {
-            return false;
-        }
-
-        $host = $parts['host'] ?? '';
-        if (empty($host)) {
-            return false;
-        }
-
-        // Strip IPv6 brackets
-        $host = trim($host, '[]');
-        $host_lower = strtolower($host);
-
-        // Immediate blocklist for localhost / loopback / wildcard
-        if (in_array($host_lower, ['localhost', '127.0.0.1', '0.0.0.0', '::1', '::', '169.254.169.254', 'metadata.google.internal'], true)) {
-            return false;
-        }
-
-        // Block local TLDs
-        if (preg_match('/\.(local|internal|lan|home|corp|localdomain)$/i', $host_lower)) {
-            return false;
-        }
-
-        // Direct IP address check
-        if (filter_var($host, FILTER_VALIDATE_IP)) {
-            if (!filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
-                return false;
-            }
-            if (strpos($host, '127.') === 0 || strpos($host, '169.254.') === 0 || strpos($host, '0.') === 0) {
-                return false;
-            }
-            return true;
-        }
-
-        // Domain name: resolve DNS
-        $resolved_ips = [];
-        $ips = @dns_get_record($host, DNS_A + (defined('DNS_AAAA') ? DNS_AAAA : 0));
-        if (!empty($ips)) {
-            foreach ($ips as $record) {
-                if (!empty($record['ip'])) $resolved_ips[] = $record['ip'];
-                if (!empty($record['ipv6'])) $resolved_ips[] = $record['ipv6'];
-            }
-        }
-        if (empty($resolved_ips)) {
-            $ip = @gethostbyname($host);
-            if ($ip && $ip !== $host) {
-                $resolved_ips[] = $ip;
-            }
-        }
-
-        if (empty($resolved_ips)) {
-            return false;
-        }
-
-        foreach ($resolved_ips as $rip) {
-            if (!filter_var($rip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
-                return false;
-            }
-            if (strpos($rip, '127.') === 0 || strpos($rip, '169.254.') === 0 || strpos($rip, '0.') === 0) {
-                return false;
-            }
-        }
-
-        return true;
+        return \SimpleGallery\Kernel\Security\UrlValidator::isSafePublicUrl($url);
     }
 
     public static function httpRequestProxy(string $url, string $method = 'GET', array $headers = [], ?string $post_data = null, int $timeout = 6): array {
+        if (!self::isSafePublicUrl($url)) {
+            return [
+                'success'     => false,
+                'status_code' => 403,
+                'headers'     => [],
+                'body'        => '',
+                'location'    => '',
+                'cookies'     => [],
+                'error'       => 'URL non autorisée (anti-SSRF).'
+            ];
+        }
+
         $is_post = (strtoupper($method) === 'POST');
         $header_lines = [];
         foreach ($headers as $h) {
@@ -181,50 +124,26 @@ class TribuneActions {
         }
 
         if (function_exists('curl_init')) {
-            $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, $url);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_HEADER, true);
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 4);
-            curl_setopt($ch, CURLOPT_TIMEOUT, max(2, min($timeout, 6)));
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
-            curl_setopt($ch, CURLOPT_NOSIGNAL, 1);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, $header_lines);
+            $fetch = \SimpleGallery\Kernel\Security\UrlValidator::safeCurlFetch($url, [
+                'method'           => strtoupper($method),
+                'headers'          => $header_lines,
+                'post_data'        => $post_data,
+                'connect_timeout'  => 4,
+                'timeout'          => max(2, min($timeout, 6)),
+                'follow_redirects' => !$is_post,
+                'max_redirects'    => 3,
+                'max_bytes'        => 2 * 1024 * 1024
+            ]);
 
-            if ($is_post) {
-                curl_setopt($ch, CURLOPT_POST, true);
-                if ($post_data !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, $post_data);
-            } else {
-                curl_setopt($ch, CURLOPT_HTTPGET, true);
-                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-                curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
-                if (defined('CURLPROTO_HTTP') && defined('CURLPROTO_HTTPS')) {
-                    curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
-                }
-            }
-
-            $response = curl_exec($ch);
-            $curl_error = curl_error($ch);
-            $header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
-            $status_code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-
-            if ($response !== false) {
-                $raw_headers = substr($response, 0, $header_size);
-                $body = substr($response, $header_size);
-                $resp_headers = explode("\r\n", $raw_headers);
-                $success = ($status_code >= 200 && $status_code < 400);
-                return [
-                    'success'     => $success,
-                    'status_code' => $status_code,
-                    'headers'     => $resp_headers,
-                    'body'        => $body ?: '',
-                    'location'    => '',
-                    'cookies'     => [],
-                    'error'       => $success ? '' : ($curl_error ?: "Code HTTP {$status_code}")
-                ];
-            }
+            return [
+                'success'     => (bool)$fetch['success'],
+                'status_code' => (int)$fetch['status_code'],
+                'headers'     => $fetch['headers'] ?? [],
+                'body'        => (string)($fetch['body'] ?? ''),
+                'location'    => (string)($fetch['location'] ?? ''),
+                'cookies'     => $fetch['cookies'] ?? [],
+                'error'       => (string)($fetch['error'] ?? '')
+            ];
         }
 
         @ini_set('default_socket_timeout', $timeout);
@@ -233,8 +152,8 @@ class TribuneActions {
             'http' => [
                 'method'          => strtoupper($method),
                 'timeout'         => $timeout,
-                'follow_location' => $is_post ? 0 : 1,
-                'max_redirects'   => 3,
+                'follow_location' => 0,
+                'max_redirects'   => 0,
                 'ignore_errors'   => true,
                 'header'          => $header_str,
                 'content'         => $post_data
@@ -1112,7 +1031,7 @@ class TribuneActions {
 
             $results = [];
             if ($xml_data !== false) {
-                $xml = @simplexml_load_string($xml_data);
+                $xml = @simplexml_load_string($xml_data, 'SimpleXMLElement', LIBXML_NONET | LIBXML_NOCDATA);
                 if ($xml && isset($xml->totoz)) {
                     foreach ($xml->totoz as $t) {
                         $name = (string)$t->name;
@@ -1147,6 +1066,7 @@ class TribuneActions {
                 return ['status' => 200, 'data' => ['success' => true, 'preview' => $cache[$url_hash]]];
             }
 
+            $parsed_host = (string)(parse_url($url, PHP_URL_HOST) ?? '');
             $title = '';
             $description = '';
             $image = '';

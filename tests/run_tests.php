@@ -15,7 +15,8 @@ $gen_suite = new GeneralUnitTestSuite();
 $gen_passed = $gen_suite->runAll();
 
 $js_passed = true;
-$node_bin = shell_exec('where node 2>nul') ? 'node' : null;
+$node_check_cmd = (PHP_OS_FAMILY === 'Windows') ? 'where node 2>nul' : 'command -v node 2>/dev/null';
+$node_bin = trim((string)shell_exec($node_check_cmd)) !== '' ? 'node' : null;
 if ($node_bin) {
     echo "\n⚡ Exécution du Banc de Tests Runtime JS & Iso-Fonctionnalité (Node.js)...\n";
     passthru('node ' . escapeshellarg(__DIR__ . '/test_js_runtime.mjs'), $js_exit_code);

@@ -33,6 +33,7 @@ class ActionRouter {
         'tribune_file_upload',
         'tribune_schedule_post',
         'tribune_schedule_cancel',
+        'tribune_post',
         'tribune_proxy_post'
     ];
 

@@ -707,6 +707,63 @@ HTACCESS;
         $sanitized_pattern = preg_replace('/\bon\w+\s*=\s*(["\']?).*?\1/is', '', $sanitized_pattern);
         $this->assert("Autorun sanitization élimine balises script", stripos($sanitized_pattern, '<script>') === false);
         $this->assert("Autorun sanitization élimine attributs d'événement onerror", stripos($sanitized_pattern, 'onerror') === false);
+
+        // Test ActionRouter CSRF protection on tribune_post
+        $this->assert("ActionRouter::MUTATING_ACTIONS protège tribune_post (CSRF)", in_array('tribune_post', \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true));
+
+        // Test UrlValidator Advanced Anti-SSRF (IPv4-mapped IPv6, CGNAT, userinfo, integer/hex IP, redirects)
+        $this->assert("UrlValidator bloque IPv4-mapped IPv6 loopback ([::ffff:127.0.0.1])", !\SimpleGallery\Kernel\Security\UrlValidator::isSafePublicUrl('http://[::ffff:127.0.0.1]/'));
+        $this->assert("UrlValidator bloque IPv4-mapped IPv6 metadata ([::ffff:169.254.169.254])", !\SimpleGallery\Kernel\Security\UrlValidator::isSafePublicUrl('http://[::ffff:169.254.169.254]/latest/meta-data/'));
+        $this->assert("UrlValidator bloque plage CGNAT (100.64.0.1)", !\SimpleGallery\Kernel\Security\UrlValidator::isSafePublicUrl('http://100.64.0.1/'));
+        $this->assert("UrlValidator bloque confusion userinfo (http://example.com@127.0.0.1/)", !\SimpleGallery\Kernel\Security\UrlValidator::isSafePublicUrl('http://example.com@127.0.0.1/'));
+        $this->assert("UrlValidator bloque IP entière (http://2130706433/)", !\SimpleGallery\Kernel\Security\UrlValidator::isSafePublicUrl('http://2130706433/'));
+        $this->assert("UrlValidator bloque IP hexadécimale (http://0x7f000001/)", !\SimpleGallery\Kernel\Security\UrlValidator::isSafePublicUrl('http://0x7f000001/'));
+        $this->assert("UrlValidator résout correctement une redirection relative", \SimpleGallery\Kernel\Security\UrlValidator::resolveRedirectUrl('https://example.com/a/b', '/c') === 'https://example.com/c');
+        $this->assert("UrlValidator rejette une redirection vers file://", \SimpleGallery\Kernel\Security\UrlValidator::resolveRedirectUrl('https://example.com/', 'file:///etc/passwd') === null);
+        $this->assert("UrlValidator rejette une redirection vers gopher://", \SimpleGallery\Kernel\Security\UrlValidator::resolveRedirectUrl('https://example.com/', 'gopher://127.0.0.1:6379/') === null);
+
+        // Test BrowserProxyAction Origin Isolation, Auth Gate, Content-Type & Script Tag Escaping
+        require_once $project_root . '/apps/browser/backend/BrowserProxyAction.php';
+        $proxy_headers = \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::getProxySecurityHeaders();
+        $csp_val = $proxy_headers['Content-Security-Policy'] ?? '';
+        $this->assert("BrowserProxy impose CSP sandbox", stripos($csp_val, 'sandbox') !== false);
+        $this->assert("BrowserProxy n'accorde JAMAIS allow-same-origin dans CSP", stripos($csp_val, 'allow-same-origin') === false);
+        $this->assert("BrowserProxy n'expose pas Access-Control-Allow-Origin", !isset($proxy_headers['Access-Control-Allow-Origin']));
+        $this->assert("BrowserProxy bloque Content-Type SVG dangereux", \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::sanitizeContentType('image/svg+xml') === 'text/plain; charset=utf-8');
+        $this->assert("BrowserProxy bloque injection CRLF dans Content-Type", strpos(\SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::sanitizeContentType("text/html\r\nX-Evil: 1"), "\r") === false);
+
+        $xss_url = 'https://example.com/</script><script>alert(1)</script>';
+        $escaped_html = \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::processHtml('<html><head></head><body>Hi</body></html>', $xss_url);
+        $this->assert("BrowserProxy échappe </script> dans l'URL source (JSON_HEX_TAG)", stripos($escaped_html, '</script><script>alert(1)') === false);
+
+        // Auth gate check: guest rejected (403), admin allowed (200)
+        $prev_admin_1 = $_SESSION['is_admin'] ?? null;
+        $prev_admin_2 = $_SESSION['sg_admin_logged'] ?? null;
+        unset($_SESSION['is_admin'], $_SESSION['sg_admin_logged']);
+        $guest_proxy_res = \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::handle('browser_proxy', [
+            'url'          => 'https://example.com/',
+            'mock_body'    => '<html><body>ok</body></html>',
+            'test_mode'    => true,
+            'enforce_auth' => true
+        ], ['base_dir' => $this->temp_test_dir]);
+        $this->assert("BrowserProxy refuse un invité non autorisé (403)", ($guest_proxy_res['status'] ?? 0) === 403);
+
+        $_SESSION['is_admin'] = true;
+        $_SESSION['sg_admin_logged'] = true;
+        $admin_proxy_res = \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::handle('browser_proxy', [
+            'url'          => 'https://example.com/',
+            'mock_body'    => '<html><body>ok</body></html>',
+            'test_mode'    => true,
+            'enforce_auth' => true
+        ], ['base_dir' => $this->temp_test_dir]);
+        $this->assert("BrowserProxy autorise un administrateur connecté (200)", ($admin_proxy_res['status'] ?? 0) === 200);
+        if ($prev_admin_1 === null) unset($_SESSION['is_admin']); else $_SESSION['is_admin'] = $prev_admin_1;
+        if ($prev_admin_2 === null) unset($_SESSION['sg_admin_logged']); else $_SESSION['sg_admin_logged'] = $prev_admin_2;
+
+        // Test Tribune OAuth Secrets Hygiene (.gitignore + example template)
+        $gitignore_content = @file_get_contents($project_root . '/.gitignore') ?: '';
+        $this->assert(".gitignore exclut storage/tribune_secrets.php", strpos($gitignore_content, 'tribune_secrets.php') !== false);
+        $this->assert("Template storage/tribune_secrets.example.php présent", file_exists($project_root . '/storage/tribune_secrets.example.php'));
     }
 }
 

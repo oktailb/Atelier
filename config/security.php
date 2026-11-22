@@ -16,6 +16,10 @@ $rate_limits = [
     'search' => [
         'max_attempts'  => 120,
         'decay_seconds' => 60
+    ],
+    'browser_proxy' => [
+        'max_attempts'  => 30,
+        'decay_seconds' => 60
     ]
 ];
 
@@ -33,6 +37,7 @@ $default_guest_permissions = [
     'can_move'             => false,
     'can_comment'          => false,
     'can_create_folder'    => false,
-    'can_download_archive' => false,
-    'can_download_item'    => false
+    'can_download_archive'  => false,
+    'can_download_item'     => false,
+    'can_use_browser_proxy' => false
 ];

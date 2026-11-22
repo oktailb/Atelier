@@ -514,11 +514,14 @@ try {
   const normSearch = browserInst.normalizeUrl('recherche simple');
   assert("browser normalizeUrl transforme requête en recherche DuckDuckGo", normSearch.includes('duckduckgo.com/?q=recherche'));
   
-  // Test proxy mode routing
+  // Test proxy mode routing & sandbox isolation
   browserInst.useProxy = false;
   assert("browser getEffectiveIframeUrl en mode direct renvoie l'URL directe", browserInst.getEffectiveIframeUrl('https://example.com') === 'https://example.com');
   browserInst.useProxy = true;
-  assert("browser getEffectiveIframeUrl en mode proxy route vers api.php?action=browser_proxy", browserInst.getEffectiveIframeUrl('https://example.com').includes('api.php?action=browser_proxy&url='));
+  const proxiedUrl = browserInst.getEffectiveIframeUrl('https://example.com');
+  assert("browser getEffectiveIframeUrl en mode proxy route vers api.php?action=browser_proxy", proxiedUrl.includes('api.php?action=browser_proxy&url='));
+  assert("browser getIframeSandbox retire allow-same-origin en mode proxy (anti-XSS)", !browserInst.getIframeSandbox(proxiedUrl).includes('allow-same-origin'));
+  assert("browser getIframeSandbox conserve allow-scripts et allow-forms en mode proxy", browserInst.getIframeSandbox(proxiedUrl).includes('allow-scripts') && browserInst.getIframeSandbox(proxiedUrl).includes('allow-forms'));
   assert("browser getEffectiveIframeUrl laisse les fichiers locaux directs même en mode proxy", browserInst.getEffectiveIframeUrl('storage/test.html') === 'storage/test.html');
   browserInst.toggleProxy();
   assert("browser toggleProxy bascule l'état useProxy", browserInst.useProxy === false);
