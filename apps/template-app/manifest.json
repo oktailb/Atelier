@@ -2,9 +2,9 @@
   "id": "template-app",
   "name": "App Template Dev",
   "version": "2.1.0",
-  "description": "Application modèle de référence démontrant l'ensemble des API, services et bonnes pratiques de SimpleGallery WebOS",
+  "description": "Application modèle de référence démontrant l'ensemble des API, services et bonnes pratiques de Atelier by GallusTech",
   "icon": "🧪",
-  "author": "SimpleGallery Team",
+  "author": "GallusTech",
   "category": "utilities",
   "autostartCapable": true,
   "entry": {

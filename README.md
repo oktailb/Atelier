@@ -1,12 +1,12 @@
-# SimpleGallery WebOS 🚀
+# Atelier by GallusTech 🚀
 
-**SimpleGallery** est à la fois une galerie multimédia plug-and-play ultra-rapide et un **environnement WebOS moderne et modulaire** conçu en **PHP 7.4+ / PHP 8+ et JavaScript Vanilla pur** (zéro framework lourd, zéro dépendance complexe, zéro base de données obligatoire).
+**Atelier by GallusTech** est à la fois une galerie multimédia plug-and-play ultra-rapide et un **environnement WebOS moderne et modulaire** conçu en **PHP 7.4+ / PHP 8+ et JavaScript Vanilla pur** (zéro framework lourd, zéro dépendance complexe, zéro base de données obligatoire).
 
 Le principe fondamental d'origine reste intact : **pour publier de nouveaux médias (photos, vidéos, musique, documents, archives), il suffit simplement de les déposer dans n'importe quel dossier sur le serveur.**
 
 ---
 
-![Aperçu SimpleGallery WebOS](screenshot.webp)
+![Aperçu Atelier by GallusTech](screenshot.webp)
 
 ## 🌟 Fonctionnalités Principales
 
@@ -55,11 +55,11 @@ Ouvrez ensuite `http://localhost:8080` dans votre navigateur.
 ---
 
 ### 2. Déploiement sur Serveur Web (Apache, Nginx, Caddy)
-1. Déposez l'ensemble des fichiers du projet dans la racine de votre hébergement web (`public_html` ou `/var/www/html/SimpleGallery`).
+1. Déposez l'ensemble des fichiers du projet dans la racine de votre hébergement web (`public_html` ou `/var/www/html/atelier`).
 2. Accordez les permissions d'écriture nécessaires au serveur web :
    ```bash
-   chown -R www-data:www-data /var/www/html/SimpleGallery
-   chmod -R 775 /var/www/html/SimpleGallery
+   chown -R www-data:www-data /var/www/html/atelier
+   chmod -R 775 /var/www/html/atelier
    ```
 3. Initialisez le mot de passe d'administration en ligne de commande :
    ```bash
@@ -131,6 +131,7 @@ Pour aller plus loin dans la personnalisation et le développement :
 - 🛠️ **[Guide Développeur d'Applications](docs/apps-guide.md)** : Créer une application WebOS en 5 minutes avec `WebOSApp`.
 - 🔐 **[Sécurité & Permissions](docs/security.md)** : Modèle de sécurité, politiques d'accès et streaming inline.
 - 🔒 **[Modules Métier & Dépôts Privés](docs/private-extensions.md)** : Intégrer des applications propriétaires ou confidentielles sans modifier le code source public.
+- 🗺️ **[Feuille de Route Produit & Cloud](ROADMAP.md)** : Vision Atelier Cloud, multi-utilisateurs, S3/R2, WebDAV et offres.
 - 📖 **[Portail de Documentation](DOCUMENTATION.md)** : Vue d'ensemble et référence technique.
 
 ---

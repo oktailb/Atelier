@@ -6,7 +6,7 @@
     "flag_svg": "<svg class=\"flag-icon\" viewBox=\"0 0 640 480\" width=\"18\" height=\"13\" aria-hidden=\"true\"><g fill-rule=\"evenodd\" stroke-width=\"1pt\"><path fill=\"#fff\" d=\"M0 0h640v480H0z\"/><path fill=\"#002654\" d=\"M0 0h213.3v480H0z\"/><path fill=\"#ce1126\" d=\"M426.7 0H640v480H426.7z\"/></g></svg>"
   },
   "translations": {
-    "app.title": "SimpleGallery",
+    "app.title": "Atelier by GallusTech",
     "nav.root": "Stockage",
     "nav.search_placeholder": "Rechercher des médias...",
     "nav.search_clear": "Effacer la recherche",
@@ -225,7 +225,7 @@
     "pip.minimize": "Masquer / Réduire",
     "pip.close": "Fermer le lecteur",
     "cookie.banner_title": "Respect de votre vie privée",
-    "cookie.banner_desc": "SimpleGallery utilise des cookies essentiels au fonctionnement et le stockage local pour mémoriser vos préférences d'affichage (mode grille/polaroid, favoris). Aucun traceur publicitaire n'est utilisé.",
+    "cookie.banner_desc": "Atelier by GallusTech utilise des cookies essentiels au fonctionnement et le stockage local pour mémoriser vos préférences d'affichage (mode grille/polaroid, favoris). Aucun traceur publicitaire n'est utilisé.",
     "cookie.accept_all": "✓ Tout accepter",
     "cookie.reject_non_essential": "Essentiels uniquement",
     "cookie.customize": "⚙️ Personnaliser",

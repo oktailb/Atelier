@@ -90,7 +90,7 @@ class AppEndpoint {
             'media_dir'     => $base_dir,
             'ignore_list'   => $ignore_list ?? [],
             'media_types'   => $media_types ?? [],
-            'gallery_title' => $gallery_title ?? 'SimpleGallery',
+            'gallery_title' => $gallery_title ?? 'Atelier by GallusTech',
             'thumbnail_dir' => $thumbnail_dir ?? '.thumbnails',
             'raw_body'      => $raw_body,
             'is_admin'      => SecurityManager::isAdminLoggedIn()

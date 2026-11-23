@@ -111,8 +111,8 @@ class TribuneActions {
 
         return [
             'local' => [
-                'name'        => 'Tribune Interne (SimpleGallery)',
-                'description' => 'Tribune de discussion locale intégrée à SimpleGallery WebOS',
+                'name'        => 'Tribune Interne (Atelier)',
+                'description' => 'Tribune de discussion locale intégrée à Atelier by GallusTech',
                 'url'         => 'system/endpoints/api.php?action=tribune_get',
                 'post_url'    => 'system/endpoints/api.php?action=tribune_post',
                 'backend_type'=> 'local',
@@ -443,9 +443,9 @@ class TribuneActions {
                         'id'        => 1,
                         'time'      => date('YmdHis', time() - 3600),
                         'clock'     => date('H:i:s', time() - 3600),
-                        'login'     => 'oktail',
-                        'info'      => 'SimpleGallery WebOS',
-                        'message'   => 'Bienvenue sur la Tribune Libre de SimpleGallery ! [:totoz] Horloge cliquable, Totoz, Trollomètre et BAK sont activés. 🦆',
+                        'login'     => 'atelier',
+                        'info'      => 'Atelier by GallusTech',
+                        'message'   => 'Bienvenue sur la Tribune Libre d\'Atelier by GallusTech ! [:totoz] Horloge cliquable, Totoz, Trollomètre et BAK sont activés. 🦆',
                         'is_admin'  => true,
                         'board'     => 'local'
                     ]

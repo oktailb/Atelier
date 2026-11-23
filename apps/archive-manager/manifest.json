@@ -4,7 +4,7 @@
   "version": "2.0.0",
   "description": "Explorateur et inspecteur d'archives compressées (ZIP, TAR, GZ, 7Z, RAR) avec listing interactif du contenu",
   "icon": "📦",
-  "author": "SimpleGallery Team",
+  "author": "GallusTech",
   "category": "productivity",
   "locales": {
     "fr": {

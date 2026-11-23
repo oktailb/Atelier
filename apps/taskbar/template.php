@@ -5,10 +5,13 @@
 <footer id="webosTaskbar" class="webos-taskbar app-footer">
   <!-- Left: Brand info & Cookie Settings -->
   <div class="taskbar-left-zone">
-    <a href="https://github.com/oktailb/SimpleGallery" target="_blank" rel="noopener noreferrer" class="taskbar-brand-link" title="SimpleGallery on GitHub">
-      📸 <strong><?php echo htmlspecialchars($gallery_title ?? 'SimpleGallery', ENT_QUOTES, 'UTF-8'); ?></strong>
-    </a>
-    <span class="taskbar-tech">PHP &amp; JS</span>
+    <span class="taskbar-brand-link" title="Atelier by GallusTech">
+      <span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;background:linear-gradient(135deg,#4f46e5,#2563eb);color:#fff;font-weight:800;font-size:0.68rem;margin-right:4px;">A</span>
+      <strong><?php echo htmlspecialchars($gallery_title ?? 'Atelier', ENT_QUOTES, 'UTF-8'); ?></strong>
+      <?php if (!empty($gallery_brand_subtitle)): ?>
+        <span style="opacity:0.7;font-size:0.74rem;margin-left:3px;"><?php echo htmlspecialchars($gallery_brand_subtitle, ENT_QUOTES, 'UTF-8'); ?></span>
+      <?php endif; ?>
+    </span>
     <span class="taskbar-separator">•</span>
     <button type="button" id="openCookieSettingsBtn" class="taskbar-cookie-btn" title="Gérer vos préférences de confidentialité et cookies" data-i18n-title="cookie.footer_link" data-i18n="cookie.footer_link">
       🍪 Cookies

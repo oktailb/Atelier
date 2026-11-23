@@ -253,7 +253,7 @@ class UrlValidator {
         $timeout = (int)($options['timeout'] ?? 8);
         $max_redirects = (int)($options['max_redirects'] ?? 5);
         $follow_redirects = (bool)($options['follow_redirects'] ?? true);
-        $user_agent = (string)($options['user_agent'] ?? 'SimpleGallery-WebOS/1.0');
+        $user_agent = (string)($options['user_agent'] ?? 'Atelier-GallusTech/1.0');
         $max_bytes = (int)($options['max_bytes'] ?? (5 * 1024 * 1024));
 
         if (!function_exists('curl_init')) {

@@ -30,9 +30,9 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
   <meta name="csrf-token" content="<?php echo get_csrf_token(); ?>">
   <meta name="cookie-consent-enabled" content="<?php echo !empty($enable_cookie_consent) ? '1' : '0'; ?>">
   <meta name="default-locale" content="<?php echo htmlspecialchars($default_locale, ENT_QUOTES, 'UTF-8'); ?>">
-  <meta name="description" content="SimpleGallery 2026 - Ultra-fast zero-dependency modern PHP web gallery">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖼️</text></svg>">
-  <title><?php echo htmlspecialchars($gallery_title, ENT_QUOTES, 'UTF-8'); ?></title>
+  <meta name="description" content="Atelier by GallusTech — Sovereign Web Desktop, Media Cloud & Creative Studio">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%234f46e5'/><stop offset='100%25' stop-color='%232563eb'/></linearGradient></defs><rect width='64' height='64' rx='16' fill='url(%23g)'/><path d='M32 14L48 50H40.5L37 41.5H27L23.5 50H16L32 14ZM32 24.5L29.2 35.5H34.8L32 24.5Z' fill='%23ffffff'/></svg>">
+  <title><?php echo htmlspecialchars($gallery_title . (!empty($gallery_brand_subtitle) ? ' ' . $gallery_brand_subtitle : ''), ENT_QUOTES, 'UTF-8'); ?></title>
 
 
   <!-- Initial i18n Locales Configuration Payload -->
@@ -201,9 +201,12 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
     <div class="header-container">
       <!-- 1. OS Brand Section (Apple-menu style Application Launcher) -->
       <div class="brand-section" id="brandSection">
-        <button type="button" id="appLauncherBtn" class="app-launcher-btn" title="Menu des Applications WebOS" data-i18n-title="nav.apps_menu">
-          <span class="brand-logo">📸</span>
+        <button type="button" id="appLauncherBtn" class="app-launcher-btn" title="Menu des Applications" data-i18n-title="nav.apps_menu">
+          <span class="brand-logo" aria-hidden="true" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;background:linear-gradient(135deg,#4f46e5,#2563eb);color:#fff;font-weight:800;font-size:0.85rem;letter-spacing:-0.02em;flex-shrink:0;">A</span>
           <h1 class="brand-title"><?php echo htmlspecialchars($gallery_title, ENT_QUOTES, 'UTF-8'); ?></h1>
+          <?php if (!empty($gallery_brand_subtitle)): ?>
+            <span class="brand-subtitle" style="font-size:0.72rem;font-weight:500;opacity:0.68;margin-left:2px;white-space:nowrap;"><?php echo htmlspecialchars($gallery_brand_subtitle, ENT_QUOTES, 'UTF-8'); ?></span>
+          <?php endif; ?>
           <span class="brand-arrow">▾</span>
         </button>
         <div id="appLauncherMenu" class="app-launcher-menu" style="display: none;">

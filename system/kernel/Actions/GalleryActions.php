@@ -22,7 +22,7 @@ class GalleryActions {
         $base_dir      = $context['base_dir'] ?? '';
         $media_types   = $context['media_types'] ?? [];
         $ignore_list   = $context['ignore_list'] ?? [];
-        $gallery_title = $context['gallery_title'] ?? 'SimpleGallery';
+        $gallery_title = $context['gallery_title'] ?? 'Atelier by GallusTech';
         $thumbnail_dir = $context['thumbnail_dir'] ?? '.thumbnails';
 
         switch ($action) {

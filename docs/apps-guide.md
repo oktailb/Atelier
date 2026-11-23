@@ -1,6 +1,6 @@
 # 🛠️ Guide & Kit Développeur — Création d'Applications WebOS
 
-Ce guide de référence explique comment concevoir, sécuriser, traduire, tester et intégrer une application dans **SimpleGallery WebOS**, qu'il s'agisse d'une **application native JS/PHP** ou d'une **application web/WASM autonome tierce**.
+Ce guide de référence explique comment concevoir, sécuriser, traduire, tester et intégrer une application dans **Atelier by GallusTech**, qu'il s'agisse d'une **application native JS/PHP** ou d'une **application web/WASM autonome tierce**.
 
 > 💡 **Squelette prêt à copier-coller** : consultez [`apps/template-app/`](../apps/template-app/) pour un exemple complet, fonctionnel et 100 % conforme à toutes les règles ci-dessous.
 
@@ -232,7 +232,7 @@ Exemple `apps/mon-outil/locales/fr.json` (format plat recommandé, à maintenir 
 
 ## 5. Thèmes & Design System CSS
 
-SimpleGallery WebOS embarque 4 thèmes (`polaroid-classic`, `dark-glass`, `light-minimal`, `cyberpunk`). Pour garantir une lisibilité parfaite sur **tous** les thèmes (y compris le thème clair `light-minimal`), utilisez exclusivement les variables CSS système :
+Atelier by GallusTech embarque 4 thèmes (`polaroid-classic`, `dark-glass`, `light-minimal`, `cyberpunk`). Pour garantir une lisibilité parfaite sur **tous** les thèmes (y compris le thème clair `light-minimal`), utilisez exclusivement les variables CSS système :
 
 | Variable CSS | Rôle |
 |---|---|

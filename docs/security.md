@@ -1,4 +1,4 @@
-# 🔐 Modèle de Sécurité & Gestion des Permissions — SimpleGallery
+# 🔐 Modèle de Sécurité & Gestion des Permissions — Atelier by GallusTech
 
 Ce document explicite les politiques de sécurité, le modèle de droits et la distinction essentielle entre la **consultation en ligne** et le **téléchargement direct de fichiers**.
 
@@ -6,7 +6,7 @@ Ce document explicite les politiques de sécurité, le modèle de droits et la d
 
 ## 1. Principes Directeurs
 
-SimpleGallery est conçu pour être déployable sur un hébergement mutualisé ou un serveur dédié sans base de données, tout en assurant une isolation complète contre les attaques web classiques :
+Atelier by GallusTech est conçu pour être déployable sur un hébergement mutualisé ou un serveur dédié sans base de données, tout en assurant une isolation complète contre les attaques web classiques :
 - **Protection CSRF Globale** : Un jeton unique cryptographique est généré par session et validé sur chaque requête POST (`X-CSRF-Token`).
 - **Sandboxing & Anti-Directory Traversal** : Aucun chemin ne peut pointer hors du dossier racine média (`$real_base_dir`).
 - **Filtrage des Extensions Dangereuses** : Les extensions exécutables (`.php`, `.phtml`, `.phar`, `.sh`, `.bat`, `.exe`, `.cgi`, `.sql`, `.ini`) sont strictement bloquées en lecture, écriture et upload.
@@ -17,7 +17,7 @@ SimpleGallery est conçu pour être déployable sur un hébergement mutualisé o
 
 ## 2. Visionnage en Ligne vs Téléchargement de Fichier
 
-Pour concilier la protection des droits d'auteur et l'expérience utilisateur, SimpleGallery distingue deux modes d'accès aux médias :
+Pour concilier la protection des droits d'auteur et l'expérience utilisateur, Atelier by GallusTech distingue deux modes d'accès aux médias :
 
 ![Flux de Sécurité et Distribution Média](assets/security-flow.svg)
 
@@ -62,7 +62,7 @@ Lorsque `can_download_item` est désactivé :
 
 ## 5. Protection des Dossiers par Dotfiles
 
-SimpleGallery supporte deux niveaux de restriction par dossier sans aucune base de données :
+Atelier by GallusTech supporte deux niveaux de restriction par dossier sans aucune base de données :
 
 - **Dossier Privé (`.private`)** :
   - Placez un fichier nommé `.private` dans un sous-dossier.

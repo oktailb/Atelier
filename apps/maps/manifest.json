@@ -3,7 +3,7 @@
   "name": "Maps & GPS Route Explorer",
   "version": "2.0.0",
   "icon": "🗺️",
-  "author": "SimpleGallery Team",
+  "author": "GallusTech",
   "category": "viewer",
   "locales": {
     "fr": {
@@ -28,9 +28,21 @@
       "label": "Déplacer la vue (flyTo)",
       "description": "Anime la caméra vers les coordonnées GPS spécifiées",
       "params": {
-        "lat": { "type": "number", "label": "Latitude", "default": 48.8566 },
-        "lng": { "type": "number", "label": "Longitude", "default": 2.3522 },
-        "zoom": { "type": "number", "label": "Zoom", "default": 14 }
+        "lat": {
+          "type": "number",
+          "label": "Latitude",
+          "default": 48.8566
+        },
+        "lng": {
+          "type": "number",
+          "label": "Longitude",
+          "default": 2.3522
+        },
+        "zoom": {
+          "type": "number",
+          "label": "Zoom",
+          "default": 14
+        }
       }
     },
     "zoomIn": {
@@ -45,9 +57,21 @@
       "label": "Déplacer la vue (moveTo)",
       "description": "Déplace la caméra vers les coordonnées GPS spécifiées (lat, lon, zoom)",
       "params": {
-        "lat": { "type": "number", "label": "Latitude", "default": 48.8566 },
-        "lon": { "type": "number", "label": "Longitude", "default": 2.3522 },
-        "zoom": { "type": "number", "label": "Zoom", "default": 13 }
+        "lat": {
+          "type": "number",
+          "label": "Latitude",
+          "default": 48.8566
+        },
+        "lon": {
+          "type": "number",
+          "label": "Longitude",
+          "default": 2.3522
+        },
+        "zoom": {
+          "type": "number",
+          "label": "Zoom",
+          "default": 13
+        }
       }
     },
     "whereIam": {
@@ -58,9 +82,21 @@
     "setView": {
       "label": "Centrer la carte (sans animation)",
       "params": {
-        "lat": { "type": "number", "label": "Latitude", "default": 48.8566 },
-        "lng": { "type": "number", "label": "Longitude", "default": 2.3522 },
-        "zoom": { "type": "number", "label": "Zoom", "default": 13 }
+        "lat": {
+          "type": "number",
+          "label": "Latitude",
+          "default": 48.8566
+        },
+        "lng": {
+          "type": "number",
+          "label": "Longitude",
+          "default": 2.3522
+        },
+        "zoom": {
+          "type": "number",
+          "label": "Zoom",
+          "default": 13
+        }
       }
     }
   }

@@ -487,7 +487,7 @@
 
     async loadBoardsAsync() {
       const defaultBoards = {
-        local: { name: 'Tribune Locale', type: 'local', auth_type: 'none', url: '', icon: '🏠', cookie_help: 'Session locale SimpleGallery.' },
+        local: { name: 'Tribune Locale', type: 'local', auth_type: 'none', url: '', icon: '🏠', cookie_help: 'Session locale Atelier.' },
         linuxfr: {
           name: 'LinuxFR',
           type: 'remote_xml',
@@ -548,7 +548,7 @@
 
     loadBoards() {
       const defaultBoards = {
-        local: { name: 'Tribune Locale', type: 'local', auth_type: 'none', url: '', icon: '🏠', cookie_help: 'Session locale SimpleGallery.' },
+        local: { name: 'Tribune Locale', type: 'local', auth_type: 'none', url: '', icon: '🏠', cookie_help: 'Session locale Atelier.' },
         linuxfr: {
           name: 'LinuxFR',
           type: 'remote_xml',
@@ -624,7 +624,7 @@
 
       const userLogin = this.userLogin || 'Coincoin';
       const auth = this.boardAuth[this.currentBoard] || {};
-      const currentUa = auth.user_agent || navigator.userAgent || 'Mozilla/5.0 (SimpleGallery Tribune)';
+      const currentUa = auth.user_agent || navigator.userAgent || 'Mozilla/5.0 (Atelier Tribune)';
       const currentCookie = auth.cookie || '';
       const currentBoardConfig = this.boards[this.currentBoard] || {};
       const cookieHelpText = currentBoardConfig.cookie_help || (this.currentBoard === 'local' ? this.t('tribune.session_local') : this.t('tribune.cookie_help'));
@@ -1186,7 +1186,7 @@
           const payload = {
             message: msg,
             login: login,
-            info: 'SimpleGallery Client',
+            info: 'Atelier Client',
             board: this.currentBoard,
             scheduled_at: unixTs
           };

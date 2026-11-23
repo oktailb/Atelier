@@ -1,6 +1,6 @@
-# 📖 Documentation Technique — SimpleGallery WebOS
+# 📖 Documentation Technique — Atelier by GallusTech
 
-Bienvenue dans la documentation technique complète de **SimpleGallery WebOS**. 
+Bienvenue dans la documentation technique complète d'**Atelier by GallusTech**. 
 Ce document présente une vue d'ensemble du système et sert de portail vers les guides d'architecture détaillés.
 
 ---
@@ -18,7 +18,7 @@ Pour approfondir un sujet spécifique, consultez les guides dédiés dans le dos
 
 ---
 
-![Architecture SimpleGallery WebOS](docs/assets/architecture.svg)
+![Architecture Atelier by GallusTech](docs/assets/architecture.svg)
 
 ## 📊 Schémas d'Architecture Vectoriels (SVG)
 
@@ -90,7 +90,7 @@ HTTP Request
 
 ## 🧪 Banc d'Essai & Tests Unitaires
 
-SimpleGallery intègre une suite de tests complète (sécurité et fonctionnalités) :
+Atelier by GallusTech intègre une suite de tests complète (sécurité et fonctionnalités) :
 
 ```bash
 # Lancer l'intégralité de la suite de tests

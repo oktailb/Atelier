@@ -1,12 +1,12 @@
 # 🔒 Intégration de Modules Métier & Dépôts Privés
 
-Ce guide détaille la méthode recommandée pour enrichir **SimpleGallery WebOS** avec des applications métiers confidentielles, industrielles ou propriétaires, tout en maintenant le dépôt de base parfaitement synchronisé avec les évolutions publiques.
+Ce guide détaille la méthode recommandée pour enrichir **Atelier by GallusTech** avec des applications métiers confidentielles, industrielles ou propriétaires, tout en maintenant le dépôt de base parfaitement synchronisé avec les évolutions publiques.
 
 ---
 
 ## 1. Principe d'Architecture
 
-SimpleGallery est conçu pour être extensible **sans altération du noyau** :
+Atelier by GallusTech est conçu pour être extensible **sans altération du noyau** :
 - Le composant `PluginDiscovery` explore automatiquement tous les dossiers placés dans `apps/` (ainsi que les sous-dossiers de niveau 1 comme `apps/mon-pack/*`).
 - Les applications peuvent s'auto-déclarer désactivées par défaut via leur `manifest.json`.
 - Le fichier `.gitignore` racine permet d'isoler un ou plusieurs dossiers d'applications privées.

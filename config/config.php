@@ -1,13 +1,14 @@
 <?php
 /**
- * SimpleGallery 2026 - User Configuration File
+ * Atelier by GallusTech - User Configuration File
  *
  * This file contains user-editable preferences.
  * All system checks, directory initialization and security verification are handled automatically by the Kernel.
  */
 
-// Title displayed in the gallery header and browser window
-$gallery_title = "SimpleGallery";
+// Title and optional brand signature displayed in the header and browser window
+$gallery_title = "Atelier";
+$gallery_brand_subtitle = "by GallusTech";
 
 /**
  * Media Storage Directory

@@ -3,7 +3,7 @@
   "name": "Image Lightbox Viewer",
   "version": "2.0.0",
   "icon": "🖼️",
-  "author": "SimpleGallery Team",
+  "author": "GallusTech",
   "category": "viewer",
   "locales": {
     "fr": {
@@ -51,7 +51,11 @@
     "showImage": {
       "label": "Changer d'image",
       "params": {
-        "file": { "type": "file", "category": "image", "label": "Fichier image" }
+        "file": {
+          "type": "file",
+          "category": "image",
+          "label": "Fichier image"
+        }
       }
     },
     "next": {
@@ -78,15 +82,27 @@
       "label": "Définir le zoom",
       "description": "Ajuste le facteur d'échelle de zoom de l'image (ex: 1.5, 2.0)",
       "params": {
-        "factor": { "type": "number", "label": "Facteur de zoom", "default": 1.5 }
+        "factor": {
+          "type": "number",
+          "label": "Facteur de zoom",
+          "default": 1.5
+        }
       }
     },
     "move": {
       "label": "Déplacer l'image (Pan)",
       "description": "Déplace l'image agrandie selon les coordonnées x et y",
       "params": {
-        "x": { "type": "number", "label": "Déplacement X (px)", "default": 50 },
-        "y": { "type": "number", "label": "Déplacement Y (px)", "default": 0 }
+        "x": {
+          "type": "number",
+          "label": "Déplacement X (px)",
+          "default": 50
+        },
+        "y": {
+          "type": "number",
+          "label": "Déplacement Y (px)",
+          "default": 0
+        }
       }
     },
     "resetZoom": {

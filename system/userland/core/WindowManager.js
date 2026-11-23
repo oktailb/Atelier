@@ -131,10 +131,10 @@
         this.taskbar.innerHTML = `
           <!-- Left: Brand info & Cookie Settings -->
           <div class="taskbar-left-zone">
-            <a href="https://github.com/oktailb/SimpleGallery" target="_blank" rel="noopener noreferrer" class="taskbar-brand-link" title="SimpleGallery on GitHub">
-              📸 <strong>SimpleGallery</strong>
-            </a>
-            <span class="taskbar-tech">PHP &amp; JS</span>
+            <span class="taskbar-brand-link" title="Atelier by GallusTech">
+              <span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;background:linear-gradient(135deg,#4f46e5,#2563eb);color:#fff;font-weight:800;font-size:0.68rem;margin-right:4px;">A</span>
+              <strong>Atelier</strong> <span style="opacity:0.7;font-size:0.74rem;">by GallusTech</span>
+            </span>
             <span class="taskbar-separator">•</span>
             <button type="button" id="openCookieSettingsBtn" class="taskbar-cookie-btn" title="Gérer vos préférences de confidentialité et cookies">
               🍪 Cookies

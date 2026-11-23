@@ -27,7 +27,7 @@ AppEndpoint::handle('template-app', function (string $action, array $params, arr
             $notes = $storage->getJson('notes.json', [
                 [
                     'id'        => 'note-1',
-                    'title'     => 'Welcome to SimpleGallery WebOS',
+                    'title'     => 'Welcome to Atelier by GallusTech',
                     'content'   => 'Persisted atomically inside storage/apps/template-app/notes.json.',
                     'timestamp' => time() - 3600
                 ]

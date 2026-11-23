@@ -84,7 +84,7 @@ class TribuneSchedulerController {
                             'time'      => date('YmdHis', $post_time),
                             'clock'     => date('H:i:s', $post_time),
                             'login'     => htmlspecialchars($post['login'] ?? 'Anonyme', ENT_QUOTES, 'UTF-8'),
-                            'info'      => htmlspecialchars($post['info'] ?? 'SimpleGallery Scheduled', ENT_QUOTES, 'UTF-8'),
+                            'info'      => htmlspecialchars($post['info'] ?? 'Atelier Scheduled', ENT_QUOTES, 'UTF-8'),
                             'message'   => htmlspecialchars($post['message'] ?? '', ENT_QUOTES, 'UTF-8'),
                             'is_admin'  => !empty($post['is_admin']),
                             'board'     => 'local'
@@ -135,7 +135,7 @@ class TribuneSchedulerController {
 
         $msg_text    = trim($_POST['message'] ?? $raw_body['message'] ?? '');
         $login       = trim($_POST['login'] ?? $raw_body['login'] ?? 'Anonyme');
-        $info        = trim($_POST['info'] ?? $raw_body['info'] ?? 'SimpleGallery Client');
+        $info        = trim($_POST['info'] ?? $raw_body['info'] ?? 'Atelier Client');
         $board       = trim($_POST['board'] ?? $raw_body['board'] ?? 'local');
         $sched_ts    = (int)($_POST['scheduled_at'] ?? $raw_body['scheduled_at'] ?? 0);
         $target_url  = trim($_POST['target_url'] ?? $raw_body['target_url'] ?? '');

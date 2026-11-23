@@ -1,6 +1,6 @@
-# 📋 SimpleGallery WebOS — Feuille de Route & Backlog (`TODO.md`)
+# 📋 Atelier by GallusTech — Feuille de Route & Backlog (`TODO.md`)
 
-Ce document recense les évolutions produit restantes (**Phase 4**) pour **SimpleGallery WebOS**, ordonnées par priorité, complexité et dépendances.
+Ce document recense les évolutions produit restantes (**Phase 4**) pour **Atelier by GallusTech**, ordonnées par priorité, complexité et dépendances.
 
 > [!NOTE]
 > - **Historique achevé et archivé** : Phases 0 & 1 (Cybersécurité `SEC-01`–`SEC-11`), Phase 2 (Architecture noyau `ARCH-01`–`ARCH-03` + OAuth2 Tribune silencieux), Phase 3 (Qualité, i18n, `SyscallClient`, SRI, hygiène Git & découpage modulaire `QUAL-01`–`QUAL-05`), ainsi que `FEAT-01` (`system-monitor`), `FEAT-02` (`taskbar`), `FEAT-03` (`tribune`) et `FEAT-04` (`graphing-calc` — Calculatrice Scientifique, Programmeur & Traceur 2D) sont **terminés et validés** (`826/826 PASS`).
@@ -30,7 +30,7 @@ Ce document recense les évolutions produit restantes (**Phase 4**) pour **Simpl
 ### - [x] `FEAT-06` — 🔗 Pont VFS Bidirectionnel pour Apps Externes (`WebAppHost` Open/Save Hooking)
 - **Priorité** : `P4 (Haute)` | **Complexité** : `M` | **Dépendances** : `system/userland/core/WebAppHost.js`
 - **Description technique** :
-  - Améliorer l'intégration transparente des applications autonomes/WASM auto-hébergées en *same-origin* dans `apps/` (ex. suite ArtCraft / PdfCraft / PixelCraft) afin qu'elles puissent **ouvrir et enregistrer directement les fichiers du VFS SimpleGallery** sans obliger l'utilisateur à télécharger puis ré-uploader manuellement.
+  - Améliorer l'intégration transparente des applications autonomes/WASM auto-hébergées en *same-origin* dans `apps/` (ex. suite ArtCraft / PdfCraft / PixelCraft) afin qu'elles puissent **ouvrir et enregistrer directement les fichiers du VFS Atelier by GallusTech** sans obliger l'utilisateur à télécharger puis ré-uploader manuellement.
   - **Interception *same-origin* optionnelle (déclarable par app dans `config/external_apps.json` ou `manifest.json`)** :
     1. **Ouverture VFS (`Open Hook`)** : interception de `HTMLInputElement.prototype.click` (lorsque `type === 'file'`) et de `contentWindow.showOpenFilePicker()` dans l'iframe → ouvre un sélecteur de fichiers WebOS (galerie VFS filtrée par `accept`) avec un bouton de repli « Fichier local de l'ordinateur », puis injecte le `File` via `DataTransfer` + événement `change`.
     2. **Enregistrement VFS (`Save Hook`)** : interception de `contentWindow.showSaveFilePicker()` et des téléchargements `blob:` (`<a download>`) → propose « Enregistrer dans la Galerie WebOS » (dossier courant ou choix de dossier, via `SyscallClient.upload('upload_file', ...)` si l'utilisateur a la permission `can_upload`) en plus du téléchargement local.
@@ -68,7 +68,7 @@ Ce document recense les évolutions produit restantes (**Phase 4**) pour **Simpl
 ### - [x] `FEAT-09` — 📚 Guide & Kit Développeur d'Applications WebOS (`docs/apps-guide.md` + `apps/template-app`)
 - **Priorité** : `P4 (Moyenne)` | **Complexité** : `S` | **Dépendances** : Aucune
 - **Description technique** :
-  - Rédiger un guide pas-à-pas complet et illustré (`docs/apps-guide.md`) couvrant tout le cycle de création et d'intégration d'une application dans SimpleGallery WebOS :
+  - Rédiger un guide pas-à-pas complet et illustré (`docs/apps-guide.md`) couvrant tout le cycle de création et d'intégration d'une application dans Atelier by GallusTech :
     1. **Anatomie d'une app native** : structure `apps/<id>/`, `manifest.json` (`id`, `category`, `icon`, `scripts`, `entry`, `extensions`, `mimeTypes`, `autostartCapable`).
     2. **Cycle de vie `WebOSApp`** : `renderTab(tabId)` (apps à onglets) vs `renderContent()`, `bindEvents()`, `onOpen()`/`onClose()`, `this.storage`, `this.toast`, `this.dialog`, `MenuBarManager`, thèmes clair/sombre.
     3. **Internationalisation isolée** : création de `apps/<id>/locales/{fr,en,ja}.json`, chargement automatique par `PluginDiscovery::getAppTranslations()`, règle zéro fallback hardcodé dans `this.t()`.
@@ -92,7 +92,7 @@ Ce document recense les évolutions produit restantes (**Phase 4**) pour **Simpl
   - Catégorie `games` | Locales autonomes `apps/games/<jeu>/locales/{fr,en,ja}.json` | **Socle réseau partagé léger** (salles identifiées par code de session, jetons de joueur, synchronisation par polling/SSE sécurisé sans dépendance WebSocket externe, purge automatique des salles inactives).
   - **1. Table Virtuelle de Jeu de Rôle — VTT (`apps/games/jdr`, 🎲)** :
     - **Gestion de campagne & rôles** : création de table par le MJ (code d'invitation), distinction stricte vue **MJ** vs vue **Joueurs**, persistance JSON de la session dans `storage/` (avec export/import sauvegarde).
-    - **Carte tactique interactive (Canvas 2D)** : chargement d'images de cartes directement depuis la **galerie SimpleGallery**, zoom/pan fluide, grille **carrée ou hexagonale** calibrable (taille, opacité, échelle en mètres/cases), outil **règle de mesure** de distances et gabarits de zones (cône, cercle, ligne).
+    - **Carte tactique interactive (Canvas 2D)** : chargement d'images de cartes directement depuis la **galerie Atelier by GallusTech**, zoom/pan fluide, grille **carrée ou hexagonale** calibrable (taille, opacité, échelle en mètres/cases), outil **règle de mesure** de distances et gabarits de zones (cône, cercle, ligne).
     - **Pions (Tokens) & Calques** : placement/déplacement de pions (avatars issus de la galerie ou icônes), barres de PV/ressources, marqueurs d'états, calque caché réservé au MJ (monstres/pièges invisibles aux joueurs jusqu'à révélation).
     - **Brouillard de guerre (*Fog of War*)** : masquage initial de la carte pour les joueurs, pinceau/polygone MJ pour révéler ou recouvrir des zones en temps réel.
     - **Moteur de dés & Chat RP** : syntaxe complète (`1d20+5`, `2d20kh1` avantage/désavantage, `4d6dl1`, `1d100`, jets multiples), jets secrets (MJ uniquement), historique horodaté, chuchotements (`/w`).

@@ -131,7 +131,7 @@ class ActionRouter {
         string $base_dir,
         array $ignore_list,
         array $media_types,
-        string $gallery_title = 'SimpleGallery',
+        string $gallery_title = 'Atelier by GallusTech',
         string $thumbnail_dir = '.thumbnails',
         string $project_root = ''
     ): ?array {

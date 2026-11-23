@@ -6,7 +6,7 @@
     "flag_svg": "<svg class=\"flag-icon\" viewBox=\"0 0 640 480\" width=\"18\" height=\"13\" aria-hidden=\"true\"><g fill-rule=\"evenodd\" stroke-width=\"1pt\"><path fill=\"#fff\" d=\"M0 0h640v480H0z\"/><circle fill=\"#d00\" cx=\"320\" cy=\"240\" r=\"144\"/></g></svg>"
   },
   "translations": {
-    "app.title": "SimpleGallery",
+    "app.title": "Atelier by GallusTech",
     "nav.root": "ストレージ",
     "nav.search_placeholder": "メディアを検索...",
     "nav.search_clear": "検索をクリア",
@@ -225,7 +225,7 @@
     "pip.minimize": "最小化 / 折りたたむ",
     "pip.close": "プレーヤーを閉じる",
     "cookie.banner_title": "プライバシーについて",
-    "cookie.banner_desc": "SimpleGalleryは、機能に不可欠なCookieおよび表示設定（グリッド/ポラロイド表示、お気に入り）の保存にローカルストレージを使用します。広告トラッカーは一切使用していません。",
+    "cookie.banner_desc": "Atelier by GallusTechは、機能に不可欠なCookieおよび表示設定（グリッド/ポラロイド表示、お気に入り）の保存にローカルストレージを使用します。広告トラッカーは一切使用していません。",
     "cookie.accept_all": "✓ すべて許可",
     "cookie.reject_non_essential": "必須のみ許可",
     "cookie.customize": "⚙️ 設定をカスタマイズ",

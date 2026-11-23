@@ -38,7 +38,7 @@
         userRights: {},
         availableArchives: [],
         viewMode: 'polaroid',
-        galleryTitle: 'SimpleGallery'
+        galleryTitle: 'Atelier by GallusTech'
       };
 
       this.isSmartGpsEnabled = true;

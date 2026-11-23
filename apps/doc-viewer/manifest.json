@@ -4,7 +4,7 @@
   "version": "2.0.0",
   "description": "Visualiseur de documents universel (PDF, Markdown avec rendu texte, code source et fichiers bureautiques)",
   "icon": "📄",
-  "author": "SimpleGallery Team",
+  "author": "GallusTech",
   "category": "viewer",
   "locales": {
     "fr": {
@@ -75,20 +75,47 @@
     "scroll": {
       "label": "Faire défiler vers ancre / section",
       "params": {
-        "highlight": { "type": "text", "label": "Ancre / Sélecteur", "placeholder": "#chapitre-1" }
+        "highlight": {
+          "type": "text",
+          "label": "Ancre / Sélecteur",
+          "placeholder": "#chapitre-1"
+        }
       }
     },
     "scrollTo": {
       "label": "Faire défiler vers page ou ancre (scrollTo)",
       "params": {
-        "page": { "type": "text", "label": "Numéro de page ou Sélecteur (#ancre)", "placeholder": "1 ou #chapitre-1", "default": "1" }
+        "page": {
+          "type": "text",
+          "label": "Numéro de page ou Sélecteur (#ancre)",
+          "placeholder": "1 ou #chapitre-1",
+          "default": "1"
+        }
       }
     },
     "searchText": {
       "label": "Rechercher et surligner un texte (searchText)",
       "params": {
-        "string": { "type": "text", "label": "Texte à rechercher", "placeholder": "mot-clé..." },
-        "scrollto": { "type": "select", "label": "Défiler vers le résultat", "options": [{ "value": "true", "label": "Oui" }, { "value": "false", "label": "Non" }], "default": "true" }
+        "string": {
+          "type": "text",
+          "label": "Texte à rechercher",
+          "placeholder": "mot-clé..."
+        },
+        "scrollto": {
+          "type": "select",
+          "label": "Défiler vers le résultat",
+          "options": [
+            {
+              "value": "true",
+              "label": "Oui"
+            },
+            {
+              "value": "false",
+              "label": "Non"
+            }
+          ],
+          "default": "true"
+        }
       }
     },
     "nextPage": {
@@ -102,7 +129,25 @@
     "setTheme": {
       "label": "Changer le thème de lecture (setTheme)",
       "params": {
-        "theme": { "type": "select", "label": "Thème", "options": [{ "value": "dark", "label": "Sombre (Nuit)" }, { "value": "light", "label": "Clair" }, { "value": "sepia", "label": "Sépia (Livre)" }], "default": "dark" }
+        "theme": {
+          "type": "select",
+          "label": "Thème",
+          "options": [
+            {
+              "value": "dark",
+              "label": "Sombre (Nuit)"
+            },
+            {
+              "value": "light",
+              "label": "Clair"
+            },
+            {
+              "value": "sepia",
+              "label": "Sépia (Livre)"
+            }
+          ],
+          "default": "dark"
+        }
       }
     },
     "toggleEdit": {

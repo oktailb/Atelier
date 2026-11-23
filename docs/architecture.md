@@ -1,16 +1,16 @@
-# 🏗️ Architecture Système — SimpleGallery WebOS
+# 🏗️ Architecture Système — Atelier by GallusTech
 
-Ce document détaille l'architecture interne de **SimpleGallery WebOS**, la répartition des responsabilités entre le serveur (Kernel PHP) et le client (Userland JavaScript), ainsi que le cycle de vie des données et des requêtes.
+Ce document détaille l'architecture interne d'**Atelier by GallusTech**, la répartition des responsabilités entre le serveur (Kernel PHP) et le client (Userland JavaScript), ainsi que le cycle de vie des données et des requêtes.
 
 ---
 
 ## 1. Vue d'Ensemble & Découpage
 
-SimpleGallery adopte une architecture **Micro-Kernel + Userland** :
+Atelier by GallusTech adopte une architecture **Micro-Kernel + Userland** :
 - **Serveur (Kernel PHP 7.4+ / 8.x)** : Zéro framework lourd, zéro base de données obligatoire. Il gère l'isolation du système de fichiers (VFS), l'authentification BCRYPT, la protection CSRF, la génération de miniatures (GD / FFmpeg) et le dispatching des appels API.
 - **Navigateur (Userland Vanilla JS / CSS3)** : Environnement multi-tâches avec gestionnaire de fenêtres (`WindowManager`), barre supérieure dynamique façon macOS (`MenuBarManager`), bus d'événements IPC (`EventBus`), client d'appels système (`SyscallClient`), internationalisation réactive en temps réel (`I18nEngine`) et toolkit UI déclaratif.
 
-![Architecture Modulaire SimpleGallery WebOS](assets/architecture.svg)
+![Architecture Modulaire Atelier by GallusTech](assets/architecture.svg)
 
 ---
 
@@ -45,7 +45,7 @@ Le projet sépare strictement la configuration système des données applicative
 
 ## 4. Système de Découverte Dynamique (`PluginDiscovery`)
 
-SimpleGallery ne possède aucun registre d'applications codé en dur :
+Atelier by GallusTech ne possède aucun registre d'applications codé en dur :
 1. Au démarrage, `SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps()` scanne le dossier `apps/` (ainsi que les sous-dossiers de niveau 1 comme `apps/games/*` ou `apps/ffs-apps/*`).
 2. Pour chaque sous-dossier contenant un `manifest.json` ou un fichier `<nom>.js` / `app.js` :
    - Les scripts auxiliaires (`manifest.scripts`) et le script principal (`manifest.entry.js` ou `app.js`) sont indexés.

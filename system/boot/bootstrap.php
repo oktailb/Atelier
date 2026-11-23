@@ -14,7 +14,7 @@ if (!defined('SG_EXEC')) {
 // 1. Ensure minimal PHP version (PHP 7.2+)
 if (PHP_VERSION_ID < 70200) {
     http_response_code(500);
-    die('SimpleGallery requires PHP 7.2 or higher. Current version: ' . PHP_VERSION);
+    die('Atelier by GallusTech requires PHP 7.2 or higher. Current version: ' . PHP_VERSION);
 }
 
 // 1.1 PHP 8.0 Polyfills for PHP 7.2 - 7.4 environments
