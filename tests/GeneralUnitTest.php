@@ -1102,6 +1102,32 @@ class GeneralUnitTestSuite {
         $this->assert(".htaccess déclare le type MIME application/wasm", strpos($root_htaccess, 'AddType application/wasm .wasm') !== false);
         $this->assert(".htaccess route le fallback app/snippets/* vers snippets/* pour les apps WASM/Trunk", strpos($root_htaccess, '/app/(snippets/.+)$') !== false);
 
+        // 11. Phase 2 Architecture (ARCH-01 project_root vs media_dir, ARCH-02 kernel fixes, ARCH-03 plugin action discovery, Tribune OAuth2 silent refresh)
+        $media_sub = $this->base_dir . '/storage/media';
+        $this->assert("ARCH-01: ConfigStore::resolveRoot résout storage/media vers project_root", \SimpleGallery\Kernel\Config\ConfigStore::resolveRoot($media_sub) === $this->base_dir);
+        $this->assert("ARCH-01: ConfigStore::resolveRoot préserve un sandbox isolé de test", \SimpleGallery\Kernel\Config\ConfigStore::resolveRoot($this->test_dir) === $this->test_dir);
+        $this->assert("ARCH-01: PermissionsManager résout storage/permissions.json sous project_root (jamais sous storage/media)", \SimpleGallery\Kernel\FS\PermissionsManager::getPermissionsFilePath($media_sub) === $this->base_dir . '/storage/permissions.json');
+        $wm_res = \SimpleGallery\Kernel\Actions\SystemActions::handle('get_wm_styles', [], ['base_dir' => $media_sub]);
+        $this->assert("ARCH-01: SystemActions::get_wm_styles trouve les skins même quand base_dir=storage/media", ($wm_res['status'] ?? 0) === 200 && !empty($wm_res['data']['styles']));
+        $this->assert("ARCH-01: TribuneActions::resolveStorageDir pointe vers <project_root>/storage pour storage/media", \SimpleGallery\Apps\Tribune\Backend\TribuneActions::resolveStorageDir($media_sub) === $this->base_dir . '/storage');
+
+        $gal_src = @file_get_contents($this->base_dir . '/system/kernel/Actions/GalleryActions.php') ?: '';
+        $this->assert("ARCH-02: GalleryActions appelle AuthManager::getPasswordHash('', \$base_dir)", strpos($gal_src, "AuthManager::getPasswordHash('', \$base_dir)") !== false);
+        $thumb_src = @file_get_contents($this->base_dir . '/system/endpoints/thumb.php') ?: '';
+        $this->assert("ARCH-02: thumb.php utilise un cast (int) pour HTTP Range (fseek)", strpos($thumb_src, '(int)$matches[1]') !== false && strpos($thumb_src, '(float)$matches[1]') === false);
+        $this->assert("ARCH-02: thumb.php gère la redirection stderr portable Windows/Unix", strpos($thumb_src, "PHP_OS_FAMILY === 'Windows'") !== false);
+
+        $discovered_backend = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredBackendActions($this->base_dir);
+        $this->assert("ARCH-03: PluginDiscovery découvre browser_proxy depuis apps/browser/manifest.json", isset($discovered_backend['actions']['browser_proxy']));
+        $this->assert("ARCH-03: PluginDiscovery découvre tribune_oauth_refresh depuis apps/tribune/manifest.json", isset($discovered_backend['actions']['tribune_oauth_refresh']));
+        $this->assert("ARCH-03: ActionRouter::isMutatingAction protège tribune_oauth_refresh via manifeste", \SimpleGallery\Kernel\Actions\ActionRouter::isMutatingAction('tribune_oauth_refresh', $this->base_dir) === true);
+        $this->assert("ARCH-03: ActionRouter::resolvePluginAction résout dynamiquement browser_proxy", (\SimpleGallery\Kernel\Actions\ActionRouter::resolvePluginAction('browser_proxy', $this->base_dir)['app_id'] ?? '') === 'browser');
+
+        $refresh_missing = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::handle('tribune_oauth_refresh', ['board_id' => 'linuxfr', 'refresh_token' => ''], $this->test_dir);
+        $this->assert("Tribune OAuth2: tribune_oauth_refresh valide les paramètres requis (400)", ($refresh_missing['status'] ?? 0) === 400);
+        $tribune_backend_src = @file_get_contents($this->base_dir . '/apps/tribune/backend/TribuneActions.php') ?: '';
+        $this->assert("Tribune OAuth2: tribune_oauth_callback ne contient plus d'alert() bloquant", strpos($tribune_backend_src, 'alert(') === false);
+
         // Cleanup temporary fixture tree
         @unlink($tmp_root . '/config/external_apps.json');
         @unlink($tmp_app1 . '/index.html');

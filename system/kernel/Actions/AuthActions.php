@@ -7,8 +7,11 @@ use SimpleGallery\Kernel\Security\RateLimiter;
 
 class AuthActions {
 
-    public static function handle(string $action, array $params, array|string $context): ?array {
-        $base_dir = is_array($context) ? ($context['base_dir'] ?? '') : $context;
+    public static function handle(string $action, array $params, $context): ?array {
+        $base_dir = is_array($context) ? ($context['base_dir'] ?? '') : (string)$context;
+        $project_root = (is_array($context) && !empty($context['project_root']))
+            ? (string)$context['project_root']
+            : \SimpleGallery\Kernel\Config\ConfigStore::resolveRoot($base_dir);
         $raw_body = is_array($context) ? ($context['raw_body'] ?? $params) : $params;
 
         if ($action === 'login') {
@@ -73,7 +76,7 @@ class AuthActions {
         }
 
         if ($action === 'get_permissions') {
-            $perms = PermissionsManager::loadPermissions($base_dir);
+            $perms = PermissionsManager::loadPermissions($project_root);
             return ['status' => 200, 'data' => [
                 'success'     => true,
                 'permissions' => $perms,
@@ -94,11 +97,11 @@ class AuthActions {
                 return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_invalid_data')]];
             }
 
-            if (PermissionsManager::savePermissions($base_dir, $new_perms)) {
+            if (PermissionsManager::savePermissions($project_root, $new_perms)) {
                 return ['status' => 200, 'data' => [
                     'success'     => true,
                     'message'     => __t('api.msg_permissions_saved'),
-                    'permissions' => PermissionsManager::loadPermissions($base_dir)
+                    'permissions' => PermissionsManager::loadPermissions($project_root)
                 ]];
             }
 
@@ -106,7 +109,7 @@ class AuthActions {
         }
 
         if ($action === 'get_autostart_settings') {
-            $config = get_autostart_config($base_dir);
+            $config = get_autostart_config($project_root);
             return ['status' => 200, 'data' => ['success' => true, 'autostart' => $config]];
         }
 
@@ -124,7 +127,7 @@ class AuthActions {
                 return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_invalid_data')]];
             }
 
-            $saved = \SimpleGallery\Kernel\Config\ConfigStore::set('autostart', $raw_autostart, $base_dir);
+            $saved = \SimpleGallery\Kernel\Config\ConfigStore::set('autostart', $raw_autostart, $project_root);
             if ($saved) {
                 return ['status' => 200, 'data' => ['success' => true, 'autostart' => $raw_autostart, 'message' => __t('settings.autostart_saved')]];
             }

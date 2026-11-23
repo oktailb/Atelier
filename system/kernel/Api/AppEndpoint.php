@@ -79,12 +79,15 @@ class AppEndpoint {
             }
         }
 
-        $base_dir = $real_base_dir ?? (defined('SIMPLE_GALLERY_CORE') ? dirname(dirname(dirname(__DIR__))) : dirname(dirname(dirname(__DIR__))));
+        $project_root = str_replace('\\', '/', dirname(dirname(dirname(__DIR__))));
+        $base_dir = $real_base_dir ?? $project_root;
         $params = array_merge($_GET, $_POST, $raw_body);
 
         $context = [
             'app_id'        => $app_id,
+            'project_root'  => $project_root,
             'base_dir'      => $base_dir,
+            'media_dir'     => $base_dir,
             'ignore_list'   => $ignore_list ?? [],
             'media_types'   => $media_types ?? [],
             'gallery_title' => $gallery_title ?? 'SimpleGallery',

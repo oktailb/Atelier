@@ -167,13 +167,9 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
   <?php endforeach; ?>
 
   <?php
-  $desktop_config_file = __DIR__ . '/config/desktop.json';
-  $desktop_config = ['shortcuts' => []];
-  if (file_exists($desktop_config_file)) {
-      $parsed_desktop = json_decode((string)file_get_contents($desktop_config_file), true);
-      if (is_array($parsed_desktop)) {
-          $desktop_config = $parsed_desktop;
-      }
+  $desktop_config = \SimpleGallery\Kernel\Config\ConfigStore::get('desktop', ['shortcuts' => []], __DIR__);
+  if (!is_array($desktop_config)) {
+      $desktop_config = ['shortcuts' => []];
   }
   ?>
   <script>

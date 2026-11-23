@@ -31,8 +31,8 @@ if ($request_method === 'POST') {
 
 $action = $action ?? 'get_gallery';
 
-// CSRF Verification on modifying actions
-if (in_array($action, ActionRouter::MUTATING_ACTIONS, true)) {
+// CSRF Verification on modifying actions (kernel + plugin-declared mutating actions)
+if (ActionRouter::isMutatingAction($action, $project_root)) {
     $csrf = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? $_POST['csrf_token'] ?? $raw_body['csrf_token'] ?? '';
     if (!SecurityManager::verifyCsrfToken($csrf)) {
         http_response_code(403);
@@ -51,7 +51,8 @@ $result = ActionRouter::dispatch(
     $ignore_list,
     $media_types,
     $gallery_title,
-    $thumbnail_dir ?? '.thumbnails'
+    $thumbnail_dir ?? '.thumbnails',
+    $project_root
 );
 
 if ($result === null) {

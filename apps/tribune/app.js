@@ -49,7 +49,10 @@
         window.EventBus.on('theme:changed', (data) => this.onThemeChanged(data?.themeId || data?.theme || data));
       }
 
-      // Listen for OAuth2 callback postMessage (strictly same-origin)
+      // Track in-flight OAuth2 renewal promises keyed by board_id
+      this._pendingOAuthRequests = new Map();
+
+      // Listen for OAuth2 callback postMessage (strictly same-origin, zero intrusive alert())
       if (!window._tribuneOauthListenerBound) {
         window.addEventListener('message', (event) => {
           if (event.origin && window.location && window.location.origin && event.origin !== window.location.origin) {
@@ -63,17 +66,39 @@
               return;
             }
           }
-          if (data && typeof data === 'object' && data.type === 'tribune_oauth_success' && data.board_id) {
+          if (!data || typeof data !== 'object') return;
+
+          if (data.type === 'tribune_oauth_error' && data.board_id) {
+            const pending = this._pendingOAuthRequests && this._pendingOAuthRequests.get(data.board_id);
+            if (pending) {
+              this._pendingOAuthRequests.delete(data.board_id);
+              clearTimeout(pending.timer);
+              pending.resolve(false);
+            } else if (this.toast && typeof this.toast.error === 'function') {
+              this.toast.error(data.error || this.t('tribune.oauth_error'));
+            }
+            return;
+          }
+
+          if (data.type === 'tribune_oauth_success' && data.board_id) {
             const targetBoard = data.board_id;
-            this.boardAuth[targetBoard] = this.boardAuth[targetBoard] || {};
+            const prevAuth = this.boardAuth[targetBoard] || {};
+            this.boardAuth[targetBoard] = { ...prevAuth };
             if (data.access_token) {
               this.boardAuth[targetBoard].cookie = data.access_token;
             }
+            if (data.refresh_token) {
+              this.boardAuth[targetBoard].refresh_token = data.refresh_token;
+            }
+            if (data.expires_in && Number(data.expires_in) > 0) {
+              this.boardAuth[targetBoard].expires_at = Date.now() + (Number(data.expires_in) * 1000);
+            }
             if (data.login) {
               this.userLogin = data.login;
-              localStorage.setItem('tribune_user_login', data.login);
+              try { localStorage.setItem('tribune_user_login', data.login); } catch (e) {}
             }
             this.saveBoardAuth();
+
             if (this.currentBoard === targetBoard && this.container) {
               const cookieInput = this.container.querySelector('#identityCookieInput');
               const pseudoInput = this.container.querySelector('#identityPseudoInput');
@@ -85,7 +110,15 @@
                 oauthStatus.style.color = '#34d399';
               }
             }
-            alert(this.t('tribune.oauth_success') + (this.boards[targetBoard]?.name || targetBoard) + ' ! 🔑');
+
+            const pending = this._pendingOAuthRequests && this._pendingOAuthRequests.get(targetBoard);
+            if (pending) {
+              this._pendingOAuthRequests.delete(targetBoard);
+              clearTimeout(pending.timer);
+              pending.resolve(!!data.access_token);
+            } else if (this.toast && typeof this.toast.success === 'function') {
+              this.toast.success(this.t('tribune.oauth_success') + (this.boards[targetBoard]?.name || targetBoard));
+            }
           }
         });
         window._tribuneOauthListenerBound = true;
@@ -1965,14 +1998,137 @@
       return false;
     }
 
-    async postMessage(message, login) {
+    /**
+     * Checks whether a board supports OAuth2 authentication.
+     */
+    isOAuthBoard(boardId) {
+      const cfg = (this.boards && this.boards[boardId]) || {};
+      return !!(cfg.oauth || cfg.auth_type === 'oauth2');
+    }
+
+    /**
+     * Attempts a completely silent OAuth2 token renewal via:
+     * 1. Backend refresh_token exchange (`tribune_oauth_refresh`) — zero UI, zero popup
+     * 2. Hidden iframe silent OAuth2 authorize (if provider session auto-approves) — zero popup
+     * 3. Optional discreet popup fallback (only when `allowPopupFallback === true`)
+     */
+    async refreshOAuthTokenSilently(boardId, allowPopupFallback = false) {
+      if (!boardId || !this.isOAuthBoard(boardId)) return false;
+      const auth = this.boardAuth[boardId] || {};
+
+      // Layer 1: Silent server-side refresh_token exchange
+      if (auth.refresh_token) {
+        try {
+          const res = await this.api.post('tribune_oauth_refresh', {
+            board_id: boardId,
+            refresh_token: auth.refresh_token
+          });
+          if (res && res.success && res.access_token) {
+            this.boardAuth[boardId] = {
+              ...auth,
+              cookie: res.access_token,
+              refresh_token: res.refresh_token || auth.refresh_token,
+              expires_at: (res.expires_in && Number(res.expires_in) > 0)
+                ? (Date.now() + Number(res.expires_in) * 1000)
+                : auth.expires_at
+            };
+            if (res.login) {
+              this.userLogin = res.login;
+              try { localStorage.setItem('tribune_user_login', res.login); } catch (e) {}
+            }
+            this.saveBoardAuth();
+            if (this.currentBoard === boardId && this.container) {
+              const cookieInput = this.container.querySelector('#identityCookieInput');
+              if (cookieInput) cookieInput.value = res.access_token;
+            }
+            return true;
+          }
+        } catch (e) {}
+      }
+
+      // Layer 2: Silent hidden iframe OAuth2 authorize (works seamlessly when provider session is active)
+      const silentIframeOk = await new Promise((resolve) => {
+        if (typeof document === 'undefined' || !document.body) {
+          resolve(false);
+          return;
+        }
+        const iframe = document.createElement('iframe');
+        iframe.style.cssText = 'position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none;';
+        iframe.setAttribute('aria-hidden', 'true');
+
+        const cleanup = (result) => {
+          if (this._pendingOAuthRequests) this._pendingOAuthRequests.delete(boardId);
+          if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+          resolve(result);
+        };
+
+        const timer = setTimeout(() => cleanup(false), 5000);
+        if (!this._pendingOAuthRequests) this._pendingOAuthRequests = new Map();
+        this._pendingOAuthRequests.set(boardId, {
+          timer,
+          resolve: (ok) => {
+            clearTimeout(timer);
+            if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+            resolve(!!ok);
+          }
+        });
+
+        iframe.src = this.api.url('tribune_oauth_authorize', { board_id: boardId });
+        document.body.appendChild(iframe);
+      });
+
+      if (silentIframeOk) return true;
+
+      // Layer 3: Discreet popup fallback (only if explicitly permitted on post 401/403)
+      if (!allowPopupFallback || typeof window.open !== 'function') return false;
+
+      return await new Promise((resolve) => {
+        const popupW = 600, popupH = 700;
+        const left = (window.innerWidth - popupW) / 2 + window.screenX;
+        const top = (window.innerHeight - popupH) / 2 + window.screenY;
+        const authUrl = this.api.url('tribune_oauth_authorize', { board_id: boardId });
+
+        const timer = setTimeout(() => {
+          if (this._pendingOAuthRequests) this._pendingOAuthRequests.delete(boardId);
+          resolve(false);
+        }, 60000);
+
+        if (!this._pendingOAuthRequests) this._pendingOAuthRequests = new Map();
+        this._pendingOAuthRequests.set(boardId, {
+          timer,
+          resolve: (ok) => {
+            clearTimeout(timer);
+            resolve(!!ok);
+          }
+        });
+
+        const popup = window.open(authUrl, `oauth_${boardId}`, `width=${popupW},height=${popupH},top=${top},left=${left},scrollbars=yes,status=yes`);
+        if (!popup) {
+          clearTimeout(timer);
+          this._pendingOAuthRequests.delete(boardId);
+          resolve(false);
+        }
+      });
+    }
+
+    async postMessage(message, login, isRetry = false) {
       try {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || window.SG_CSRF_TOKEN || '';
         const boardConfig = this.boards[this.currentBoard] || {};
+        const isLocal = (this.currentBoard === 'local' || boardConfig?.type === 'local' || boardConfig?.backend_type === 'local');
+
+        // Proactively renew OAuth2 token silently if known to be expired before posting
+        if (!isLocal && !isRetry && this.isOAuthBoard(this.currentBoard)) {
+          const preAuth = this.boardAuth[this.currentBoard] || {};
+          if (preAuth.expires_at && Date.now() >= (Number(preAuth.expires_at) - 30000)) {
+            await this.refreshOAuthTokenSilently(this.currentBoard, false);
+          }
+        }
+
         const auth = this.boardAuth[this.currentBoard] || {};
 
         let bodyData = {};
-        if (this.currentBoard === 'local' || boardConfig?.type === 'local') {
+        if (isLocal) {
           bodyData = {
             action: 'tribune_post',
             csrf_token: csrfToken,
@@ -2002,12 +2158,26 @@
           try { localStorage.setItem('tribune_last_posted_message', message); } catch (e) { }
           if (this.soundEnabled) this.playCoincoinSound();
           return true;
-        } else {
-          alert(this.t('tribune.post_error') + (data.error || ''));
-          return false;
         }
+
+        // If remote OAuth2 token expired (401/403), renew silently and retry post once
+        const isAuthExpired = !isLocal && !isRetry && this.isOAuthBoard(this.currentBoard)
+          && (data && (data.status_code === 401 || data.status_code === 403));
+        if (isAuthExpired) {
+          const renewed = await this.refreshOAuthTokenSilently(this.currentBoard, true);
+          if (renewed) {
+            return await this.postMessage(message, login, true);
+          }
+        }
+
+        if (this.toast && typeof this.toast.error === 'function') {
+          this.toast.error(this.t('tribune.post_error') + (data?.error || ''));
+        }
+        return false;
       } catch (err) {
-        alert(this.t('tribune.post_network_error') + err.message);
+        if (this.toast && typeof this.toast.error === 'function') {
+          this.toast.error(this.t('tribune.post_network_error') + err.message);
+        }
         return false;
       }
     }

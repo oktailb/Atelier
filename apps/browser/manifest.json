@@ -7,6 +7,14 @@
   "category": "utilities",
   "main": "app.js",
   "css": "style.css",
+  "backend": {
+    "file": "backend/BrowserProxyAction.php",
+    "class": "SimpleGallery\\Apps\\Browser\\Backend\\BrowserProxyAction",
+    "actions": [
+      "browser_proxy"
+    ],
+    "mutating_actions": []
+  },
   "autostartCapable": false,
   "window": {
     "width": 1020,

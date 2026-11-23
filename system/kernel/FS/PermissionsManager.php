@@ -20,10 +20,10 @@ class PermissionsManager {
     ];
 
     /**
-     * Get path to permissions matrix JSON configuration file
+     * Get path to runtime permissions matrix JSON file (`storage/permissions.json` under resolved root)
      */
     public static function getPermissionsFilePath(string $base_dir): string {
-        return $base_dir . '/config/permissions.json';
+        return \SimpleGallery\Kernel\Config\ConfigStore::getStorageDir($base_dir) . '/permissions.json';
     }
 
     /**
@@ -44,26 +44,36 @@ class PermissionsManager {
     }
 
     /**
-     * Load permissions from config/permissions.json or fallback to defaults
+     * Load permissions from runtime storage/permissions.json (with fallback to legacy config/permissions.json)
      */
     public static function loadPermissions(string $base_dir): array {
         $defaults = self::getDefaultPermissions();
-        $file = self::getPermissionsFilePath($base_dir);
-        if (file_exists($file)) {
-            $json = @file_get_contents($file);
-            $perms = json_decode((string)$json, true);
-            if (is_array($perms)) {
-                return array_merge($defaults, $perms);
+        $root = \SimpleGallery\Kernel\Config\ConfigStore::resolveRoot($base_dir);
+        $candidates = [
+            $root . '/storage/permissions.json',
+            $root . '/config/permissions.json'
+        ];
+        foreach ($candidates as $file) {
+            if (file_exists($file)) {
+                $json = @file_get_contents($file);
+                $perms = json_decode((string)$json, true);
+                if (is_array($perms)) {
+                    return array_merge($defaults, $perms);
+                }
             }
         }
         return $defaults;
     }
 
     /**
-     * Save updated permissions matrix to config/permissions.json
+     * Save updated permissions matrix to runtime storage/permissions.json
      */
     public static function savePermissions(string $base_dir, array $permissions): bool {
         $file = self::getPermissionsFilePath($base_dir);
+        $dir = dirname($file);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
         $clean = array_merge(self::getDefaultPermissions(), $permissions);
         $payload = json_encode($clean, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         return @file_put_contents($file, $payload, LOCK_EX) !== false;

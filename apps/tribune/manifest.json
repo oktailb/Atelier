@@ -22,5 +22,40 @@
   "entry": {
     "js": "app.js",
     "css": "app.css"
+  },
+  "backend": {
+    "file": "backend/TribuneActions.php",
+    "class": "SimpleGallery\\Apps\\Tribune\\Backend\\TribuneActions",
+    "actions": [
+      "tribune_boards_get",
+      "tribune_boards_save",
+      "tribune_oauth_authorize",
+      "tribune_oauth_callback",
+      "tribune_oauth_refresh",
+      "tribune_schedule_post",
+      "tribune_scheduled_list",
+      "tribune_schedule_cancel",
+      "tribune_get",
+      "tribune_stream",
+      "tribune_post",
+      "tribune_proxy_fetch",
+      "tribune_proxy_post",
+      "tribune_clear_history",
+      "tribune_file_upload",
+      "tribune_file_get",
+      "totoz_proxy",
+      "totoz_search",
+      "url_preview"
+    ],
+    "mutating_actions": [
+      "tribune_clear_history",
+      "tribune_boards_save",
+      "tribune_file_upload",
+      "tribune_schedule_post",
+      "tribune_schedule_cancel",
+      "tribune_post",
+      "tribune_proxy_post",
+      "tribune_oauth_refresh"
+    ]
   }
 }

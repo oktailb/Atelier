@@ -322,7 +322,7 @@ class GalleryActions {
             'directories'       => $directories,
             'files'             => $files,
             'is_admin'          => AuthManager::isAdminLoggedIn(),
-            'admin_enabled'     => !empty(AuthManager::getPasswordHash($base_dir)),
+            'admin_enabled'     => !empty(AuthManager::getPasswordHash('', $base_dir)),
             'user_permissions'  => PermissionsManager::loadPermissions($base_dir),
             'user_rights'        => [
                 'is_admin'             => AuthManager::isAdminLoggedIn(),

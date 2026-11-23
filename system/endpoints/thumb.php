@@ -136,16 +136,17 @@ function serve_raw_file(string $file_path, string $ext, bool $as_attachment = fa
     if (isset($_SERVER['HTTP_RANGE'])) {
         $range = $_SERVER['HTTP_RANGE'];
         if (preg_match('/bytes=(\d*)-(\d*)/i', $range, $matches)) {
-            $start = ($matches[1] !== '') ? (float)$matches[1] : 0;
-            $end = ($matches[2] !== '') ? (float)$matches[2] : ($size - 1);
+            $start = ($matches[1] !== '') ? (int)$matches[1] : 0;
+            $end = ($matches[2] !== '') ? (int)$matches[2] : ($size - 1);
 
-            if ($start > $end || $start >= $size) {
+            if ($start < 0 || $start > $end || $start >= $size) {
                 http_response_code(416);
                 header("Content-Range: bytes */$size");
                 exit;
             }
 
-            $length = (int)($end - $start + 1);
+            $end = min($end, $size - 1);
+            $length = $end - $start + 1;
             http_response_code(206);
             header("Content-Range: bytes $start-$end/$size");
             header("Content-Length: $length");
@@ -423,19 +424,22 @@ if ($is_video) {
     // Attempt 2: ExifTool CLI (Extract embedded Preview/Thumbnail metadata)
     $exiftool = find_exiftool_binary();
     if ($exiftool) {
+        $null_dev = (PHP_OS_FAMILY === 'Windows') ? 'NUL' : '/dev/null';
         $cmd_exif1 = sprintf(
-            '%s -b -ThumbnailImage %s > %s 2>/dev/null',
+            '%s -b -ThumbnailImage %s > %s 2>%s',
             escapeshellarg($exiftool),
             escapeshellarg($file_path),
-            escapeshellarg($video_cache_file)
+            escapeshellarg($video_cache_file),
+            $null_dev
         );
         @exec($cmd_exif1);
         if (!file_exists($video_cache_file) || filesize($video_cache_file) === 0) {
             $cmd_exif2 = sprintf(
-                '%s -b -PreviewImage %s > %s 2>/dev/null',
+                '%s -b -PreviewImage %s > %s 2>%s',
                 escapeshellarg($exiftool),
                 escapeshellarg($file_path),
-                escapeshellarg($video_cache_file)
+                escapeshellarg($video_cache_file),
+                $null_dev
             );
             @exec($cmd_exif2);
         }

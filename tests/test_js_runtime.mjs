@@ -555,6 +555,8 @@ assert("Tribune JS synchronise le texte du message entre la barre et le popover"
 assert("Tribune JS envoie tribune_schedule_post via this.api.post", tribuneJs.includes("this.api.post('tribune_schedule_post'"));
 assert("Tribune JS gère la fermeture au clic en dehors (#tribuneSchedulePopover)", tribuneJs.includes('!e.target.closest(\'#tribuneSchedulePopover\')'));
 assert("Tribune JS rafraîchit le feed quand un message programmé est publié", tribuneJs.includes('this.lastScheduledCount > count'));
+assert("Tribune JS ne déclenche plus alert() sur succès OAuth2", !tribuneJs.includes("alert(this.t('tribune.oauth_success')"));
+assert("Tribune JS implémente refreshOAuthTokenSilently avec tribune_oauth_refresh et relance auto sur post", tribuneJs.includes('refreshOAuthTokenSilently') && tribuneJs.includes('tribune_oauth_refresh') && tribuneJs.includes('isRetry'));
 
 // Test Date Parsing & Formatting Functions
 const fakeLocalStorage = {

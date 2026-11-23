@@ -8,8 +8,11 @@ use SimpleGallery\Kernel\Media\ExifParser;
 
 class SystemActions {
 
-    public static function handle(string $action, array $params, array|string $context): ?array {
-        $base_dir = is_array($context) ? ($context['base_dir'] ?? '') : $context;
+    public static function handle(string $action, array $params, $context): ?array {
+        $base_dir = is_array($context) ? ($context['base_dir'] ?? '') : (string)$context;
+        $project_root = (is_array($context) && !empty($context['project_root']))
+            ? (string)$context['project_root']
+            : \SimpleGallery\Kernel\Config\ConfigStore::resolveRoot($base_dir);
         $raw_body = is_array($context) ? ($context['raw_body'] ?? $params) : $params;
 
         if ($action === 'get_locales') {
@@ -179,7 +182,7 @@ class SystemActions {
                 $sanitized_shortcuts[] = $item;
             }
 
-            $saved = \SimpleGallery\Kernel\Config\ConfigStore::set('desktop', ['shortcuts' => $sanitized_shortcuts], $base_dir);
+            $saved = \SimpleGallery\Kernel\Config\ConfigStore::set('desktop', ['shortcuts' => $sanitized_shortcuts], $project_root);
             if ($saved) {
                 return ['status' => 200, 'data' => ['success' => true, 'shortcuts' => $sanitized_shortcuts, 'message' => 'Shortcuts saved']];
             }
@@ -187,7 +190,7 @@ class SystemActions {
         }
 
         if ($action === 'get_desktop_shortcuts') {
-            $data = \SimpleGallery\Kernel\Config\ConfigStore::get('desktop', ['shortcuts' => []], $base_dir);
+            $data = \SimpleGallery\Kernel\Config\ConfigStore::get('desktop', ['shortcuts' => []], $project_root);
             $shortcuts = [];
             if (is_array($data) && isset($data['shortcuts'])) {
                 $shortcuts = $data['shortcuts'];
@@ -198,7 +201,7 @@ class SystemActions {
         }
 
         if ($action === 'get_disabled_apps') {
-            $disabled = \SimpleGallery\Kernel\PluginDiscovery::getDisabledAppIds($base_dir);
+            $disabled = \SimpleGallery\Kernel\PluginDiscovery::getDisabledAppIds($project_root);
             return ['status' => 200, 'data' => ['success' => true, 'disabled_apps' => $disabled]];
         }
 
@@ -213,19 +216,18 @@ class SystemActions {
                 return ['status' => 400, 'data' => ['success' => false, 'error' => 'App ID required']];
             }
 
-            $disabled = \SimpleGallery\Kernel\PluginDiscovery::getDisabledAppIds($base_dir);
+            $disabled = \SimpleGallery\Kernel\PluginDiscovery::getDisabledAppIds($project_root);
             if ($enabled) {
-                $disabled = array_values(array_filter($disabled, fn($id) => $id !== $app_id));
+                $disabled = array_values(array_filter($disabled, function ($id) use ($app_id) {
+                    return $id !== $app_id;
+                }));
             } else {
                 if (!in_array($app_id, $disabled, true)) {
                     $disabled[] = $app_id;
                 }
             }
 
-            $storage_dir = $base_dir . '/storage';
-            if (!is_dir($storage_dir)) {
-                @mkdir($storage_dir, 0755, true);
-            }
+            $storage_dir = \SimpleGallery\Kernel\Config\ConfigStore::getStorageDir($project_root);
             $saved = @file_put_contents($storage_dir . '/disabled_apps.json', json_encode($disabled, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), LOCK_EX) !== false;
 
             return ['status' => 200, 'data' => [
@@ -237,7 +239,7 @@ class SystemActions {
         }
 
         if ($action === 'get_wm_styles') {
-            $styles = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredWindowStyles($base_dir);
+            $styles = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredWindowStyles($project_root);
             return ['status' => 200, 'data' => ['success' => true, 'styles' => $styles]];
         }
 

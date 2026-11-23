@@ -21,6 +21,7 @@ AppEndpoint::handle('tribune', function(string $action, array $params, array $co
         'tribune_schedule_post',
         'tribune_schedule_cancel',
         'tribune_boards_save',
-        'tribune_clear_history'
+        'tribune_clear_history',
+        'tribune_oauth_refresh'
     ]
 ]);

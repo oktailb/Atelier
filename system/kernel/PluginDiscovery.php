@@ -443,6 +443,92 @@ class PluginDiscovery {
     }
 
     /**
+     * In-memory cache of discovered plugin backend actions keyed by project root.
+     * @var array<string, array{actions: array<string, array{file: string, class: string, app_id: string}>, mutating_actions: string[]}>
+     */
+    private static $backendActionsCache = [];
+
+    /**
+     * Discovers plugin backend API actions declared in `apps/<id>/manifest.json` (`backend` block).
+     * Enables generic, decoupled routing in ActionRouter without hardcoding app controllers in the Kernel.
+     */
+    public static function getDiscoveredBackendActions(string $project_root): array {
+        $norm_root = rtrim(str_replace('\\', '/', $project_root), '/');
+        if (isset(self::$backendActionsCache[$norm_root])) {
+            return self::$backendActionsCache[$norm_root];
+        }
+
+        $actions = [];
+        $mutating = [];
+        $apps_dir = $norm_root . '/apps';
+        if (is_dir($apps_dir)) {
+            $folders = @scandir($apps_dir) ?: [];
+            $app_dirs = [];
+            foreach ($folders as $folder) {
+                if ($folder[0] === '.') continue;
+                $p = $apps_dir . '/' . $folder;
+                if (!is_dir($p)) continue;
+                if (file_exists($p . '/manifest.json')) {
+                    $app_dirs[$folder] = $p;
+                } else {
+                    $subs = @scandir($p) ?: [];
+                    foreach ($subs as $sub) {
+                        if ($sub[0] === '.') continue;
+                        $sp = $p . '/' . $sub;
+                        if (is_dir($sp) && file_exists($sp . '/manifest.json')) {
+                            $app_dirs[$folder . '/' . $sub] = $sp;
+                        }
+                    }
+                }
+            }
+
+            foreach ($app_dirs as $rel_key => $app_path) {
+                $manifest = @json_decode((string)@file_get_contents($app_path . '/manifest.json'), true);
+                if (!is_array($manifest) || empty($manifest['backend']) || !is_array($manifest['backend'])) {
+                    continue;
+                }
+                $backend = $manifest['backend'];
+                $rel_file = ltrim(str_replace('\\', '/', (string)($backend['file'] ?? '')), '/');
+                $class_name = trim((string)($backend['class'] ?? ''));
+                if ($rel_file === '' || strpos($rel_file, '..') !== false || $class_name === '') {
+                    continue;
+                }
+                $abs_file = $app_path . '/' . $rel_file;
+                if (!file_exists($abs_file) || !is_file($abs_file)) {
+                    continue;
+                }
+
+                $app_id = (string)($manifest['id'] ?? basename($app_path));
+                if (!empty($backend['actions']) && is_array($backend['actions'])) {
+                    foreach ($backend['actions'] as $act) {
+                        if (is_string($act) && $act !== '') {
+                            $actions[$act] = [
+                                'file'   => $abs_file,
+                                'class'  => $class_name,
+                                'app_id' => $app_id
+                            ];
+                        }
+                    }
+                }
+                if (!empty($backend['mutating_actions']) && is_array($backend['mutating_actions'])) {
+                    foreach ($backend['mutating_actions'] as $m_act) {
+                        if (is_string($m_act) && $m_act !== '') {
+                            $mutating[] = $m_act;
+                        }
+                    }
+                }
+            }
+        }
+
+        $result = [
+            'actions'          => $actions,
+            'mutating_actions' => array_values(array_unique($mutating))
+        ];
+        self::$backendActionsCache[$norm_root] = $result;
+        return $result;
+    }
+
+    /**
      * Recursively flattens a nested array into dot-separated string keys
      */
     private static function flattenTranslations(array $array, string $prefix, array &$result): void {

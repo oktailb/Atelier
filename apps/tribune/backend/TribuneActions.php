@@ -133,29 +133,30 @@ class TribuneActions {
         }
     }
 
+    /**
+     * Resolves the runtime storage directory (`<project_root>/storage` in production,
+     * or `<sandbox>/storage` when an isolated test directory is provided).
+     */
+    public static function resolveStorageDir(string $base_dir = ''): string {
+        return \SimpleGallery\Kernel\Config\ConfigStore::getStorageDir($base_dir);
+    }
+
     public static function getBoardsFilePath(string $base_dir): string {
-        $project_root = dirname(dirname(dirname(__DIR__)));
-        $p1 = $project_root . '/storage/tribune_boards.json';
-        if (file_exists($p1)) return $p1;
-        $p2 = $base_dir . '/storage/tribune_boards.json';
-        if (file_exists($p2)) return $p2;
-        return $p1;
+        $storage_dir = self::resolveStorageDir($base_dir);
+        return $storage_dir . '/tribune_boards.json';
     }
 
     public static function getMessagesFilePath(string $base_dir): string {
-        $project_root = dirname(dirname(dirname(__DIR__)));
-        $p1 = $project_root . '/storage/tribune_messages.json';
-        if (file_exists($p1)) return $p1;
-        $p2 = $base_dir . '/storage/tribune_messages.json';
-        if (file_exists($p2)) return $p2;
-        return $p1;
+        $storage_dir = self::resolveStorageDir($base_dir);
+        return $storage_dir . '/tribune_messages.json';
     }
 
     public static function getSecretsConfig(string $base_dir): array {
-        $project_root = dirname(dirname(dirname(__DIR__)));
-        $f1 = $project_root . '/storage/tribune_secrets.php';
+        $storage_dir = self::resolveStorageDir($base_dir);
+        $f1 = $storage_dir . '/tribune_secrets.php';
         if (file_exists($f1)) return include $f1;
-        $f2 = $base_dir . '/storage/tribune_secrets.php';
+        $project_root = dirname(dirname(dirname(__DIR__)));
+        $f2 = $project_root . '/storage/tribune_secrets.php';
         if (file_exists($f2)) return include $f2;
         return [];
     }
@@ -390,7 +391,8 @@ class TribuneActions {
     }
 
     public static function processScheduledPosts(string $base_dir): void {
-        $sched_file = $base_dir . '/storage/tribune_scheduled_posts.json';
+        $storage_dir = self::resolveStorageDir($base_dir);
+        $sched_file = $storage_dir . '/tribune_scheduled_posts.json';
         if (!file_exists($sched_file)) return;
 
         $fp = @fopen($sched_file, 'c+');
@@ -431,7 +433,7 @@ class TribuneActions {
                 foreach ($due_posts as $post) {
                     $board = $post['board'] ?? 'local';
                     if ($board === 'local') {
-                        $storage_file = $base_dir . '/storage/tribune_messages.json';
+                        $storage_file = $storage_dir . '/tribune_messages.json';
                         $messages = [];
                         if (file_exists($storage_file)) {
                             $messages = @json_decode(@file_get_contents($storage_file), true) ?: [];
@@ -487,10 +489,13 @@ class TribuneActions {
         }
     }
 
-    public static function handle(string $action, array $raw_body, string|array $base_dir): ?array {
+    public static function handle(string $action, array $raw_body, $base_dir): ?array {
         if (is_array($base_dir)) {
-            $base_dir = $base_dir['base_dir'] ?? '';
+            $base_dir = (string)($base_dir['project_root'] ?? $base_dir['base_dir'] ?? '');
+        } else {
+            $base_dir = (string)$base_dir;
         }
+        $storage_dir = self::resolveStorageDir($base_dir);
         if ($action === 'tribune_boards_get') {
 
             $boards = self::getBoardsConfig($base_dir);
@@ -601,15 +606,26 @@ class TribuneActions {
             $code = trim($_GET['code'] ?? $raw_body['code'] ?? '');
             $state = trim($_GET['state'] ?? $raw_body['state'] ?? '');
 
+            $send_oauth_error_html = static function (int $status, string $board, string $message): void {
+                http_response_code($status);
+                header('Content-Type: text/html; charset=utf-8');
+                $err_payload = json_encode([
+                    'success'  => false,
+                    'type'     => 'tribune_oauth_error',
+                    'board_id' => $board,
+                    'error'    => $message
+                ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+                $safe_msg = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+                echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Erreur OAuth2</title></head><body style="font-family:sans-serif; background:#0f172a; color:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; margin:0; text-align:center;"><div style="font-size:2.5rem; margin-bottom:10px;">⚠️</div><h2 style="margin:0 0 8px 0; color:#f87171;">Authentification OAuth2 échouée</h2><p style="color:#94a3b8; margin:0;">' . $safe_msg . '</p><script>(function() { var payload = ' . $err_payload . '; var target = (window.opener && !window.opener.closed) ? window.opener : (window.parent && window.parent !== window ? window.parent : null); if (target) { try { target.postMessage(payload, window.location.origin); } catch (e) {} } setTimeout(function() { try { window.close(); } catch (e) {} }, 600); })();</script></body></html>';
+                exit;
+            };
+
             // Enforce strict OAuth2 CSRF state validation
             if ($board_id === '' || !self::verifyOauthState($board_id, $state)) {
                 if (PHP_SAPI === 'cli') {
                     return ['status' => 403, 'data' => ['success' => false, 'error' => 'Paramètre OAuth2 state invalide ou expiré.']];
                 }
-                http_response_code(403);
-                header('Content-Type: text/html; charset=utf-8');
-                echo '<!DOCTYPE html><html><body><script>alert("Erreur de sécurité OAuth2 : jeton state invalide ou expiré."); window.close();</script></body></html>';
-                exit;
+                $send_oauth_error_html(403, $board_id, 'Erreur de sécurité OAuth2 : jeton state invalide ou expiré.');
             }
 
             $all_boards = self::getBoardsConfig($base_dir);
@@ -620,10 +636,7 @@ class TribuneActions {
                 if (PHP_SAPI === 'cli') {
                     return ['status' => 400, 'data' => ['success' => false, 'error' => 'Code ou configuration OAuth manquant.']];
                 }
-                http_response_code(400);
-                header('Content-Type: text/html; charset=utf-8');
-                echo '<!DOCTYPE html><html><body><script>alert("Erreur lors de l\'authentification OAuth : Code ou configuration manquant."); window.close();</script></body></html>';
-                exit;
+                $send_oauth_error_html(400, $board_id, 'Code ou configuration OAuth manquant.');
             }
 
             $client_id = !empty($oauth_cfg['client_id']) ? $oauth_cfg['client_id'] : self::getOauthSecret($board_id, 'client_id', $base_dir);
@@ -670,8 +683,58 @@ class TribuneActions {
 
             $json_payload = json_encode($payload_assoc, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
             header('Content-Type: text/html; charset=utf-8');
-            echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Authentification Réussie</title></head><body style="font-family:sans-serif; background:#0f172a; color:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; margin:0;"><div style="font-size:3rem; margin-bottom:12px;">🔑</div><h2 style="margin:0 0 8px 0; color:#34d399;">Connexion OAuth2 Réussie !</h2><p style="color:#94a3b8; margin:0;">Fermeture de la fenêtre...</p><script>(function() { var payload = ' . $json_payload . '; if (window.opener && !window.opener.closed) { try { window.opener.postMessage(payload, window.location.origin); } catch (e) {} } setTimeout(function() { window.close(); }, 500); })();</script></body></html>';
+            echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Authentification Réussie</title></head><body style="font-family:sans-serif; background:#0f172a; color:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; margin:0;"><div style="font-size:3rem; margin-bottom:12px;">🔑</div><h2 style="margin:0 0 8px 0; color:#34d399;">Connexion OAuth2 Réussie !</h2><p style="color:#94a3b8; margin:0;">Fermeture de la fenêtre...</p><script>(function() { var payload = ' . $json_payload . '; var target = (window.opener && !window.opener.closed) ? window.opener : (window.parent && window.parent !== window ? window.parent : null); if (target) { try { target.postMessage(payload, window.location.origin); } catch (e) {} } setTimeout(function() { try { window.close(); } catch (e) {} }, 400); })();</script></body></html>';
             exit;
+        }
+
+        if ($action === 'tribune_oauth_refresh') {
+            $board_id = trim($_POST['board_id'] ?? $raw_body['board_id'] ?? '');
+            $refresh_token = trim($_POST['refresh_token'] ?? $raw_body['refresh_token'] ?? '');
+
+            if ($board_id === '' || $refresh_token === '') {
+                return ['status' => 400, 'data' => ['success' => false, 'error' => 'Paramètres board_id et refresh_token requis.']];
+            }
+
+            $all_boards = self::getBoardsConfig($base_dir);
+            $board_cfg = $all_boards[$board_id] ?? null;
+            $oauth_cfg = $board_cfg['oauth'] ?? null;
+
+            if (!$oauth_cfg || empty($oauth_cfg['token_url'])) {
+                return ['status' => 400, 'data' => ['success' => false, 'error' => 'Configuration OAuth2 absente pour cette tribune.']];
+            }
+
+            $client_id = !empty($oauth_cfg['client_id']) ? $oauth_cfg['client_id'] : self::getOauthSecret($board_id, 'client_id', $base_dir);
+            $client_secret = self::getOauthSecret($board_id, 'client_secret', $base_dir);
+
+            $post_fields = [
+                'client_id'     => $client_id ?: 'simplegallery_webos',
+                'client_secret' => $client_secret ?? '',
+                'refresh_token' => $refresh_token,
+                'grant_type'    => 'refresh_token'
+            ];
+
+            $res = self::httpRequestProxy($oauth_cfg['token_url'], 'POST', [
+                'Content-Type: application/x-www-form-urlencoded',
+                'User-Agent: SimpleGallery-WebOS/1.0'
+            ], http_build_query($post_fields), 8);
+
+            $data = @json_decode($res['body'] ?? '', true) ?: [];
+            $new_token = (string)($data['access_token'] ?? '');
+            if (empty($res['success']) || $new_token === '') {
+                return ['status' => 401, 'data' => [
+                    'success' => false,
+                    'error'   => 'Échec du rafraîchissement silencieux du jeton OAuth2.'
+                ]];
+            }
+
+            return ['status' => 200, 'data' => [
+                'success'       => true,
+                'board_id'      => $board_id,
+                'access_token'  => $new_token,
+                'refresh_token' => (string)($data['refresh_token'] ?? $refresh_token),
+                'expires_in'    => (int)($data['expires_in'] ?? 0),
+                'login'         => (string)($data['login'] ?? '')
+            ]];
         }
 
         if ($action === 'tribune_schedule_post') {
@@ -709,7 +772,7 @@ class TribuneActions {
                 }
             }
 
-            $sched_file = $base_dir . '/storage/tribune_scheduled_posts.json';
+            $sched_file = $storage_dir . '/tribune_scheduled_posts.json';
             $scheduled = [];
             if (file_exists($sched_file)) {
                 $scheduled = @json_decode(@file_get_contents($sched_file), true) ?: [];
@@ -746,7 +809,7 @@ class TribuneActions {
 
         if ($action === 'tribune_scheduled_list') {
             self::processScheduledPosts($base_dir);
-            $sched_file = $base_dir . '/storage/tribune_scheduled_posts.json';
+            $sched_file = $storage_dir . '/tribune_scheduled_posts.json';
             $scheduled = [];
             if (file_exists($sched_file)) {
                 $scheduled = @json_decode(@file_get_contents($sched_file), true) ?: [];
@@ -777,7 +840,7 @@ class TribuneActions {
                 return ['status' => 400, 'data' => ['success' => false, 'error' => 'ID de message programmé manquant.']];
             }
 
-            $sched_file = $base_dir . '/storage/tribune_scheduled_posts.json';
+            $sched_file = $storage_dir . '/tribune_scheduled_posts.json';
             $scheduled = [];
             if (file_exists($sched_file)) {
                 $scheduled = @json_decode(@file_get_contents($sched_file), true) ?: [];
@@ -816,7 +879,7 @@ class TribuneActions {
 
         if ($action === 'tribune_get') {
             self::processScheduledPosts($base_dir);
-            $storage_file = $base_dir . '/storage/tribune_messages.json';
+            $storage_file = $storage_dir . '/tribune_messages.json';
             $messages = [];
             if (file_exists($storage_file)) {
                 $content = @file_get_contents($storage_file);
@@ -856,7 +919,7 @@ class TribuneActions {
             header('Connection: keep-alive');
             header('X-Accel-Buffering: no');
 
-            $storage_file = $base_dir . '/storage/tribune_messages.json';
+            $storage_file = $storage_dir . '/tribune_messages.json';
             $last_mtime = 0;
             $start_time = time();
             $max_duration = 30;
@@ -906,7 +969,7 @@ class TribuneActions {
             if (mb_strlen($login) > 40) $login = mb_substr($login, 0, 40);
             if (mb_strlen($info) > 100) $info = mb_substr($info, 0, 100);
 
-            $storage_file = $base_dir . '/storage/tribune_messages.json';
+            $storage_file = $storage_dir . '/tribune_messages.json';
             $messages = [];
             if (file_exists($storage_file)) {
                 $content = @file_get_contents($storage_file);
@@ -1217,7 +1280,7 @@ class TribuneActions {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => 'Action réservée à l\'administrateur.']];
             }
 
-            $storage_file = $base_dir . '/storage/tribune_messages.json';
+            $storage_file = $storage_dir . '/tribune_messages.json';
             @file_put_contents($storage_file, json_encode([], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), LOCK_EX);
 
             return ['status' => 200, 'data' => ['success' => true, 'message' => 'Historique de la tribune réinitialisé.']];
@@ -1270,7 +1333,7 @@ class TribuneActions {
             $ext = $validation['ext'];
             $safe_mime = $validation['safe_mime'];
 
-            $upload_dir = $base_dir . '/storage/tribune_uploads';
+            $upload_dir = $storage_dir . '/tribune_uploads';
             if (!is_dir($upload_dir)) @mkdir($upload_dir, 0755, true);
             self::pruneExpiredTribuneUploads($upload_dir, 86400);
 
@@ -1316,7 +1379,7 @@ class TribuneActions {
                 exit;
             }
 
-            $upload_dir = $base_dir . '/storage/tribune_uploads';
+            $upload_dir = $storage_dir . '/tribune_uploads';
             $bin_path = $upload_dir . '/' . $token . '.bin';
             $meta_path = $upload_dir . '/' . $token . '.json';
 
@@ -1417,7 +1480,7 @@ class TribuneActions {
                 return ['status' => 200, 'data' => ['success' => false, 'error' => 'Accès restreint']];
             }
 
-            $cache_file = $base_dir . '/storage/url_preview_cache.json';
+            $cache_file = $storage_dir . '/url_preview_cache.json';
             $cache = [];
             if (file_exists($cache_file)) {
                 $cache = @json_decode(@file_get_contents($cache_file), true) ?: [];

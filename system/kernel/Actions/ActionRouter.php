@@ -1,6 +1,9 @@
 <?php
 namespace SimpleGallery\Kernel\Actions;
 
+use SimpleGallery\Kernel\Config\ConfigStore;
+use SimpleGallery\Kernel\PluginDiscovery;
+
 class ActionRouter {
 
     public const MUTATING_ACTIONS = [
@@ -28,17 +31,21 @@ class ActionRouter {
         'save_autostart_settings',
         'set_app_enabled',
         'clear_all_caches',
+        // Legacy plugin mutating actions (also auto-discovered dynamically from apps/*/manifest.json)
         'tribune_clear_history',
         'tribune_boards_save',
         'tribune_file_upload',
         'tribune_schedule_post',
         'tribune_schedule_cancel',
         'tribune_post',
-        'tribune_proxy_post'
+        'tribune_proxy_post',
+        'tribune_oauth_refresh'
     ];
 
     /**
-     * O(1) Action Map to domain controller classes
+     * O(1) Core Kernel Action Map to domain controller classes.
+     * Application-specific actions (e.g. tribune_*, browser_proxy) are dynamically discovered
+     * from `apps/<id>/manifest.json` (`backend` block) via PluginDiscovery::getDiscoveredBackendActions().
      */
     private const ACTION_MAP = [
         // Gallery & Exploration
@@ -51,6 +58,7 @@ class ActionRouter {
         'login'                   => AuthActions::class,
         'logout'                  => AuthActions::class,
         'change_password'         => AuthActions::class,
+        'get_permissions'         => AuthActions::class,
         'save_permissions'        => AuthActions::class,
         'get_autostart_settings'  => AuthActions::class,
         'save_autostart_settings' => AuthActions::class,
@@ -72,6 +80,7 @@ class ActionRouter {
         'search_media'            => MediaActions::class,
         'view_file'               => MediaActions::class,
         'raw_file'                => MediaActions::class,
+        'download_archive'        => MediaActions::class,
 
         // File CRUD & Dotfiles
         'unlock_folder'           => FileActions::class,
@@ -89,39 +98,52 @@ class ActionRouter {
         'upload_file'             => FileActions::class,
         'upload_media'            => FileActions::class,
         'move_item'               => FileActions::class,
-        'copy_item'               => FileActions::class,
-
-        // Tribune & Bouchot Actions
-        'tribune_boards_get'      => \SimpleGallery\Apps\Tribune\Backend\TribuneActions::class,
-        'tribune_boards_save'     => \SimpleGallery\Apps\Tribune\Backend\TribuneActions::class,
-        'tribune_oauth_authorize' => \SimpleGallery\Apps\Tribune\Backend\TribuneActions::class,
-        'tribune_oauth_callback'  => \SimpleGallery\Apps\Tribune\Backend\TribuneActions::class,
-        'tribune_schedule_post'   => \SimpleGallery\Apps\Tribune\Backend\TribuneActions::class,
-        'tribune_scheduled_list'  => \SimpleGallery\Apps\Tribune\Backend\TribuneActions::class,
-        'tribune_schedule_cancel' => \SimpleGallery\Apps\Tribune\Backend\TribuneActions::class,
-        'tribune_get'             => \SimpleGallery\Apps\Tribune\Backend\TribuneActions::class,
-        'tribune_stream'          => \SimpleGallery\Apps\Tribune\Backend\TribuneActions::class,
-        'tribune_post'            => \SimpleGallery\Apps\Tribune\Backend\TribuneActions::class,
-        'tribune_proxy_fetch'     => \SimpleGallery\Apps\Tribune\Backend\TribuneActions::class,
-        'tribune_proxy_post'      => \SimpleGallery\Apps\Tribune\Backend\TribuneActions::class,
-        'tribune_clear_history'   => \SimpleGallery\Apps\Tribune\Backend\TribuneActions::class,
-        'tribune_file_upload'     => \SimpleGallery\Apps\Tribune\Backend\TribuneActions::class,
-        'tribune_file_get'        => \SimpleGallery\Apps\Tribune\Backend\TribuneActions::class,
-        'totoz_proxy'             => \SimpleGallery\Apps\Tribune\Backend\TribuneActions::class,
-        'totoz_search'            => \SimpleGallery\Apps\Tribune\Backend\TribuneActions::class,
-        'url_preview'             => \SimpleGallery\Apps\Tribune\Backend\TribuneActions::class,
-
-        // Browser Proxification
-        'browser_proxy'           => \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::class
+        'copy_item'               => FileActions::class
     ];
 
     /**
-     * Dispatch an incoming API action with O(1) routing
+     * Returns whether an action requires CSRF validation (checks both Core + plugin-declared mutating actions).
      */
-    public static function dispatch(string $action, array $raw_body, string $base_dir, array $ignore_list, array $media_types, string $gallery_title = 'SimpleGallery', string $thumbnail_dir = '.thumbnails'): ?array {
+    public static function isMutatingAction(string $action, ?string $project_root = null): bool {
+        if (in_array($action, self::MUTATING_ACTIONS, true)) {
+            return true;
+        }
+        $root = $project_root ?: dirname(dirname(dirname(__DIR__)));
+        $discovered = PluginDiscovery::getDiscoveredBackendActions($root);
+        return in_array($action, $discovered['mutating_actions'] ?? [], true);
+    }
+
+    /**
+     * Resolves a dynamically discovered plugin backend handler for an action.
+     */
+    public static function resolvePluginAction(string $action, ?string $project_root = null): ?array {
+        $root = $project_root ?: dirname(dirname(dirname(__DIR__)));
+        $discovered = PluginDiscovery::getDiscoveredBackendActions($root);
+        return $discovered['actions'][$action] ?? null;
+    }
+
+    /**
+     * Dispatch an incoming API action with O(1) Core & Plugin routing
+     */
+    public static function dispatch(
+        string $action,
+        array $raw_body,
+        string $base_dir,
+        array $ignore_list,
+        array $media_types,
+        string $gallery_title = 'SimpleGallery',
+        string $thumbnail_dir = '.thumbnails',
+        string $project_root = ''
+    ): ?array {
+        $resolved_project_root = ($project_root !== '')
+            ? rtrim(str_replace('\\', '/', $project_root), '/')
+            : ConfigStore::resolveRoot($base_dir);
+
         $params = array_merge($_GET, $_POST, $raw_body);
         $context = [
+            'project_root'  => $resolved_project_root,
             'base_dir'      => $base_dir,
+            'media_dir'     => $base_dir,
             'ignore_list'   => $ignore_list,
             'media_types'   => $media_types,
             'gallery_title' => $gallery_title,
@@ -129,21 +151,7 @@ class ActionRouter {
             'raw_body'      => $raw_body
         ];
 
-        if (strpos($action, 'tribune_') === 0 || strpos($action, 'totoz_') === 0 || $action === 'url_preview') {
-            $tribune_file = dirname(dirname(dirname(__DIR__))) . '/apps/tribune/backend/TribuneActions.php';
-            if (file_exists($tribune_file)) {
-                require_once $tribune_file;
-            }
-        }
-
-        if ($action === 'browser_proxy') {
-            $browser_file = dirname(dirname(dirname(__DIR__))) . '/apps/browser/backend/BrowserProxyAction.php';
-            if (file_exists($browser_file)) {
-                require_once $browser_file;
-            }
-        }
-
-        // 1. Direct O(1) Lookup
+        // 1. Direct O(1) Core Kernel Lookup
         if (isset(self::ACTION_MAP[$action])) {
             $controller = self::ACTION_MAP[$action];
             $res = $controller::handle($action, $params, $context);
@@ -152,7 +160,22 @@ class ActionRouter {
             }
         }
 
-        // 2. Dynamic Fallback Chain
+        // 2. Dynamic Plugin Backend Lookup (declared in apps/<id>/manifest.json)
+        $plugin_route = self::resolvePluginAction($action, $resolved_project_root);
+        if ($plugin_route !== null) {
+            if (!empty($plugin_route['file']) && file_exists($plugin_route['file'])) {
+                require_once $plugin_route['file'];
+            }
+            $controller = $plugin_route['class'];
+            if (class_exists($controller) && method_exists($controller, 'handle')) {
+                $res = $controller::handle($action, $params, $context);
+                if ($res !== null) {
+                    return $res;
+                }
+            }
+        }
+
+        // 3. Core Dynamic Fallback Chain
         $controllers = [
             GalleryActions::class,
             AuthActions::class,
