@@ -1,224 +1,152 @@
-# 🚀 SimpleGallery WebOS — Feuille de Route & Spécifications des Nouvelles Applications (TODO)
+# 📋 SimpleGallery WebOS — Feuille de Route & Backlog (`TODO.md`)
 
-Ce document détaille la vision, l'architecture et les spécifications techniques des futures applications, utilitaires et améliorations du système **SimpleGallery WebOS**.
+Ce document recense les évolutions produit restantes (**Phase 4**) pour **SimpleGallery WebOS**, ordonnées par priorité, complexité et dépendances.
 
----
-
-## 📑 Sommaire
-1. [🛠️ Terminal WebOS & Shell Interactif (CLI / Bash)](#1-terminal-webos--shell-interactif-cli--bash)
-2. [💻 IDE Multi-Langages, Détection d'Environnement & Débogueur](#2-ide-multi-langages-détection-denvironnement--débogueur)
-3. [📊 Moniteur Système & Gestionnaire de Tâches (*Activity Monitor*)](#3-moniteur-système--gestionnaire-de-tâches-activity-monitor)
-4. [📈 Calculatrice Scientifique & Traceur de Courbes Graphiques](#4-calculatrice-scientifique--traceur-de-courbes-graphiques)
-5. [🕹️ Émulateurs Rétro 8/16-Bits, Ordinateurs Anciens & Doom Wasm](#5-émulateurs-rétro-816-bits-ordinateurs-anciens--doom-wasm)
-6. [🖥️ Barre des Tâches & Dock Évolué ("Next-Gen Taskbar")](#6-barre-des-tâches--dock-évolué-next-gen-taskbar)
-7. [💬 Chat / Tribune Libre (*Client Bouchot & Coincoin LinuxFR*)](#7-chat--tribune-libre-client-bouchot--coincoin-linuxfr)
-8. [📑 Suite Bureautique & Support des Formats ODF XML (OpenDocument)](#8-suite-bureautique--support-des-formats-odf-xml-opendocument)
-9. [🗄️ Client SQL & Gestionnaire de Bases de Données (SQLite / MySQL)](#9-client-sql--gestionnaire-de-bases-de-données-sqlite--mysql)
-10. [👥 Jeux Multijoueurs & Table Virtuelle de JDR (VTT)](#10-jeux-multijoueurs--table-virtuelle-de-jdr-vtt)
+> [!NOTE]
+> - **Historique achevé et archivé** : les Phases 0 & 1 (Cybersécurité `SEC-01`–`SEC-11`), Phase 2 (Architecture noyau `ARCH-01`–`ARCH-03` + OAuth2 Tribune silencieux), Phase 3 (Qualité, i18n, `SyscallClient`, SRI, hygiène Git & découpage modulaire `QUAL-01`–`QUAL-05`) ainsi que `FEAT-01` (`system-monitor`), `FEAT-02` (`taskbar`) et `FEAT-03` (`tribune`) sont **terminés et validés** (`804/804 PASS`).
+> - **Règle d'exécution (`.agents/AGENTS.md`)** : Toute fonctionnalité ou refactorisation doit rester **100 % iso-fonctionnelle**, sans fallback hardcodé dans `this.t('key')`, et validée par `php tests/run_tests.php` (PHP Sécurité + PHP Fonctionnel + Node.js Runtime).
 
 ---
 
-## 1. 🛠️ Terminal WebOS & Shell Interactif (CLI / Bash)
-*ID App* : `terminal` | *Catégorie* : `system` | *Icône* : `💻`
+## 📊 Tableau de Suivi — Phase 4 (Backlog Actif)
 
-### Objectifs & Architecture
-Un émulateur de terminal complet sous WebOS (intégrant une interface xterm.js ou un moteur virtuel pur JS/DOM) avec adaptation dynamique aux droits d'accès.
-
-### Spécifications Fonctionnelles
-* **Mode Invité (Read-Only sécurisé)** :
-  * Navigation dans l'arborescence de la galerie : `cd`, `pwd`, `ls -l`, `tree`.
-  * Consultation et recherche de contenu : `cat`, `head`, `tail`, `grep`, `find`, `file`, `stat`, `du`, `df`.
-  * Commandes système WebOS : `help`, `clear`, `theme [nom]`, `locale [code]`, `history`, `date`, `echo`, `man`.
-* **Mode Administrateur (Read-Write & Commandes Mutantes)** :
-  * Manipulation de fichiers : `mkdir`, `touch`, `rm`, `mv`, `cp`, `chmod`, `rename`.
-  * Gestion WebOS : `ps` (liste des fenêtres ouvertes), `kill [pid|winId]`, `sysinfo`, `run-tests`.
-  * **Option "Vrai Shell / Bash" (si activé dans config.php par l'admin)** :
-    * Passerelle d'exécution sécurisée (via `proc_open` / WebSocket / streaming AJAX) avec isolation `escapeshellarg` et dossier racine vérifié.
-    * Support des tuyaux (`|`), redirections (`>`, `>>`) et scripts batch.
+| ID | Titre | Priorité | Complexité | Dépendances | Statut |
+|---|---|:---:|:---:|---|:---:|
+| `FEAT-04` | 📈 Calculatrice Scientifique & Traceur de Courbes (`apps/graphing-calc`) | **P4 (Haute)** | `M` | — | ✅ Fait |
+| `FEAT-05` | 🛠️ Terminal WebOS & Shell Interactif (`apps/terminal`) | **P4 (Haute)** | `L` | — | ⬜ À faire |
+| `FEAT-06` | 📑 Suite Bureautique & Support ODF XML (`apps/doc-viewer` + `apps/calc`) | **P4 (Moyenne)** | `L` | — | ⬜ À faire |
+| `FEAT-07` | 🗄️ Client SQL & Gestionnaire de Bases (`apps/sql-client`) | **P4 (Moyenne)** | `L` | — | ⬜ À faire |
+| `FEAT-08` | 🕹️ Émulateurs Rétro 8/16-Bits & Doom Wasm (`apps/retro-station`) | **P4 (Basse)** | `L` | `WebAppHost` | ⬜ À faire |
+| `FEAT-09` | 💻 IDE Multi-Langages, Toolchain & Débogueur (`apps/code-studio`) | **P4 (Basse)** | `XL` | `FEAT-05` | ⬜ À faire |
+| `FEAT-10` | 👥 Jeux Multijoueurs & Table Virtuelle JDR / VTT (`apps/games/*`) | **P4 (Basse)** | `XL` | — | ⬜ À faire |
+| `FEAT-11` | 🔌 Atelier d'Émulation Matérielle Modulaire & Chimères (`apps/silicon-lab`) | **P4 (R&D)** | `XL` | `FEAT-04`, `FEAT-08` | ⬜ À faire |
 
 ---
 
-## 2. 💻 IDE Multi-Langages, Détection d'Environnement & Débogueur
-*ID App* : `code-studio` | *Catégorie* : `productivity` | *Icône* : `⚡`
+## 🚀 Phase 4 — Feuille de Route Produit & Nouvelles Applications
 
-### Objectifs & Architecture
-Un environnement de développement complet intégré, capable de transformer SimpleGallery en station de travail pour coder, tester et déboguer directement dans le navigateur.
-
-### Spécifications Fonctionnelles
-* **Détection Automatique des Compilateurs / Interpréteurs Hôte** :
-  * Endpoint backend `api.php?action=detect_toolchain` analysant les binaires disponibles :
-    * `gcc` / `g++` (C / C++)
-    * `python` / `python3` (Python)
-    * `perl` (Perl)
-    * `php` (PHP CLI)
-    * `node` / `npm` (JavaScript / Node.js)
-    * `rustc` (Rust)
-    * `go` (Go)
-    * Interpréteur **BASIC rétro** (moteur GW-BASIC / Chip-8 / JS-BASIC embarqué en pur JavaScript).
-* **Éditeur de Code Avancé** :
-  * Coloration syntaxique multi-langages, indentation automatique, pliage de code, mini-carte (Minimap).
-  * Auto-complétion de base et recherche / remplacement par expressions régulières (`Regex`).
-* **Console d'Exécution & Débogueur** :
-  * Bouton `▶ Exécuter (F5)` avec affichage en direct des flux `stdout` et `stderr`.
-  * Débogueur pas à pas pour les scripts interprétés (points d'arrêt, inspection des variables locales, pile d'appels).
+### - [x] `FEAT-04` — 📈 Calculatrice Scientifique & Traceur de Courbes Graphiques (`apps/graphing-calc`)
+- **Priorité** : `P4 (Haute)` | **Complexité** : `M` | **Dépendances** : Aucune *(100 % frontend, zéro surface d'attaque backend)*
+- **Description technique** :
+  - Catégorie `utilities` | Icône `📐`.
+  - Modes **Standard / Scientifique** (`sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `sinh`, `cosh`, `tanh`, `log`, `ln`, `exp`, factorielles `!`, puissances `^`, racines, constantes $\pi$/$e$, modes `DEG`/`RAD`/`GRAD`, mémoire `MC`/`MR`/`M+`/`M-`/`MS`, historique cliquable) et **Programmeur** (`DEC`/`HEX`/`BIN`/`OCT`, `AND`/`OR`/`XOR`/`NOT`/`SHL`/`SHR`, éditeur visuel de bits 8/16/32 bits).
+  - **Traceur Canvas 2D** : tracé multi-courbes $f(x)$, zoom/pan interactif, curseur de trace, détection automatique des racines, extrema locaux et intersections (sans `eval()` : parseur d'expressions sécurisé en JS pur), tableau de valeurs, export PNG local ou vers la galerie via `SyscallClient`.
+- **Rapport d'exécution** :
+  - *Statut* : `Terminé (2026-11-23)`
+  - *Modifications* : Création de l'application auto-découverte `apps/graphing-calc/` (`manifest.json`, `math-engine.js` parseur AST récursif descendant 100 % pur JS + analyse numérique + moteur bitwise `BigInt` 8/16/32/64-bit, `plotter.js` Canvas 2D HiDPI avec zoom/pan/trace/export PNG, `app.js` héritant de `WebOSApp` avec 3 onglets & raccourcis clavier, `style.css`). Ajout de 37 clés i18n autonomes dans `apps/graphing-calc/locales/{fr,en,ja}.json` (chargées par `PluginDiscovery::getAppTranslations()`).
+  - *Tests & Vérifications* : +4 assertions PHP (`GeneralUnitTest.php`) et +15 assertions JS (`test_js_runtime.mjs`) ; suite complète **`239/239` Sécurité PHP + `283/283` Fonctionnels PHP + `304/304` Runtime JS = `826/826 PASS`** (`exit code 0`).
+  - *Notes / Incidents* : Zéro `eval()`, zéro `new Function()`, zéro `fetch()` brut (export galerie via `this.api.upload('upload_file', ...)`), zéro fallback hardcodé dans `this.t()`.
 
 ---
 
-## 3. [DONE !] 📊 Moniteur Système & Gestionnaire de Tâches (*Activity Monitor*)
-*ID App* : `system-monitor` | *Catégorie* : `system` | *Icône* : `📈`
-
-### Objectifs & Architecture
-Tableau de bord de télémétrie en temps réel combinant les métriques clientes du navigateur et les diagnostics du serveur PHP.
-
-### Spécifications Fonctionnelles
-* **Métriques Client (WebOS Frontend)** :
-  * Liste des fenêtres et processus actifs avec PID interne, nom d'application et mémorisation d'état.
-  * Consommation mémoire JavaScript (`performance.memory`), taux de rafraîchissement (FPS de l'EventBus/DOM).
-  * Possibilité de forcer la fermeture d'une application gelée (*Force Quit*).
-* **Métriques Serveur (Backend PHP)** :
-  * Utilisation CPU et mémoire RAM (`memory_get_usage`, `sys_getloadavg` si disponible).
-  * Espace disque total, utilisé et disponible sur le volume de stockage.
-  * État des caches JSON des dossiers, statistiques sur les miniatures générées et logs d'erreurs récents.
+### - [ ] `FEAT-05` — 🛠️ Terminal WebOS & Shell Interactif (`apps/terminal`)
+- **Priorité** : `P4 (Haute)` | **Complexité** : `L` | **Dépendances** : Aucune
+- **Description technique** :
+  - Catégorie `system` | Icône `💻`.
+  - **Mode Invité (Read-Only VFS)** : `cd`, `pwd`, `ls -l`, `tree`, `cat`, `head`, `tail`, `grep`, `find`, `file`, `stat`, `du`, `df`, plus commandes WebOS (`help`, `clear`, `theme`, `locale`, `history`, `date`, `echo`, `man`).
+  - **Mode Administrateur (Read-Write VFS)** : `mkdir`, `touch`, `rm`, `mv`, `cp`, `rename`, `ps`, `kill`, `sysinfo`, `run-tests`.
+  - **Option "Vrai Shell / Bash" (désactivée par défaut dans `config/config.php`)** : Passerelle `proc_open` strictement réservée à l'Admin avec garde-fous, `escapeshellarg`, journalisation d'audit et isolation du répertoire de travail.
+- **Rapport d'exécution** :
+  - *Statut* : `À faire`
+  - *Date / Commit* : `—`
+  - *Tests & Vérifications* : `—`
+  - *Notes / Incidents* : `—`
 
 ---
 
-## 4. 📈 Calculatrice Scientifique & Traceur de Courbes Graphiques
-*ID App* : `graphing-calc` | *Catégorie* : `utilities` | *Icône* : `📐`
-
-### Objectifs & Architecture
-Outil mathématique complet à double volet : calculatrice multifonctions et moteur de tracé géométrique/graphique sur Canvas 2D.
-
-### Spécifications Fonctionnelles
-* **Modes de Calcul** :
-  * **Standard & Scientifique** : Trigonométrie (`sin`, `cos`, `tan`), logarithmes (`log`, `ln`), exponentielles, factorielles, puissances et racines.
-  * **Mode Programmeur** : Conversions instantanées Décimal / Hexadécimal / Binaire / Octal, opérations bit-à-bit (`AND`, `OR`, `XOR`, `NOT`, `SHL`, `SHR`).
-* **Traceur de Fonctions Graphiques $f(x)$** :
-  * Tracé simultané de plusieurs courbes avec couleurs personnalisées.
-  * Zoom interactif, déplacement sur la grille (Pan), repérage automatique des racines, extrema et intersections.
-  * Export du graphique tracé en image PNG ou sauvegarde dans la galerie.
+### - [ ] `FEAT-06` — 📑 Suite Bureautique & Support des Formats ODF XML (`apps/doc-viewer` + `apps/calc`)
+- **Priorité** : `P4 (Moyenne)` | **Complexité** : `L` | **Dépendances** : Aucune
+- **Description technique** :
+  - Catégorie `productivity` | Icône `📋`.
+  - **Visionneuse Native ODF XML (ISO/IEC 26300)** : décompression ZIP + parsing `content.xml`/`styles.xml` (avec sanitisation XSS stricte) pour `.odt`, `.ods`, `.odp`.
+  - **Tableur Calc (`apps/calc`)** : édition/création `.csv`, `.tsv`, `.ods`, `.xlsx`, moteur de formules (`=SUM()`, `=AVERAGE()`, `=COUNT()`, `=IF()`), tri/filtres et sauvegarde VFS via `SyscallClient`.
+- **Rapport d'exécution** :
+  - *Statut* : `À faire`
+  - *Date / Commit* : `—`
+  - *Tests & Vérifications* : `—`
+  - *Notes / Incidents* : `—`
 
 ---
 
-## 5. 🕹️ Émulateurs Rétro 8/16-Bits, Ordinateurs Anciens & Doom Wasm
-*ID App* : `retro-station` | *Catégorie* : `games` | *Icône* : `👾`
-
-### Objectifs & Architecture
-Plateforme d'émulation et de rétrogaming intégrée, exécutant des cœurs WebAssembly ou pur JS directement dans des fenêtres WebOS redimensionnables.
-
-### Spécifications Fonctionnelles
-* **Systèmes Émulés** :
-  * **Consoles de Jeux Rétro** : NES (Nintendo Entertainment System), Game Boy / Game Boy Color, Chip-8.
-  * **Micro-Ordinateurs 8/16-bits** : Commodore 64, ZX Spectrum, Amstrad CPC, Apple II.
-  * **Classiques PC Rétro** : Doom Classic Shareware (Wasm), DOSBox-lite pour lancer de vieux exécutables `.exe`/`.com`.
-* **Fonctionnalités WebOS Intégrées** :
-  * Glisser-déposer de fichiers ROMs (`.nes`, `.gb`, `.d64`, `.tap`, `.wad`) depuis l'Explorateur de fichiers.
-  * Sauvegarde instantanée des états (*Save States*) dans le `localStorage` ou dans un dossier utilisateur.
-  * Support complet des manettes de jeu USB / Bluetooth via l'API HTML5 Gamepad.
+### - [ ] `FEAT-07` — 🗄️ Client SQL & Gestionnaire de Bases de Données (`apps/sql-client`)
+- **Priorité** : `P4 (Moyenne)` | **Complexité** : `L` | **Dépendances** : Aucune
+- **Description technique** :
+  - Catégorie `development` | Icône `🗄️`.
+  - **SQLite local transparent** : ouverture de `.sqlite`/`.sqlite3`/`.db` de la galerie via `sql.js` (WASM côté client, idéal en lecture sûre) ou `pdo_sqlite` côté backend (Admin uniquement pour les écritures).
+  - **Bases distantes (MySQL / sockets Unix)** : strictement réservé Admin avec protection anti-SSRF / liste blanche d'hôtes.
+  - Explorateur de schéma (tables, vues, index, triggers), console SQL avec coloration syntaxique, grille paginée/triable et export `JSON`/`CSV`/`SQL`.
+- **Rapport d'exécution** :
+  - *Statut* : `À faire`
+  - *Date / Commit* : `—`
+  - *Tests & Vérifications* : `—`
+  - *Notes / Incidents* : `—`
 
 ---
 
-## 6. [DONE !] 🖥️ Barre des Tâches & Dock Évolué ("Next-Gen Taskbar")
-*Composant* : `system/userland/core/TaskbarManager.js` | *Région* : `WebOS Shell`
-
-### Objectifs & Architecture
-Faire évoluer le dock actuel vers une barre des tâches complète de système d'exploitation moderne (façon macOS Dock + Windows 11 Taskbar).
-
-### Spécifications Fonctionnelles
-* **Prévisualisation au Survol (Window Peeking / Hover Cards)** :
-  * Affichage d'une miniature en direct de la fenêtre lors du passage de la souris sur l'icône de la barre des tâches.
-* **Menu Démarrer / Lanceur d'Applications Réorganisé** :
-  * Barre de recherche rapide d'applications et raccourcis avec filtres par catégorie.
-  * Liste des fichiers récemment ouverts et statut d'administration.
-* **Zone de Notification & Plateau Système (System Tray)** :
-  * Horloge interactive avec calendrier pop-up.
-  * Contrôle du volume global, indicateur de connexion réseau/batterie.
-  * Centre de notifications toast regroupant les alertes de téléchargement, erreurs et événements.
-* **Bureaux Virtuels / Espaces de Travail Multiples (Workspaces)** :
-  * Possibilité de basculer entre plusieurs bureaux virtuels indépendants (`Bureau 1`, `Bureau 2`, `Bureau 3`).
+### - [ ] `FEAT-08` — 🕹️ Émulateurs Rétro 8/16-Bits & Doom Wasm (`apps/retro-station`)
+- **Priorité** : `P4 (Basse)` | **Complexité** : `L` | **Dépendances** : `WebAppHost`
+- **Description technique** :
+  - Catégorie `games` | Icône `👾`.
+  - Exécution de cœurs WASM / pur JS (NES, GB/GBC, Chip-8, C64, ZX Spectrum, Amstrad CPC, Apple II, Doom Shareware Wasm, DOSBox-lite) en s'appuyant sur `WebAppHost` / `StandaloneWebAppManifestSynthesizer` (associations `.nes`, `.gb`, `.gba`, `.wad` déjà présentes).
+  - Glisser-déposer de ROMs depuis l'Explorateur, *Save States* dans `this.storage` ou VFS, support HTML5 Gamepad API.
+- **Rapport d'exécution** :
+  - *Statut* : `À faire`
+  - *Date / Commit* : `—`
+  - *Tests & Vérifications* : `—`
+  - *Notes / Incidents* : `—`
 
 ---
 
-## 7. [DONE !] 💬 Chat / Tribune Libre (*Client Bouchot & Coincoin LinuxFR*)
-*ID App* : `tribune` | *Catégorie* : `communication` | *Icône* : `🦆`
-
-### Objectifs & Architecture
-Client de messagerie instantanée inspiré de la culture des tribunes libres / bouchots (style LinuxFR, DaCode, DLFP) avec horodatage strict et interactivité temps réel.
-
-### Spécifications Fonctionnelles
-* **Format Tribune & Bouchot** :
-  * Horodatage précis `HH:MM:SS` pour chaque message.
-  * Clic sur une horloge pour insérer une référence de réponse (`14:25:30`) avec mise en surbrillance automatique au survol (*coincoin tracking*).
-  * support des totoz (avec toggle nsfw)
-* **Authentification & Personnalisation** :
-  * Identification via cookie utilisateur ou pseudonyme libre (avec badge distinctif pour l'administrateur).
-  * User-Agent configurable ou signature personnalisée.
-* **Moteur & Ergonomie** :
-  * Flux temps réel (Server-Sent Events `SSE` ou polling configurable avec backoff intelligent).
-  * Raccourcis clavier (touche `Entrée` pour poster, `Tab` pour auto-compléter les horloges).
-  * Alertes sonores légères (Web Audio API) configurables lors d'une mention ou d'un nouveau post.
+### - [ ] `FEAT-09` — 💻 IDE Multi-Langages, Détection Toolchain & Débogueur (`apps/code-studio`)
+- **Priorité** : `P4 (Basse)` | **Complexité** : `XL` | **Dépendances** : `FEAT-05`
+- **Description technique** :
+  - Catégorie `productivity` | Icône `⚡`.
+  - Endpoint Admin-only `detect_toolchain` (`gcc`/`g++`, `python3`, `perl`, `php`, `node`, `rustc`, `go`) + interpréteur BASIC rétro 100 % JS côté client.
+  - Éditeur avancé (coloration syntaxique, pliage, minimap, recherche Regex), exécution `F5` (`stdout`/`stderr`) et débogueur pas-à-pas.
+  - **Exigence sécurité** : exécution serveur strictement désactivée par défaut, réservée Admin, avec timeouts stricts et isolation de répertoire.
+- **Rapport d'exécution** :
+  - *Statut* : `À faire`
+  - *Date / Commit* : `—`
+  - *Tests & Vérifications* : `—`
+  - *Notes / Incidents* : `—`
 
 ---
 
-## 8. 📑 Suite Bureautique & Support des Formats ODF XML (OpenDocument)
-*ID App* : `office-suite` (`doc-viewer`, `calc`, `slides`) | *Catégorie* : `productivity` | *Icône* : `📋`
-
-### Objectifs & Architecture
-Support étendu des formats de documents bureautiques ouverts (norme ISO/IEC 26300 OpenDocument) et tableur interactif.
-
-### Spécifications Fonctionnelles
-* **Visionneuse Native ODF XML** :
-  * **`.odt` (OpenDocument Text)** : Décompression ZIP côté client/serveur, parsing de `content.xml` et `styles.xml` avec rendu CSS fidèle (titres, listes, tableaux, images intégrées).
-  * **`.ods` (OpenDocument Spreadsheet)** : Rendu sous forme de tableur interactif avec onglets de feuilles.
-  * **`.odp` (OpenDocument Presentation)** : Rendu des diapositives avec navigation clavier (`PageUp`/`PageDown`).
-* **Tableur Calc Interactif (`apps/calc`)** :
-  * Édition et création de fichiers `.csv`, `.tsv`, `.ods` et `.xlsx`.
-  * Moteur de formules mathématiques (`=SUM()`, `=AVERAGE()`, `=COUNT()`, `=IF()`, etc.).
-  * Tri des colonnes, filtres, mise en forme conditionnelle et export direct dans la galerie.
+### - [ ] `FEAT-10` — 👥 Jeux Multijoueurs & Table Virtuelle de JDR / VTT (`apps/games/jdr`, `chess-2p`, `konquest`)
+- **Priorité** : `P4 (Basse)` | **Complexité** : `XL` | **Dépendances** : Aucune
+- **Description technique** :
+  - Catégorie `games` | Icône `🎲`.
+  - **Table Virtuelle JDR (VTT)** : chat MJ/Joueur, fiches de personnages, lanceur de dés (`d4`–`d100`), carte tactique avec grille carrée/hexagonale, pions/tokens et brouillard de guerre (*Fog of War*).
+  - **Échecs & Dames 2 Joueurs** (local + synchro réseau) et **Konquest** (4X spatial au tour par tour).
+- **Rapport d'exécution** :
+  - *Statut* : `À faire`
+  - *Date / Commit* : `—`
+  - *Tests & Vérifications* : `—`
+  - *Notes / Incidents* : `—`
 
 ---
 
-## 9. 🗄️ Client SQL & Gestionnaire de Bases de Données (SQLite / MySQL)
-*ID App* : `sql-client` | *Catégorie* : `development` | *Icône* : `🗄️`
-
-### Objectifs & Architecture
-Gestionnaire de bases de données relationnelles permettant d'explorer et de requêter des fichiers SQLite locaux ou des serveurs distants.
-
-### Spécifications Fonctionnelles
-* ** Support des bases distantes ** :
-  * connexion via socket (en mode client lourd)
-  * support des sockets linux
-* **Support SQLite Local Transparent** :
-  * Ouverture directe de tout fichier `.sqlite`, `.sqlite3`, `.db` présent dans la galerie (via l'extension PHP `pdo_sqlite` côté backend ou `sql.js` en pur WebAssembly côté client).
-* **Explorateur de Schéma & Tables** :
-  * Arborescence des tables, vues, index, déclencheurs (`triggers`) et structure des colonnes (types, contraintes, clés primaires/étrangères).
-* **Console de Requêtes SQL & Résultats** :
-  * Éditeur SQL avec coloration syntaxique et suggestions de noms de tables/colonnes.
-  * Grille de résultats paginée, triable et filtrable avec export en `JSON`, `CSV` ou `SQL Inserts`.
-
----
-
-## 10. 👥 Jeux Multijoueurs & Table Virtuelle de JDR (VTT)
-*ID Apps* : `jdr-vtt`, `chess-2p`, `konquest` | *Catégorie* : `games` | *Icône* : `🎲`
-
-### Objectifs & Architecture
-Extension des modules de jeux pour supporter le jeu à plusieurs, soit en local sur le même écran, soit en réseau synchrone/asynchrone.
-
-### Spécifications Fonctionnelles
-* **Table Virtuelle de JDR / VTT (`apps/games/jdr`)** :
-  * Intégration des modules existants : Chat MJ/Joueur, fiches de personnages, lanceur de dés polyédriques (`d4`, `d6`, `d8`, `d10`, `d12`, `d20`, `d100`).
-  * Carte tactique avec brouillard de guerre (*Fog of War*), grille carrée/hexagonale et déplacement de pions/tokens.
-* **Échecs & Dames 2 Joueurs** :
-  * Mode 1 vs 1 local avec rotation de l'échiquier ou mode synchronisé via polling `api.php`.
-* **Konquest / 4X Spatial** :
-  * Jeu de conquête planétaire au tour par tour contre l'ordinateur ou d'autres joueurs.
-
----
-
-## 📋 Priorisation & Phases de Réalisation
-
-| Phase | Domaine | Applications & Modules Clés |
-| :--- | :--- | :--- |
-| **Phase 1 [DONE !]** | *Système & Diagnostics* | **Moniteur Système** (`system-monitor`), **Terminal WebOS sécurisé** (`terminal`), **Évolution Taskbar / Dock**. |
-| **Phase 2** | *Productivité & Outils* | **Calculatrice Scientifique & Graphique** (`graphing-calc`), **Suite Bureautique & ODF XML** (`doc-viewer` / `calc`), **Client SQL** (`sql-client`). |
-| **Phase 3** | *Développement & Chat* | **IDE Multi-Langages & Toolchain** (`code-studio`), **Client Tribune / Bouchot** (`tribune`). |
-| **Phase 4** | *Rétrogaming & Multijoueur* | **Émulateur Rétro & Doom Wasm** (`retro-station`), **Table Virtuelle JDR & Jeux 2P** (`jdr-vtt`). |
+### - [ ] `FEAT-11` — 🔌 Atelier d'Émulation Matérielle Modulaire & Machines Chimères (`apps/silicon-lab`)
+- **Priorité** : `P4 (Exploration / R&D)` | **Complexité** : `XL` *(incrémental en jalons `M` → `L` → `XL`)* | **Dépendances** : `FEAT-04` *(complémentaire)*, `FEAT-08` *(synergie émulation)*, `WebAppHost` / Web Workers
+- **Description technique** :
+  - Catégorie `development` / `games` | Icône `🔌`.
+  - **Architecture « Backplane Virtuel » pilotée par profils JSON** (100 % côté client, JS pur avec `TypedArray` + Web Worker, prêt pour substitution ponctuelle WASM) :
+    - **Cœur Bus & Horloge (`BusMatrix`, `PagedMemoryMap`, `ClockScheduler`)** : table de pages mémoire rapide O(1) (ex. pages de 256 o / 1 Ko) pour RAM/ROM/Bank-Switching + routage MMIO / ports I/O + synchronisation multi-horloges par quanta (scanline / événements IRQ/NMI/DMA).
+    - **Modules CPU indépendants** (contrat uniforme `reset()`, `step()`, `irq()`, `nmi()`, `getState()`/`setState()`) :
+      1. **Jalon 1 (MVP)** : **Z80** (et variante **SM83** Game Boy), **MOS 6502** (et 2A03 sans BCD).
+      2. **Jalon 2** : **Motorola 6809** / **68000** (table de décodage 64K sur opcodes 16 bits, utile pour TI-89/TI-92, Atari ST, Mega Drive, ou coprocesseurs).
+    - **Modules Périphériques enfichables** :
+      - Mémoire (`RAM`, `ROM`, `Flash`, `BankMapper` TI/CPC/MBC).
+      - Vidéo : LCD monochrome `T6A04` (96×64 TI-83), Texte/HGR Apple II, `CRTC 6845` + Gate Array (CPC), `PPU 2C02` (NES), `VDP TMS9918` (MSX/SMS), et une carte vidéo modulaire inspirée **OCS Amiga-lite** (bitplanes, palette 4096 couleurs, Copper/Blitter simplifié).
+      - Audio (`AY-3-8912`, `SN76489`, beeper 1-bit, synthétiseur Paula-lite via `AudioWorklet`).
+      - Entrées/Sorties : matrices clavier configurables en JSON (TI-83 7×8, CPC 10×8, Apple II ASCII), Gamepad HTML5, UART série / Link port, lecteur disquette/K7 virtuel.
+    - **Profils JSON de machines réelles & « Chimères »** :
+      - *Machines réelles* : **TI-83 / TI-83+** (MVP idéal : Z80 + LCD T6A04 + clavier matriciel, support ROM utilisateur depuis le VFS + OS libre type KnightOS/mini-BIOS), **RC2014 / CP/M**, **ZX Spectrum 48K**, **Apple II+**, **Amstrad CPC 464/6128**, **NES**, **TI-89 (68k)**.
+      - *Machines Chimères (« Franken-Machines »)* : assemblage libre en JSON (ex. **Apple II double-CPU 6502+Z80** façon Microsoft SoftCard, **Z80 + carte vidéo OCS 4096 couleurs**, **TI-83 couleur**) accompagné d'un **mini-assembleur / moniteur open-source** et de démos homebrew (puisqu'une ROM propriétaire 6502 ne s'exécute pas nativement sur Z80 sans pont/coprocesseur).
+    - **Outils d'ingénierie intégrés** : débogueur pas-à-pas, désassembleur live, inspecteur registres/drapeaux/mémoire hexadécimale, visualiseur de topologie bus JSON, *Save States* JSON/binaires dans le VFS.
+  - **Exigence légale & sécurité** : **aucune ROM/firmware propriétaire sous copyright dans le dépôt** ; chargement exclusif de ROMs fournies par l'utilisateur (VFS ou drag-and-drop local en mémoire) + fourniture de firmwares/BIOS/démos 100 % open-source pour un fonctionnement immédiat.
+- **Rapport d'exécution** :
+  - *Statut* : `À faire`
+  - *Date / Commit* : `—`
+  - *Tests & Vérifications* : `—`
+  - *Notes / Incidents* : `—`
