@@ -304,14 +304,7 @@
 
     async logoutAdmin() {
       try {
-        const formData = new FormData();
-        formData.append('action', 'logout');
-        formData.append('csrf_token', window.CSRF_TOKEN || '');
-        await fetch('system/endpoints/api.php', {
-          method: 'POST',
-          headers: { 'X-CSRF-Token': window.CSRF_TOKEN || '' },
-          body: formData
-        });
+        await this.api.post('logout', {});
         window.IS_ADMIN = false;
         if (window.desktop) {
           window.desktop.state.isAdmin = false;

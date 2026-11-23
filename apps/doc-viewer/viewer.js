@@ -67,32 +67,40 @@
   function loadMarkdownEngines() {
     if (markdownEnginesPromise) return markdownEnginesPromise;
     markdownEnginesPromise = new Promise((resolve) => {
-      const loadScript = (id, src) => new Promise((res) => {
+      const loadScript = (id, src, integrity = '') => new Promise((res) => {
         if (document.getElementById(id)) return res();
         const s = document.createElement('script');
         s.id = id;
         s.src = src;
+        if (integrity) {
+          s.integrity = integrity;
+          s.crossOrigin = 'anonymous';
+        }
         s.onload = () => res();
         s.onerror = () => res(); // graceful fallback
         document.head.appendChild(s);
       });
 
-      const loadLink = (id, href) => {
+      const loadLink = (id, href, integrity = '') => {
         if (document.getElementById(id)) return;
         const l = document.createElement('link');
         l.id = id;
         l.rel = 'stylesheet';
         l.href = href;
+        if (integrity) {
+          l.integrity = integrity;
+          l.crossOrigin = 'anonymous';
+        }
         document.head.appendChild(l);
       };
 
-      loadLink('katex-css', 'https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css');
-      loadLink('prism-theme-css', 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css');
+      loadLink('katex-css', 'https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css', 'sha384-GvrOXuhMATgEsSwCs4smul74iXGOixntILdUW9XmUC6+HX0sLNAK3q71HotJqlAn');
+      loadLink('prism-theme-css', 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css', 'sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A');
 
       Promise.all([
-        loadScript('marked-js', 'https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js'),
-        loadScript('katex-js', 'https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js'),
-        loadScript('prism-js', 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js')
+        loadScript('marked-js', 'https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js', 'sha384-odPBjvtXVM/5hOYIr3A1dB+flh0c3wAT3bSesIOqEGmyUA4JoKf/YTWy0XKOYAY7'),
+        loadScript('katex-js', 'https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js', 'sha384-cpW21h6RZv/phavutF+AuVYrr+dA8xD9zs6FwLpaCct6O9ctzYFfFr4dgmgccOTx'),
+        loadScript('prism-js', 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js', 'sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf')
       ]).then(() => {
         resolve();
       });
@@ -101,7 +109,7 @@
   }
 
   /**
-   * Lazy-loads LaTeX.js on-demand
+   * Lazy-loads LaTeX.js on-demand (SRI verified)
    */
   function loadLatexEngine() {
     if (latexEnginePromise) return latexEnginePromise;
@@ -111,6 +119,8 @@
       const s = document.createElement('script');
       s.id = 'latexjs-js';
       s.src = 'https://cdn.jsdelivr.net/npm/latex.js@0.12.4/dist/latex.min.js';
+      s.integrity = 'sha384-klIttfhL0XQxZ5krbPOFhHLmSZrzx0X/cZM6NSAfcqwxwRJKEsRoCGOZUS4OxJba';
+      s.crossOrigin = 'anonymous';
       s.onload = () => resolve(window.latexjs || null);
       s.onerror = () => resolve(null);
       document.head.appendChild(s);
@@ -428,7 +438,7 @@
               <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:var(--header-bg, var(--bg-card, rgba(0,0,0,0.3)));border-bottom:1px solid var(--border-color, rgba(255,255,255,0.1));">
                 <span style="font-size:0.85rem;font-weight:600;color:var(--text-main, #f8fafc);">📄 ${effectiveCtx.escapeHtml(file.name)} (${file.size_formatted})</span>
                 <div style="display:flex;gap:8px;">
-                  <button type="button" id="docPdfInfoBtn-${cleanPathId}" class="app-menu-pill" style="font-size:0.75rem;padding:4px 10px;cursor:pointer;border:none;background:var(--bg-card, rgba(255,255,255,0.1));color:var(--text-main, #fff);border-radius:8px;" data-i18n-title="lightbox.metadata_btn" title="${effectiveCtx.escapeHtml(effectiveCtx.t('lightbox.metadata_btn') || 'Propriétés (I)')}">ℹ️</button>
+                  <button type="button" id="docPdfInfoBtn-${cleanPathId}" class="app-menu-pill" style="font-size:0.75rem;padding:4px 10px;cursor:pointer;border:none;background:var(--bg-card, rgba(255,255,255,0.1));color:var(--text-main, #fff);border-radius:8px;" data-i18n-title="lightbox.metadata_btn" title="${effectiveCtx.escapeHtml(effectiveCtx.t('lightbox.metadata_btn'))}">ℹ️</button>
                   <a href="${pdfUrl}" target="_blank" class="app-menu-pill" style="font-size:0.75rem;padding:4px 10px;text-decoration:none;color:var(--text-main, #fff);background:var(--bg-card, rgba(255,255,255,0.1));border-radius:8px;">↗ Nouvel onglet</a>
                   ${canDownloadItem ? `<a href="${pdfUrl}" download="${effectiveCtx.escapeHtml(file.name)}" class="app-menu-pill" style="font-size:0.75rem;padding:4px 10px;text-decoration:none;color:#fff;background:var(--accent-primary, #6366f1);border-radius:8px;"><span data-i18n="lightbox.download">📥 Télécharger</span></a>` : ''}
                 </div>
@@ -450,7 +460,7 @@
               <div id="docReaderToolbar-${cleanPathId}" style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:var(--header-bg, var(--bg-card, rgba(255,255,255,0.03)));border-bottom:1px solid var(--border-color, rgba(255,255,255,0.08));">
                 <span style="font-size:0.85rem;font-weight:600;color:var(--text-main, #f8fafc);">${isMd ? '📖' : (isHtml ? '🌐' : (isTex ? '📜' : '📝'))} ${effectiveCtx.escapeHtml(file.name)} (${file.size_formatted})</span>
                 <div style="display:flex;gap:8px;align-items:center;">
-                  <button type="button" id="docTextInfoBtn-${cleanPathId}" class="app-menu-pill" style="font-size:0.75rem;padding:4px 10px;cursor:pointer;border:none;background:var(--bg-card, rgba(255,255,255,0.1));color:var(--text-main, #fff);border-radius:8px;" data-i18n-title="lightbox.metadata_btn" title="${effectiveCtx.escapeHtml(effectiveCtx.t('lightbox.metadata_btn') || 'Propriétés (I)')}">ℹ️</button>
+                  <button type="button" id="docTextInfoBtn-${cleanPathId}" class="app-menu-pill" style="font-size:0.75rem;padding:4px 10px;cursor:pointer;border:none;background:var(--bg-card, rgba(255,255,255,0.1));color:var(--text-main, #fff);border-radius:8px;" data-i18n-title="lightbox.metadata_btn" title="${effectiveCtx.escapeHtml(effectiveCtx.t('lightbox.metadata_btn'))}">ℹ️</button>
                   <button type="button" id="docWinCopyBtn-${cleanPathId}" class="app-menu-pill" style="font-size:0.75rem;padding:4px 10px;cursor:pointer;border:none;background:var(--bg-card, rgba(255,255,255,0.1));color:var(--text-main, #fff);border-radius:8px;">📋 Copier</button>
                   ${isMd ? `<button type="button" id="docMdViewToggleBtn-${cleanPathId}" class="app-menu-pill" style="font-size:0.75rem;padding:4px 10px;cursor:pointer;border:none;background:var(--bg-card, rgba(255,255,255,0.12));color:var(--text-main, #fff);border-radius:8px;">📄 Code Source</button>` : ''}
                   ${isHtml ? `<button type="button" id="docHtmlViewToggleBtn-${cleanPathId}" class="app-menu-pill" style="font-size:0.75rem;padding:4px 10px;cursor:pointer;border:none;background:var(--bg-card, rgba(255,255,255,0.12));color:var(--text-main, #fff);border-radius:8px;">📄 Code Source</button>` : ''}
@@ -522,7 +532,7 @@
                 <div style="font-size:1.15rem;font-weight:700;color:var(--text-main, #fff);margin-bottom:0.4rem;word-break:break-all;">${effectiveCtx.escapeHtml(file.name)}</div>
                 <div style="font-size:0.85rem;color:var(--text-muted,#94a3b8);margin-bottom:1.5rem;">${file.size_formatted} • Format ${ext.toUpperCase()}</div>
                 <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-                  <button type="button" id="docCardInfoBtn-${cleanPathId}" class="app-menu-pill" style="padding:8px 16px;cursor:pointer;border:none;background:var(--bg-card, rgba(255,255,255,0.1));color:var(--text-main, #fff);border-radius:10px;"><span data-i18n="lightbox.metadata_btn">ℹ️ ${effectiveCtx.escapeHtml(effectiveCtx.t('lightbox.metadata_btn') || 'Propriétés')}</span></button>
+                  <button type="button" id="docCardInfoBtn-${cleanPathId}" class="app-menu-pill" style="padding:8px 16px;cursor:pointer;border:none;background:var(--bg-card, rgba(255,255,255,0.1));color:var(--text-main, #fff);border-radius:10px;"><span data-i18n="lightbox.metadata_btn">ℹ️ ${effectiveCtx.escapeHtml(effectiveCtx.t('lightbox.metadata_btn'))}</span></button>
                   <a href="${file.file_url}" target="_blank" class="app-menu-pill" style="text-decoration:none;padding:8px 16px;background:var(--bg-card, rgba(255,255,255,0.12));color:var(--text-main, #fff);border-radius:10px;">↗ Ouvrir le fichier</a>
                   ${canDownloadItem ? `<a href="${file.file_url}" download="${effectiveCtx.escapeHtml(file.name)}" class="app-menu-pill" style="text-decoration:none;padding:8px 16px;background:var(--accent-primary, #6366f1);color:#fff;border-radius:10px;font-weight:600;"><span data-i18n="lightbox.download">📥 Télécharger</span></a>` : ''}
                 </div>
@@ -606,10 +616,12 @@
                   const baseURL = "https://cdn.jsdelivr.net/npm/latex.js@0.12.4/dist/";
                   const doc = parsed.htmlDocument(baseURL);
 
-                  // 1. Inject KaTeX CSS
+                  // 1. Inject KaTeX CSS (SRI verified)
                   const katexLink = doc.createElement('link');
                   katexLink.rel = 'stylesheet';
                   katexLink.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css';
+                  katexLink.integrity = 'sha384-GvrOXuhMATgEsSwCs4smul74iXGOixntILdUW9XmUC6+HX0sLNAK3q71HotJqlAn';
+                  katexLink.crossOrigin = 'anonymous';
                   doc.head.appendChild(katexLink);
 
                   // 2. High-fidelity paper layout preserving LaTeX.js native CSS grid
@@ -970,13 +982,13 @@
                 container.innerHTML = `
                   <div class="app-menu-left">
                     <span class="app-menu-pill active" style="font-weight:600;">${isMd ? '📖' : '📄'} ${effectiveCtx.escapeHtml(file.name)}</span>
-                    <a href="${file.file_url}" target="_blank" class="app-menu-pill" style="text-decoration:none;">↗ ${effectiveCtx.escapeHtml(effectiveCtx.t('viewer.open_new_tab') || 'Nouvel onglet')}</a>
+                    <a href="${file.file_url}" target="_blank" class="app-menu-pill" style="text-decoration:none;">↗ ${effectiveCtx.escapeHtml(effectiveCtx.t('viewer.open_new_tab'))}</a>
                     ${canEdit ? `<button type="button" class="app-menu-pill" id="menuDocEditBtn" style="background:var(--accent-primary,#6366f1);color:#fff;">✏️ ${effectiveCtx.escapeHtml(effectiveCtx.t('doc_editor.edit_btn'))}</button>` : ''}
-                    ${canDownloadItem ? `<a href="${file.file_url}" download="${effectiveCtx.escapeHtml(file.name)}" class="app-menu-pill" style="text-decoration:none;">📥 ${effectiveCtx.escapeHtml(effectiveCtx.t('lightbox.download') || 'Télécharger')}</a>` : ''}
-                    <button type="button" class="app-menu-pill" id="menuDocInfoBtn">ℹ️ ${effectiveCtx.escapeHtml(effectiveCtx.t('lightbox.metadata_btn') || 'Propriétés (I)')}</button>
+                    ${canDownloadItem ? `<a href="${file.file_url}" download="${effectiveCtx.escapeHtml(file.name)}" class="app-menu-pill" style="text-decoration:none;">📥 ${effectiveCtx.escapeHtml(effectiveCtx.t('lightbox.download'))}</a>` : ''}
+                    <button type="button" class="app-menu-pill" id="menuDocInfoBtn">ℹ️ ${effectiveCtx.escapeHtml(effectiveCtx.t('lightbox.metadata_btn'))}</button>
                   </div>
                   <div class="app-menu-right">
-                    <button type="button" class="app-menu-pill" id="menuDocFsBtn">⛶ ${effectiveCtx.escapeHtml(effectiveCtx.t('lightbox.fullscreen') || 'Plein Écran')}</button>
+                    <button type="button" class="app-menu-pill" id="menuDocFsBtn">⛶ ${effectiveCtx.escapeHtml(effectiveCtx.t('lightbox.fullscreen'))}</button>
                   </div>
                 `;
                 const info = container.querySelector('#menuDocInfoBtn');
@@ -1130,8 +1142,7 @@
         if (isText) {
           try {
             const fetchUrl = file.file_url + (file.file_url.includes('?') ? '&' : '?') + 't=' + Date.now();
-            const res = await fetch(fetchUrl, { cache: 'no-store' });
-            const text = await res.text();
+            const text = await window.sys.api.getText(fetchUrl, { cache: 'no-store' });
             currentRawText = text;
             updateReaderDisplay();
 

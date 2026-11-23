@@ -44,7 +44,7 @@
     async open(file, ctx = null) {
       if (!file) return;
 
-      const rawPanelTitle = this.t('lightbox.metadata_panel_title') || 'Propriétés du fichier';
+      const rawPanelTitle = this.t('lightbox.metadata_panel_title');
       const panelTitle = rawPanelTitle.replace(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic}|\uD83C[\uDF00-\uDFFF]|\uD83D[\uDC00-\uDE4F]|\uD83D[\uDE80-\uDEF6]|\u2139|\uFE0F|\s)+/u, '').trim();
       const cleanPathId = encodeURIComponent(file.path || file.name).replace(/%/g, '_');
       const winId = `meta-${cleanPathId}`;
@@ -152,30 +152,30 @@
       html += `
         <div class="meta-section-card">
           <div class="meta-section-title">
-            <span>${this.formatSectionTitle('📋', this.t('meta.general_title') || 'Informations Générales')}</span>
+            <span>${this.formatSectionTitle('📋', this.t('meta.general_title'))}</span>
             <span class="meta-badge">${this.escapeHtml((general.extension || file.extension || '').toUpperCase())}</span>
           </div>
           <div class="meta-row">
-            <span class="meta-row-label">${this.escapeHtml(this.t('meta.filename') || 'Nom')}</span>
+            <span class="meta-row-label">${this.escapeHtml(this.t('meta.filename'))}</span>
             <span class="meta-row-value">${this.escapeHtml(general.filename || file.name)}</span>
           </div>
           <div class="meta-row">
-            <span class="meta-row-label">${this.escapeHtml(this.t('meta.filesize') || 'Taille')}</span>
+            <span class="meta-row-label">${this.escapeHtml(this.t('meta.filesize'))}</span>
             <span class="meta-row-value">${this.escapeHtml(general.filesize_formatted || file.size_formatted)}</span>
           </div>
           <div class="meta-row">
-            <span class="meta-row-label">${this.escapeHtml(this.t('meta.mtime') || 'Modifié le')}</span>
+            <span class="meta-row-label">${this.escapeHtml(this.t('meta.mtime'))}</span>
             <span class="meta-row-value">${this.escapeHtml(general.mtime_formatted || new Date(file.mtime * 1000).toLocaleString())}</span>
           </div>
           ${general.path ? `
             <div class="meta-row">
-              <span class="meta-row-label">${this.escapeHtml(this.t('meta.path') || 'Emplacement')}</span>
+              <span class="meta-row-label">${this.escapeHtml(this.t('meta.path'))}</span>
               <span class="meta-row-value" style="font-family:monospace; font-size:0.75rem; word-break:break-all;">${this.escapeHtml(general.path)}</span>
             </div>
           ` : ''}
           ${general.mime_type ? `
             <div class="meta-row">
-              <span class="meta-row-label">${this.escapeHtml(this.t('meta.mime') || 'Type MIME')}</span>
+              <span class="meta-row-label">${this.escapeHtml(this.t('meta.mime'))}</span>
               <span class="meta-row-value" style="font-family:monospace; font-size:0.75rem;">${this.escapeHtml(general.mime_type)}</span>
             </div>
           ` : ''}
@@ -187,28 +187,28 @@
         const img = specific.image;
         html += `
           <div class="meta-section-card">
-            <div class="meta-section-title">${this.formatSectionTitle('🖼️', this.t('meta.image_title') || 'Propriétés Image')}</div>
+            <div class="meta-section-title">${this.formatSectionTitle('🖼️', this.t('meta.image_title'))}</div>
             ${img.resolution ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.resolution') || 'Dimensions')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.resolution'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(img.resolution)}</span>
               </div>
             ` : ''}
             ${img.aspect_ratio ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.aspect_ratio') || 'Ratio d\'aspect')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.aspect_ratio'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(img.aspect_ratio)}</span>
               </div>
             ` : ''}
             ${img.megapixels ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.megapixels') || 'Mégapixels')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.megapixels'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(img.megapixels)}</span>
               </div>
             ` : ''}
             ${img.color_depth ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.color_depth') || 'Profondeur')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.color_depth'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(img.color_depth)}</span>
               </div>
             ` : ''}
@@ -227,7 +227,7 @@
         const vid = specific.video;
         html += `
           <div class="meta-section-card">
-            <div class="meta-section-title">${this.formatSectionTitle('🎬', this.t('meta.video_title') || 'Propriétés Vidéo')}</div>
+            <div class="meta-section-title">${this.formatSectionTitle('🎬', this.t('meta.video_title'))}</div>
             ${vid.container ? `
               <div class="meta-row">
                 <span class="meta-row-label">Conteneur</span>
@@ -236,31 +236,31 @@
             ` : ''}
             ${vid.resolution ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.resolution') || 'Résolution')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.resolution'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(vid.resolution)} ${vid.aspect_ratio ? `(${this.escapeHtml(vid.aspect_ratio)})` : ''}</span>
               </div>
             ` : ''}
             ${vid.duration_formatted ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.duration') || 'Durée')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.duration'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(vid.duration_formatted)}</span>
               </div>
             ` : ''}
             ${(vid.codec || vid.video_codec) ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.video_codec') || 'Codec Vidéo')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.video_codec'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(vid.codec || vid.video_codec)}</span>
               </div>
             ` : ''}
             ${vid.audio_codec ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.audio_codec') || 'Codec Audio')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.audio_codec'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(vid.audio_codec)}</span>
               </div>
             ` : ''}
             ${vid.bitrate ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.bitrate') || 'Débit')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.bitrate'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(vid.bitrate)}</span>
               </div>
             ` : ''}
@@ -279,7 +279,7 @@
         const aud = specific.audio;
         html += `
           <div class="meta-section-card">
-            <div class="meta-section-title">${this.formatSectionTitle('🎵', this.t('meta.audio_title') || 'Propriétés Audio')}</div>
+            <div class="meta-section-title">${this.formatSectionTitle('🎵', this.t('meta.audio_title'))}</div>
             ${aud.format ? `
               <div class="meta-row">
                 <span class="meta-row-label">Format</span>
@@ -288,13 +288,13 @@
             ` : ''}
             ${aud.duration_formatted ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.duration') || 'Durée')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.duration'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(aud.duration_formatted)}</span>
               </div>
             ` : ''}
             ${aud.audio_codec ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.audio_codec') || 'Codec')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.audio_codec'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(aud.audio_codec)}</span>
               </div>
             ` : ''}
@@ -318,25 +318,25 @@
             ` : ''}
             ${aud.bitrate ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.bitrate') || 'Débit')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.bitrate'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(aud.bitrate)}</span>
               </div>
             ` : ''}
             ${aud.title ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.title_tag') || 'Titre')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.title_tag'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(aud.title)}</span>
               </div>
             ` : ''}
             ${aud.artist ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.artist_tag') || 'Artiste')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.artist_tag'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(aud.artist)}</span>
               </div>
             ` : ''}
             ${aud.album ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.album_tag') || 'Album')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.album_tag'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(aud.album)}</span>
               </div>
             ` : ''}
@@ -361,7 +361,7 @@
         const doc = specific.doc;
         html += `
           <div class="meta-section-card">
-            <div class="meta-section-title">${this.formatSectionTitle('📄', this.t('meta.doc_title') || 'Propriétés Document')}</div>
+            <div class="meta-section-title">${this.formatSectionTitle('📄', this.t('meta.doc_title'))}</div>
             ${doc.doc_type ? `
               <div class="meta-row">
                 <span class="meta-row-label">Type</span>
@@ -376,19 +376,19 @@
             ` : ''}
             ${doc.pages ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.pages') || 'Pages')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.pages'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(doc.pages)}</span>
               </div>
             ` : ''}
             ${doc.title ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.title_tag') || 'Titre')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.title_tag'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(doc.title)}</span>
               </div>
             ` : ''}
             ${doc.author ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.author') || 'Auteur')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.author'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(doc.author)}</span>
               </div>
             ` : ''}
@@ -400,13 +400,13 @@
             ` : ''}
             ${doc.lines_count ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.lines') || 'Lignes')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.lines'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(doc.lines_count)}</span>
               </div>
             ` : ''}
             ${doc.words_count ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.words') || 'Mots')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.words'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(doc.words_count)}</span>
               </div>
             ` : ''}
@@ -431,7 +431,7 @@
         const arch = specific.archive;
         html += `
           <div class="meta-section-card">
-            <div class="meta-section-title">${this.formatSectionTitle('📦', this.t('meta.archive_title') || 'Contenu Archive')}</div>
+            <div class="meta-section-title">${this.formatSectionTitle('📦', this.t('meta.archive_title'))}</div>
             ${arch.archive_type ? `
               <div class="meta-row">
                 <span class="meta-row-label">Format</span>
@@ -440,19 +440,19 @@
             ` : ''}
             ${arch.files_count !== undefined && arch.files_count !== null ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.files_count') || 'Fichiers')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.files_count'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(arch.files_count)}</span>
               </div>
             ` : ''}
             ${arch.uncompressed_size_formatted ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.uncompressed_size') || 'Taille décompressée')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.uncompressed_size'))}</span>
                 <span class="meta-row-value">${this.escapeHtml(arch.uncompressed_size_formatted)}</span>
               </div>
             ` : ''}
             ${arch.compression_ratio ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('meta.compression_ratio') || 'Gain')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('meta.compression_ratio'))}</span>
                 <span class="meta-row-value" style="color:var(--accent-primary, #22c55e);font-weight:600;">${this.escapeHtml(arch.compression_ratio)}</span>
               </div>
             ` : ''}
@@ -477,21 +477,21 @@
       if (exif && (exif.camera || exif.datetime || exif.fnumber || exif.shutter_speed || exif.iso || exif.focal || exif.artist || exif.software || exif.description)) {
         html += `
           <div class="meta-section-card">
-            <div class="meta-section-title">${this.formatSectionTitle('📷', this.t('exif.title') || 'Métadonnées EXIF')}</div>
+            <div class="meta-section-title">${this.formatSectionTitle('📷', this.t('exif.title'))}</div>
             ${exif.camera ? `
               <div class="exif-camera-box" style="margin-bottom:6px;">📷 ${this.escapeHtml(exif.camera)}</div>
             ` : ''}
             ${exif.datetime ? `
               <div class="meta-row">
-                <span class="meta-row-label">${this.escapeHtml(this.t('exif.datetime') || 'Prise de vue')}</span>
+                <span class="meta-row-label">${this.escapeHtml(this.t('exif.datetime'))}</span>
                 <span class="meta-row-value">📅 ${this.escapeHtml(exif.datetime)}</span>
               </div>
             ` : ''}
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;">
-              ${exif.fnumber ? `<div style="background:var(--bg-card, rgba(0,0,0,0.03));border:1px solid var(--border-color, rgba(0,0,0,0.06));padding:6px 8px;border-radius:6px;"><span style="font-size:0.75rem;color:var(--text-muted);">${this.escapeHtml(this.t('exif.aperture') || 'Ouverture')}</span><div style="font-weight:600;color:var(--text-main);">${this.escapeHtml(exif.fnumber)}</div></div>` : ''}
-              ${exif.shutter_speed ? `<div style="background:var(--bg-card, rgba(0,0,0,0.03));border:1px solid var(--border-color, rgba(0,0,0,0.06));padding:6px 8px;border-radius:6px;"><span style="font-size:0.75rem;color:var(--text-muted);">${this.escapeHtml(this.t('exif.shutter') || 'Vitesse')}</span><div style="font-weight:600;color:var(--text-main);">${this.escapeHtml(exif.shutter_speed)}</div></div>` : ''}
-              ${exif.iso ? `<div style="background:var(--bg-card, rgba(0,0,0,0.03));border:1px solid var(--border-color, rgba(0,0,0,0.06));padding:6px 8px;border-radius:6px;"><span style="font-size:0.75rem;color:var(--text-muted);">${this.escapeHtml(this.t('exif.iso') || 'ISO')}</span><div style="font-weight:600;color:var(--text-main);">${this.escapeHtml(exif.iso)}</div></div>` : ''}
-              ${exif.focal ? `<div style="background:var(--bg-card, rgba(0,0,0,0.03));border:1px solid var(--border-color, rgba(0,0,0,0.06));padding:6px 8px;border-radius:6px;"><span style="font-size:0.75rem;color:var(--text-muted);">${this.escapeHtml(this.t('exif.focal') || 'Focale')}</span><div style="font-weight:600;color:var(--text-main);">${this.escapeHtml(exif.focal)}</div></div>` : ''}
+              ${exif.fnumber ? `<div style="background:var(--bg-card, rgba(0,0,0,0.03));border:1px solid var(--border-color, rgba(0,0,0,0.06));padding:6px 8px;border-radius:6px;"><span style="font-size:0.75rem;color:var(--text-muted);">${this.escapeHtml(this.t('exif.aperture'))}</span><div style="font-weight:600;color:var(--text-main);">${this.escapeHtml(exif.fnumber)}</div></div>` : ''}
+              ${exif.shutter_speed ? `<div style="background:var(--bg-card, rgba(0,0,0,0.03));border:1px solid var(--border-color, rgba(0,0,0,0.06));padding:6px 8px;border-radius:6px;"><span style="font-size:0.75rem;color:var(--text-muted);">${this.escapeHtml(this.t('exif.shutter'))}</span><div style="font-weight:600;color:var(--text-main);">${this.escapeHtml(exif.shutter_speed)}</div></div>` : ''}
+              ${exif.iso ? `<div style="background:var(--bg-card, rgba(0,0,0,0.03));border:1px solid var(--border-color, rgba(0,0,0,0.06));padding:6px 8px;border-radius:6px;"><span style="font-size:0.75rem;color:var(--text-muted);">${this.escapeHtml(this.t('exif.iso'))}</span><div style="font-weight:600;color:var(--text-main);">${this.escapeHtml(exif.iso)}</div></div>` : ''}
+              ${exif.focal ? `<div style="background:var(--bg-card, rgba(0,0,0,0.03));border:1px solid var(--border-color, rgba(0,0,0,0.06));padding:6px 8px;border-radius:6px;"><span style="font-size:0.75rem;color:var(--text-muted);">${this.escapeHtml(this.t('exif.focal'))}</span><div style="font-weight:600;color:var(--text-main);">${this.escapeHtml(exif.focal)}</div></div>` : ''}
             </div>
             ${exif.artist ? `
               <div class="meta-row" style="margin-top:6px;">
@@ -519,7 +519,7 @@
       if (exif && exif.gps && exif.gps.lat && exif.gps.lng) {
         html += `
           <div class="meta-section-card">
-            <div class="meta-section-title">${this.formatSectionTitle('📍', this.t('exif.gps_title') || 'Localisation GPS')}</div>
+            <div class="meta-section-title">${this.formatSectionTitle('📍', this.t('exif.gps_title'))}</div>
             <div class="meta-row">
               <span class="meta-row-label">Coordonnées</span>
               <span class="meta-row-value" style="font-family:monospace; font-size:0.775rem;">${exif.gps.lat}°, ${exif.gps.lng}°</span>

@@ -872,9 +872,8 @@
             content = res.content || '';
           }
         }
-        if (!content && file.file_url) {
-          const resp = await fetch(file.file_url);
-          content = await resp.text();
+        if (!content && file.file_url && window.sys && window.sys.api) {
+          content = await window.sys.api.getText(file.file_url);
         }
 
         const isMarkdown = file.name.match(/\.(md|markdown)$/i);

@@ -1,0 +1,12 @@
+[
+  {
+    "id": 1,
+    "time": "20260101120000",
+    "clock": "12:00:00",
+    "login": "admin",
+    "info": "SimpleGallery WebOS",
+    "message": "Bienvenue sur la Tribune Libre de SimpleGallery ! 🦆",
+    "is_admin": true,
+    "board": "local"
+  }
+]

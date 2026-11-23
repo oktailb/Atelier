@@ -24,14 +24,12 @@
     "nav.admin_active": "Admin Actif",
     "nav.switch_lang": "言語を切り替え",
     "nav.subfolders": "サブフォルダ",
-
     "folder_desc.empty": "フォルダ説明文が設定されていません (.desc)",
     "folder_desc.unlocked_session": "セッション解除済み（保護フォルダ）",
     "folder_desc.edit_title": "説明文を編集 (.desc)",
     "folder_desc.edit_btn": "✏️ 説明バナーを編集",
     "folder_desc.relock_title": "このセッションのフォルダを再ロック",
     "folder_desc.relock_btn": "🔒 フォルダをロック",
-
     "folder.private_badge": "👁️‍🗨️ 非公開",
     "folder.private_title": "公開非表示フォルダ (.private)",
     "folder.unlocked_badge": "🔓 解除済み",
@@ -40,18 +38,15 @@
     "folder.protected_title": "パスワード保護されたフォルダ (.password)",
     "folder.delete_title": "フォルダを削除",
     "folder.items_count": "{count} 項目",
-
     "card.gps_locate": "インタラクティブマップで表示",
     "card.gps_locate_deduced": "マップで表示（推定位置）",
     "card.delete_item": "ファイルを削除",
     "card.pip_mode": "PiPフローティング再生",
     "card.edit_comment": "キャプションを編集 (.comment)",
-
     "search.badge": "🔍 検索",
     "search.results_found": "件の検索結果",
     "search.exit_title": "検索を終了してフォルダ表示に戻る",
     "search.exit_btn": "✕ 検索を終了",
-
     "sort.title": "並び替え",
     "sort.name": "名前",
     "sort.date": "撮影日時 📷",
@@ -60,7 +55,6 @@
     "sort.rating": "評価",
     "sort.order_asc": "並び順を反転（昇順）",
     "sort.order_desc": "並び順を反転（降順）",
-
     "view.switch_mode": "表示モード",
     "view.polaroid": "ポラロイド",
     "view.grid": "グリッド",
@@ -80,7 +74,6 @@
     "view.filter_archives": "アーカイブ",
     "view.no_filter_results": "該当するメディアがありません",
     "view.no_filter_results_desc": "このフォルダにはこの種類のファイルがありません。",
-
     "stats.loading": "読み込み中...",
     "stats.indexing": "メディアファイルをインデックス中...",
     "stats.empty": "このフォルダにはメディアファイルがありません。",
@@ -94,13 +87,11 @@
     "stats.folder_locked_desc": "このフォルダはパスワードで保護されています。パスワードを入力して閲覧してください。",
     "stats.folder_unlock_action": "フォルダのロックを解除",
     "stats.summary": "{folders} フォルダ • {files} ファイル",
-
     "selection.selected_count": "{count} 件選択中",
     "selection.select_all": "すべて選択",
     "selection.clear": "選択を解除",
     "selection.download_zip": "選択項目を一括ダウンロード (.zip)",
     "selection.delete": "選択項目を削除",
-
     "clipboard.copy_tooltip": "コピー (Ctrl+C)",
     "clipboard.cut_tooltip": "切り取り (Ctrl+X)",
     "clipboard.delete_tooltip": "削除 (Del)",
@@ -108,7 +99,6 @@
     "clipboard.items_cut": "{count} 件の項目を切り取りました",
     "clipboard.items_pasted": "{count} 件の項目を貼り付けました",
     "clipboard.items_deleted": "{count} 件の項目を削除しました",
-
     "lightbox.preview_title": "メディアプレビュー",
     "lightbox.prev": "前へ",
     "lightbox.next": "次へ",
@@ -131,7 +121,6 @@
     "lightbox.fullscreen": "フルスクリーン (F)",
     "lightbox.download": "ファイルをダウンロード",
     "lightbox.close": "閉じる (Esc)",
-
     "meta.general_title": "📋 一般情報",
     "meta.filename": "ファイル名",
     "meta.path": "場所",
@@ -170,7 +159,6 @@
     "meta.uncompressed_size": "解凍後サイズ",
     "meta.compression_ratio": "圧縮率",
     "meta.preview_files": "ファイル一覧（プレビュー）:",
-
     "archive.filter_placeholder": "🔍 ファイルを検索...",
     "archive.compressed_size": "圧縮サイズ",
     "archive.analyzing": "アーカイブを解析中...",
@@ -178,7 +166,6 @@
     "archive.no_matching_files": "フィルターに一致するファイルは見つかりませんでした。",
     "archive.download_complete": "📥 完全なアーカイブをダウンロード",
     "archive.unavailable_online": "このアーカイブの内部詳細はオンラインでは利用できません。",
-
     "exif.none": "利用可能なEXIFメタデータはありません。",
     "exif.title": "📷 EXIFメタデータ",
     "exif.camera": "カメラ",
@@ -194,7 +181,6 @@
     "exif.description": "説明 :",
     "exif.gps_title": "GPS位置情報",
     "exif.open_map": "🗺️ マップで詳細を見る",
-
     "editor.title": "🎨 画像エディター",
     "editor.reset_all": "🔄 すべてリセット",
     "editor.reset_all_title": "すべての変更をリセット",
@@ -221,7 +207,6 @@
     "editor.filter_sepia": "セピア",
     "editor.filter_warm": "ウォーム / レトロ",
     "editor.filter_invert": "ネガ反転",
-
     "save_choice.title": "💾 変更を保存",
     "save_choice.subtitle": "編集した画像をどのように保存しますか？",
     "save_choice.copy_title": "✨ 新規コピーとして保存（推奨）",
@@ -230,18 +215,15 @@
     "save_choice.overwrite_desc": "サーバー上の元ファイルを直接上書きし、サムネイルを再生成します。",
     "save_choice.cancel": "キャンセル",
     "save_choice.confirm": "✓ 保存を確定",
-
     "upload.drag_drop_title": "ここにメディアをドラッグ＆ドロップ",
     "upload.drag_drop_subtitle": "写真、動画、音声、ドキュメント（安全な管理者アップロード）",
     "upload.progress_title": "📤 アップロード中...",
     "upload.status_prep": "ファイルを準備中...",
-
     "pip.title": "メディア再生...",
     "pip.expand": "全画面 / 拡大",
     "pip.restore": "元のサイズに戻す",
     "pip.minimize": "最小化 / 折りたたむ",
     "pip.close": "プレーヤーを閉じる",
-
     "cookie.banner_title": "プライバシーについて",
     "cookie.banner_desc": "SimpleGalleryは、機能に不可欠なCookieおよび表示設定（グリッド/ポラロイド表示、お気に入り）の保存にローカルストレージを使用します。広告トラッカーは一切使用していません。",
     "cookie.accept_all": "✓ すべて許可",
@@ -260,7 +242,6 @@
     "cookie.opt_cdn_desc": "Google FontsおよびOpenStreetMap/Leafletの地図タイルの読み込みを許可します。",
     "cookie.footer_link": "🍪 Cookie設定",
     "cookie.save_preferences": "設定を保存",
-
     "map.title": "🗺️ マップ探索・GPSルート",
     "map.smart_deduction": "✨ 自動推定",
     "map.route": "〰️ ルート",
@@ -275,7 +256,6 @@
     "map.popup_extrapolated": "✨ 推定位置（「{name}」の付近）",
     "map.popup_view": "🔍 プレビュー",
     "map.popup_open_viewer": "🖼️ ビューアーで開く",
-
     "admin.login_title": "管理者ログイン",
     "admin.password_placeholder": "管理者パスワード",
     "admin.login_btn": "ログイン",
@@ -298,7 +278,6 @@
     "admin.status_connected": "✅ 管理者としてログイン中",
     "admin.open_settings": "⚙️ コントロールパネル",
     "admin.manage_settings_hint": "権限マトリクス、壁紙、システム設定はコントロールパネルで設定できます。",
-
     "settings.app_title": "コントロールパネル",
     "settings.tab_security": "セキュリティと権限",
     "settings.tab_appearance": "デスクトップと外観",
@@ -380,7 +359,6 @@
     "admin.password_changed_success": "パスワードが正常に変更されました",
     "admin.password_change_error": "パスワード変更エラー",
     "autostart.save_error": "自動起動設定の保存エラー",
-
     "folder_settings.title": "⚙️ フォルダ設定",
     "folder_settings.dotfile_title": "カスタムタイトル (.title)",
     "folder_settings.dotfile_desc": "フォルダ説明文 (.desc)",
@@ -391,28 +369,23 @@
     "folder_settings.access_private": "非公開（管理者のみ表示）",
     "folder_settings.access_password": "パスワード保護",
     "folder_settings.password_label": "フォルダパスワード",
-
     "create_folder.title": "📁 新規フォルダ",
     "create_folder.placeholder": "フォルダ名...",
     "create_folder.submit": "フォルダを作成",
-
     "delete_confirm.title": "🗑️ 削除の確認",
     "delete_confirm.prompt_file": "ファイル「{name}」を完全に削除してもよろしいですか？",
     "delete_confirm.prompt_folder": "フォルダ「{name}」とその全コンテンツを完全に削除してもよろしいですか？",
     "delete_confirm.prompt_multiple": "選択した {count} 件の項目を完全に削除してもよろしいですか？",
     "delete_confirm.cancel": "キャンセル",
     "delete_confirm.confirm": "完全に削除",
-
     "dialog.ok": "OK",
     "dialog.cancel": "キャンセル",
     "dialog.confirm_title": "確認",
     "dialog.alert_title": "お知らせ",
     "dialog.prompt_title": "入力",
     "dialog.warning": "警告",
-
     "comment.title": "✏️ キャプションを編集",
     "comment.placeholder": "このメディアのキャプションを入力...",
-
     "adv_search.title": "🔍 高度な検索",
     "adv_search.type_all": "すべてのメディアタイプ",
     "adv_search.type_image": "写真のみ",
@@ -438,10 +411,9 @@
     "adv_search.size_large": "大 (10 MB 〜 50 MB)",
     "adv_search.size_xlarge": "特大 (> 50 MB)",
     "adv_search.options_label": "オプション",
-
     "api.err_csrf": "CSRFセキュリティトークンが無効または見つかりません。ページを再読み込みしてください。",
-    "api.err_admin_required": "この操作には管理者権限が必要です。",
-    "api.err_rate_limit": "試行回数が多すぎます。15分後に再度お試しください。",
+    "api.err_admin_required": "アクセス拒否：管理者権限が必要です。",
+    "api.err_rate_limit": "リクエストが多すぎます。しばらくお待ちください。",
     "api.err_invalid_path": "ファイルパスが見つからないか、アクセスが拒否されました。",
     "api.err_unsupported_format": "この操作はサポートされていないファイル形式です。",
     "api.err_missing_image_data": "画像データが見つかりません。",
@@ -458,7 +430,6 @@
     "api.err_upload_failed": "一部のファイルのアップロードに失敗しました。",
     "api.success_password_changed": "管理者パスワードを更新しました。",
     "api.err_password_change_failed": "パスワードの更新に失敗しました。",
-
     "common.close": "閉じる",
     "common.cancel": "キャンセル",
     "common.save": "保存",
@@ -467,7 +438,6 @@
     "common.loading": "読み込み中...",
     "common.search": "検索",
     "common.reset": "リセット",
-
     "doc_editor.edit_btn": "編集",
     "doc_editor.save_btn": "保存",
     "doc_editor.saving": "保存中...",
@@ -476,7 +446,6 @@
     "doc_editor.switch_edit": "編集モード",
     "doc_editor.wysiwyg_mode": "WYSIWYG",
     "doc_editor.markdown_mode": "Markdown",
-
     "apps.taskbar.title": "タスクバー",
     "apps.taskbar.description": "システムタスクバー、ウィンドウ切り替えおよびアプリケーションランチャー",
     "apps.system-monitor.title": "システムモニター",
@@ -561,7 +530,6 @@
     "sysmon.chart_fps": "描画フレームレート (FPS)",
     "sysmon.chart_mem": "JSヒープメモリ (MB)",
     "sysmon.chart_cpu": "メインスレッド負荷 (CPU %)",
-
     "categories.productivity": "📁 ファイル & 生産性",
     "categories.media": "🎬 メディア & 作成",
     "categories.game": "🎮 ゲーム & アーケード",
@@ -579,7 +547,6 @@
     "taskbar.close": "ウィンドウを閉じる",
     "taskbar.quick_sysmon": "システムモニター（テレメトリ）",
     "nav.search_apps": "アプリケーションを検索...",
-
     "desktop.open": "開く",
     "desktop.delete_shortcut": "デスクトップから削除",
     "explorer.new_window": "新しいエクスプローラーウィンドウを開く",
@@ -592,11 +559,9 @@
     "storage.diag_configured": "設定フォルダ ($storage_media_dir) :",
     "storage.diag_hint": "専用フォルダを使用するには、storage/media/ フォルダを作成するか、config/config.php で $storage_media_dir を変更してください。",
     "api.err_invalid_data": "送信されたデータが無効です。",
-    "api.err_rate_limit": "リクエストが多すぎます。しばらくお待ちください。",
     "api.msg_auth_success": "認証に成功しました。",
     "api.err_invalid_password": "パスワードが無効です。",
     "api.msg_logged_out": "ログアウトしました。",
-    "api.err_admin_required": "アクセス拒否：管理者権限が必要です。",
     "api.err_pwd_short": "パスワードは4文字以上である必要があります。",
     "api.err_current_pwd_invalid": "現在のパスワードが正しくありません。",
     "api.msg_pwd_updated": "パスワードが更新されました。",
@@ -747,6 +712,14 @@
     "webapp.load_error": "{app} の起動エラー",
     "webapp.retry": "🔄 再試行",
     "meta.dimensions": "解像度",
-    "meta.exif_title": "EXIF / カメラ"
+    "meta.exif_title": "EXIF / カメラ",
+    "meta.video_codec": "ビデオコーデック",
+    "meta.audio_codec": "オーディオコーデック",
+    "viewer.open_new_tab": "新しいタブで開く",
+    "nav.apps_menu": "アプリケーション",
+    "dialog.unsaved_changes_confirm": "未保存の変更があります。このまま閉じますか？",
+    "doc.saved_success": "ファイルを保存しました",
+    "doc.save_error": "保存エラー",
+    "tribune.oauth_error": "OAuth2認証エラーが発生しました。"
   }
 }

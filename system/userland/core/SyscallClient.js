@@ -35,6 +35,24 @@ class SyscallClient {
   }
 
   /**
+   * Perform HTTP GET request returning raw text (for documents, INI configs, subtitles, etc.)
+   * Always includes same-origin credentials and optional cache control.
+   */
+  async getText(rawUrl, options = {}) {
+    const fetchOpts = {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      ...options
+    };
+    const res = await fetch(rawUrl, fetchOpts);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    return await res.text();
+  }
+
+  /**
    * Perform HTTP GET request to API
    */
   async get(action, params = {}) {

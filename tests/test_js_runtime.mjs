@@ -558,6 +558,43 @@ assert("Tribune JS rafraîchit le feed quand un message programmé est publié",
 assert("Tribune JS ne déclenche plus alert() sur succès OAuth2", !tribuneJs.includes("alert(this.t('tribune.oauth_success')"));
 assert("Tribune JS implémente refreshOAuthTokenSilently avec tribune_oauth_refresh et relance auto sur post", tribuneJs.includes('refreshOAuthTokenSilently') && tribuneJs.includes('tribune_oauth_refresh') && tribuneJs.includes('isRetry'));
 
+// Phase 3 Quality & Compliance Gates (QUAL-01..QUAL-05)
+const collectJsFiles = (dir, acc = []) => {
+  if (!fs.existsSync(dir)) return acc;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name.startsWith('.') || entry.name === 'ffs-apps') continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) collectJsFiles(full, acc);
+    else if (entry.name.endsWith('.js')) acc.push(full);
+  }
+  return acc;
+};
+const allJsFiles = [
+  ...collectJsFiles(path.join(rootDir, 'apps')),
+  ...collectJsFiles(path.join(rootDir, 'system', 'userland')),
+  path.join(rootDir, 'js', 'desktop.js')
+].filter(f => fs.existsSync(f));
+
+const fallbackOffenders = allJsFiles.filter(f => /\.t\(\s*['"][^'"]+['"][^)]*\)\s*\|\|/.test(fs.readFileSync(f, 'utf8')));
+assert("QUAL-01: Zéro fallback hardcodé .t('key') || '...' dans tout le code JS", fallbackOffenders.length === 0, fallbackOffenders.join(', '));
+
+const appsJsFiles = collectJsFiles(path.join(rootDir, 'apps'));
+const rawFetchOffenders = appsJsFiles.filter(f => /\bfetch\s*\(/.test(fs.readFileSync(f, 'utf8')));
+assert("QUAL-02: Zéro appel fetch() brut dans apps/ (passage par SyscallClient)", rawFetchOffenders.length === 0, rawFetchOffenders.join(', '));
+
+const galleryCssSrc = fs.readFileSync(path.join(rootDir, 'css', 'gallery.css'), 'utf8');
+const qualIndexPhpSrc = fs.readFileSync(path.join(rootDir, 'index.php'), 'utf8');
+assert("QUAL-03: Aucun @import Google Fonts dupliqué dans css/gallery.css", !galleryCssSrc.includes('fonts.googleapis.com'));
+assert("QUAL-03: index.php applique SRI integrity sur leaflet.markercluster", qualIndexPhpSrc.includes('leaflet.markercluster.js" integrity="sha384-'));
+assert("QUAL-04: Modèle storage/tribune_messages.example.json présent", fs.existsSync(path.join(rootDir, 'storage', 'tribune_messages.example.json')));
+assert("QUAL-05: Contrôleurs backend Tribune extraits (Upload, Scheduler, Proxy)",
+  fs.existsSync(path.join(rootDir, 'apps', 'tribune', 'backend', 'TribuneUploadController.php')) &&
+  fs.existsSync(path.join(rootDir, 'apps', 'tribune', 'backend', 'TribuneSchedulerController.php')) &&
+  fs.existsSync(path.join(rootDir, 'apps', 'tribune', 'backend', 'TribuneProxyController.php')));
+assert("QUAL-05: Feuilles CSS modulaires gallery-features.css et gallery-overlays.css extraites",
+  fs.existsSync(path.join(rootDir, 'css', 'gallery-features.css')) &&
+  fs.existsSync(path.join(rootDir, 'css', 'gallery-overlays.css')));
+
 // Test Date Parsing & Formatting Functions
 const fakeLocalStorage = {
   store: {},

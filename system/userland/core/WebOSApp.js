@@ -465,7 +465,7 @@
 
     close() {
       if (this.isDirty) {
-        const confirmMsg = this.t('dialog.unsaved_changes_confirm', 'Modifications non enregistrées. Fermer tout de même ?');
+        const confirmMsg = this.t('dialog.unsaved_changes_confirm');
         if (window.sys && window.sys.dialog) {
           window.sys.dialog.confirm(confirmMsg, this.t('dialog.warning'), true).then(confirmed => {
             if (confirmed) {
@@ -485,9 +485,9 @@
         return window.sys.fs.saveTextFile(this.filePath, content).then(res => {
           if (res && res.success) {
             this.setDirty(false);
-            this.toast.success(this.t('doc.saved_success', 'Fichier enregistré avec succès'));
+            this.toast.success(this.t('doc.saved_success'));
           } else {
-            this.toast.error(res?.error || this.t('doc.save_error', 'Erreur de sauvegarde'));
+            this.toast.error(res?.error || this.t('doc.save_error'));
           }
           return res;
         });

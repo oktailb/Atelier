@@ -4,6 +4,13 @@
 /storage/.thumbnails/*
 /storage/media/*
 /storage/tribune_uploads/*
+/storage/tribune_messages.json
+/storage/tribune_scheduled_posts.json
+/storage/url_preview_cache.json
+/storage/permissions.json
+/storage/disabled_apps.json
+/storage/desktop.json
+/storage/sim_technicians.json
 scratch/
 # Fichiers sensibles & authentification
 .admin_password_hash

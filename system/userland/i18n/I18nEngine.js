@@ -15,9 +15,10 @@ class I18nEngine {
 
     async loadTranslations(code) {
         try {
-            const res = await fetch(`system/endpoints/api.php?action=get_locale&code=${encodeURIComponent(code)}`);
-            const data = await res.json();
-            if (data.success && data.translations) {
+            const data = (window.sys && window.sys.api)
+                ? await window.sys.api.get('get_locale', { code })
+                : await (await fetch(`system/endpoints/api.php?action=get_locale&code=${encodeURIComponent(code)}`)).json();
+            if (data && data.success && data.translations) {
                 this.translations = data.translations;
                 this.currentLocale = code;
                 localStorage.setItem('sg_locale', code);

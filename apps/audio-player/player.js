@@ -73,7 +73,7 @@
                     <span class="app-menu-pill active" style="font-weight:600;">🎵 ${ctx.escapeHtml(file.name)}</span>
                     <button type="button" class="app-menu-pill" id="menuAudPlayPauseBtn">⏯️ Lecture / Pause</button>
                     <button type="button" class="app-menu-pill" id="menuAudMuteBtn">🔊 Muet</button>
-                    <button type="button" class="app-menu-pill" id="menuAudInfoBtn">ℹ️ ${ctx.escapeHtml(ctx.t('lightbox.metadata_btn') || 'Propriétés (I)')}</button>
+                    <button type="button" class="app-menu-pill" id="menuAudInfoBtn">ℹ️ ${ctx.escapeHtml(ctx.t('lightbox.metadata_btn'))}</button>
                   </div>
                 `;
                 const aud = document.getElementById(`audio-${cleanPathId}`);

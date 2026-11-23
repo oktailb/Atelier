@@ -32,7 +32,7 @@ Le principe fondamental d'origine reste intact : **pour publier de nouveaux méd
 | **Cartes & Géolocalisation** | 🗺️ | Carte interactive du monde (Leaflet / OpenStreetMap) avec regroupement automatique par clusters (*Clustering*) des photos géotaggées par GPS EXIF. |
 | **Tribune Libre** | 💬 | Espace de discussion communautaire en direct avec support des raccourcis clavier, téléversement de médias temporaires et flux temps réel. |
 | **Moniteur Système** | 📊 | Supervision en temps réel des ressources serveur, mémoire PHP, espace disque, caches et diagnostics de stockage. |
-| **Suite de Jeux Rétro** | 🎮 | **8 Dames** (solveur procédural par backtracking), **Foot Pong** (physique rétro 1v1 avec IA), **Tours de Hanoï** (solveur animé), **Netwalk** (connexion de réseau), **Konquest** et **JDR**. |
+| **Suite de Jeux Rétro** | 🎮 | **8 Dames** (solveur procédural par backtracking), **Foot Pong** (physique rétro 1v1 avec IA), **Tours de Hanoï** (solveur animé) et **Pipe Connect / Netwalk** (connexion de réseau). |
 
 ---
 
@@ -43,12 +43,10 @@ Le principe fondamental d'origine reste intact : **pour publier de nouveaux méd
 - Optionnel : **FFmpeg** pour l'extraction automatique des miniatures de vidéos.
 
 ### 1. Démarrage Local Immédiat
-Lancez simplement le script de démarrage local inclus :
+Lancez directement le serveur PHP intégré depuis la racine du projet :
 
 ```bash
-./start.sh
-# Ou en spécifiant un port particulier :
-./start.sh 8080
+php -S localhost:8080
 ```
 Ouvrez ensuite `http://localhost:8080` dans votre navigateur.
 

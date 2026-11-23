@@ -24,14 +24,12 @@
     "nav.admin_active": "Admin Actif",
     "nav.switch_lang": "Changer la langue",
     "nav.subfolders": "Sous-dossiers",
-
     "folder_desc.empty": "Aucune description de dossier définie (.desc)",
     "folder_desc.unlocked_session": "Session ouverte (Dossier protégé)",
     "folder_desc.edit_title": "Éditer la description (.desc)",
     "folder_desc.edit_btn": "✏️ Éditer la bannière",
     "folder_desc.relock_title": "Re-verrouiller ce dossier pour la session",
     "folder_desc.relock_btn": "🔒 Verrouiller le dossier",
-
     "folder.private_badge": "👁️‍🗨️ Privé",
     "folder.private_title": "Dossier masqué au public (.private)",
     "folder.unlocked_badge": "🔓 Déverrouillé",
@@ -40,18 +38,15 @@
     "folder.protected_title": "Dossier protégé par mot de passe (.password)",
     "folder.delete_title": "Supprimer le dossier",
     "folder.items_count": "{count} élément(s)",
-
     "card.gps_locate": "Localiser sur la carte interactive",
     "card.gps_locate_deduced": "Localiser sur la carte interactive (Position déduite)",
     "card.delete_item": "Supprimer le fichier",
     "card.pip_mode": "Mode Flottant PiP",
     "card.edit_comment": "Éditer la légende (.comment)",
-
     "search.badge": "🔍 Recherche",
     "search.results_found": "Résultats trouvés",
     "search.exit_title": "Quitter la recherche et revenir à la navigation du dossier",
     "search.exit_btn": "✕ Quitter la recherche",
-
     "sort.title": "Trier par",
     "sort.name": "Nom",
     "sort.date": "Date de prise de vue 📷",
@@ -60,7 +55,6 @@
     "sort.rating": "Note",
     "sort.order_asc": "Inverser l'ordre (Croissant)",
     "sort.order_desc": "Inverser l'ordre (Décroissant)",
-
     "view.switch_mode": "Mode d'affichage",
     "view.polaroid": "Polaroid",
     "view.grid": "Grille",
@@ -80,7 +74,6 @@
     "view.filter_archives": "Archives",
     "view.no_filter_results": "Aucun média correspondant",
     "view.no_filter_results_desc": "Aucun fichier de ce type n'a été trouvé dans ce dossier.",
-
     "stats.loading": "Chargement...",
     "stats.indexing": "Indexation des fichiers médias...",
     "stats.empty": "Ce dossier ne contient aucun fichier média.",
@@ -94,13 +87,11 @@
     "stats.folder_locked_desc": "Ce dossier est protégé par mot de passe. Saisissez le mot de passe pour explorer son contenu.",
     "stats.folder_unlock_action": "Déverrouiller le dossier",
     "stats.summary": "{folders} dossiers • {files} fichiers",
-
     "selection.selected_count": "{count} élément(s) sélectionné(s)",
     "selection.select_all": "Tout sélectionner",
     "selection.clear": "Désélectionner tout",
     "selection.download_zip": "Télécharger la sélection (.zip)",
     "selection.delete": "Supprimer la sélection",
-
     "clipboard.copy_tooltip": "Copier (Ctrl+C)",
     "clipboard.cut_tooltip": "Couper (Ctrl+X)",
     "clipboard.delete_tooltip": "Supprimer (Suppr)",
@@ -108,7 +99,6 @@
     "clipboard.items_cut": "{count} élément(s) coupé(s)",
     "clipboard.items_pasted": "{count} élément(s) collé(s)",
     "clipboard.items_deleted": "{count} élément(s) supprimé(s)",
-
     "lightbox.preview_title": "Aperçu média",
     "lightbox.prev": "Précédent",
     "lightbox.next": "Suivant",
@@ -131,7 +121,6 @@
     "lightbox.fullscreen": "Plein écran (F)",
     "lightbox.download": "Télécharger le fichier",
     "lightbox.close": "Fermer (Échap)",
-
     "meta.general_title": "📋 Général",
     "meta.filename": "Nom",
     "meta.path": "Emplacement",
@@ -170,7 +159,6 @@
     "meta.uncompressed_size": "Taille décompressée",
     "meta.compression_ratio": "Gain de compression",
     "meta.preview_files": "Aperçu des fichiers :",
-
     "archive.filter_placeholder": "🔍 Filtrer les fichiers...",
     "archive.compressed_size": "Taille compressée",
     "archive.analyzing": "Analyse de l'archive...",
@@ -178,7 +166,6 @@
     "archive.no_matching_files": "Aucun fichier trouvé correspondant au filtre.",
     "archive.download_complete": "📥 Télécharger l'archive complète",
     "archive.unavailable_online": "Les détails internes de cette archive ne sont pas disponibles directement en ligne.",
-
     "exif.none": "Aucune métadonnée EXIF disponible.",
     "exif.title": "📷 Métadonnées EXIF",
     "exif.camera": "Appareil Photo",
@@ -194,7 +181,6 @@
     "exif.description": "Description :",
     "exif.gps_title": "Géolocalisation GPS",
     "exif.open_map": "🗺️ Explorer sur la grande carte",
-
     "editor.title": "🎨 Éditeur d'Image",
     "editor.reset_all": "🔄 Réinitialiser tout",
     "editor.reset_all_title": "Réinitialiser toutes les modifications",
@@ -221,7 +207,6 @@
     "editor.filter_sepia": "Sépia",
     "editor.filter_warm": "Chaud / Vintage",
     "editor.filter_invert": "Inversé",
-
     "save_choice.title": "💾 Enregistrer les Modifications",
     "save_choice.subtitle": "Comment souhaitez-vous enregistrer cette image modifiée ?",
     "save_choice.copy_title": "✨ Créer une nouvelle copie (Recommandé)",
@@ -230,18 +215,15 @@
     "save_choice.overwrite_desc": "Écrase directement le fichier source sur le serveur et régénère sa miniature.",
     "save_choice.cancel": "Annuler",
     "save_choice.confirm": "✓ Confirmer l'enregistrement",
-
     "upload.drag_drop_title": "Glissez-déposez vos médias ici",
     "upload.drag_drop_subtitle": "Photos, vidéos, audio, documents (Téléversement administrateur sécurisé)",
     "upload.progress_title": "📤 Téléversement en cours...",
     "upload.status_prep": "Préparation des fichiers...",
-
     "pip.title": "Lecture multimédia...",
     "pip.expand": "Plein écran / Agrandir",
     "pip.restore": "Réduire la fenêtre",
     "pip.minimize": "Masquer / Réduire",
     "pip.close": "Fermer le lecteur",
-
     "cookie.banner_title": "Respect de votre vie privée",
     "cookie.banner_desc": "SimpleGallery utilise des cookies essentiels au fonctionnement et le stockage local pour mémoriser vos préférences d'affichage (mode grille/polaroid, favoris). Aucun traceur publicitaire n'est utilisé.",
     "cookie.accept_all": "✓ Tout accepter",
@@ -260,7 +242,6 @@
     "cookie.opt_cdn_desc": "Permet le chargement des polices Google Fonts et des tuiles de cartes OpenStreetMap/Leaflet.",
     "cookie.footer_link": "🍪 Préférences Cookies",
     "cookie.save_preferences": "Enregistrer mes choix",
-
     "map.title": "🗺️ Exploration Cartographique & Trajet GPS",
     "map.smart_deduction": "✨ Déduction auto",
     "map.route": "〰️ Trajet",
@@ -275,7 +256,6 @@
     "map.popup_extrapolated": "✨ Position estimée (proche de « {name} »)",
     "map.popup_view": "🔍 Voir",
     "map.popup_open_viewer": "🖼️ Ouvrir dans la visionneuse",
-
     "admin.login_title": "Connexion Administrateur",
     "admin.password_placeholder": "Mot de passe administrateur",
     "admin.login_btn": "Se connecter",
@@ -298,7 +278,6 @@
     "admin.status_connected": "✅ Connecté en tant qu'administrateur",
     "admin.open_settings": "⚙️ Panneau de Configuration",
     "admin.manage_settings_hint": "Gérez la matrice des droits, le fond d'écran et les options globales dans le Panneau de Configuration.",
-
     "settings.app_title": "Panneau de Configuration",
     "settings.tab_security": "Sécurité & Droits",
     "settings.tab_appearance": "Bureau & Apparence",
@@ -380,7 +359,6 @@
     "admin.password_changed_success": "Mot de passe modifié avec succès",
     "admin.password_change_error": "Erreur lors du changement de mot de passe",
     "autostart.save_error": "Erreur lors de l'enregistrement de la configuration de démarrage",
-
     "folder_settings.title": "⚙️ Paramètres du Dossier",
     "folder_settings.dotfile_title": "Titre personnalisé (.title)",
     "folder_settings.dotfile_desc": "Description du dossier (.desc)",
@@ -391,28 +369,23 @@
     "folder_settings.access_private": "Privé (Visible uniquement par l'admin)",
     "folder_settings.access_password": "Protégé par mot de passe",
     "folder_settings.password_label": "Mot de passe du dossier",
-
     "create_folder.title": "📁 Nouveau Dossier",
     "create_folder.placeholder": "Nom du dossier...",
     "create_folder.submit": "Créer le dossier",
-
     "delete_confirm.title": "🗑️ Confirmation de suppression",
     "delete_confirm.prompt_file": "Êtes-vous sûr de vouloir supprimer définitivement le fichier « {name} » ?",
     "delete_confirm.prompt_folder": "Êtes-vous sûr de vouloir supprimer définitivement le dossier « {name} » et tout son contenu ?",
     "delete_confirm.prompt_multiple": "Êtes-vous sûr de vouloir supprimer définitivement les {count} éléments sélectionnés ?",
     "delete_confirm.cancel": "Annuler",
     "delete_confirm.confirm": "Supprimer définitivement",
-
     "dialog.ok": "OK",
     "dialog.cancel": "Annuler",
     "dialog.confirm_title": "Confirmation",
     "dialog.alert_title": "Information",
     "dialog.prompt_title": "Saisie",
     "dialog.warning": "Avertissement",
-
     "comment.title": "✏️ Éditer la Légende",
     "comment.placeholder": "Écrivez une légende pour ce média...",
-
     "adv_search.title": "🔍 Recherche Avancée",
     "adv_search.type_all": "Tous les types de médias",
     "adv_search.type_image": "Photos uniquement",
@@ -438,10 +411,9 @@
     "adv_search.size_large": "Grande (10 Mo à 50 Mo)",
     "adv_search.size_xlarge": "Très grande (> 50 Mo)",
     "adv_search.options_label": "Options",
-
     "api.err_csrf": "Jeton de sécurité CSRF invalide ou manquant. Veuillez rafraîchir la page.",
     "api.err_admin_required": "Droits administrateur requis pour cette action.",
-    "api.err_rate_limit": "Trop de tentatives échouées. Veuillez patienter 15 minutes.",
+    "api.err_rate_limit": "Trop de requêtes. Veuillez patienter.",
     "api.err_invalid_path": "Chemin de fichier introuvable ou accès refusé.",
     "api.err_unsupported_format": "Format de fichier non pris en charge pour cette opération.",
     "api.err_missing_image_data": "Données d'image manquantes.",
@@ -458,7 +430,6 @@
     "api.err_upload_failed": "Échec de l'upload pour certains fichiers.",
     "api.success_password_changed": "Mot de passe administrateur mis à jour avec succès.",
     "api.err_password_change_failed": "Échec de la mise à jour du mot de passe.",
-
     "common.close": "Fermer",
     "common.cancel": "Annuler",
     "common.save": "Enregistrer",
@@ -467,7 +438,6 @@
     "common.loading": "Chargement...",
     "common.search": "Rechercher",
     "common.reset": "Réinitialiser",
-
     "doc_editor.edit_btn": "Éditer",
     "doc_editor.save_btn": "Enregistrer",
     "doc_editor.saving": "Enregistrement...",
@@ -476,7 +446,6 @@
     "doc_editor.switch_edit": "Mode Édition",
     "doc_editor.wysiwyg_mode": "WYSIWYG",
     "doc_editor.markdown_mode": "Markdown",
-
     "apps.taskbar.title": "Barre des Tâches",
     "apps.taskbar.description": "Barre des tâches système, gestionnaire de fenêtres et lanceur d'applications",
     "apps.system-monitor.title": "Moniteur Système",
@@ -561,7 +530,6 @@
     "sysmon.chart_fps": "Fluidité de Rendu (FPS)",
     "sysmon.chart_mem": "Mémoire Tas JS (Heap Mo)",
     "sysmon.chart_cpu": "Charge Thread Principal (CPU %)",
-
     "categories.productivity": "📁 Fichiers & Productivité",
     "categories.media": "🎬 Médias & Création",
     "categories.game": "🎮 Jeux & Arcade",
@@ -579,7 +547,6 @@
     "taskbar.close": "Fermer la fenêtre",
     "taskbar.quick_sysmon": "Moniteur Système (Télémétrie)",
     "nav.search_apps": "Rechercher une application...",
-
     "desktop.open": "Ouvrir",
     "desktop.delete_shortcut": "Supprimer du bureau",
     "explorer.new_window": "Ouvrir une nouvelle fenêtre d'Explorateur",
@@ -592,11 +559,9 @@
     "storage.diag_configured": "Dossier configuré ($storage_media_dir) :",
     "storage.diag_hint": "Pour utiliser le dossier dédié, créez le dossier storage/media/ ou modifiez $storage_media_dir dans config/config.php.",
     "api.err_invalid_data": "Données transmises invalides.",
-    "api.err_rate_limit": "Trop de requêtes. Veuillez patienter.",
     "api.msg_auth_success": "Authentification réussie.",
     "api.err_invalid_password": "Mot de passe incorrect.",
     "api.msg_logged_out": "Déconnexion réussie.",
-    "api.err_admin_required": "Droits administrateur requis pour cette action.",
     "api.err_pwd_short": "Le mot de passe doit comporter au moins 4 caractères.",
     "api.err_current_pwd_invalid": "Mot de passe actuel incorrect.",
     "api.msg_pwd_updated": "Mot de passe mis à jour avec succès.",
@@ -747,6 +712,14 @@
     "webapp.load_error": "Erreur au démarrage de {app}",
     "webapp.retry": "🔄 Réessayer",
     "meta.dimensions": "Dimensions",
-    "meta.exif_title": "EXIF / Appareil"
+    "meta.exif_title": "EXIF / Appareil",
+    "meta.video_codec": "Codec Vidéo",
+    "meta.audio_codec": "Codec Audio",
+    "viewer.open_new_tab": "Nouvel onglet",
+    "nav.apps_menu": "Applications",
+    "dialog.unsaved_changes_confirm": "Modifications non enregistrées. Fermer tout de même ?",
+    "doc.saved_success": "Fichier enregistré avec succès",
+    "doc.save_error": "Erreur de sauvegarde",
+    "tribune.oauth_error": "Erreur lors de la connexion OAuth2."
   }
 }

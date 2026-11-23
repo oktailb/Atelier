@@ -74,10 +74,10 @@
                     <span class="app-menu-pill active" style="font-weight:600;">🎬 ${ctx.escapeHtml(file.name)}</span>
                     <button type="button" class="app-menu-pill" id="menuVidPlayPauseBtn">⏯️ Lecture / Pause</button>
                     <button type="button" class="app-menu-pill" id="menuVidMuteBtn">🔊 Muet</button>
-                    <button type="button" class="app-menu-pill" id="menuVidInfoBtn">ℹ️ ${ctx.escapeHtml(ctx.t('lightbox.metadata_btn') || 'Propriétés (I)')}</button>
+                    <button type="button" class="app-menu-pill" id="menuVidInfoBtn">ℹ️ ${ctx.escapeHtml(ctx.t('lightbox.metadata_btn'))}</button>
                   </div>
                   <div class="app-menu-right">
-                    <button type="button" class="app-menu-pill" id="menuVidFullscreenBtn">⛶ ${ctx.escapeHtml(ctx.t('lightbox.fullscreen') || 'Plein Écran')}</button>
+                    <button type="button" class="app-menu-pill" id="menuVidFullscreenBtn">⛶ ${ctx.escapeHtml(ctx.t('lightbox.fullscreen'))}</button>
                   </div>
                 `;
                 const vid = document.getElementById(`video-${cleanPathId}`);
@@ -249,8 +249,7 @@
         });
 
         try {
-          const res = await fetch(file.file_url);
-          const iniText = await res.text();
+          const iniText = await window.sys.api.getText(file.file_url);
           const config = this.parseIniConfig(iniText);
           const targetContainer = document.getElementById(`vwallWinContent-${cleanPathId}`);
           if (targetContainer) {
@@ -273,8 +272,7 @@
       ctx.el.lightboxContent.innerHTML = `<div class="videowall-modal-content">Chargement...</div>`;
       ctx.el.lightbox.classList.add('open');
       try {
-        const res = await fetch(file.file_url);
-        const iniText = await res.text();
+        const iniText = await window.sys.api.getText(file.file_url);
         const config = this.parseIniConfig(iniText);
         this.renderVideoWall(file, config, ctx);
       } catch (err) { }

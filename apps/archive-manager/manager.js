@@ -61,16 +61,16 @@
               <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:rgba(255,255,255,0.03);border-bottom:1px solid rgba(255,255,255,0.08);gap:10px;">
                 <span style="font-size:0.9rem;font-weight:600;color:#f8fafc;">📦 ${ctx.escapeHtml(file.name)}</span>
                 <div style="display:flex;gap:10px;align-items:center;">
-                  <input type="text" id="archiveFilterInput-${cleanPathId}" data-i18n-placeholder="archive.filter_placeholder" placeholder="${ctx.escapeHtml(ctx.t('archive.filter_placeholder') || '🔍 Filtrer les fichiers...')}" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#fff;border-radius:12px;padding:4px 10px;font-size:0.8rem;outline:none;" />
-                  ${canDownloadItem ? `<a href="${file.file_url}" download="${ctx.escapeHtml(file.name)}" class="app-menu-pill" style="font-size:0.75rem;padding:5px 12px;text-decoration:none;background:#6366f1;color:#fff;display:flex;align-items:center;gap:6px;border-radius:8px;"><span data-i18n="lightbox.download">📥 ${ctx.escapeHtml(ctx.t('lightbox.download') || 'Télécharger')}</span></a>` : ''}
+                  <input type="text" id="archiveFilterInput-${cleanPathId}" data-i18n-placeholder="archive.filter_placeholder" placeholder="${ctx.escapeHtml(ctx.t('archive.filter_placeholder'))}" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#fff;border-radius:12px;padding:4px 10px;font-size:0.8rem;outline:none;" />
+                  ${canDownloadItem ? `<a href="${file.file_url}" download="${ctx.escapeHtml(file.name)}" class="app-menu-pill" style="font-size:0.75rem;padding:5px 12px;text-decoration:none;background:#6366f1;color:#fff;display:flex;align-items:center;gap:6px;border-radius:8px;"><span data-i18n="lightbox.download">📥 ${ctx.escapeHtml(ctx.t('lightbox.download'))}</span></a>` : ''}
                 </div>
               </div>
               <div id="archiveStats-${cleanPathId}" style="display:flex;gap:1.5rem;padding:8px 16px;background:rgba(255,255,255,0.015);border-bottom:1px solid rgba(255,255,255,0.06);font-size:0.82rem;color:var(--text-muted,#94a3b8);">
-                <div><span data-i18n="archive.compressed_size">${ctx.escapeHtml(ctx.t('archive.compressed_size') || 'Taille compressée')}</span> : <strong style="color:#f8fafc;">${file.size_formatted}</strong></div>
-                <div id="archiveStatUncompressed-${cleanPathId}">${ctx.escapeHtml(ctx.t('archive.analyzing') || 'Analyse de l\'archive...')}</div>
+                <div><span data-i18n="archive.compressed_size">${ctx.escapeHtml(ctx.t('archive.compressed_size'))}</span> : <strong style="color:#f8fafc;">${file.size_formatted}</strong></div>
+                <div id="archiveStatUncompressed-${cleanPathId}">${ctx.escapeHtml(ctx.t('archive.analyzing'))}</div>
               </div>
               <div id="archiveFileList-${cleanPathId}" style="flex:1;overflow-y:auto;padding:8px 16px;display:flex;flex-direction:column;gap:4px;">
-                <div style="padding:2.5rem;text-align:center;color:var(--text-muted,#94a3b8);">${ctx.escapeHtml(ctx.t('archive.reading') || 'Lecture des fichiers de l\'archive...')}</div>
+                <div style="padding:2.5rem;text-align:center;color:var(--text-muted,#94a3b8);">${ctx.escapeHtml(ctx.t('archive.reading'))}</div>
               </div>
             </div>
           `,
@@ -80,11 +80,11 @@
                 container.innerHTML = `
                   <div class="app-menu-left">
                     <span class="app-menu-pill active" style="font-weight:600;">📦 ${ctx.escapeHtml(file.name)}</span>
-                    ${canDownloadItem ? `<a href="${file.file_url}" download="${ctx.escapeHtml(file.name)}" class="app-menu-pill" style="text-decoration:none;">📥 ${ctx.escapeHtml(ctx.t('lightbox.download') || 'Télécharger')}</a>` : ''}
-                    <button type="button" class="app-menu-pill" id="menuArchInfoBtn">ℹ️ ${ctx.escapeHtml(ctx.t('lightbox.metadata_btn') || 'Propriétés (I)')}</button>
+                    ${canDownloadItem ? `<a href="${file.file_url}" download="${ctx.escapeHtml(file.name)}" class="app-menu-pill" style="text-decoration:none;">📥 ${ctx.escapeHtml(ctx.t('lightbox.download'))}</a>` : ''}
+                    <button type="button" class="app-menu-pill" id="menuArchInfoBtn">ℹ️ ${ctx.escapeHtml(ctx.t('lightbox.metadata_btn'))}</button>
                   </div>
                   <div class="app-menu-right">
-                    <button type="button" class="app-menu-pill" id="menuArchFsBtn">⛶ ${ctx.escapeHtml(ctx.t('lightbox.fullscreen') || 'Plein Écran')}</button>
+                    <button type="button" class="app-menu-pill" id="menuArchFsBtn">⛶ ${ctx.escapeHtml(ctx.t('lightbox.fullscreen'))}</button>
                   </div>
                 `;
                 const info = container.querySelector('#menuArchInfoBtn');
@@ -121,10 +121,10 @@
 
             if (statsEl) {
               statsEl.innerHTML = `
-                <div>${ctx.escapeHtml(ctx.t('archive.compressed_size') || 'Taille compressée')} : <strong style="color:#f8fafc;">${file.size_formatted}</strong></div>
-                ${arch.uncompressed_size_formatted ? `<div>${ctx.escapeHtml(ctx.t('meta.uncompressed_size') || 'Taille décompressée')} : <strong style="color:#f8fafc;">${arch.uncompressed_size_formatted}</strong></div>` : ''}
-                ${arch.files_count !== undefined ? `<div>${ctx.escapeHtml(ctx.t('meta.files_count') || 'Fichiers')} : <strong style="color:#f8fafc;">${arch.files_count}</strong></div>` : ''}
-                ${arch.compression_ratio ? `<div>${ctx.escapeHtml(ctx.t('meta.compression_ratio') || 'Gain')} : <strong style="color:#f8fafc;">${arch.compression_ratio}</strong></div>` : ''}
+                <div>${ctx.escapeHtml(ctx.t('archive.compressed_size'))} : <strong style="color:#f8fafc;">${file.size_formatted}</strong></div>
+                ${arch.uncompressed_size_formatted ? `<div>${ctx.escapeHtml(ctx.t('meta.uncompressed_size'))} : <strong style="color:#f8fafc;">${arch.uncompressed_size_formatted}</strong></div>` : ''}
+                ${arch.files_count !== undefined ? `<div>${ctx.escapeHtml(ctx.t('meta.files_count'))} : <strong style="color:#f8fafc;">${arch.files_count}</strong></div>` : ''}
+                ${arch.compression_ratio ? `<div>${ctx.escapeHtml(ctx.t('meta.compression_ratio'))} : <strong style="color:#f8fafc;">${arch.compression_ratio}</strong></div>` : ''}
               `;
             }
 
@@ -133,7 +133,7 @@
             const renderFileList = (items) => {
               if (!listEl) return;
               if (!items || items.length === 0) {
-                listEl.innerHTML = `<div style="padding:2.5rem;text-align:center;color:var(--text-muted,#94a3b8);">${ctx.escapeHtml(ctx.t('archive.no_matching_files') || 'Aucun fichier trouvé correspondant au filtre.')}</div>`;
+                listEl.innerHTML = `<div style="padding:2.5rem;text-align:center;color:var(--text-muted,#94a3b8);">${ctx.escapeHtml(ctx.t('archive.no_matching_files'))}</div>`;
                 return;
               }
 
@@ -182,8 +182,8 @@
                 <div style="padding:2.5rem;text-align:center;">
                   <div style="font-size:2.5rem;margin-bottom:0.75rem;">📦</div>
                   <div style="font-weight:600;color:#f8fafc;margin-bottom:0.4rem;">${ctx.escapeHtml(file.name)}</div>
-                  <p style="color:var(--text-muted,#94a3b8);font-size:0.85rem;margin-bottom:1.25rem;">${ctx.escapeHtml(ctx.t('archive.unavailable_online') || 'Les détails internes de cette archive ne sont pas disponibles directement en ligne.')}</p>
-                  ${canDownloadItem ? `<a href="${file.file_url}" download="${ctx.escapeHtml(file.name)}" class="app-menu-pill" style="text-decoration:none;padding:8px 16px;background:#6366f1;color:#fff;border-radius:8px;font-weight:600;">${ctx.escapeHtml(ctx.t('archive.download_complete') || '📥 Télécharger l\'archive complète')}</a>` : ''}
+                  <p style="color:var(--text-muted,#94a3b8);font-size:0.85rem;margin-bottom:1.25rem;">${ctx.escapeHtml(ctx.t('archive.unavailable_online'))}</p>
+                  ${canDownloadItem ? `<a href="${file.file_url}" download="${ctx.escapeHtml(file.name)}" class="app-menu-pill" style="text-decoration:none;padding:8px 16px;background:#6366f1;color:#fff;border-radius:8px;font-weight:600;">${ctx.escapeHtml(ctx.t('archive.download_complete'))}</a>` : ''}
                 </div>
               `;
             }

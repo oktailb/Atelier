@@ -216,20 +216,17 @@
         this.finishLocaleChange(code);
       } else {
         try {
-          const res = await fetch(`system/endpoints/api.php?action=get_locale&code=${encodeURIComponent(code)}`);
-          if (res.ok) {
-            const json = await res.json();
-            if (json.success && json.translations) {
-              this.state.translations = json.translations;
-              this.state.translationsCache[code] = this.state.translations;
-            }
-          } else {
-            const directRes = await fetch(`locales/${encodeURIComponent(code)}.json?t=${Date.now()}`);
-            if (directRes.ok) {
-              const directJson = await directRes.json();
-              this.state.translations = directJson.translations || directJson;
-              this.state.translationsCache[code] = this.state.translations;
-            }
+          const json = (window.sys && window.sys.api)
+            ? await window.sys.api.get('get_locale', { code })
+            : null;
+          if (json && json.success && json.translations) {
+            this.state.translations = json.translations;
+            this.state.translationsCache[code] = this.state.translations;
+          } else if (window.sys && window.sys.api) {
+            const rawDirect = await window.sys.api.getText(`locales/${encodeURIComponent(code)}.json?t=${Date.now()}`);
+            const directJson = JSON.parse(rawDirect);
+            this.state.translations = directJson.translations || directJson;
+            this.state.translationsCache[code] = this.state.translations;
           }
         } catch (e) {
           console.error('[i18n] Failed to load locale:', code, e);
@@ -398,7 +395,7 @@
         searchBox.className = 'app-launcher-search-box';
         searchBox.innerHTML = `
           <span class="app-launcher-search-icon">🔍</span>
-          <input type="text" class="app-launcher-search-input" placeholder="${this.escapeHtml(this.t('nav.search_apps') || 'Rechercher une application...')}" />
+          <input type="text" class="app-launcher-search-input" placeholder="${this.escapeHtml(this.t('nav.search_apps'))}" />
         `;
         menuEl.insertBefore(searchBox, listEl);
 
@@ -440,7 +437,7 @@
         return {
           id: '',
           icon: '📁',
-          label: this.t('categories.root') || this.t('nav.apps_menu') || 'Applications'
+          label: this.t('nav.apps_menu')
         };
       }
 
@@ -937,21 +934,9 @@
       } catch (e) {}
 
       try {
-        const res = await fetch('system/endpoints/api.php', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': csrfToken
-          },
-          body: JSON.stringify({
-            action: 'save_desktop_shortcuts',
-            csrf_token: csrfToken,
-            shortcuts: shortcuts
-          })
-        });
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success && Array.isArray(json.shortcuts)) {
+        if (window.sys && window.sys.api) {
+          const json = await window.sys.api.post('save_desktop_shortcuts', { shortcuts });
+          if (json && json.success && Array.isArray(json.shortcuts)) {
             window.SG_DESKTOP_CONFIG.shortcuts = json.shortcuts;
           }
         }
@@ -1179,18 +1164,8 @@
       const loginError = document.getElementById('adminLoginError') || this.el.adminLoginError;
 
       try {
-        const formData = new FormData();
-        formData.append('action', 'login');
-        formData.append('csrf_token', this.state.csrfToken || window.CSRF_TOKEN || '');
-        formData.append('password', password);
-
-        const res = await fetch('system/endpoints/api.php', {
-          method: 'POST',
-          headers: { 'X-CSRF-Token': this.state.csrfToken || window.CSRF_TOKEN || '' },
-          body: formData
-        });
-        const json = await res.json();
-        if (json.success) {
+        const json = await window.sys.api.post('login', { password });
+        if (json && json.success) {
           this.state.isAdmin = true;
           window.IS_ADMIN = true;
           if (json.csrf_token) {
@@ -1198,7 +1173,7 @@
             window.CSRF_TOKEN = json.csrf_token;
           }
 
-          this.showToast(this.t('admin.login_success') || 'Connexion administrateur réussie', 'success');
+          this.showToast(this.t('admin.login_success'), 'success');
           
           const adminBtn = document.getElementById('adminBtn');
           if (adminBtn) adminBtn.classList.add('active');
@@ -1220,7 +1195,7 @@
           }
         } else {
           if (loginError) {
-            loginError.textContent = json.error || 'Mot de passe incorrect';
+            loginError.textContent = (json && json.error) || this.t('api.err_invalid_password');
             loginError.style.display = 'block';
           }
         }
@@ -1231,14 +1206,7 @@
 
     async logoutAdmin() {
       try {
-        const formData = new FormData();
-        formData.append('action', 'logout');
-        formData.append('csrf_token', this.state.csrfToken || window.CSRF_TOKEN || '');
-        await fetch('system/endpoints/api.php', {
-          method: 'POST',
-          headers: { 'X-CSRF-Token': this.state.csrfToken || window.CSRF_TOKEN || '' },
-          body: formData
-        });
+        await window.sys.api.post('logout', {});
         this.state.isAdmin = false;
         window.IS_ADMIN = false;
         this.closeAdminModal();
@@ -1267,18 +1235,8 @@
       if (!newPassword) return;
 
       try {
-        const formData = new FormData();
-        formData.append('action', 'change_password');
-        formData.append('csrf_token', this.state.csrfToken || window.CSRF_TOKEN || '');
-        formData.append('new_password', newPassword);
-
-        const res = await fetch('system/endpoints/api.php', {
-          method: 'POST',
-          headers: { 'X-CSRF-Token': this.state.csrfToken || window.CSRF_TOKEN || '' },
-          body: formData
-        });
-        const json = await res.json();
-        if (json.success) {
+        const json = await window.sys.api.post('change_password', { new_password: newPassword });
+        if (json && json.success) {
           input.value = '';
           const msg = document.getElementById('adminChangePassMsg') || this.el.adminChangePassMsg;
           if (msg) {
@@ -1286,7 +1244,7 @@
             msg.style.display = 'block';
           }
         } else {
-          this.showToast(json.error || 'Erreur lors du changement de mot de passe', 'error');
+          this.showToast((json && json.error) || 'Erreur lors du changement de mot de passe', 'error');
         }
       } catch (err) {
         this.showToast(`Erreur: ${err.message}`, 'error');
@@ -1302,9 +1260,8 @@
       }
 
       try {
-        const res = await fetch('system/endpoints/api.php?action=get_permissions');
-        const json = await res.json();
-        if (!json.success || !json.permissions) return;
+        const json = await window.sys.api.get('get_permissions');
+        if (!json || !json.success || !json.permissions) return;
 
         const p = json.permissions;
         matrixDefs.forEach(key => {
@@ -1326,19 +1283,9 @@
       });
 
       try {
-        const formData = new FormData();
-        formData.append('action', 'save_permissions');
-        formData.append('csrf_token', this.state.csrfToken || window.CSRF_TOKEN || '');
-        formData.append('permissions', JSON.stringify(perms));
-
-        const res = await fetch('system/endpoints/api.php', {
-          method: 'POST',
-          headers: { 'X-CSRF-Token': this.state.csrfToken || window.CSRF_TOKEN || '' },
-          body: formData
-        });
-        const json = await res.json();
-        if (json.success) {
-          this.showToast(this.t('admin.permissions_saved') || 'Permissions matrix saved successfully', 'success');
+        const json = await window.sys.api.post('save_permissions', { permissions: perms });
+        if (json && json.success) {
+          this.showToast(this.t('admin.permissions_saved'), 'success');
           if (window.explorerApp && typeof window.explorerApp.loadDirectory === 'function') {
             window.explorerApp.loadDirectory(window.explorerApp.state?.currentPath);
           }
@@ -1346,7 +1293,7 @@
             window.EventBus.emit('fs:changed');
           }
         } else {
-          this.showToast(json.error || 'Erreur lors de la sauvegarde des droits', 'error');
+          this.showToast((json && json.error) || 'Erreur lors de la sauvegarde des droits', 'error');
         }
       } catch (err) {
         this.showToast(`Erreur: ${err.message}`, 'error');
