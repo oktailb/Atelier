@@ -297,8 +297,8 @@
      */
     renderShell() {
       const tabsHtml = (this.tabs.length > 0) ? `
-        <div class="webos-tabs-nav" id="${this.id}TabNav" style="display:flex; align-items:center; justify-content:space-between;">
-          <div style="display:flex; gap:8px;">
+        <div class="webos-tabs-nav" id="${this.id}TabNav" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+          <div style="display:flex; flex-wrap:wrap; gap:6px;">
             ${this.tabs.map(t => `
               <button type="button" class="webos-tab-item ${t.id === this.currentTab ? 'active' : ''}" data-tab="${t.id}">
                 ${t.icon ? `<span>${t.icon}</span>` : ''}

@@ -19,13 +19,14 @@
         id: 'settings',
         title: 'settings.app_title',
         icon: '⚙️',
-        width: 880,
-        height: 620,
+        width: 940,
+        height: 640,
         minWidth: 540,
         minHeight: 440,
         resizable: true,
         tabs: [
           { id: 'security', label: 'settings.tab_security', icon: '🛡️' },
+          { id: 'users', label: 'settings.tab_users', icon: '👥' },
           { id: 'appearance', label: 'settings.tab_appearance', icon: '🎨' },
           { id: 'autostart', label: 'settings.tab_autostart', icon: '🚀' },
           { id: 'system', label: 'settings.tab_system', icon: '⚙️' },
@@ -80,7 +81,20 @@
         this.customSections[existingIdx] = section;
       } else {
         this.customSections.push(section);
-        this.tabs.push({ id: section.id, label: section.title, icon: section.icon || '🔌' });
+        if (!this.tabs.some(t => t.id === section.id)) {
+          this.tabs.push({ id: section.id, label: section.title, icon: section.icon || '🔌' });
+          // Refresh live tab bar if Settings window is already open
+          const nav = document.getElementById(`${this.id}TabNav`);
+          const tabRow = nav ? nav.firstElementChild : null;
+          if (tabRow && !tabRow.querySelector(`[data-tab="${section.id}"]`)) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = `webos-tab-item ${section.id === this.currentTab ? 'active' : ''}`;
+            btn.dataset.tab = section.id;
+            btn.innerHTML = `${section.icon ? `<span>${section.icon}</span>` : ''}<span>${this.escapeHtml(this.t(section.title))}</span>`;
+            tabRow.appendChild(btn);
+          }
+        }
       }
       this.render();
     }
@@ -88,6 +102,7 @@
     renderTab(tabId) {
       switch (tabId) {
         case 'security': return this.renderSecurityTab();
+        case 'users': return `<div id="settingsCustomSection_users"></div>`;
         case 'appearance': return this.renderAppearanceTab();
         case 'autostart': return this.renderAutostartTab();
         case 'system': return this.renderSystemTab();
@@ -164,12 +179,17 @@
         }
       });
 
-      // Bind custom plugin sections if active
+      // Bind custom plugin sections (and built-in Users & Shares panel) if active
       const custom = this.customSections.find(s => s.id === this.currentTab);
       if (custom) {
         const customArea = container.querySelector(`#settingsCustomSection_${custom.id}`);
         if (customArea && typeof custom.render === 'function') {
           custom.render(customArea, this);
+        }
+      } else if (this.currentTab === 'users' && window.AtelierUsersPanel && typeof window.AtelierUsersPanel.render === 'function') {
+        const usersArea = container.querySelector('#settingsCustomSection_users');
+        if (usersArea) {
+          window.AtelierUsersPanel.render(usersArea, this);
         }
       }
 
