@@ -894,13 +894,10 @@ try {
   assert("FEAT-04: GraphingCalcApp s'instancie et expose 3 onglets (scientific, programmer, graph)",
     !!inst && Array.isArray(inst.tabs) && inst.tabs.length === 3
   );
-  inst.currentTab = 'scientific';
-  const htmlSci = inst.renderContent();
-  inst.currentTab = 'programmer';
-  const htmlProg = inst.renderContent();
-  inst.currentTab = 'graph';
-  const htmlGraph = inst.renderContent();
-  assert("FEAT-04: Rendu HTML des 3 modes sans erreur (keypad, bit-grid, canvas)",
+  const htmlSci = inst.renderTab('scientific');
+  const htmlProg = inst.renderTab('programmer');
+  const htmlGraph = inst.renderTab('graph');
+  assert("FEAT-04: Rendu HTML des 3 modes via renderTab() sans erreur (keypad, bit-grid, canvas)",
     htmlSci.includes('gcalcExprInput') && htmlProg.includes('gcalc-bit-grid') && htmlGraph.includes('gcalcCanvas')
   );
 } catch (e) {

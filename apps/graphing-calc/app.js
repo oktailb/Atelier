@@ -75,9 +75,8 @@
     }
 
     onLocaleChanged() {
-      if (this.window) {
-        this.window.setTitle(`${this.icon} ${this.t('apps.graphing-calc.title')}`);
-        this.render();
+      if (this.window && window.WindowManager) {
+        window.WindowManager.setTitle(this.window.id, `${this.icon} ${this.t('apps.graphing-calc.title')}`);
       }
     }
 
@@ -110,17 +109,22 @@
       `;
     }
 
-    renderContent() {
-      if (this.currentTab !== 'graph') {
+    renderTab(tabId) {
+      const tab = tabId || this.currentTab;
+      if (tab !== 'graph') {
         this.destroyPlotter();
       }
-      if (this.currentTab === 'programmer') {
+      if (tab === 'programmer') {
         return this.renderProgrammerTab();
       }
-      if (this.currentTab === 'graph') {
+      if (tab === 'graph') {
         return this.renderGraphTab();
       }
       return this.renderScientificTab();
+    }
+
+    renderContent() {
+      return this.renderTab(this.currentTab);
     }
 
     // -------------------------------------------------------------------------
@@ -692,11 +696,8 @@
         const btn = e.target.closest('button');
         if (!btn || btn.disabled) return;
 
-        // Tab switch (preserve WebOSApp shell behavior)
-        if (btn.dataset.tab) {
-          this.switchTab(btn.dataset.tab);
-          return;
-        }
+        // Tab buttons are already bound by WebOSApp.bindShellEvents()
+        if (btn.dataset.tab) return;
 
         // Insert scientific token
         if (btn.dataset.insert !== undefined) {
@@ -715,6 +716,9 @@
           case 'set-angle':
             this.angleMode = btn.dataset.angle || 'RAD';
             this.storage.set('angleMode', this.angleMode);
+            container.querySelectorAll('[data-action="set-angle"]').forEach(b => {
+              b.classList.toggle('active', b.dataset.angle === this.angleMode);
+            });
             this.render();
             break;
 
