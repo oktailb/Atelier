@@ -857,6 +857,101 @@ HTACCESS;
         $this->assert("SEC-05: ArchiveEngine refuse d'archiver directement un sous-dossier .private", \SimpleGallery\Kernel\FS\ArchiveEngine::createArchive('zip', $priv_child, $priv_zip_out, $sec_root, []) === false);
         if (file_exists($priv_zip_out)) @unlink($priv_zip_out);
 
+        // SEC-06: Least-privilege default guest permissions aligned with config/security.php
+        $def_perms = \SimpleGallery\Kernel\FS\PermissionsManager::getDefaultPermissions();
+        $this->assert("SEC-06: Permission par défaut can_comment est false", ($def_perms['can_comment'] ?? true) === false);
+        $this->assert("SEC-06: Permission par défaut can_download_archive est false", ($def_perms['can_download_archive'] ?? true) === false);
+        $this->assert("SEC-06: Permission par défaut can_download_item est false", ($def_perms['can_download_item'] ?? true) === false);
+        $this->assert("SEC-06: Permission par défaut can_use_browser_proxy est false", ($def_perms['can_use_browser_proxy'] ?? true) === false);
+
+        // SEC-07: Admin gates on save_desktop_shortcuts & tribune_boards_save
+        unset($_SESSION['is_admin'], $_SESSION['sg_admin_logged']);
+        $guest_shortcuts_res = \SimpleGallery\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', ['shortcuts' => []], ['base_dir' => $this->temp_test_dir, 'raw_body' => ['shortcuts' => []]]);
+        $this->assert("SEC-07: save_desktop_shortcuts refuse un invité non-admin (403)", ($guest_shortcuts_res['status'] ?? 0) === 403);
+
+        $guest_boards_res = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::handle('tribune_boards_save', ['boards' => []], $this->temp_test_dir);
+        $this->assert("SEC-07: tribune_boards_save refuse un invité non-admin (403)", ($guest_boards_res['status'] ?? 0) === 403);
+
+        $_SESSION['is_admin'] = true;
+        $_SESSION['sg_admin_logged'] = true;
+        $bad_shortcut_res = \SimpleGallery\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', [], [
+            'base_dir' => $this->temp_test_dir,
+            'raw_body' => ['shortcuts' => [['id' => 'xss', 'url' => 'javascript:alert(1)']]]
+        ]);
+        $this->assert("SEC-07: save_desktop_shortcuts rejette un schéma javascript: (400)", ($bad_shortcut_res['status'] ?? 0) === 400);
+
+        $bad_board_res = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::handle('tribune_boards_save', [
+            'boards' => ['evil' => ['backend_type' => 'tsv', 'url' => 'http://127.0.0.1/internal']]
+        ], $this->temp_test_dir);
+        $this->assert("SEC-07: tribune_boards_save rejette une URL privée anti-SSRF (400)", ($bad_board_res['status'] ?? 0) === 400);
+
+        // SEC-08: Tribune OAuth2 state validation, scheduler cookie hiding/ownership & proxy board restriction
+        unset($_SESSION['is_admin'], $_SESSION['sg_admin_logged']);
+        $_SESSION['tribune_oauth_state_linuxfr'] = 'expected_secret_state_123';
+        $bad_state_cb = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::handle('tribune_oauth_callback', [
+            'board_id' => 'linuxfr',
+            'code'     => 'dummy_code',
+            'state'    => 'forged_state'
+        ], $this->temp_test_dir);
+        $this->assert("SEC-08: tribune_oauth_callback rejette un paramètre state invalide (403)", ($bad_state_cb['status'] ?? 0) === 403);
+
+        $_SESSION['tribune_oauth_state_linuxfr'] = 'valid_state_abc';
+        $this->assert("SEC-08: verifyOauthState accepte un state valide et le consomme", \SimpleGallery\Apps\Tribune\Backend\TribuneActions::verifyOauthState('linuxfr', 'valid_state_abc') === true);
+        $this->assert("SEC-08: verifyOauthState rejette la réutilisation d'un state déjà consommé", \SimpleGallery\Apps\Tribune\Backend\TribuneActions::verifyOauthState('linuxfr', 'valid_state_abc') === false);
+
+        $tribune_php_src = @file_get_contents($project_root . '/apps/tribune/backend/TribuneActions.php') ?: '';
+        $this->assert("SEC-08: tribune_oauth_callback n'utilise plus postMessage(..., '*')", strpos($tribune_php_src, 'postMessage(payload, "*")') === false);
+        $this->assert("SEC-08: tribune_oauth_callback utilise window.location.origin + JSON_HEX_TAG", strpos($tribune_php_src, 'postMessage(payload, window.location.origin)') !== false && strpos($tribune_php_src, 'JSON_HEX_TAG') !== false);
+
+        $sanitized_sched = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::sanitizeScheduledItemForOutput([
+            'id' => 'abc', 'message' => 'hello', 'cookie' => 'session=TOPSECRET', 'owner_session_hash' => 'hash123'
+        ]);
+        $this->assert("SEC-08: tribune_scheduled_list masque le champ cookie", !isset($sanitized_sched['cookie']) && !isset($sanitized_sched['owner_session_hash']));
+
+        $open_proxy_attempt = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::handle('tribune_proxy_fetch', [
+            'url' => 'https://example.com/unconfigured'
+        ], $this->temp_test_dir);
+        $this->assert("SEC-08: tribune_proxy_fetch refuse une URL hors tribunes configurées pour un invité (403)", ($open_proxy_attempt['status'] ?? 0) === 403);
+
+        // SEC-09: unlock_folder rate-limiting & save_text_file blocking active HTML/JS
+        $rl_pwd_dir = $sec_root . '/rl_locked_dir';
+        @mkdir($rl_pwd_dir, 0755, true);
+        file_put_contents($rl_pwd_dir . '/.password', password_hash('RightPass!', PASSWORD_DEFAULT) . "\n");
+        $rl_key_unlock = 'unlock_' . md5('rl_locked_dir') . '_' . \SimpleGallery\Kernel\Security\RateLimiter::getClientIp();
+        \SimpleGallery\Kernel\Security\RateLimiter::reset($rl_key_unlock);
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            \SimpleGallery\Kernel\Actions\FileActions::handle('unlock_folder', [], [
+                'base_dir' => $sec_root,
+                'raw_body' => ['dir' => 'rl_locked_dir', 'password' => 'WrongPass']
+            ]);
+        }
+        $rl_blocked = \SimpleGallery\Kernel\Actions\FileActions::handle('unlock_folder', [], [
+            'base_dir' => $sec_root,
+            'raw_body' => ['dir' => 'rl_locked_dir', 'password' => 'RightPass!']
+        ]);
+        $this->assert("SEC-09: unlock_folder applique un rate-limit anti-bruteforce (429)", ($rl_blocked['status'] ?? 0) === 429);
+        \SimpleGallery\Kernel\Security\RateLimiter::reset($rl_key_unlock);
+
+        $_SESSION['is_admin'] = true;
+        $_SESSION['sg_admin_logged'] = true;
+        $save_html_res = \SimpleGallery\Kernel\Actions\FileActions::handle('save_text_file', [], [
+            'base_dir' => $this->temp_test_dir,
+            'raw_body' => ['file' => 'xss_test.html', 'content' => '<script>alert(1)</script>']
+        ]);
+        $this->assert("SEC-09: save_text_file bloque la création de fichier .html (403)", ($save_html_res['status'] ?? 0) === 403);
+
+        $save_js_res = \SimpleGallery\Kernel\Actions\FileActions::handle('save_text_file', [], [
+            'base_dir' => $this->temp_test_dir,
+            'raw_body' => ['file' => 'evil_test.js', 'content' => 'alert(1)']
+        ]);
+        $this->assert("SEC-09: save_text_file bloque la création de fichier .js (403)", ($save_js_res['status'] ?? 0) === 403);
+
+        // SEC-10: thumb.php private Cache-Control & AppEndpoint masked 500 error
+        $thumb_src = @file_get_contents($project_root . '/system/endpoints/thumb.php') ?: '';
+        $this->assert("SEC-10: thumb.php envoie Cache-Control: private, no-store sur dossiers protégés", strpos($thumb_src, 'Cache-Control: private, no-store, max-age=0') !== false);
+        $app_ep_src = @file_get_contents($project_root . '/system/kernel/Api/AppEndpoint.php') ?: '';
+        $this->assert("SEC-10: AppEndpoint ne divulgue pas getMessage() dans les réponses HTTP 500", strpos($app_ep_src, "'error'   => 'Erreur interne de traitement.'") !== false && strpos($app_ep_src, '@error_log(') !== false);
+
         if ($prev_admin_1 === null) unset($_SESSION['is_admin']); else $_SESSION['is_admin'] = $prev_admin_1;
         if ($prev_admin_2 === null) unset($_SESSION['sg_admin_logged']); else $_SESSION['sg_admin_logged'] = $prev_admin_2;
 

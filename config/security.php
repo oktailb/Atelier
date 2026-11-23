@@ -24,6 +24,18 @@ $rate_limits = [
     'tribune_upload' => [
         'max_attempts'  => 15,
         'decay_seconds' => 60
+    ],
+    'tribune_proxy' => [
+        'max_attempts'  => 60,
+        'decay_seconds' => 60
+    ],
+    'tribune_schedule' => [
+        'max_attempts'  => 20,
+        'decay_seconds' => 60
+    ],
+    'unlock_folder' => [
+        'max_attempts'  => 5,
+        'decay_seconds' => 900
     ]
 ];
 

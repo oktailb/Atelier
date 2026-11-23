@@ -9,10 +9,14 @@ use SimpleGallery\Kernel\Security\PathValidator;
 
 class AuthManager {
     /**
-     * Ensure session is started with secure cookie parameters
+     * Ensure session is started with secure cookie parameters and optional custom save path
      */
-    public static function ensureSessionStarted(): void {
+    public static function ensureSessionStarted(?string $session_save_path = null): void {
         if (session_status() === PHP_SESSION_NONE) {
+            if ($session_save_path !== null && $session_save_path !== '' && is_dir($session_save_path) && is_writable($session_save_path)) {
+                @session_save_path($session_save_path);
+            }
+
             $is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
                 || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)
                 || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');

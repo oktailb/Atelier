@@ -7,6 +7,7 @@ use SimpleGallery\Kernel\FS\DotfileManager;
 use SimpleGallery\Kernel\FS\PermissionsManager;
 use SimpleGallery\Kernel\Media\ExifParser;
 use SimpleGallery\Kernel\Security\PathValidator;
+use SimpleGallery\Kernel\Security\RateLimiter;
 use SimpleGallery\Kernel\Security\SecurityManager;
 
 class FileActions {
@@ -34,10 +35,20 @@ class FileActions {
                 return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_folder_not_protected')]];
             }
 
+            $rel = PathValidator::getRelativePath($dir_target, $base_dir);
+            global $rate_limits;
+            $unlock_max = (int)($rate_limits['unlock_folder']['max_attempts'] ?? 5);
+            $unlock_decay = (int)($rate_limits['unlock_folder']['decay_seconds'] ?? 900);
+            $unlock_rl_key = 'unlock_' . md5($rel) . '_' . RateLimiter::getClientIp();
+
+            if (!RateLimiter::check($unlock_rl_key, $unlock_max, $unlock_decay)) {
+                return ['status' => 429, 'data' => ['success' => false, 'error' => __t('api.err_rate_limit')]];
+            }
+
             $hash = trim((string)@file_get_contents($password_file));
             if (empty($hash) || password_verify($password, $hash)) {
+                RateLimiter::reset($unlock_rl_key);
                 AuthManager::ensureSessionStarted();
-                $rel = PathValidator::getRelativePath($dir_target, $base_dir);
                 $_SESSION['sg_unlocked_folders'][$rel] = true;
                 $_SESSION['unlocked_dirs'][$rel] = true;
 
@@ -47,6 +58,7 @@ class FileActions {
                 ]];
             }
 
+            RateLimiter::increment($unlock_rl_key);
             return ['status' => 401, 'data' => ['success' => false, 'error' => __t('api.err_invalid_folder_password')]];
         }
 
@@ -726,7 +738,12 @@ class FileActions {
             }
 
             $ext = strtolower(pathinfo($file_full, PATHINFO_EXTENSION));
-            $forbidden_exts = ['php', 'phtml', 'php3', 'php4', 'php5', 'phps', 'phar', 'inc', 'sh', 'bash', 'bat', 'cmd', 'exe', 'cgi', 'pl', 'py', 'htaccess', 'user.ini', 'admin_password_hash'];
+            $forbidden_exts = [
+                'php', 'phtml', 'php3', 'php4', 'php5', 'phps', 'phar', 'inc',
+                'html', 'htm', 'xhtml', 'js', 'mjs',
+                'sh', 'bash', 'bat', 'cmd', 'exe', 'dll', 'cgi', 'pl', 'py',
+                'htaccess', 'htpasswd', 'user.ini', 'admin_password_hash'
+            ];
             if (in_array($ext, $forbidden_exts, true)) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_forbidden_file_type')]];
             }

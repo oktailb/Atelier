@@ -13,7 +13,7 @@ require_once $project_root . '/system/boot/bootstrap.php';
 require_once $project_root . '/system/kernel/functions.php';
 
 
-function send_cached_file(string $file_path, string $content_type, int $max_age = 31536000): void {
+function send_cached_file(string $file_path, string $content_type, int $max_age = 31536000, bool $is_restricted = false): void {
     if (!file_exists($file_path)) {
         return;
     }
@@ -22,7 +22,12 @@ function send_cached_file(string $file_path, string $content_type, int $max_age 
     $etag = '"' . md5($file_path . '-' . $mtime . '-' . $size) . '"';
 
     header('Content-Type: ' . $content_type);
-    header('Cache-Control: public, max-age=' . $max_age);
+    if ($is_restricted) {
+        header('Cache-Control: private, no-store, max-age=0');
+        header('Pragma: no-cache');
+    } else {
+        header('Cache-Control: public, max-age=' . $max_age);
+    }
     header('ETag: ' . $etag);
     header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $mtime) . ' GMT');
 
@@ -85,7 +90,7 @@ function get_full_mime_type(string $ext): string {
     return $mimes[strtolower($ext)] ?? 'application/octet-stream';
 }
 
-function serve_raw_file(string $file_path, string $ext, bool $as_attachment = false): void {
+function serve_raw_file(string $file_path, string $ext, bool $as_attachment = false, bool $is_restricted = false): void {
     if (!file_exists($file_path) || !is_readable($file_path)) {
         http_response_code(404);
         die("File not found.");
@@ -102,7 +107,11 @@ function serve_raw_file(string $file_path, string $ext, bool $as_attachment = fa
     
     $disposition = $as_attachment ? 'attachment' : 'inline';
     header('Content-Disposition: ' . $disposition . '; filename="' . rawurlencode(basename($file_path)) . '"');
-    if ($is_text_doc) {
+    if ($is_restricted) {
+        header('Cache-Control: private, no-store, max-age=0');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+    } elseif ($is_text_doc) {
         header('Cache-Control: no-cache, no-store, must-revalidate');
         header('Pragma: no-cache');
         header('Expires: 0');
@@ -164,8 +173,8 @@ function serve_raw_file(string $file_path, string $ext, bool $as_attachment = fa
     exit;
 }
 
-function serve_direct_file(string $file_path, string $ext): void {
-    serve_raw_file($file_path, $ext);
+function serve_direct_file(string $file_path, string $ext, bool $is_restricted = false): void {
+    serve_raw_file($file_path, $ext, false, $is_restricted);
 }
 
 function render_svg_placeholder(string $category, string $ext, string $filename): void {
@@ -358,6 +367,11 @@ if (!is_dir_accessible(dirname($file_path), $real_base_dir)) {
     exit;
 }
 
+// Determine whether the file lives inside a .private or .password-protected subtree
+// so proxies/CDNs never publicly cache restricted media or thumbnails (SEC-10)
+$effective_access = \SimpleGallery\Kernel\FS\DotfileManager::getEffectiveAccessInfo(dirname($file_path), $real_base_dir);
+$is_restricted = !empty($effective_access['requires_auth']);
+
 // Direct original raw media delivery: Inline View/Stream (raw=1) vs Attachment Download (download=1)
 $is_download_req = !empty($_GET['download']) || !empty($_GET['attachment']);
 $is_raw_req = !empty($_GET['raw']);
@@ -381,7 +395,7 @@ if ($is_download_req || $is_raw_req) {
     }
 
     // Serve raw media: as attachment if downloading, or inline if streaming/viewing
-    serve_raw_file($file_path, $ext, $is_download_req);
+    serve_raw_file($file_path, $ext, $is_download_req, $is_restricted);
 }
 
 // Setup thumbnail cache directory with fallback to sys_get_temp_dir()
@@ -398,12 +412,12 @@ if ($is_video) {
 
     // Serve cached video poster if present
     if (file_exists($video_cache_file) && filesize($video_cache_file) > 0 && filemtime($video_cache_file) >= filemtime($file_path)) {
-        send_cached_file($video_cache_file, 'image/jpeg', 31536000);
+        send_cached_file($video_cache_file, 'image/jpeg', 31536000, $is_restricted);
     }
 
     // Attempt 1: Fast pure PHP parser to extract embedded JPEG metadata thumbnail (Android/iOS MP4/MOV)
     if (extract_mp4_embedded_jpeg($file_path, $video_cache_file)) {
-        send_cached_file($video_cache_file, 'image/jpeg', 31536000);
+        send_cached_file($video_cache_file, 'image/jpeg', 31536000, $is_restricted);
     }
 
     // Attempt 2: ExifTool CLI (Extract embedded Preview/Thumbnail metadata)
@@ -426,7 +440,7 @@ if ($is_video) {
             @exec($cmd_exif2);
         }
         if (file_exists($video_cache_file) && filesize($video_cache_file) > 1000) {
-            send_cached_file($video_cache_file, 'image/jpeg', 31536000);
+            send_cached_file($video_cache_file, 'image/jpeg', 31536000, $is_restricted);
         }
     }
 
@@ -452,13 +466,13 @@ if ($is_video) {
         }
 
         if (file_exists($video_cache_file) && filesize($video_cache_file) > 0) {
-            send_cached_file($video_cache_file, 'image/jpeg', 31536000);
+            send_cached_file($video_cache_file, 'image/jpeg', 31536000, $is_restricted);
         }
     }
 
     // Attempt 4: ImageMagick (Imagick extension or convert CLI for IONOS / shared hosting)
     if (generate_imagemagick_frame_thumbnail($file_path, $video_cache_file, $thumb_width, $thumb_height, $thumb_quality)) {
-        send_cached_file($video_cache_file, 'image/jpeg', 31536000);
+        send_cached_file($video_cache_file, 'image/jpeg', 31536000, $is_restricted);
     }
 
     // Fallback if none of the above are available or supported
@@ -473,11 +487,11 @@ if ($ext === 'pdf') {
     $pdf_cache_file = $cache_dir . '/' . $pdf_cache_key . '.jpg';
 
     if (file_exists($pdf_cache_file) && filesize($pdf_cache_file) > 0 && filemtime($pdf_cache_file) >= filemtime($file_path)) {
-        send_cached_file($pdf_cache_file, 'image/jpeg', 31536000);
+        send_cached_file($pdf_cache_file, 'image/jpeg', 31536000, $is_restricted);
     }
 
     if (generate_imagemagick_frame_thumbnail($file_path, $pdf_cache_file, $thumb_width, $thumb_height, $thumb_quality)) {
-        send_cached_file($pdf_cache_file, 'image/jpeg', 31536000);
+        send_cached_file($pdf_cache_file, 'image/jpeg', 31536000, $is_restricted);
     }
 }
 
@@ -489,12 +503,12 @@ $is_image = in_array($ext, $media_types['image'], true);
 if ($is_image) {
     // SVGs serve directly
     if ($ext === 'svg') {
-        serve_direct_file($file_path, 'svg');
+        serve_direct_file($file_path, 'svg', $is_restricted);
     }
 
     // If GD extension is not loaded in PHP, fall back to direct file stream immediately!
     if (!function_exists('imagecreatefromjpeg') && !function_exists('imagecreatefrompng')) {
-        serve_direct_file($file_path, $ext);
+        serve_direct_file($file_path, $ext, $is_restricted);
     }
 
     // GD processing
@@ -503,11 +517,11 @@ if ($is_image) {
     $cache_file_jpg  = $cache_dir . '/' . $cache_key . '.jpg';
 
     if (file_exists($cache_file_webp) && filemtime($cache_file_webp) >= filemtime($file_path)) {
-        send_cached_file($cache_file_webp, 'image/webp', 31536000);
+        send_cached_file($cache_file_webp, 'image/webp', 31536000, $is_restricted);
     }
 
     if (file_exists($cache_file_jpg) && filemtime($cache_file_jpg) >= filemtime($file_path)) {
-        send_cached_file($cache_file_jpg, 'image/jpeg', 31536000);
+        send_cached_file($cache_file_jpg, 'image/jpeg', 31536000, $is_restricted);
     }
 
     // Attempt GD image loading
@@ -536,7 +550,7 @@ if ($is_image) {
 
     // If GD loading failed, serve original image file directly!
     if (!$src_img) {
-        serve_direct_file($file_path, $ext);
+        serve_direct_file($file_path, $ext, $is_restricted);
     }
 
     // Auto-rotate image according to EXIF orientation metadata (JPEG / TIFF)
@@ -597,7 +611,7 @@ if ($is_image) {
 
     if ($orig_w <= 0 || $orig_h <= 0) {
         imagedestroy($src_img);
-        serve_direct_file($file_path, $ext);
+        serve_direct_file($file_path, $ext, $is_restricted);
     }
 
     // Calculate aspect ratio scale
@@ -622,7 +636,7 @@ if ($is_image) {
         imagedestroy($thumb_img);
 
         if (file_exists($cache_file_webp)) {
-            send_cached_file($cache_file_webp, 'image/webp', 31536000);
+            send_cached_file($cache_file_webp, 'image/webp', 31536000, $is_restricted);
         }
     } else {
         @imagejpeg($thumb_img, $cache_file_jpg, $thumb_quality);
@@ -630,12 +644,12 @@ if ($is_image) {
         imagedestroy($thumb_img);
 
         if (file_exists($cache_file_jpg)) {
-            send_cached_file($cache_file_jpg, 'image/jpeg', 31536000);
+            send_cached_file($cache_file_jpg, 'image/jpeg', 31536000, $is_restricted);
         }
     }
 
     // Ultimate fallback if saving failed
-    serve_direct_file($file_path, $ext);
+    serve_direct_file($file_path, $ext, $is_restricted);
 }
 
 // -------------------------------------------------------------

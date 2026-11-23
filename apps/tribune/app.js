@@ -49,9 +49,12 @@
         window.EventBus.on('theme:changed', (data) => this.onThemeChanged(data?.themeId || data?.theme || data));
       }
 
-      // Listen for OAuth2 callback postMessage
+      // Listen for OAuth2 callback postMessage (strictly same-origin)
       if (!window._tribuneOauthListenerBound) {
         window.addEventListener('message', (event) => {
+          if (event.origin && window.location && window.location.origin && event.origin !== window.location.origin) {
+            return;
+          }
           let data = event.data;
           if (typeof data === 'string') {
             try {

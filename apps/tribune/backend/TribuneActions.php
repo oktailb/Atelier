@@ -232,6 +232,75 @@ class TribuneActions {
         return \SimpleGallery\Kernel\Security\UrlValidator::isSafePublicUrl($url);
     }
 
+    /**
+     * Checks whether a remote URL's origin (scheme + host + port) matches a configured remote Tribune board.
+     * Prevents unauthenticated open-proxy abuse while keeping configured boards (e.g. LinuxFr) 100% functional.
+     */
+    public static function isAllowedBoardRemoteUrl(string $url, string $base_dir): bool {
+        $target = parse_url($url);
+        if (!$target || empty($target['scheme']) || empty($target['host'])) {
+            return false;
+        }
+        $t_scheme = strtolower($target['scheme']);
+        if (!in_array($t_scheme, ['http', 'https'], true)) {
+            return false;
+        }
+        $t_host = strtolower(trim($target['host'], '[]'));
+        $t_port = isset($target['port']) ? (int)$target['port'] : ($t_scheme === 'https' ? 443 : 80);
+
+        $boards = self::getBoardsConfig($base_dir);
+        foreach ($boards as $cfg) {
+            if (!is_array($cfg)) continue;
+            if (($cfg['backend_type'] ?? '') === 'local') continue;
+            foreach (['url', 'post_url'] as $field) {
+                if (empty($cfg[$field]) || !is_string($cfg[$field])) continue;
+                $bp = parse_url($cfg[$field]);
+                if (!$bp || empty($bp['scheme']) || empty($bp['host'])) continue;
+                $b_scheme = strtolower($bp['scheme']);
+                $b_host = strtolower(trim($bp['host'], '[]'));
+                $b_port = isset($bp['port']) ? (int)$bp['port'] : ($b_scheme === 'https' ? 443 : 80);
+                if ($t_scheme === $b_scheme && $t_host === $b_host && $t_port === $b_port) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Validates and consumes the per-board OAuth2 CSRF state token stored in session.
+     */
+    public static function verifyOauthState(string $board_id, string $state): bool {
+        \SimpleGallery\Kernel\Auth\AuthManager::ensureSessionStarted();
+        $key = 'tribune_oauth_state_' . $board_id;
+        $expected = (string)($_SESSION[$key] ?? '');
+        unset($_SESSION[$key]);
+        if ($expected === '' || $state === '') {
+            return false;
+        }
+        return hash_equals($expected, $state);
+    }
+
+    /**
+     * Returns a stable hash identifying the current session owner for scheduled posts.
+     */
+    private static function getCurrentOwnerSessionHash(): string {
+        \SimpleGallery\Kernel\Auth\AuthManager::ensureSessionStarted();
+        $sid = session_id();
+        if ($sid === '') {
+            $sid = 'cli_session';
+        }
+        return hash('sha256', $sid);
+    }
+
+    /**
+     * Strips sensitive fields (cookies, session ownership hashes) from scheduled post entries before API output.
+     */
+    public static function sanitizeScheduledItemForOutput(array $item): array {
+        unset($item['cookie'], $item['owner_session_hash']);
+        return $item;
+    }
+
     public static function httpRequestProxy(string $url, string $method = 'GET', array $headers = [], ?string $post_data = null, int $timeout = 6): array {
         if (!self::isSafePublicUrl($url)) {
             return [
@@ -435,9 +504,46 @@ class TribuneActions {
         }
 
         if ($action === 'tribune_boards_save') {
+            if (!\SimpleGallery\Kernel\Auth\AuthManager::isAdminLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => 'Action réservée à l\'administrateur.']];
+            }
+
             $new_boards = $_POST['boards'] ?? $raw_body['boards'] ?? null;
             if (!is_array($new_boards)) {
                 return ['status' => 400, 'data' => ['success' => false, 'error' => 'Format de configuration invalide.']];
+            }
+
+            // Validate URLs for all configured boards (block javascript:, file:, private SSRF targets)
+            foreach ($new_boards as $bid => $cfg) {
+                if (!is_array($cfg)) {
+                    return ['status' => 400, 'data' => ['success' => false, 'error' => 'Configuration de tribune invalide.']];
+                }
+                $is_local = (($cfg['backend_type'] ?? '') === 'local' || $bid === 'local');
+                if (!$is_local) {
+                    foreach (['url', 'post_url'] as $url_field) {
+                        if (!empty($cfg[$url_field]) && is_string($cfg[$url_field])) {
+                            $u = trim($cfg[$url_field]);
+                            $sch = strtolower((string)(parse_url($u, PHP_URL_SCHEME) ?? ''));
+                            if (!in_array($sch, ['http', 'https'], true) || !self::isSafePublicUrl($u)) {
+                                return ['status' => 400, 'data' => ['success' => false, 'error' => "URL distante non autorisée pour la tribune '{$bid}' ({$url_field})."]];
+                            }
+                        }
+                    }
+                    if (!empty($cfg['oauth']) && is_array($cfg['oauth'])) {
+                        foreach (['authorize_url', 'token_url', 'redirect_uri'] as $oauth_field) {
+                            if (!empty($cfg['oauth'][$oauth_field]) && is_string($cfg['oauth'][$oauth_field])) {
+                                $ou = trim($cfg['oauth'][$oauth_field]);
+                                $osch = strtolower((string)(parse_url($ou, PHP_URL_SCHEME) ?? ''));
+                                if (!in_array($osch, ['http', 'https'], true)) {
+                                    return ['status' => 400, 'data' => ['success' => false, 'error' => "URL OAuth invalide pour '{$bid}' ({$oauth_field})."]];
+                                }
+                                if ($oauth_field !== 'redirect_uri' && !self::isSafePublicUrl($ou)) {
+                                    return ['status' => 400, 'data' => ['success' => false, 'error' => "URL OAuth distante non autorisée pour '{$bid}' ({$oauth_field})."]];
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             $storage_file = self::getBoardsFilePath($base_dir);
@@ -491,15 +597,31 @@ class TribuneActions {
         }
 
         if ($action === 'tribune_oauth_callback') {
-            $board_id = trim($_GET['board_id'] ?? '');
-            $code = trim($_GET['code'] ?? '');
-            $state = trim($_GET['state'] ?? '');
+            $board_id = trim($_GET['board_id'] ?? $raw_body['board_id'] ?? '');
+            $code = trim($_GET['code'] ?? $raw_body['code'] ?? '');
+            $state = trim($_GET['state'] ?? $raw_body['state'] ?? '');
+
+            // Enforce strict OAuth2 CSRF state validation
+            if ($board_id === '' || !self::verifyOauthState($board_id, $state)) {
+                if (PHP_SAPI === 'cli') {
+                    return ['status' => 403, 'data' => ['success' => false, 'error' => 'Paramètre OAuth2 state invalide ou expiré.']];
+                }
+                http_response_code(403);
+                header('Content-Type: text/html; charset=utf-8');
+                echo '<!DOCTYPE html><html><body><script>alert("Erreur de sécurité OAuth2 : jeton state invalide ou expiré."); window.close();</script></body></html>';
+                exit;
+            }
 
             $all_boards = self::getBoardsConfig($base_dir);
             $board_cfg = $all_boards[$board_id] ?? null;
             $oauth_cfg = $board_cfg['oauth'] ?? null;
 
             if (!$oauth_cfg || empty($oauth_cfg['token_url']) || empty($code)) {
+                if (PHP_SAPI === 'cli') {
+                    return ['status' => 400, 'data' => ['success' => false, 'error' => 'Code ou configuration OAuth manquant.']];
+                }
+                http_response_code(400);
+                header('Content-Type: text/html; charset=utf-8');
                 echo '<!DOCTYPE html><html><body><script>alert("Erreur lors de l\'authentification OAuth : Code ou configuration manquant."); window.close();</script></body></html>';
                 exit;
             }
@@ -546,13 +668,22 @@ class TribuneActions {
                 'login'        => $login
             ];
 
-            $json_payload = json_encode($payload_assoc, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            $json_payload = json_encode($payload_assoc, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
             header('Content-Type: text/html; charset=utf-8');
-            echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Authentification Réussie</title></head><body style="font-family:sans-serif; background:#0f172a; color:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; margin:0;"><div style="font-size:3rem; margin-bottom:12px;">🔑</div><h2 style="margin:0 0 8px 0; color:#34d399;">Connexion OAuth2 Réussie !</h2><p style="color:#94a3b8; margin:0;">Fermeture de la fenêtre...</p><script>(function() { var payload = ' . $json_payload . '; if (window.opener && !window.opener.closed) { try { window.opener.postMessage(payload, "*"); } catch (e) {} } setTimeout(function() { window.close(); }, 500); })();</script></body></html>';
+            echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Authentification Réussie</title></head><body style="font-family:sans-serif; background:#0f172a; color:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; margin:0;"><div style="font-size:3rem; margin-bottom:12px;">🔑</div><h2 style="margin:0 0 8px 0; color:#34d399;">Connexion OAuth2 Réussie !</h2><p style="color:#94a3b8; margin:0;">Fermeture de la fenêtre...</p><script>(function() { var payload = ' . $json_payload . '; if (window.opener && !window.opener.closed) { try { window.opener.postMessage(payload, window.location.origin); } catch (e) {} } setTimeout(function() { window.close(); }, 500); })();</script></body></html>';
             exit;
         }
 
         if ($action === 'tribune_schedule_post') {
+            global $rate_limits;
+            $sched_max = (int)($rate_limits['tribune_schedule']['max_attempts'] ?? 20);
+            $sched_decay = (int)($rate_limits['tribune_schedule']['decay_seconds'] ?? 60);
+            $sched_rl_key = 'tribune_schedule_' . \SimpleGallery\Kernel\Security\RateLimiter::getClientIp();
+            if (!\SimpleGallery\Kernel\Security\RateLimiter::check($sched_rl_key, $sched_max, $sched_decay)) {
+                return ['status' => 429, 'data' => ['success' => false, 'error' => 'Trop de programmations récentes. Veuillez patienter.']];
+            }
+            \SimpleGallery\Kernel\Security\RateLimiter::increment($sched_rl_key);
+
             $msg_text    = trim($_POST['message'] ?? $raw_body['message'] ?? '');
             $login       = trim($_POST['login'] ?? $raw_body['login'] ?? 'Anonyme');
             $info        = trim($_POST['info'] ?? $raw_body['info'] ?? 'SimpleGallery Client');
@@ -571,6 +702,13 @@ class TribuneActions {
                 return ['status' => 400, 'data' => ['success' => false, 'error' => 'L\'heure programmée doit être située dans le futur.']];
             }
 
+            if ($board !== 'local' && $target_url !== '') {
+                $is_admin = \SimpleGallery\Kernel\Auth\AuthManager::isAdminLoggedIn();
+                if (!self::isSafePublicUrl($target_url) || (!$is_admin && !self::isAllowedBoardRemoteUrl($target_url, $base_dir))) {
+                    return ['status' => 403, 'data' => ['success' => false, 'error' => 'URL cible distante non autorisée pour l\'envoi programmé.']];
+                }
+            }
+
             $sched_file = $base_dir . '/storage/tribune_scheduled_posts.json';
             $scheduled = [];
             if (file_exists($sched_file)) {
@@ -578,19 +716,21 @@ class TribuneActions {
             }
 
             $id = bin2hex(random_bytes(10));
+            $owner_hash = self::getCurrentOwnerSessionHash();
             $scheduled_item = [
-                'id'           => $id,
-                'message'      => $msg_text,
-                'login'        => $login,
-                'info'         => $info,
-                'board'        => $board,
-                'scheduled_at' => $sched_ts,
-                'target_url'   => $target_url,
-                'post_field'   => $post_field,
-                'cookie'       => $cookie_hdr,
-                'user_agent'   => $user_agent,
-                'is_admin'     => !empty($_SESSION['is_admin']),
-                'created_at'   => time()
+                'id'                 => $id,
+                'message'            => $msg_text,
+                'login'              => $login,
+                'info'               => $info,
+                'board'              => $board,
+                'scheduled_at'       => $sched_ts,
+                'target_url'         => $target_url,
+                'post_field'         => $post_field,
+                'cookie'             => $cookie_hdr,
+                'user_agent'         => $user_agent,
+                'is_admin'           => \SimpleGallery\Kernel\Auth\AuthManager::isAdminLoggedIn(),
+                'owner_session_hash' => $owner_hash,
+                'created_at'         => time()
             ];
 
             $scheduled[] = $scheduled_item;
@@ -599,7 +739,7 @@ class TribuneActions {
             return ['status' => 200, 'data' => [
                 'success'   => true,
                 'message'   => 'Message programmé avec succès.',
-                'item'      => $scheduled_item,
+                'item'      => self::sanitizeScheduledItemForOutput($scheduled_item),
                 'count'     => count($scheduled)
             ]];
         }
@@ -612,10 +752,21 @@ class TribuneActions {
                 $scheduled = @json_decode(@file_get_contents($sched_file), true) ?: [];
             }
 
+            $is_admin = \SimpleGallery\Kernel\Auth\AuthManager::isAdminLoggedIn();
+            $owner_hash = self::getCurrentOwnerSessionHash();
+            $visible = [];
+            foreach ($scheduled as $item) {
+                if (!is_array($item)) continue;
+                $item_owner = (string)($item['owner_session_hash'] ?? '');
+                if ($is_admin || ($item_owner !== '' && hash_equals($item_owner, $owner_hash))) {
+                    $visible[] = self::sanitizeScheduledItemForOutput($item);
+                }
+            }
+
             return ['status' => 200, 'data' => [
                 'success'   => true,
-                'scheduled' => array_values($scheduled),
-                'count'     => count($scheduled),
+                'scheduled' => $visible,
+                'count'     => count($visible),
                 'server_ts' => time()
             ]];
         }
@@ -632,9 +783,27 @@ class TribuneActions {
                 $scheduled = @json_decode(@file_get_contents($sched_file), true) ?: [];
             }
 
-            $filtered = array_filter($scheduled, function ($item) use ($id) {
-                return ($item['id'] ?? '') !== $id;
-            });
+            $is_admin = \SimpleGallery\Kernel\Auth\AuthManager::isAdminLoggedIn();
+            $owner_hash = self::getCurrentOwnerSessionHash();
+            $found = false;
+            $authorized = false;
+            $filtered = [];
+
+            foreach ($scheduled as $item) {
+                if (($item['id'] ?? '') === $id) {
+                    $found = true;
+                    $item_owner = (string)($item['owner_session_hash'] ?? '');
+                    if ($is_admin || ($item_owner !== '' && hash_equals($item_owner, $owner_hash))) {
+                        $authorized = true;
+                        continue; // Remove this item
+                    }
+                }
+                $filtered[] = $item;
+            }
+
+            if ($found && !$authorized) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => 'Accès refusé : vous ne pouvez annuler que vos propres messages programmés.']];
+            }
 
             @file_put_contents($sched_file, json_encode(array_values($filtered), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), LOCK_EX);
 
@@ -780,6 +949,15 @@ class TribuneActions {
         }
 
         if ($action === 'tribune_proxy_fetch') {
+            global $rate_limits;
+            $px_max = (int)($rate_limits['tribune_proxy']['max_attempts'] ?? 60);
+            $px_decay = (int)($rate_limits['tribune_proxy']['decay_seconds'] ?? 60);
+            $px_rl_key = 'tribune_proxy_' . \SimpleGallery\Kernel\Security\RateLimiter::getClientIp();
+            if (!\SimpleGallery\Kernel\Security\RateLimiter::check($px_rl_key, $px_max, $px_decay)) {
+                return ['status' => 429, 'data' => ['success' => false, 'error' => 'Trop de requêtes proxy tribune. Veuillez patienter.']];
+            }
+            \SimpleGallery\Kernel\Security\RateLimiter::increment($px_rl_key);
+
             $remote_url = trim($_GET['url'] ?? $_POST['url'] ?? $raw_body['url'] ?? '');
             $cookie_hdr = trim($_GET['cookie'] ?? $_POST['cookie'] ?? $raw_body['cookie'] ?? '');
             $user_agent = trim($_GET['user_agent'] ?? $_POST['user_agent'] ?? $raw_body['user_agent'] ?? 'SimpleGallery-TribuneProxy/1.0');
@@ -795,6 +973,10 @@ class TribuneActions {
 
             if (!self::isSafePublicUrl($remote_url)) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => 'Accès refusé : adresse IP ou réseau privé non autorisé (anti-SSRF).']];
+            }
+
+            if (!\SimpleGallery\Kernel\Auth\AuthManager::isAdminLoggedIn() && !self::isAllowedBoardRemoteUrl($remote_url, $base_dir)) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => 'Accès refusé : l\'URL distante ne correspond à aucune tribune configurée.']];
             }
 
             $headers = ["User-Agent: {$user_agent}", "Accept: application/xml, text/xml, text/plain, application/json, */*"];
@@ -867,6 +1049,19 @@ class TribuneActions {
 
             if (!self::isSafePublicUrl($post_url)) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => 'Accès refusé : destination réseau privée non autorisée (anti-SSRF).']];
+            }
+
+            global $rate_limits;
+            $px_max = (int)($rate_limits['tribune_proxy']['max_attempts'] ?? 60);
+            $px_decay = (int)($rate_limits['tribune_proxy']['decay_seconds'] ?? 60);
+            $px_rl_key = 'tribune_proxy_' . \SimpleGallery\Kernel\Security\RateLimiter::getClientIp();
+            if (!\SimpleGallery\Kernel\Security\RateLimiter::check($px_rl_key, $px_max, $px_decay)) {
+                return ['status' => 429, 'data' => ['success' => false, 'error' => 'Trop de requêtes proxy tribune. Veuillez patienter.']];
+            }
+            \SimpleGallery\Kernel\Security\RateLimiter::increment($px_rl_key);
+
+            if (!\SimpleGallery\Kernel\Auth\AuthManager::isAdminLoggedIn() && !self::isAllowedBoardRemoteUrl($post_url, $base_dir)) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => 'Accès refusé : l\'URL de publication ne correspond à aucune tribune configurée.']];
             }
 
             $parsed_post_url = parse_url($post_url);
@@ -1153,19 +1348,27 @@ class TribuneActions {
             if (empty($name)) $name = 'totoz';
 
             $remote_url = "https://totoz.eu/img/" . rawurlencode($name);
-            $opts = [
-                'http' => ['method' => 'GET', 'timeout' => 5, 'follow_location' => 1, 'max_redirects' => 5, 'header' => "User-Agent: Mozilla/5.0\r\n"],
-                'ssl'  => ['verify_peer' => true, 'verify_peer_name' => true]
-            ];
-            $img_data = @file_get_contents($remote_url, false, stream_context_create($opts));
+            $fetch = \SimpleGallery\Kernel\Security\UrlValidator::safeCurlFetch($remote_url, [
+                'method'           => 'GET',
+                'connect_timeout'  => 3,
+                'timeout'          => 5,
+                'follow_redirects' => true,
+                'max_redirects'    => 3,
+                'max_bytes'        => 1024 * 1024,
+                'user_agent'       => 'SimpleGallery-WebOS/1.0'
+            ]);
+            $img_data = (!empty($fetch['success']) && !empty($fetch['body'])) ? $fetch['body'] : false;
 
             if ($img_data === false || empty($img_data)) {
                 header('Content-Type: image/svg+xml');
+                header("Content-Security-Policy: default-src 'none'; script-src 'none';");
+                header('X-Content-Type-Options: nosniff');
                 echo '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24"><text y="18" font-size="16">🦆</text></svg>';
                 exit;
             }
 
             header('Content-Type: image/gif');
+            header('X-Content-Type-Options: nosniff');
             header('Cache-Control: public, max-age=604800');
             echo $img_data;
             exit;
@@ -1177,7 +1380,16 @@ class TribuneActions {
             $q = preg_replace('/[^a-zA-Z0-9_\.: -]/', '', $q);
 
             $remote_url = "https://totoz.eu/search.xml?terms=" . urlencode($q);
-            $xml_data = @file_get_contents($remote_url, false, stream_context_create(['http' => ['method' => 'GET', 'timeout' => 4, 'header' => "User-Agent: Mozilla/5.0\r\n"]]));
+            $fetch = \SimpleGallery\Kernel\Security\UrlValidator::safeCurlFetch($remote_url, [
+                'method'           => 'GET',
+                'connect_timeout'  => 3,
+                'timeout'          => 4,
+                'follow_redirects' => true,
+                'max_redirects'    => 2,
+                'max_bytes'        => 256 * 1024,
+                'user_agent'       => 'SimpleGallery-WebOS/1.0'
+            ]);
+            $xml_data = (!empty($fetch['success']) && !empty($fetch['body'])) ? $fetch['body'] : false;
 
             $results = [];
             if ($xml_data !== false) {

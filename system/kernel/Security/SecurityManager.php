@@ -10,7 +10,7 @@ use SimpleGallery\Kernel\Auth\AuthManager;
 class SecurityManager {
 
     public static function ensureSessionStarted(?string $session_save_path = null): void {
-        AuthManager::ensureSessionStarted();
+        AuthManager::ensureSessionStarted($session_save_path);
     }
 
     public static function isAdminLoggedIn(): bool {

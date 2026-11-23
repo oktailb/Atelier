@@ -9,13 +9,13 @@ use SimpleGallery\Kernel\Auth\AuthManager;
 
 class PermissionsManager {
     public const DEFAULT_PERMISSIONS = [
-        'can_upload'           => false,
-        'can_delete'           => false,
-        'can_move'             => false,
-        'can_comment'          => true,
-        'can_create_folder'    => false,
-        'can_download_archive'  => true,
-        'can_download_item'     => true,
+        'can_upload'            => false,
+        'can_delete'            => false,
+        'can_move'              => false,
+        'can_comment'           => false,
+        'can_create_folder'     => false,
+        'can_download_archive'  => false,
+        'can_download_item'     => false,
         'can_use_browser_proxy' => false
     ];
 
@@ -27,9 +27,19 @@ class PermissionsManager {
     }
 
     /**
-     * Get default permissions matrix array
+     * Get default permissions matrix array (honoring config/security.php $default_guest_permissions)
      */
     public static function getDefaultPermissions(): array {
+        global $default_guest_permissions;
+        if (isset($default_guest_permissions) && is_array($default_guest_permissions)) {
+            $filtered = [];
+            foreach (self::DEFAULT_PERMISSIONS as $key => $fallback) {
+                $filtered[$key] = isset($default_guest_permissions[$key])
+                    ? (bool)$default_guest_permissions[$key]
+                    : $fallback;
+            }
+            return $filtered;
+        }
         return self::DEFAULT_PERMISSIONS;
     }
 
@@ -37,15 +47,16 @@ class PermissionsManager {
      * Load permissions from config/permissions.json or fallback to defaults
      */
     public static function loadPermissions(string $base_dir): array {
+        $defaults = self::getDefaultPermissions();
         $file = self::getPermissionsFilePath($base_dir);
         if (file_exists($file)) {
             $json = @file_get_contents($file);
             $perms = json_decode((string)$json, true);
             if (is_array($perms)) {
-                return array_merge(self::DEFAULT_PERMISSIONS, $perms);
+                return array_merge($defaults, $perms);
             }
         }
-        return self::DEFAULT_PERMISSIONS;
+        return $defaults;
     }
 
     /**
@@ -53,7 +64,7 @@ class PermissionsManager {
      */
     public static function savePermissions(string $base_dir, array $permissions): bool {
         $file = self::getPermissionsFilePath($base_dir);
-        $clean = array_merge(self::DEFAULT_PERMISSIONS, $permissions);
+        $clean = array_merge(self::getDefaultPermissions(), $permissions);
         $payload = json_encode($clean, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         return @file_put_contents($file, $payload, LOCK_EX) !== false;
     }

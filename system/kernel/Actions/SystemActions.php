@@ -154,14 +154,34 @@ class SystemActions {
         }
 
         if ($action === 'save_desktop_shortcuts') {
+            if (!AuthManager::isAdminLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
+            }
+
             $shortcuts = $raw_body['shortcuts'] ?? $_POST['shortcuts'] ?? null;
-            if (!is_array($shortcuts)) {
+            if (!is_array($shortcuts) || count($shortcuts) > 100) {
                 return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_invalid_data')]];
             }
 
-            $saved = \SimpleGallery\Kernel\Config\ConfigStore::set('desktop', ['shortcuts' => $shortcuts], $base_dir);
+            $sanitized_shortcuts = [];
+            foreach ($shortcuts as $item) {
+                if (!is_array($item)) {
+                    return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_invalid_data')]];
+                }
+                foreach (['url', 'icon', 'icon_url', 'target', 'path'] as $field) {
+                    if (isset($item[$field]) && is_string($item[$field])) {
+                        $val = trim($item[$field]);
+                        if (preg_match('/^\s*(javascript|vbscript|data\s*:\s*text\/html)\s*:/i', $val) || strpos($val, '..') !== false) {
+                            return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_invalid_data')]];
+                        }
+                    }
+                }
+                $sanitized_shortcuts[] = $item;
+            }
+
+            $saved = \SimpleGallery\Kernel\Config\ConfigStore::set('desktop', ['shortcuts' => $sanitized_shortcuts], $base_dir);
             if ($saved) {
-                return ['status' => 200, 'data' => ['success' => true, 'shortcuts' => $shortcuts, 'message' => 'Shortcuts saved']];
+                return ['status' => 200, 'data' => ['success' => true, 'shortcuts' => $sanitized_shortcuts, 'message' => 'Shortcuts saved']];
             }
             return ['status' => 500, 'data' => ['success' => false, 'error' => 'Failed to save shortcuts']];
         }

@@ -24,6 +24,9 @@ class AuthActions {
             if (!empty($admin_hash) && password_verify($password, $admin_hash)) {
                 RateLimiter::reset($ip_key);
                 AuthManager::ensureSessionStarted();
+                if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_ACTIVE && !headers_sent()) {
+                    @session_regenerate_id(true);
+                }
                 $_SESSION['sg_admin_logged'] = true;
                 $_SESSION['is_admin'] = true;
 

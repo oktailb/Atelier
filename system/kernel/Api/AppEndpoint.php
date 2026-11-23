@@ -115,10 +115,11 @@ class AppEndpoint {
             exit;
 
         } catch (\Throwable $e) {
+            @error_log('[SimpleGallery AppEndpoint:' . $app_id . '] ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
             http_response_code(500);
             echo json_encode([
                 'success' => false,
-                'error'   => 'Erreur interne de traitement : ' . $e->getMessage()
+                'error'   => 'Erreur interne de traitement.'
             ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             exit;
         }
