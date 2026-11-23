@@ -15,6 +15,7 @@
 /storage/atelier.sqlite-wal
 /storage/atelier.sqlite-shm
 /storage/atelier_db/
+/storage/users/
 scratch/
 # Fichiers sensibles & authentification
 .admin_password_hash

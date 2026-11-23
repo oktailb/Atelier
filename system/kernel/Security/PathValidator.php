@@ -1,33 +1,41 @@
 <?php
 namespace SimpleGallery\Kernel\Security;
 
+use SimpleGallery\Kernel\Config\ConfigStore;
+
 /**
  * Kernel Path Validator & Anti-Traversal Shield
  */
 class PathValidator {
 
     /**
-     * Canonicalizes path and guarantees that the resulting target is strictly inside $base_dir sandbox.
+     * Resolves the dedicated private user-homes root (`storage/users`), cleanly separated from `storage/media`.
      */
-    public static function canonicalize(string $user_path, string $base_dir, bool $must_exist = true, bool $allow_root = true): ?string {
-        if (preg_match('/[\x00-\x1f\x7f]/', $user_path)) {
-            return null;
+    public static function getUsersRoot(string $base_dir): string {
+        $projectRoot = ConfigStore::resolveRoot($base_dir);
+        $storageDir = ConfigStore::getStorageDir($projectRoot);
+        return rtrim(str_replace('\\', '/', $storageDir), '/') . '/users';
+    }
+
+    /**
+     * Helper: sandbox-canonicalizes a relative sub-path strictly inside a given root directory.
+     */
+    private static function canonicalizeWithinRoot(string $sub_path, string $root_dir, bool $must_exist, bool $allow_root): ?string {
+        $real_root = realpath($root_dir);
+        if ($real_root === false) {
+            if ($must_exist) {
+                return null;
+            }
+            $real_root = $root_dir;
+        }
+        $real_root = rtrim(str_replace('\\', '/', $real_root), '/');
+
+        $clean = ltrim(str_replace('\\', '/', trim($sub_path)), '/');
+        if ($clean === '' || $clean === '.') {
+            return $allow_root ? $real_root : null;
         }
 
-        $real_base = realpath($base_dir);
-        if ($real_base === false) {
-            $real_base = $base_dir;
-        }
-        $real_base = str_replace('\\', '/', $real_base);
-        $real_base = rtrim($real_base, '/');
-
-        $clean_path = str_replace('\\', '/', trim($user_path));
-
-        if (empty($clean_path) || $clean_path === '.') {
-            return $allow_root ? $real_base : null;
-        }
-
-        $target = $real_base . '/' . ltrim($clean_path, '/');
+        $target = $real_root . '/' . $clean;
 
         if ($must_exist) {
             $resolved = realpath($target);
@@ -35,29 +43,66 @@ class PathValidator {
                 return null;
             }
             $resolved_clean = str_replace('\\', '/', $resolved);
-            if ($resolved_clean === $real_base) {
-                return $allow_root ? $real_base : null;
+            if ($resolved_clean === $real_root) {
+                return $allow_root ? $real_root : null;
             }
-            if (strpos($resolved_clean, $real_base . '/') === 0) {
+            if (strpos($resolved_clean, $real_root . '/') === 0) {
                 return $resolved_clean;
             }
             return null;
-        } else {
-            $parent = dirname($target);
-            $resolved_parent = realpath($parent);
-            if ($resolved_parent === false) {
-                return null;
-            }
-            $resolved_parent_clean = str_replace('\\', '/', $resolved_parent);
-            if ($resolved_parent_clean !== $real_base && strpos($resolved_parent_clean, $real_base . '/') !== 0) {
-                return null;
-            }
-            $filename = basename($target);
-            if ($filename === '.' || $filename === '..' || empty($filename)) {
-                return null;
-            }
-            return $resolved_parent_clean . '/' . $filename;
         }
+
+        $parent = dirname($target);
+        $resolved_parent = realpath($parent);
+        if ($resolved_parent === false) {
+            return null;
+        }
+        $resolved_parent_clean = str_replace('\\', '/', $resolved_parent);
+        if ($resolved_parent_clean !== $real_root && strpos($resolved_parent_clean, $real_root . '/') !== 0) {
+            return null;
+        }
+        $filename = basename($target);
+        if ($filename === '.' || $filename === '..' || empty($filename)) {
+            return null;
+        }
+        return $resolved_parent_clean . '/' . $filename;
+    }
+
+    /**
+     * Canonicalizes path and guarantees that the resulting target is strictly inside $base_dir
+     * (or inside `storage/users` for virtual `users/...` home paths).
+     */
+    public static function canonicalize(string $user_path, string $base_dir, bool $must_exist = true, bool $allow_root = true): ?string {
+        if (preg_match('/[\x00-\x1f\x7f]/', $user_path)) {
+            return null;
+        }
+
+        $clean_path = str_replace('\\', '/', trim($user_path));
+        $trimmed_left = ltrim($clean_path, '/');
+
+        // Reject any path containing `..` traversal segments early for virtual namespace safety
+        if ($trimmed_left === 'users' || strpos($trimmed_left, 'users/') === 0) {
+            $segments = explode('/', $trimmed_left);
+            foreach ($segments as $seg) {
+                if ($seg === '..') {
+                    return null;
+                }
+            }
+            $users_root = self::getUsersRoot($base_dir);
+            $sub = ($trimmed_left === 'users') ? '' : substr($trimmed_left, 6);
+            $resolved_user_path = self::canonicalizeWithinRoot($sub, $users_root, $must_exist, $allow_root);
+            if ($resolved_user_path !== null) {
+                return $resolved_user_path;
+            }
+            // Legacy fallback if a pre-existing `users/` folder lives inside `$base_dir`
+            $real_base = rtrim(str_replace('\\', '/', realpath($base_dir) ?: $base_dir), '/');
+            if (is_dir($real_base . '/users')) {
+                return self::canonicalizeWithinRoot($trimmed_left, $real_base, $must_exist, $allow_root);
+            }
+            return null;
+        }
+
+        return self::canonicalizeWithinRoot($clean_path, $base_dir, $must_exist, $allow_root);
     }
 
     public static function canonicalizeAndValidate(string $user_path, string $base_dir, bool $must_exist = true, bool $allow_root = true): ?string {
@@ -99,12 +144,25 @@ class PathValidator {
         }
         $base_dir = rtrim($base_dir, '/');
 
+        // Map dedicated `storage/users/...` paths back to virtual `users/...` relative paths FIRST
+        // (must run before `$base_dir` check in case `$base_dir` is a parent directory like a test sandbox)
+        $users_root = self::getUsersRoot($base_dir);
+        $real_users = realpath($users_root);
+        $users_root_norm = rtrim(str_replace('\\', '/', $real_users !== false ? $real_users : $users_root), '/');
+        if ($full_path === $users_root_norm) {
+            return 'users';
+        }
+        if (strpos($full_path, $users_root_norm . '/') === 0) {
+            return 'users/' . substr($full_path, strlen($users_root_norm) + 1);
+        }
+
         if ($full_path === $base_dir) {
             return '';
         }
         if (strpos($full_path, $base_dir . '/') === 0) {
             return substr($full_path, strlen($base_dir) + 1);
         }
+
         return ltrim($full_path, '/');
     }
 

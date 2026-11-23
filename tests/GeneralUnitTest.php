@@ -1213,7 +1213,8 @@ class GeneralUnitTestSuite {
         $this->assert("Phase 1: Bob appartient au groupe studio", in_array((int)$studio['id'], $bob_groups, true));
 
         // 3. Alice shares folder with group 'studio' -> appears in Bob's mounted volumes
-        @mkdir($p1_root . '/users/alice/projets', 0755, true);
+        $users_root = \SimpleGallery\Kernel\Security\PathValidator::getUsersRoot($p1_root);
+        @mkdir($users_root . '/alice/projets', 0755, true);
         \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($alice);
         \SimpleGallery\Kernel\Auth\ShareManager::createUserShare($p1_root, $p1_root, [
             'source_path'     => 'users/alice/projets',

@@ -1016,36 +1016,61 @@ HTACCESS;
         ]);
         $alice = $alice_res['data']['user'] ?? null;
         $bob = $bob_res['data']['user'] ?? null;
+        $users_root = \SimpleGallery\Kernel\Security\PathValidator::getUsersRoot($p1_root);
 
         $this->assert("Phase 1: Admin crée alice et bob (200)", ($alice_res['status'] ?? 0) === 200 && ($bob_res['status'] ?? 0) === 200 && !empty($alice['id']) && !empty($bob['id']));
-        $this->assert("Phase 1: Création automatique des .private pour users/ et users/<username>/", file_exists($p1_root . '/users/.private') && file_exists($p1_root . '/users/alice/.private') && file_exists($p1_root . '/users/bob/.private'));
+        $this->assert("Phase 1: Homes créés dans storage/users/ séparé de storage/media/ (avec .htaccess et .private)",
+            !is_dir($p1_root . '/users') &&
+            file_exists($users_root . '/.htaccess') &&
+            file_exists($users_root . '/.private') &&
+            file_exists($users_root . '/alice/.private') &&
+            file_exists($users_root . '/bob/.private')
+        );
         $this->assert("Phase 1: Le hash de mot de passe n'est jamais exposé dans la réponse API", !isset($alice['password_hash']));
 
-        // Prepare folders inside alice's private home
-        @mkdir($p1_root . '/users/alice/shared_ro', 0755, true);
-        @mkdir($p1_root . '/users/alice/shared_rw', 0755, true);
-        @mkdir($p1_root . '/users/alice/secret_only', 0755, true);
-        file_put_contents($p1_root . '/users/alice/shared_ro/note.txt', 'hello ro');
-        file_put_contents($p1_root . '/users/alice/secret_only/private.txt', 'top secret');
+        // Prepare public media file + folders inside alice's & bob's private homes
+        file_put_contents($p1_root . '/public_gallery.jpg', 'public-photo');
+        @mkdir($users_root . '/alice/shared_ro', 0755, true);
+        @mkdir($users_root . '/alice/shared_rw', 0755, true);
+        @mkdir($users_root . '/alice/secret_only', 0755, true);
+        @mkdir($users_root . '/bob/mes_docs', 0755, true);
+        file_put_contents($users_root . '/alice/shared_ro/note.txt', 'hello ro');
+        file_put_contents($users_root . '/alice/secret_only/private.txt', 'top secret');
 
-        // 4. Guest isolation on users/alice
+        // 4. Guest access: public gallery root remains visible, users/alice is blocked
         \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
-        $this->assert("Phase 1: Invité bloqué sur users/alice (isDirAccessible=false)", \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($p1_root . '/users/alice', $p1_root) === false);
+        $this->assert("Phase 1: Invité bloqué sur users/alice (isDirAccessible=false)", \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/alice', $p1_root) === false);
 
         global $media_types;
         $mtypes = $media_types ?: ['image' => ['jpg', 'png'], 'video' => ['mp4'], 'audio' => ['mp3']];
+        $gal_public_guest = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => ''], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
+        $pub_dir_names = array_column($gal_public_guest['data']['directories'] ?? [], 'raw_name');
+        $pub_file_names = array_column($gal_public_guest['data']['files'] ?? [], 'name');
+        $this->assert("Phase 1: Invité voit la galerie publique (storage/media) sans exposer de dossier users/",
+            ($gal_public_guest['status'] ?? 0) === 200 &&
+            in_array('public_gallery.jpg', $pub_file_names, true) &&
+            !in_array('users', $pub_dir_names, true)
+        );
         $gal_guest = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => 'users/alice'], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
         $this->assert("Phase 1: GalleryActions refuse users/alice à un invité (403)", ($gal_guest['status'] ?? 0) === 403);
 
-        // 5. Authenticate as Bob: can access own home, blocked from Alice's home
+        // 5. Authenticate as Bob: can open own home via GalleryActions (200) + see subfolders + write rights, blocked from Alice's home
         $bob_auth = \SimpleGallery\Kernel\Auth\UserManager::authenticate($p1_root, 'bob', 'BobPass1!');
         $this->assert("Phase 1: Authentification valide de bob", is_array($bob_auth) && ($bob_auth['username'] ?? '') === 'bob');
         $bad_auth = \SimpleGallery\Kernel\Auth\UserManager::authenticate($p1_root, 'bob', 'WrongPass');
         $this->assert("Phase 1: Rejet d'un mauvais mot de passe pour bob", $bad_auth === null);
 
         \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($bob_auth);
-        $this->assert("Phase 1: Bob accède à son propre home users/bob", \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($p1_root . '/users/bob', $p1_root) === true);
-        $this->assert("Phase 1: Bob est bloqué sur users/alice (isolation stricte)", \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($p1_root . '/users/alice', $p1_root) === false);
+        $this->assert("Phase 1: Bob accède à son propre home users/bob", \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/bob', $p1_root) === true);
+        $gal_bob_home = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => 'users/bob'], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
+        $bob_subdirs = array_column($gal_bob_home['data']['directories'] ?? [], 'raw_name');
+        $this->assert("Phase 1: GalleryActions ouvre users/bob (200) avec ses sous-dossiers et droits d'écriture",
+            ($gal_bob_home['status'] ?? 0) === 200 &&
+            in_array('mes_docs', $bob_subdirs, true) &&
+            !empty($gal_bob_home['data']['user_rights']['can_upload']) &&
+            !empty($gal_bob_home['data']['user_rights']['can_create_folder'])
+        );
+        $this->assert("Phase 1: Bob est bloqué sur users/alice (isolation stricte)", \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/alice', $p1_root) === false);
         $this->assert("Phase 1: Bob ne peut pas appeler delete_user (non-admin 403)", (\SimpleGallery\Kernel\Actions\UserActions::handle('delete_user', [], ['base_dir' => $p1_root, 'raw_body' => ['user_id' => $alice['id']]])['status'] ?? 0) === 403);
 
         // 6. Alice shares shared_ro (read) and shared_rw (write) with Bob
@@ -1074,22 +1099,26 @@ HTACCESS;
         ]);
         $this->assert("Phase 1: Alice partage shared_ro (R) et shared_rw (RW) avec Bob", ($share_ro['status'] ?? 0) === 200 && ($share_rw['status'] ?? 0) === 200);
 
-        // 7. Switch back to Bob: verify R vs RW enforcement + sibling isolation
+        // 7. Switch back to Bob: verify R vs RW enforcement + GalleryActions access + sibling isolation
         \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($bob_auth);
-        $this->assert("Phase 1: Bob peut lire users/alice/shared_ro", \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($p1_root . '/users/alice/shared_ro', $p1_root) === true);
-        $this->assert("Phase 1: Bob reste bloqué sur users/alice/secret_only (dossier frère non partagé)", \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($p1_root . '/users/alice/secret_only', $p1_root) === false);
+        $this->assert("Phase 1: Bob peut lire users/alice/shared_ro", \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/alice/shared_ro', $p1_root) === true);
+        $gal_bob_ro = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => 'users/alice/shared_ro'], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
+        $this->assert("Phase 1: GalleryActions ouvre le partage lecture seule users/alice/shared_ro (200, can_upload=false)",
+            ($gal_bob_ro['status'] ?? 0) === 200 && empty($gal_bob_ro['data']['user_rights']['can_upload'])
+        );
+        $this->assert("Phase 1: Bob reste bloqué sur users/alice/secret_only (dossier frère non partagé)", \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/alice/secret_only', $p1_root) === false);
 
         $bob_write_ro = \SimpleGallery\Kernel\Actions\FileActions::handle('create_folder', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['dir' => 'users/alice/shared_ro', 'name' => 'forbidden_sub']
         ]);
-        $this->assert("Phase 1: Bob ne peut PAS écrire dans un partage lecture seule (403)", ($bob_write_ro['status'] ?? 0) === 403 && !is_dir($p1_root . '/users/alice/shared_ro/forbidden_sub'));
+        $this->assert("Phase 1: Bob ne peut PAS écrire dans un partage lecture seule (403)", ($bob_write_ro['status'] ?? 0) === 403 && !is_dir($users_root . '/alice/shared_ro/forbidden_sub'));
 
         $bob_write_rw = \SimpleGallery\Kernel\Actions\FileActions::handle('create_folder', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['dir' => 'users/alice/shared_rw', 'name' => 'allowed_sub']
         ]);
-        $this->assert("Phase 1: Bob PEUT créer un dossier dans un partage lecture/écriture (200)", ($bob_write_rw['status'] ?? 0) === 200 && is_dir($p1_root . '/users/alice/shared_rw/allowed_sub'));
+        $this->assert("Phase 1: Bob PEUT créer un dossier dans un partage lecture/écriture (200)", ($bob_write_rw['status'] ?? 0) === 200 && is_dir($users_root . '/alice/shared_rw/allowed_sub'));
 
         // 8. Revoke RO share as Alice -> Bob immediately loses access
         \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($alice_auth);
@@ -1100,7 +1129,7 @@ HTACCESS;
         $this->assert("Phase 1: Révocation du partage par Alice réussie (200)", ($rev_res['status'] ?? 0) === 200);
 
         \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($bob_auth);
-        $this->assert("Phase 1: Bob perd immédiatement l'accès après révocation", \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($p1_root . '/users/alice/shared_ro', $p1_root) === false);
+        $this->assert("Phase 1: Bob perd immédiatement l'accès après révocation", \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/alice/shared_ro', $p1_root) === false);
 
         // 9. Signed Share Link with password protection & revocation
         \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($alice_auth);
@@ -1130,7 +1159,7 @@ HTACCESS;
             'base_dir' => $p1_root,
             'raw_body' => ['token' => $link_token, 'password' => 'LinkSecret42!']
         ]);
-        $this->assert("Phase 1: Bon mot de passe déverrouille l'accès en lecture au dossier partagé", ($ok_pwd['status'] ?? 0) === 200 && \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($p1_root . '/users/alice/shared_ro', $p1_root) === true);
+        $this->assert("Phase 1: Bon mot de passe déverrouille l'accès en lecture au dossier partagé", ($ok_pwd['status'] ?? 0) === 200 && \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/alice/shared_ro', $p1_root) === true);
 
         // Revoke link as Alice -> Guest cannot reuse token
         \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($alice_auth);

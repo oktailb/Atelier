@@ -55,14 +55,14 @@ class GalleryActions {
         }
 
         $access_info = DotfileManager::getEffectiveAccessInfo($target_dir, $base_dir);
-        if ($access_info['is_private'] && !AuthManager::isAdminLoggedIn()) {
+        if ($access_info['is_private'] && empty($access_info['is_accessible']) && !AuthManager::isAdminLoggedIn()) {
             return [
                 'status' => 403,
                 'data'   => ['success' => false, 'error' => __t('api.err_private_access', [], null, $base_dir)]
             ];
         }
 
-        if ($access_info['is_protected'] && !$access_info['is_unlocked'] && !AuthManager::isAdminLoggedIn()) {
+        if ($access_info['is_protected'] && !$access_info['is_unlocked'] && empty($access_info['is_accessible']) && !AuthManager::isAdminLoggedIn()) {
             return [
                 'status' => 200,
                 'data'   => [
@@ -104,9 +104,19 @@ class GalleryActions {
         // Parent path
         $parent_path = null;
         if ($current_relative !== '') {
-            $parent_dir_full = dirname($target_dir);
-            if (strpos($parent_dir_full, $base_dir) === 0) {
-                $parent_path = PathValidator::getRelativePath($parent_dir_full, $base_dir);
+            $parent_dir_full = str_replace('\\', '/', dirname($target_dir));
+            $users_root_norm = rtrim(str_replace('\\', '/', realpath(PathValidator::getUsersRoot($base_dir)) ?: PathValidator::getUsersRoot($base_dir)), '/');
+            $base_norm = rtrim(str_replace('\\', '/', realpath($base_dir) ?: $base_dir), '/');
+            if ($current_relative === 'users') {
+                $parent_path = '';
+            } elseif (strpos($parent_dir_full, $base_norm) === 0 || $parent_dir_full === $users_root_norm || strpos($parent_dir_full, $users_root_norm . '/') === 0) {
+                $candidate_parent = PathValidator::getRelativePath($parent_dir_full, $base_dir);
+                // If parent is inaccessible (e.g., `users/` for a non-admin inside their own home), fall back cleanly to public root
+                if ($candidate_parent !== '' && !DotfileManager::isDirAccessible($parent_dir_full, $base_dir)) {
+                    $parent_path = '';
+                } else {
+                    $parent_path = $candidate_parent;
+                }
             }
         }
 
@@ -142,9 +152,9 @@ class GalleryActions {
             // CACHE HIT
             foreach ($cached_raw['directories'] as $dir_item) {
                 $full_item_path = $target_dir . '/' . $dir_item['raw_name'];
-                $sub_access = DotfileManager::getDirAccessInfo($full_item_path, $base_dir);
+                $sub_access = DotfileManager::getEffectiveAccessInfo($full_item_path, $base_dir);
 
-                if ($sub_access['is_private'] && !AuthManager::isAdminLoggedIn()) {
+                if ($sub_access['is_private'] && empty($sub_access['is_accessible']) && !AuthManager::isAdminLoggedIn()) {
                     continue;
                 }
 
@@ -211,7 +221,7 @@ class GalleryActions {
                     $item_relative = PathValidator::getRelativePath($full_item_path, $base_dir);
 
                     if (is_dir($full_item_path)) {
-                        $sub_access = DotfileManager::getDirAccessInfo($full_item_path, $base_dir);
+                        $sub_access = DotfileManager::getEffectiveAccessInfo($full_item_path, $base_dir);
 
                         $sub_items = @scandir($full_item_path) ?: [];
                         $item_count = 0;
@@ -229,7 +239,7 @@ class GalleryActions {
                             'item_count' => $item_count
                         ];
 
-                        if ($sub_access['is_private'] && !AuthManager::isAdminLoggedIn()) {
+                        if ($sub_access['is_private'] && empty($sub_access['is_accessible']) && !AuthManager::isAdminLoggedIn()) {
                             continue;
                         }
 
@@ -326,13 +336,13 @@ class GalleryActions {
             'user_permissions'  => PermissionsManager::loadPermissions($base_dir),
             'user_rights'        => [
                 'is_admin'             => AuthManager::isAdminLoggedIn(),
-                'can_upload'           => PermissionsManager::hasPermission('can_upload', $base_dir),
-                'can_delete'           => PermissionsManager::hasPermission('can_delete', $base_dir),
-                'can_move'             => PermissionsManager::hasPermission('can_move', $base_dir),
-                'can_comment'          => PermissionsManager::hasPermission('can_comment', $base_dir),
-                'can_create_folder'    => PermissionsManager::hasPermission('can_create_folder', $base_dir),
-                'can_download_archive' => PermissionsManager::hasPermission('can_download_archive', $base_dir),
-                'can_download_item'    => PermissionsManager::hasPermission('can_download_item', $base_dir)
+                'can_upload'           => PermissionsManager::hasPermission('can_upload', $base_dir, $current_relative),
+                'can_delete'           => PermissionsManager::hasPermission('can_delete', $base_dir, $current_relative),
+                'can_move'             => PermissionsManager::hasPermission('can_move', $base_dir, $current_relative),
+                'can_comment'          => PermissionsManager::hasPermission('can_comment', $base_dir, $current_relative),
+                'can_create_folder'    => PermissionsManager::hasPermission('can_create_folder', $base_dir, $current_relative),
+                'can_download_archive' => PermissionsManager::hasPermission('can_download_archive', $base_dir, $current_relative),
+                'can_download_item'    => PermissionsManager::hasPermission('can_download_item', $base_dir, $current_relative)
             ],
             'available_archives'=> BinaryLocator::findArchiveBinaries(),
 

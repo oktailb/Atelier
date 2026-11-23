@@ -155,7 +155,7 @@ class ShareManager {
 
         if (!$user) {
             // For legacy root admin, expose `users/` shortcut in Explorer bar when user homes exist
-            if (AuthManager::isAdminLoggedIn() && is_dir(rtrim(str_replace('\\', '/', $baseDir), '/') . '/users')) {
+            if (AuthManager::isAdminLoggedIn() && is_dir(PathValidator::getUsersRoot($baseDir))) {
                 $volumes[] = [
                     'id'              => 'vol-admin-users',
                     'kind'            => 'users_root',

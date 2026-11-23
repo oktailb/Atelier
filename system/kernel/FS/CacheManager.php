@@ -71,7 +71,8 @@ class CacheManager {
 
         if ($real_dir !== $real_base) {
             $parent_dir = dirname($real_dir);
-            if (strpos($parent_dir, $real_base) === 0) {
+            $users_root = rtrim(str_replace('\\', '/', realpath(PathValidator::getUsersRoot($base_dir)) ?: PathValidator::getUsersRoot($base_dir)), '/');
+            if (strpos($parent_dir, $real_base) === 0 || $parent_dir === $users_root || strpos($parent_dir, $users_root . '/') === 0) {
                 $parent_cache_file = self::getDirCacheFilePath($parent_dir, $base_dir, $thumb_dir);
                 if (file_exists($parent_cache_file)) {
                     @unlink($parent_cache_file);

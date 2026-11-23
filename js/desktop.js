@@ -698,6 +698,10 @@
     }
 
     renderDesktopShortcuts() {
+      if (window.sys && window.sys.desktopShortcuts && typeof window.sys.desktopShortcuts.render === 'function') {
+        window.sys.desktopShortcuts.render();
+        return;
+      }
       const container = this.el.desktopShortcuts || document.getElementById('desktopShortcuts');
       if (!container) return;
 

@@ -10,6 +10,7 @@ namespace SimpleGallery\Kernel\Auth;
 use SimpleGallery\Kernel\Config\ConfigStore;
 use SimpleGallery\Kernel\Data\AtelierStore;
 use SimpleGallery\Kernel\FS\CacheManager;
+use SimpleGallery\Kernel\Security\PathValidator;
 
 class UserManager {
 
@@ -46,18 +47,22 @@ class UserManager {
     }
 
     /**
-     * Ensures `users/` root and `users/<username>/` home directory exist and are private by default.
+     * Ensures dedicated `storage/users/` root and `storage/users/<username>/` home directory
+     * exist (cleanly separated from public `storage/media/`) and are private by default.
      */
     public static function ensureUserHomeDir(string $mediaDir, string $username, string $displayName = ''): string {
         $relHome = 'users/' . $username;
         $realBase = rtrim(str_replace('\\', '/', $mediaDir), '/');
-        if ($realBase === '' || !is_dir($realBase)) {
+        if ($realBase === '') {
             return $relHome;
         }
 
-        $usersRoot = $realBase . '/users';
+        $usersRoot = PathValidator::getUsersRoot($realBase);
         if (!is_dir($usersRoot)) {
             @mkdir($usersRoot, 0755, true);
+        }
+        if (!file_exists($usersRoot . '/.htaccess')) {
+            @file_put_contents($usersRoot . '/.htaccess', "Deny from all\n", LOCK_EX);
         }
         if (!file_exists($usersRoot . '/.private')) {
             @file_put_contents($usersRoot . '/.private', "1\n", LOCK_EX);
@@ -78,10 +83,9 @@ class UserManager {
             @file_put_contents($homeAbs . '/.title', $title . "\n", LOCK_EX);
         }
 
-        // Invalidate Explorer directory cache for storage root and users/ so the new home appears immediately
+        // Invalidate Explorer directory cache for users/ and the new home so it appears immediately
         if (class_exists(CacheManager::class)) {
             $thumbDir = isset($GLOBALS['thumbnail_dir']) ? (string)$GLOBALS['thumbnail_dir'] : '.thumbnails';
-            CacheManager::invalidateDirCache($realBase, $realBase, $thumbDir);
             CacheManager::invalidateDirCache($usersRoot, $realBase, $thumbDir);
             CacheManager::invalidateDirCache($homeAbs, $realBase, $thumbDir);
         }

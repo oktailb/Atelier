@@ -120,10 +120,10 @@
         }
 
         return `
-          <div class="desktop-shortcut-card ${type === 'volume' ? 'desktop-volume-card' : ''}" data-shortcut-id="${this.escapeHtml(shortcut.id)}" tabindex="0" title="${this.escapeHtml(tooltip)}">
+          <button type="button" class="desktop-shortcut-card ${type === 'volume' ? 'desktop-volume-card' : ''}" data-shortcut-id="${this.escapeHtml(shortcut.id)}" data-shortcut-type="${this.escapeHtml(type)}" title="${this.escapeHtml(tooltip)}">
             <div class="desktop-shortcut-icon">${iconContent}${extraBadge}</div>
-            <div class="desktop-shortcut-label">${this.escapeHtml(label)}</div>
-          </div>
+            <span class="desktop-shortcut-label">${this.escapeHtml(label)}</span>
+          </button>
         `;
       }).join('');
 
@@ -132,7 +132,7 @@
         const shortcut = shortcuts.find(s => s.id === id);
         if (!shortcut) return;
 
-        card.addEventListener('dblclick', (e) => {
+        card.addEventListener('click', (e) => {
           e.stopPropagation();
           this.launch(shortcut);
         });
@@ -151,13 +151,19 @@
       const type = shortcut.type || 'app';
 
       if (type === 'app') {
+        if (shortcut.appId === 'explorer' && window.explorerApp && typeof window.explorerApp.open === 'function') {
+          window.explorerApp.open();
+          return;
+        }
         const appMgr = window.sys && window.sys.appManager;
         if (appMgr && typeof appMgr.launchApp === 'function') {
           appMgr.launchApp(shortcut.appId);
         }
       } else if (type === 'folder' || type === 'volume') {
         if (window.explorerApp && typeof window.explorerApp.open === 'function') {
-          window.explorerApp.open({ initialPath: shortcut.path });
+          window.explorerApp.open({ dir: shortcut.path });
+        } else if (window.sys && window.sys.appManager && typeof window.sys.appManager.launchApp === 'function') {
+          window.sys.appManager.launchApp('explorer', { dir: shortcut.path });
         }
       } else if (type === 'file') {
         const ext = '.' + (shortcut.extension || shortcut.path.split('.').pop() || '').toLowerCase();
@@ -173,7 +179,7 @@
         }
 
         if (window.explorerApp && typeof window.explorerApp.open === 'function') {
-          window.explorerApp.open({ initialPath: shortcut.path });
+          window.explorerApp.open({ dir: shortcut.path });
         }
       }
     }

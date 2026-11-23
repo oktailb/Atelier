@@ -80,20 +80,38 @@ class DotfileManager {
 
         // Build full chain of directories to check: root (if explicit .private/.password) + every ancestor segment
         $chain = [];
-        if (file_exists($real_base . '/.private') || file_exists($real_base . '/.password')) {
-            $chain[] = $real_base;
-        }
+        $is_users_ns = ($rel === 'users' || strpos($rel, 'users/') === 0);
+        $users_root = PathValidator::getUsersRoot($base_dir);
+        $real_users_root = rtrim(str_replace('\\', '/', realpath($users_root) ?: $users_root), '/');
 
-        if ($rel !== '') {
-            $parts = explode('/', $rel);
-            $accumulated = '';
-            foreach ($parts as $part) {
-                if ($part === '') continue;
-                $accumulated = ($accumulated === '') ? $part : $accumulated . '/' . $part;
-                $chain[] = $real_base . '/' . $accumulated;
+        if ($is_users_ns && is_dir($real_users_root)) {
+            $chain[] = $real_users_root;
+            $sub_rel = ($rel === 'users') ? '' : substr($rel, 6);
+            if ($sub_rel !== '') {
+                $parts = explode('/', $sub_rel);
+                $accumulated = '';
+                foreach ($parts as $part) {
+                    if ($part === '') continue;
+                    $accumulated = ($accumulated === '') ? $part : $accumulated . '/' . $part;
+                    $chain[] = $real_users_root . '/' . $accumulated;
+                }
             }
-        } elseif (empty($chain)) {
-            return self::getDirAccessInfo($real_base, $base_dir);
+        } else {
+            if (file_exists($real_base . '/.private') || file_exists($real_base . '/.password')) {
+                $chain[] = $real_base;
+            }
+
+            if ($rel !== '') {
+                $parts = explode('/', $rel);
+                $accumulated = '';
+                foreach ($parts as $part) {
+                    if ($part === '') continue;
+                    $accumulated = ($accumulated === '') ? $part : $accumulated . '/' . $part;
+                    $chain[] = $real_base . '/' . $accumulated;
+                }
+            } elseif (empty($chain)) {
+                return self::getDirAccessInfo($real_base, $base_dir);
+            }
         }
 
         $inherited_private = false;
