@@ -79,12 +79,13 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
   <script src="system/userland/services/WebOSServices.js" defer></script>
   <script src="system/userland/services/ClipboardService.js" defer></script>
   <script src="system/userland/core/ShortcutManager.js" defer></script>
-  <script src="system/userland/services/FilePickerService.js" defer></script>
+  <script src="system/userland/services/FilePickerService.js?v=<?php echo filemtime(__DIR__ . '/system/userland/services/FilePickerService.js'); ?>" defer></script>
   <script src="system/userland/services/TaskbarService.js?v=<?php echo filemtime(__DIR__ . '/system/userland/services/TaskbarService.js'); ?>" defer></script>
   <script src="system/userland/desktop/WallpaperManager.js?v=<?php echo filemtime(__DIR__ . '/system/userland/desktop/WallpaperManager.js'); ?>" defer></script>
   <script src="system/userland/desktop/TaskbarClock.js" defer></script>
   <script src="system/userland/desktop/DesktopShortcuts.js?v=<?php echo filemtime(__DIR__ . '/system/userland/desktop/DesktopShortcuts.js'); ?>" defer></script>
   <script src="system/userland/core/WebOSApp.js" defer></script>
+  <script src="system/userland/core/WebAppVfsBridge.js?v=<?php echo filemtime(__DIR__ . '/system/userland/core/WebAppVfsBridge.js'); ?>" defer></script>
   <script src="system/userland/core/WebAppHost.js?v=<?php echo filemtime(__DIR__ . '/system/userland/core/WebAppHost.js'); ?>" defer></script>
 
 

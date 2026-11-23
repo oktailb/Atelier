@@ -904,6 +904,161 @@ try {
   assert("FEAT-04 exécution runtime", false, e.stack);
 }
 
+// -------------------------------------------------------------
+// 12. FEAT-06 : Pont VFS Bidirectionnel pour Apps Externes (WebAppVfsBridge & FilePickerService)
+// -------------------------------------------------------------
+console.log('\n🔗 [12/12] FEAT-06 : Pont VFS Bidirectionnel (Open/Save Hook same-origin & postMessage)...');
+try {
+  const vfsBridgePath = path.join(rootDir, 'system', 'userland', 'core', 'WebAppVfsBridge.js');
+  const pickerPath = path.join(rootDir, 'system', 'userland', 'services', 'FilePickerService.js');
+  assert("FEAT-06: Fichier system/userland/core/WebAppVfsBridge.js présent", fs.existsSync(vfsBridgePath));
+  assert("FEAT-06: index.php charge WebAppVfsBridge.js avant WebAppHost.js",
+    indexPhpSrc.includes('system/userland/core/WebAppVfsBridge.js') &&
+    indexPhpSrc.indexOf('WebAppVfsBridge.js') < indexPhpSrc.indexOf('WebAppHost.js')
+  );
+
+  const pickerCode = fs.readFileSync(pickerPath, 'utf8');
+  const bridgeCode = fs.readFileSync(vfsBridgePath, 'utf8');
+
+  // Test FilePickerService accept matcher
+  const pickerWin = {
+    sys: {},
+    document: { addEventListener: () => {}, removeEventListener: () => {}, body: { appendChild: () => {}, getAttribute: () => 'dark' }, documentElement: { getAttribute: () => 'dark' } }
+  };
+  new Function('window', 'document', pickerCode)(pickerWin, pickerWin.document);
+  const fp = pickerWin.sys.filePicker;
+  assert("FEAT-06: FilePickerService expose pickFile, pickFolder et pickSaveLocation",
+    typeof pickerWin.sys.pickFile === 'function' &&
+    typeof pickerWin.sys.pickFolder === 'function' &&
+    typeof pickerWin.sys.pickSaveLocation === 'function'
+  );
+  assert("FEAT-06: FilePickerService.matchesAccept gère extensions, wildcards et MIME exacts",
+    fp.matchesAccept({ name: 'art.psd', extension: 'psd', category: 'image' }, '.psd,.png') &&
+    fp.matchesAccept({ name: 'doc.pdf', extension: 'pdf', category: 'doc' }, 'application/pdf') &&
+    fp.matchesAccept({ name: 'pic.jpg', extension: 'jpg', category: 'image' }, 'image/*') &&
+    !fp.matchesAccept({ name: 'song.mp3', extension: 'mp3', category: 'audio' }, 'image/*,application/pdf')
+  );
+
+  // Test WebAppVfsBridge hooks & security isolation
+  const uploadedPayloads = [];
+  const bridgeStorage = new Map();
+  const bridgeWin = {
+    location: { origin: 'https://gallery.local', href: 'https://gallery.local/' },
+    localStorage: {
+      getItem: (k) => (bridgeStorage.has(k) ? bridgeStorage.get(k) : null),
+      setItem: (k, v) => bridgeStorage.set(k, String(v))
+    },
+    Blob: globalThis.Blob,
+    File: globalThis.File || class MockFile { constructor(parts, name, opts) { this.parts = parts; this.name = name; this.type = opts?.type || ''; } },
+    FormData: globalThis.FormData || class MockFD { constructor() { this.entries = {}; } append(k, v, n) { this.entries[k] = { v, n }; } },
+    DOMException: globalThis.DOMException,
+    fetch: async () => ({ ok: true, blob: async () => new Blob(['PDFDATA'], { type: 'application/pdf' }) }),
+    addEventListener: () => {},
+    sys: {
+      i18n: { t: (k) => k },
+      toast: { success: () => {}, error: () => {}, info: () => {} },
+      api: {
+        upload: async (action, fd) => {
+          uploadedPayloads.push({ action, fd });
+          return { success: true };
+        }
+      },
+      pickFile: async () => ({ name: 'manual.pdf', path: 'docs/manual.pdf', extension: 'pdf' }),
+      pickSaveLocation: async (opts) => ({ dir: 'exports', filename: opts.suggestedName || 'out.png', overwrite: true })
+    }
+  };
+  new Function('window', bridgeCode)(bridgeWin);
+  const bridge = bridgeWin.sys.webAppVfsBridge;
+
+  assert("FEAT-06: pickerTypesToAccept convertit types W3C en chaîne accept",
+    bridge.pickerTypesToAccept({ types: [{ accept: { 'image/png': ['.png'], 'application/pdf': ['.pdf'] } }] }) === '.png,.pdf'
+  );
+
+  const cfgDisabled = bridge.getBridgeConfig({ id: 'ext1', manifest: { vfsBridge: false } });
+  const cfgNoSave = bridge.getBridgeConfig({ id: 'ext2', manifest: { vfsBridge: { hookSave: false } } });
+  bridge.setEnabledForApp('ext3', false);
+  const cfgUserOff = bridge.getBridgeConfig({ id: 'ext3', manifest: {} });
+  assert("FEAT-06: Configuration vfsBridge respecte manifeste et préférence utilisateur localStorage",
+    cfgDisabled.enabled === false && cfgNoSave.hookOpen === true && cfgNoSave.hookSave === false && cfgUserOff.enabled === false
+  );
+
+  // Cross-origin iframe must fail gracefully without throwing
+  const crossOriginIframe = {
+    get contentWindow() {
+      return {
+        get location() { throw new Error('SecurityError: Blocked a frame with origin'); }
+      };
+    }
+  };
+  assert("FEAT-06: Iframe cross-origin ignorée proprement sans exception SecurityError",
+    bridge.attachToIframe(crossOriginIframe, { id: 'remote-app', manifest: {} }) === false
+  );
+
+  // Same-origin iframe hooking: showOpenFilePicker + createWritable save + blob anchor download capture
+  class FakeInput { click() { this._nativeClicked = true; } }
+  class FakeAnchor {
+    constructor(href, dl) { this.href = href; this._dl = dl; }
+    hasAttribute(k) { return k === 'download' && this._dl !== null; }
+    getAttribute(k) { return k === 'href' ? this.href : (k === 'download' ? this._dl : null); }
+    click() { this._nativeClicked = true; }
+  }
+  let createdBlobSeq = 0;
+  const fakeIframeWin = {
+    location: { origin: 'https://gallery.local' },
+    document: { addEventListener: () => {} },
+    Blob: globalThis.Blob,
+    File: bridgeWin.File,
+    DOMException: globalThis.DOMException,
+    URL: {
+      createObjectURL: () => `blob:https://gallery.local/${++createdBlobSeq}`,
+      revokeObjectURL: () => {}
+    },
+    HTMLInputElement: FakeInput,
+    HTMLAnchorElement: FakeAnchor
+  };
+  const sameOriginIframe = { contentWindow: fakeIframeWin };
+  const fakeAppInst = { id: 'artcraft', name: 'ArtCraft', manifest: {}, getAppTitle: () => 'ArtCraft' };
+  const attached = bridge.attachToIframe(sameOriginIframe, fakeAppInst);
+  assert("FEAT-06: attachToIframe installe les hooks Open/Save sur iframe same-origin",
+    attached === true && typeof fakeIframeWin.showOpenFilePicker === 'function' && typeof fakeIframeWin.showSaveFilePicker === 'function'
+  );
+
+  // Verify W3C showOpenFilePicker -> virtual handle -> createWritable() -> upload_file
+  const handles = await fakeIframeWin.showOpenFilePicker({ types: [{ accept: { 'application/pdf': ['.pdf'] } }] });
+  const openedFile = await handles[0].getFile();
+  const writable = await handles[0].createWritable();
+  await writable.write('UPDATED_PDF');
+  await writable.close();
+  assert("FEAT-06: showOpenFilePicker retourne un FileSystemFileHandle VFS (lecture + sauvegarde sur place)",
+    handles.length === 1 && openedFile.name === 'manual.pdf' && uploadedPayloads.length === 1 && uploadedPayloads[0].action === 'upload_file'
+  );
+
+  // Verify blob URL capture + <a download> Save Hook even after immediate revokeObjectURL
+  const expBlob = new Blob(['PNG_BYTES'], { type: 'image/png' });
+  const expUrl = fakeIframeWin.URL.createObjectURL(expBlob);
+  fakeIframeWin.URL.revokeObjectURL(expUrl);
+  const fakeA = new FakeAnchor(expUrl, 'render.png');
+  fakeA.click();
+  await new Promise(r => setTimeout(r, 30));
+  assert("FEAT-06: <a download href='blob:...'> capture le Blob et sauvegarde dans la Galerie via upload_file",
+    uploadedPayloads.length === 2 && !fakeA._nativeClicked
+  );
+
+  // Verify postMessage protocol rejects spoofed sources and answers matched iframe
+  const postedReplies = [];
+  const matchedSrc = { postMessage: (data, origin) => postedReplies.push({ data, origin }) };
+  const mockHostMgr = {
+    instances: new Map([['artcraft', { id: 'artcraft', getAppTitle: () => 'ArtCraft', getIframeElement: () => ({ contentWindow: matchedSrc }) }]])
+  };
+  await bridge.handlePostMessage({ source: {}, origin: 'https://evil.example', data: { type: 'webos:vfs-pick', requestId: 'bad' } }, mockHostMgr);
+  await bridge.handlePostMessage({ source: matchedSrc, origin: 'https://gallery.local', data: { type: 'webos:vfs-pick', requestId: 'ok1' } }, mockHostMgr);
+  assert("FEAT-06: Protocole postMessage rejette les sources inconnues et répond à l'iframe authentifiée",
+    postedReplies.length === 1 && postedReplies[0].data.requestId === 'ok1' && postedReplies[0].data.files.length === 1 && postedReplies[0].data.files[0].name === 'manual.pdf'
+  );
+} catch (e) {
+  assert("FEAT-06 exécution runtime", false, e.stack);
+}
+
 
 console.log('\n============================================================');
 console.log(` 📊 SCORECARD DES TESTS ISO-FONCTIONNELS JS : ${passedChecks}/${totalChecks} PASS`);

@@ -183,6 +183,9 @@
           if (cw.wasmBindings) {
             this.hideBootOverlay();
           }
+          if (window.sys && window.sys.webAppVfsBridge && typeof window.sys.webAppVfsBridge.attachToIframe === 'function') {
+            window.sys.webAppVfsBridge.attachToIframe(iframe, this);
+          }
           if (cw.__sgBootHooked) return;
           cw.__sgBootHooked = true;
 
@@ -262,12 +265,33 @@
     }
 
     buildMenuBarDefinition() {
+      const bridge = window.sys && window.sys.webAppVfsBridge;
+      const bridgeEnabled = bridge && typeof bridge.isEnabledForApp === 'function'
+        ? bridge.isEnabledForApp(this)
+        : true;
+      const exts = Array.isArray(this.manifest.extensions) ? this.manifest.extensions : [];
+      const acceptFilter = exts.length > 0 ? exts.map(e => `.${String(e).replace(/^\./, '')}`).join(',') : '*/*';
+
       const fileItems = [
         {
           id: 'open-gallery-file',
           label: this.t('webapp.open_file'),
           action: () => {
-            if (window.sys && window.sys.appManager && typeof window.sys.appManager.openFilePicker === 'function') {
+            if (window.sys && typeof window.sys.pickFile === 'function') {
+              const initDir = (window.explorerApp && window.explorerApp.state && window.explorerApp.state.currentDir) || '';
+              window.sys.pickFile({
+                title: this.t('vfs.open_for_app', { app: this.getAppTitle() }),
+                initialPath: initDir,
+                accept: acceptFilter,
+                multiple: false
+              }).then((picked) => {
+                if (picked && !picked.__localFallback) {
+                  this.activeFile = picked;
+                  this.refreshMenus();
+                  this.injectFileIntoIframe(picked);
+                }
+              });
+            } else if (window.sys && window.sys.appManager && typeof window.sys.appManager.openFilePicker === 'function') {
               window.sys.appManager.openFilePicker(this.id);
             }
           }
@@ -279,6 +303,21 @@
           id: 'reinject-file',
           label: this.t('webapp.reinject_file'),
           action: () => this.injectFileIntoIframe(this.activeFile)
+        });
+      }
+
+      if (bridge && typeof bridge.setEnabledForApp === 'function') {
+        fileItems.push({ separator: true });
+        fileItems.push({
+          id: 'vfs-bridge-toggle',
+          label: bridgeEnabled ? this.t('webapp.vfs_bridge_on') : this.t('webapp.vfs_bridge_off'),
+          action: () => {
+            bridge.setEnabledForApp(this.id, !bridgeEnabled);
+            this.refreshMenus();
+            if (window.sys && window.sys.toast && typeof window.sys.toast.info === 'function') {
+              window.sys.toast.info(!bridgeEnabled ? this.t('webapp.vfs_bridge_enabled_toast') : this.t('webapp.vfs_bridge_disabled_toast'));
+            }
+          }
         });
       }
 
@@ -755,6 +794,9 @@
   }
 
   const hostManager = new WebAppHostManager();
+  if (window.sys && window.sys.webAppVfsBridge && typeof window.sys.webAppVfsBridge.bindPostMessageProtocol === 'function') {
+    window.sys.webAppVfsBridge.bindPostMessageProtocol(hostManager);
+  }
   window.StandaloneWebAppInstance = StandaloneWebAppInstance;
   window.WebAppHost = hostManager;
   window.sys = window.sys || {};
