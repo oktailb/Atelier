@@ -1059,6 +1059,35 @@ try {
   assert("FEAT-06 exécution runtime", false, e.stack);
 }
 
+// -------------------------------------------------------------
+// 13. FEAT-09 : Guide & Kit Développeur (docs/apps-guide.md + apps/template-app)
+// -------------------------------------------------------------
+try {
+  const guideSrc = fs.readFileSync(path.join(rootDir, 'docs', 'apps-guide.md'), 'utf8');
+  const tmplJs = fs.readFileSync(path.join(appsDir, 'template-app', 'app.js'), 'utf8');
+  const tmplApi = fs.readFileSync(path.join(appsDir, 'template-app', 'api.php'), 'utf8');
+  const tFr = Object.keys(JSON.parse(fs.readFileSync(path.join(appsDir, 'template-app', 'locales', 'fr.json'), 'utf8')));
+  const tEn = Object.keys(JSON.parse(fs.readFileSync(path.join(appsDir, 'template-app', 'locales', 'en.json'), 'utf8')));
+  const tJa = Object.keys(JSON.parse(fs.readFileSync(path.join(appsDir, 'template-app', 'locales', 'ja.json'), 'utf8')));
+
+  assert("FEAT-09: docs/apps-guide.md documente renderTab, registerAppMenu, WebAppVfsBridge et locales isolées",
+    guideSrc.includes('renderTab(') && guideSrc.includes('registerAppMenu(') &&
+    guideSrc.includes('WebAppVfsBridge') && !guideSrc.includes('registerAppMenus(')
+  );
+  assert("FEAT-09: apps/template-app/app.js utilise registerAppMenu et subscribe(theme:changed/locale:changed)",
+    tmplJs.includes('registerAppMenu(') && !tmplJs.includes('registerAppMenus(') &&
+    tmplJs.includes("this.subscribe('theme:changed'") && tmplJs.includes("this.subscribe('locale:changed'")
+  );
+  assert("FEAT-09: apps/template-app/api.php utilise project_root (ARCH-01) et protège les écritures par is_admin",
+    tmplApi.includes("project_root") && tmplApi.includes("is_admin")
+  );
+  assert("FEAT-09: apps/template-app/locales/{fr,en,ja}.json en parité stricte",
+    tFr.length === tEn.length && tEn.length === tJa.length && tFr.length >= 50
+  );
+} catch (e) {
+  assert("FEAT-09 vérifications kit dev", false, e.stack);
+}
+
 
 console.log('\n============================================================');
 console.log(` 📊 SCORECARD DES TESTS ISO-FONCTIONNELS JS : ${passedChecks}/${totalChecks} PASS`);

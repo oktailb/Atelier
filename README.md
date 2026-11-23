@@ -32,6 +32,8 @@ Le principe fondamental d'origine reste intact : **pour publier de nouveaux méd
 | **Cartes & Géolocalisation** | 🗺️ | Carte interactive du monde (Leaflet / OpenStreetMap) avec regroupement automatique par clusters (*Clustering*) des photos géotaggées par GPS EXIF. |
 | **Tribune Libre** | 💬 | Espace de discussion communautaire en direct avec support des raccourcis clavier, téléversement de médias temporaires et flux temps réel. |
 | **Moniteur Système** | 📊 | Supervision en temps réel des ressources serveur, mémoire PHP, espace disque, caches et diagnostics de stockage. |
+| **Calculatrice & Traceur 2D** | 📐 | Calculatrice scientifique (parseur AST sécurisé sans `eval`, `DEG`/`RAD`/`GRAD`), mode Programmeur 8–64 bits (`HEX`/`DEC`/`OCT`/`BIN`) et traceur Canvas 2D multi-courbes (racines, extrema, intersections, export PNG galerie). |
+| **Hôte d'Apps Web / WASM** | 🔗 | Auto-découverte et fenêtrage d'applications web/WASM tierces déposées dans `apps/` avec **Pont VFS Bidirectionnel** (Ouvrir / Enregistrer directement depuis et vers la Galerie). |
 | **Suite de Jeux Rétro** | 🎮 | **8 Dames** (solveur procédural par backtracking), **Foot Pong** (physique rétro 1v1 avec IA), **Tours de Hanoï** (solveur animé) et **Pipe Connect / Netwalk** (connexion de réseau). |
 
 ---

@@ -1,7 +1,8 @@
 <?php
 /**
  * SimpleGallery WebOS - Template App Private Backend Endpoint
- * Reference implementation of an isolated application API utilizing AppEndpoint & StorageRepository.
+ * Reference implementation showcasing AppEndpoint, StorageRepository, ARCH-01 root separation,
+ * CSRF protection via mutating_actions, and Admin authorization gates.
  */
 
 if (!defined('SIMPLE_GALLERY_CORE')) {
@@ -15,17 +16,19 @@ require_once dirname(__DIR__, 2) . '/system/kernel/FS/StorageRepository.php';
 use SimpleGallery\Kernel\Api\AppEndpoint;
 use SimpleGallery\Kernel\FS\StorageRepository;
 
-AppEndpoint::handle('template-app', function(string $action, array $params, array $context): ?array {
-    $storage = StorageRepository::forApp('template-app', $context['base_dir']);
+AppEndpoint::handle('template-app', function (string $action, array $params, array $context): ?array {
+    // ARCH-01: Always anchor runtime JSON storage under project_root (never media_dir / storage/media)
+    $project_root = $context['project_root'] ?? $context['base_dir'];
+    $storage = StorageRepository::forApp('template-app', $project_root);
 
     switch ($action) {
-        // 1. Get Notes List
+        // 1. Read Notes List (Safe GET)
         case 'template_get_notes':
             $notes = $storage->getJson('notes.json', [
                 [
                     'id'        => 'note-1',
-                    'title'     => 'Bienvenue dans SimpleGallery WebOS',
-                    'content'   => 'Ceci est une note persistée dans storage/apps/template-app/notes.json.',
+                    'title'     => 'Welcome to SimpleGallery WebOS',
+                    'content'   => 'Persisted atomically inside storage/apps/template-app/notes.json.',
                     'timestamp' => time() - 3600
                 ]
             ]);
@@ -34,14 +37,21 @@ AppEndpoint::handle('template-app', function(string $action, array $params, arra
                 'data'   => ['success' => true, 'notes' => $notes]
             ];
 
-        // 2. Add / Update Note
+        // 2. Add Note (POST + CSRF + Admin Gate + Input Validation)
         case 'template_save_note':
+            if (empty($context['is_admin'])) {
+                return [
+                    'status' => 403,
+                    'data'   => ['success' => false, 'error' => 'Admin authentication required to write notes.']
+                ];
+            }
+
             $title   = trim((string)($params['title'] ?? ''));
             $content = trim((string)($params['content'] ?? ''));
-            if ($title === '') {
+            if ($title === '' || strlen($title) > 120 || strlen($content) > 2000) {
                 return [
                     'status' => 400,
-                    'data'   => ['success' => false, 'error' => 'Le titre de la note ne peut pas être vide.']
+                    'data'   => ['success' => false, 'error' => 'Invalid note title or content length.']
                 ];
             }
 
@@ -53,7 +63,6 @@ AppEndpoint::handle('template-app', function(string $action, array $params, arra
                 'timestamp' => time()
             ];
             array_unshift($notes, $newNote);
-            // Keep at most 50 notes
             $notes = array_slice($notes, 0, 50);
 
             $saved = $storage->saveJson('notes.json', $notes);
@@ -63,19 +72,25 @@ AppEndpoint::handle('template-app', function(string $action, array $params, arra
                     'success' => $saved,
                     'note'    => $newNote,
                     'notes'   => $notes,
-                    'error'   => $saved ? null : 'Erreur lors de l\'enregistrement sur le disque.'
+                    'error'   => $saved ? null : 'Unable to persist notes to storage.'
                 ]
             ];
 
-        // 3. Clear Notes
+        // 3. Clear Notes (POST + CSRF + Admin Gate)
         case 'template_clear_notes':
-            $saved = $storage->saveJson('notes.json', []);
+            if (empty($context['is_admin'])) {
+                return [
+                    'status' => 403,
+                    'data'   => ['success' => false, 'error' => 'Admin authentication required to clear notes.']
+                ];
+            }
+            $storage->saveJson('notes.json', []);
             return [
                 'status' => 200,
                 'data'   => ['success' => true, 'notes' => []]
             ];
 
-        // 4. Ping App Diagnostic
+        // 4. Ping App Diagnostic (Safe GET)
         case 'template_ping':
             return [
                 'status' => 200,
@@ -84,12 +99,12 @@ AppEndpoint::handle('template-app', function(string $action, array $params, arra
                     'message'   => 'Template App API is operational.',
                     'app_id'    => 'template-app',
                     'timestamp' => time(),
-                    'user'      => $context['is_admin'] ? 'Administrator' : 'Guest'
+                    'user'      => !empty($context['is_admin']) ? 'Administrator' : 'Guest'
                 ]
             ];
 
         default:
-            return null; // Passes through to 404
+            return null;
     }
 }, [
     'mutating_actions' => ['template_save_note', 'template_clear_notes']

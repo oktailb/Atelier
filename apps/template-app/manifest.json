@@ -1,14 +1,17 @@
 {
   "id": "template-app",
   "name": "App Template Dev",
-  "version": "2.0.0",
-  "description": "Application modèle de référence démontrant l'ensemble des API, services et composants de SimpleGallery WebOS",
+  "version": "2.1.0",
+  "description": "Application modèle de référence démontrant l'ensemble des API, services et bonnes pratiques de SimpleGallery WebOS",
   "icon": "🧪",
+  "author": "SimpleGallery Team",
   "category": "utilities",
-  "main": "app.js",
-  "css": "style.css",
-  "api": "api.php",
   "autostartCapable": true,
+  "entry": {
+    "js": "app.js",
+    "css": "style.css"
+  },
+  "api": "api.php",
   "window": {
     "width": 880,
     "height": 620,

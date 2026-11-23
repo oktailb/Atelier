@@ -17,7 +17,7 @@ Ce document recense les évolutions produit restantes (**Phase 4**) pour **Simpl
 |---|---|:---:|:---:|---|:---:|
 | `FEAT-06` | 🔗 Pont VFS Bidirectionnel pour Apps Externes (`WebAppHost` Open/Save Hook) | **P4 (Haute)** | `M` | `WebAppHost` | ✅ Fait |
 | `FEAT-05` | 🛠️ CLI & Terminal WebOS / VFS (100 % sans shell OS) | **P4 (Moyenne)** | `M` | — | ⬜ À faire |
-| `FEAT-09` | 📚 Guide & Kit Développeur d'Applications WebOS (`docs/` + `template-app`) | **P4 (Moyenne)** | `S` | — | ⬜ À faire |
+| `FEAT-09` | 📚 Guide & Kit Développeur d'Applications WebOS (`docs/apps-guide.md` + `template-app`) | **P4 (Moyenne)** | `S` | — | ✅ Fait |
 | `FEAT-10` | 👥 Jeux Multijoueurs & Table Virtuelle de JDR / VTT (`apps/games/*`) | **P4 (Moyenne)** | `XL` | — | ⬜ À faire |
 | `FEAT-08` | 🕹️ Émulateurs Rétro 8/16-Bits & Doom Wasm (`apps/retro-station`) | **P4 (Basse)** | `L` | `WebAppHost` | ⬜ À faire |
 | `FEAT-11` | 🔌 Atelier d'Émulation Matérielle Modulaire & Chimères (`apps/silicon-lab`) | **P4 (R&D)** | `XL` | `FEAT-08` | ⬜ À faire |
@@ -65,10 +65,10 @@ Ce document recense les évolutions produit restantes (**Phase 4**) pour **Simpl
 
 ---
 
-### - [ ] `FEAT-09` — 📚 Guide & Kit Développeur d'Applications WebOS (`docs/app-development.md` + `apps/template-app`)
+### - [x] `FEAT-09` — 📚 Guide & Kit Développeur d'Applications WebOS (`docs/apps-guide.md` + `apps/template-app`)
 - **Priorité** : `P4 (Moyenne)` | **Complexité** : `S` | **Dépendances** : Aucune
 - **Description technique** :
-  - Rédiger un guide pas-à-pas complet et illustré (`docs/app-development.md`) couvrant tout le cycle de création et d'intégration d'une application dans SimpleGallery WebOS :
+  - Rédiger un guide pas-à-pas complet et illustré (`docs/apps-guide.md`) couvrant tout le cycle de création et d'intégration d'une application dans SimpleGallery WebOS :
     1. **Anatomie d'une app native** : structure `apps/<id>/`, `manifest.json` (`id`, `category`, `icon`, `scripts`, `entry`, `extensions`, `mimeTypes`, `autostartCapable`).
     2. **Cycle de vie `WebOSApp`** : `renderTab(tabId)` (apps à onglets) vs `renderContent()`, `bindEvents()`, `onOpen()`/`onClose()`, `this.storage`, `this.toast`, `this.dialog`, `MenuBarManager`, thèmes clair/sombre.
     3. **Internationalisation isolée** : création de `apps/<id>/locales/{fr,en,ja}.json`, chargement automatique par `PluginDiscovery::getAppTranslations()`, règle zéro fallback hardcodé dans `this.t()`.
@@ -77,10 +77,12 @@ Ce document recense les évolutions produit restantes (**Phase 4**) pour **Simpl
     6. **Tests & validation** : comment ajouter des tests PHP (`GeneralUnitTest.php`, `SecurityUnitTest.php`) et runtime JS (`test_js_runtime.mjs`).
   - Synchroniser et moderniser `apps/template-app/` pour qu'il serve de squelette copier-coller 100 % conforme à ces bonnes pratiques.
 - **Rapport d'exécution** :
-  - *Statut* : `À faire`
-  - *Date / Commit* : `—`
-  - *Tests & Vérifications* : `—`
-  - *Notes / Incidents* : `—`
+  - *Statut* : `Terminé (2026-11-23)`
+  - *Modifications* :
+    - Refonte complète de `docs/apps-guide.md` (8 chapitres : anatomie, `manifest.json`, cycle de vie `WebOSApp` avec distinction `renderTab` vs `renderContent`, services Userland, i18n isolée par app, design system multi-thèmes, backend PHP Option A `AppEndpoint` / Option B `manifest.backend` + checklist sécurité, intégration d'apps WASM/tierces + `WebAppVfsBridge` + `postMessage`, et tests automatisés). Mise à jour de `README.md` (ajout Calculatrice & Hôte WASM/VFS).
+    - Modernisation de `apps/template-app/` (`manifest.json` v2.1 format `entry`, `api.php` utilisant `project_root` `ARCH-01` + garde `is_admin` + validation longueurs, `app.js` corrigeant `MenuBarManager.registerAppMenu()`, `this.subscribe('theme:changed'/'locale:changed')`, démos `pickFile()` + `pickSaveLocation()` et 100 % i18n sans chaînes françaises en dur dans `apps/template-app/locales/{fr,en,ja}.json` en parité 56/56/56).
+  - *Tests & Vérifications* : `php -l apps/template-app/api.php` OK ; +4 assertions `FEAT-09` ajoutées dans `tests/test_js_runtime.mjs` ; suite complète **`239/239` Sécurité PHP + `283/283` Fonctionnels PHP + `319/319` Runtime JS = `841/841 PASS`** (`exit code 0`).
+  - *Notes / Incidents* : Plusieurs bugs latents du modèle d'origine (`registerAppMenus`, `theme:change`/`locale:change`, `base_dir` au lieu de `project_root`) ont été corrigés au passage.
 
 ---
 
