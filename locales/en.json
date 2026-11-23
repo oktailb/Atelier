@@ -719,7 +719,6 @@
     "nav.apps_menu": "Applications",
     "dialog.unsaved_changes_confirm": "Unsaved changes. Close anyway?",
     "doc.saved_success": "File saved successfully",
-    "doc.save_error": "Save error",
-    "tribune.oauth_error": "OAuth2 authentication error."
+    "doc.save_error": "Save error"
   }
 }

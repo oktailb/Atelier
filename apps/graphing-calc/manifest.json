@@ -1,0 +1,39 @@
+{
+  "id": "graphing-calc",
+  "name": "Calculatrice & Traceur",
+  "version": "1.0.0",
+  "icon": "📐",
+  "author": "SimpleGallery Team",
+  "category": "utilities",
+  "autostartCapable": true,
+  "window": {
+    "width": 940,
+    "height": 650,
+    "minWidth": 560,
+    "minHeight": 460,
+    "resizable": true,
+    "maximizable": true
+  },
+  "scripts": [
+    "math-engine.js",
+    "plotter.js"
+  ],
+  "entry": {
+    "js": "app.js",
+    "css": "style.css"
+  },
+  "locales": {
+    "fr": {
+      "title": "Calculatrice & Traceur",
+      "description": "Calculatrice scientifique, mode programmeur binaire/hexadécimal et traceur de courbes Canvas 2D avec analyse mathématique"
+    },
+    "en": {
+      "title": "Scientific & Graphing Calculator",
+      "description": "Scientific calculator, bitwise programmer mode and interactive 2D Canvas function plotter with roots, extrema and intersections"
+    },
+    "ja": {
+      "title": "関数電卓＆グラフ描画",
+      "description": "関数電卓、プログラマーモード（2進/16進/ビット演算）、および根・極値・交点検出付き2Dグラフ描画ツール"
+    }
+  }
+}

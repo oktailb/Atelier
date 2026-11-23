@@ -56,6 +56,7 @@
   "tribune.post_error": "Erreur lors du post : ",
   "tribune.post_network_error": "Erreur de connexion au serveur lors du post : ",
   "tribune.oauth_success": "Connexion OAuth2 réussie avec ",
+  "tribune.oauth_error": "Erreur lors de la connexion OAuth2.",
   "tribune.toggle_panel": "Panneau latéral (Outils & Paramètres)",
   "tribune.panel_title": "Outils & Paramètres"
 }

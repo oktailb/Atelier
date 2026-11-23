@@ -794,6 +794,119 @@ try {
   assert("WebAppHost exécution runtime", false, e.stack);
 }
 
+// -------------------------------------------------------------
+// 11. FEAT-04 : Calculatrice Scientifique, Programmeur & Traceur 2D (apps/graphing-calc)
+// -------------------------------------------------------------
+console.log('\n📐 [11/11] FEAT-04 : Calculatrice Scientifique, Programmeur & Traceur Canvas 2D...');
+try {
+  const gcalcDir = path.join(appsDir, 'graphing-calc');
+  const engineSrc = fs.readFileSync(path.join(gcalcDir, 'math-engine.js'), 'utf8');
+  const plotterSrc = fs.readFileSync(path.join(gcalcDir, 'plotter.js'), 'utf8');
+  const appSrc = fs.readFileSync(path.join(gcalcDir, 'app.js'), 'utf8');
+
+  const gcalcAllCode = (engineSrc + plotterSrc + appSrc).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  assert("FEAT-04: Zéro eval() ou new Function() dans apps/graphing-calc/*",
+    !/\beval\s*\(/.test(gcalcAllCode) &&
+    !/\bnew\s+Function\s*\(/.test(gcalcAllCode)
+  );
+
+  const calcWin = {
+    localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+    devicePixelRatio: 1
+  };
+  new Function('window', engineSrc)(calcWin);
+  new Function('window', plotterSrc)(calcWin);
+
+  const E = calcWin.GraphingCalcEngine;
+  assert("FEAT-04: GraphingCalcEngine chargé", !!E && typeof E.evaluate === 'function');
+  assert("FEAT-04: Priorité opérateurs & puissance associative droite (2^3^2 = 512, -3^2 = -9)",
+    E.evaluate('2^3^2') === 512 && E.evaluate('-3^2') === -9 && E.evaluate('2 + 3 * 4') === 14
+  );
+  assert("FEAT-04: Multiplication implicite (2pi, 3(1+2), 2x)",
+    Math.abs(E.evaluate('2pi') - 2 * Math.PI) < 1e-12 &&
+    E.evaluate('3(1+2)') === 9 &&
+    E.evaluate('2x + 1', { x: 4 }) === 9
+  );
+  assert("FEAT-04: Fonctions scientifiques (DEG/RAD, factorielle, log, ln, ncr)",
+    Math.abs(E.evaluate('sin(90)', {}, 'DEG') - 1) < 1e-12 &&
+    Math.abs(E.evaluate('sin(pi/2)', {}, 'RAD') - 1) < 1e-12 &&
+    E.evaluate('5!') === 120 &&
+    Math.abs(E.evaluate('log(1000)') - 3) < 1e-12 &&
+    Math.abs(E.evaluate('ln(e)') - 1) < 1e-12 &&
+    E.evaluate('ncr(5, 2)') === 10
+  );
+
+  let injectionBlocked = false;
+  try { E.evaluate('constructor.constructor("return 42")()'); } catch (err) { injectionBlocked = true; }
+  assert("FEAT-04: Parseur rejette toute tentative d'injection JS", injectionBlocked);
+
+  // Numerical analysis: roots, extrema, intersections
+  const fnQuad = E.compile('x^2 - 4');
+  const roots = E.findRoots(x => fnQuad({ x }), -5, 5);
+  assert("FEAT-04: Détection racines de x^2 - 4 -> {-2, 2}",
+    roots.length === 2 && Math.abs(roots[0].x + 2) < 1e-4 && Math.abs(roots[1].x - 2) < 1e-4
+  );
+
+  const fnCubic = E.compile('x^3 - 3*x');
+  const extrema = E.findExtrema(x => fnCubic({ x }), -3, 3);
+  assert("FEAT-04: Détection extrema de x^3 - 3x -> max(-1, 2) & min(1, -2)",
+    extrema.length === 2 &&
+    extrema[0].kind === 'max' && Math.abs(extrema[0].x + 1) < 1e-3 && Math.abs(extrema[0].y - 2) < 1e-3 &&
+    extrema[1].kind === 'min' && Math.abs(extrema[1].x - 1) < 1e-3 && Math.abs(extrema[1].y + 2) < 1e-3
+  );
+
+  const fnA = E.compile('x^2');
+  const fnB = E.compile('x + 2');
+  const inter = E.findIntersections(x => fnA({ x }), x => fnB({ x }), -3, 4);
+  assert("FEAT-04: Détection intersections de x^2 et x+2 -> (-1, 1) & (2, 4)",
+    inter.length === 2 && Math.abs(inter[0].x + 1) < 1e-3 && Math.abs(inter[1].x - 2) < 1e-3
+  );
+
+  // Programmer mode (BigInt bitwise)
+  const P = E.programmer;
+  assert("FEAT-04: Mode Programmeur HEX/BIN/Signé/Bitwise (8-bit & 32-bit)",
+    P.parseBase('FF', 16, 8) === 255n &&
+    P.toSigned(255n, 8) === -1n &&
+    P.bitwiseOp('AND', 0xF0n, 0x3Cn, 8) === 0x30n &&
+    P.bitwiseOp('OR', 0x0Fn, 0xF0n, 8) === 0xFFn &&
+    P.bitwiseOp('XOR', 0xAAn, 0xFFn, 8) === 0x55n &&
+    P.bitwiseOp('NOT', 0n, 0n, 8) === 255n &&
+    P.bitwiseOp('SHL', 1n, 7n, 8) === 128n &&
+    P.formatBase(0xABn, 2, 8) === '1010 1011'
+  );
+
+  // App instantiation & 3-tab rendering smoke test
+  const webosAppCode = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'core', 'WebOSApp.js'), 'utf8');
+  const appDoc = {
+    getElementById: () => null,
+    addEventListener: () => {},
+    removeEventListener: () => {}
+  };
+  const appWin = {
+    localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+    GraphingCalcEngine: E,
+    GraphingCalcPlotter: calcWin.GraphingCalcPlotter,
+    sys: { i18n: { t: (k) => k } }
+  };
+  new Function('window', 'document', webosAppCode)(appWin, appDoc);
+  new Function('window', 'document', appSrc)(appWin, appDoc);
+  const inst = appWin.GraphingCalcApp;
+  assert("FEAT-04: GraphingCalcApp s'instancie et expose 3 onglets (scientific, programmer, graph)",
+    !!inst && Array.isArray(inst.tabs) && inst.tabs.length === 3
+  );
+  inst.currentTab = 'scientific';
+  const htmlSci = inst.renderContent();
+  inst.currentTab = 'programmer';
+  const htmlProg = inst.renderContent();
+  inst.currentTab = 'graph';
+  const htmlGraph = inst.renderContent();
+  assert("FEAT-04: Rendu HTML des 3 modes sans erreur (keypad, bit-grid, canvas)",
+    htmlSci.includes('gcalcExprInput') && htmlProg.includes('gcalc-bit-grid') && htmlGraph.includes('gcalcCanvas')
+  );
+} catch (e) {
+  assert("FEAT-04 exécution runtime", false, e.stack);
+}
+
 
 console.log('\n============================================================');
 console.log(` 📊 SCORECARD DES TESTS ISO-FONCTIONNELS JS : ${passedChecks}/${totalChecks} PASS`);

@@ -719,7 +719,6 @@
     "nav.apps_menu": "Applications",
     "dialog.unsaved_changes_confirm": "Modifications non enregistrées. Fermer tout de même ?",
     "doc.saved_success": "Fichier enregistré avec succès",
-    "doc.save_error": "Erreur de sauvegarde",
-    "tribune.oauth_error": "Erreur lors de la connexion OAuth2."
+    "doc.save_error": "Erreur de sauvegarde"
   }
 }

@@ -1128,6 +1128,27 @@ class GeneralUnitTestSuite {
         $tribune_backend_src = @file_get_contents($this->base_dir . '/apps/tribune/backend/TribuneActions.php') ?: '';
         $this->assert("Tribune OAuth2: tribune_oauth_callback ne contient plus d'alert() bloquant", strpos($tribune_backend_src, 'alert(') === false);
 
+        // 12. FEAT-04 : Calculatrice Scientifique & Traceur de Courbes (apps/graphing-calc)
+        $discovered_all = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir, true);
+        $this->assert("FEAT-04: PluginDiscovery découvre apps/graphing-calc", isset($discovered_all['graphing-calc']));
+        $gcalc_app = $discovered_all['graphing-calc'] ?? [];
+        $this->assert("FEAT-04: graphing-calc appartient à la catégorie utilities avec icône 📐", ($gcalc_app['category'] ?? '') === 'utilities' && ($gcalc_app['icon'] ?? '') === '📐');
+        $this->assert("FEAT-04: graphing-calc déclare math-engine.js, plotter.js, app.js et style.css",
+            in_array('apps/graphing-calc/math-engine.js', $gcalc_app['scripts'] ?? [], true) &&
+            in_array('apps/graphing-calc/plotter.js', $gcalc_app['scripts'] ?? [], true) &&
+            ($gcalc_app['js_entry'] ?? '') === 'apps/graphing-calc/app.js' &&
+            ($gcalc_app['css_entry'] ?? '') === 'apps/graphing-calc/style.css'
+        );
+        $gcalc_tr_fr = \SimpleGallery\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'fr', true);
+        $gcalc_tr_en = \SimpleGallery\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'en', true);
+        $gcalc_tr_ja = \SimpleGallery\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'ja', true);
+        $this->assert("FEAT-04: Locales autonomes apps/graphing-calc/locales/{fr,en,ja}.json chargées par PluginDiscovery",
+            !empty($gcalc_tr_fr['calc.tab_graph']) &&
+            !empty($gcalc_tr_en['calc.tab_graph']) &&
+            !empty($gcalc_tr_ja['calc.tab_graph']) &&
+            !empty($gcalc_tr_fr['tribune.oauth_error'])
+        );
+
         // Cleanup temporary fixture tree
         @unlink($tmp_root . '/config/external_apps.json');
         @unlink($tmp_app1 . '/index.html');

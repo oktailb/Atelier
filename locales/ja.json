@@ -719,7 +719,6 @@
     "nav.apps_menu": "アプリケーション",
     "dialog.unsaved_changes_confirm": "未保存の変更があります。このまま閉じますか？",
     "doc.saved_success": "ファイルを保存しました",
-    "doc.save_error": "保存エラー",
-    "tribune.oauth_error": "OAuth2認証エラーが発生しました。"
+    "doc.save_error": "保存エラー"
   }
 }
