@@ -106,67 +106,17 @@ class AuthManager {
     }
 
     /**
-     * Determine folder access level and state (.private, .password, or public)
+     * Determine effective folder access level and state (.private, .password, or public),
+     * walking all ancestor directories from $base_dir down to $dir_path.
      */
     public static function getDirAccessInfo(string $dir_path, string $base_dir): array {
-        $info = [
-            'mode'           => 'public',
-            'access_mode'    => 'public',
-            'is_private'     => false,
-            'is_protected'   => false,
-            'is_accessible'  => true,
-            'is_unlocked'    => true,
-            'requires_auth'  => false,
-            'rel_path'       => PathValidator::getRelativePath($dir_path, $base_dir)
-        ];
-
-        $private_file = $dir_path . '/.private';
-        if (file_exists($private_file)) {
-            $info['mode'] = 'private';
-            $info['access_mode'] = 'private';
-            $info['is_private'] = true;
-            $info['requires_auth'] = true;
-            if (self::isAdminLoggedIn()) {
-                $info['is_accessible'] = true;
-                $info['is_unlocked'] = true;
-            } else {
-                $info['is_accessible'] = false;
-                $info['is_unlocked'] = false;
-            }
-            return $info;
-        }
-
-        $password_file = $dir_path . '/.password';
-        if (file_exists($password_file)) {
-            $info['mode'] = 'password';
-            $info['access_mode'] = 'password';
-            $info['is_protected'] = true;
-            $info['requires_auth'] = true;
-
-            if (self::isAdminLoggedIn()) {
-                $info['is_accessible'] = true;
-                $info['is_unlocked'] = true;
-                return $info;
-            }
-
-            self::ensureSessionStarted();
-            $rel = $info['rel_path'];
-            $unlocked = (!empty($_SESSION['sg_unlocked_folders'][$rel]))
-                || (!empty($_SESSION['unlocked_dirs'][$rel]));
-
-            $info['is_unlocked'] = $unlocked;
-            $info['is_accessible'] = $unlocked;
-            return $info;
-        }
-
-        return $info;
+        return \SimpleGallery\Kernel\FS\DotfileManager::getEffectiveAccessInfo($dir_path, $base_dir);
     }
 
     /**
-     * Check if a directory is accessible by the current visitor/session
+     * Check if a directory (and every one of its ancestor directories) is accessible by the current visitor/session.
      */
     public static function isDirAccessible(string $dir_path, string $base_dir): bool {
-        $info = self::getDirAccessInfo($dir_path, $base_dir);
-        return $info['is_accessible'];
+        return \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($dir_path, $base_dir);
     }
 }

@@ -3,6 +3,136 @@ namespace SimpleGallery\Apps\Tribune\Backend;
 
 class TribuneActions {
 
+    public const TRIBUNE_MAX_UPLOAD_BYTES = 10485760; // 10 MB
+
+    /**
+     * Strict whitelist of allowed extensions and their safe MIME types for Tribune temporary uploads.
+     * Excludes active web content (.html, .htm, .svg, .xhtml, .xml, .js, .php, etc.) to prevent same-origin Stored XSS.
+     */
+    private const TRIBUNE_ALLOWED_UPLOAD_MIMES = [
+        // Safe raster images (eligible for inline display with strict CSP sandbox)
+        'jpg'  => ['image/jpeg'],
+        'jpeg' => ['image/jpeg'],
+        'png'  => ['image/png'],
+        'gif'  => ['image/gif'],
+        'webp' => ['image/webp'],
+        'avif' => ['image/avif'],
+        // Safe media, documents & archives (always served as attachment)
+        'mp4'  => ['video/mp4', 'application/octet-stream'],
+        'webm' => ['video/webm', 'audio/webm'],
+        'mp3'  => ['audio/mpeg', 'application/octet-stream'],
+        'wav'  => ['audio/wav', 'audio/x-wav'],
+        'ogg'  => ['audio/ogg', 'video/ogg', 'application/ogg'],
+        'pdf'  => ['application/pdf'],
+        'txt'  => ['text/plain'],
+        'md'   => ['text/plain', 'text/markdown'],
+        'zip'  => ['application/zip', 'application/x-zip-compressed'],
+        'tar'  => ['application/x-tar'],
+        'gz'   => ['application/gzip', 'application/x-gzip'],
+        '7z'   => ['application/x-7z-compressed']
+    ];
+
+    private const TRIBUNE_INLINE_SAFE_MIMES = [
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp',
+        'image/avif'
+    ];
+
+    /**
+     * Validates a Tribune upload filename, detected MIME type and byte size against strict whitelist rules.
+     * @return array{valid: bool, error?: string, ext?: string, safe_mime?: string}
+     */
+    public static function validateTribuneUpload(string $orig_name, string $detected_mime, int $size, ?int $max_bytes = null): array {
+        $limit = $max_bytes ?? self::TRIBUNE_MAX_UPLOAD_BYTES;
+        if ($size <= 0 || $size > $limit) {
+            $max_mb = round($limit / (1024 * 1024), 1);
+            return ['valid' => false, 'error' => "Le fichier dépasse la taille maximale autorisée ({$max_mb} Mo) ou est vide."];
+        }
+
+        $clean_name = basename(str_replace('\\', '/', $orig_name));
+        if ($clean_name === '' || $clean_name[0] === '.') {
+            return ['valid' => false, 'error' => 'Nom de fichier masqué ou invalide interdit.'];
+        }
+
+        // Reject suspicious double extensions (executables or active HTML/SVG)
+        if (preg_match('/\.(php|phtml|php\d|phps|phar|inc|pl|py|cgi|sh|exe|bat|cmd|html|htm|xhtml|svg|js|mjs)\./i', $clean_name)) {
+            return ['valid' => false, 'error' => 'Double extension suspecte interdite pour des raisons de sécurité.'];
+        }
+
+        $ext = strtolower(pathinfo($clean_name, PATHINFO_EXTENSION));
+        if ($ext === '' || !isset(self::TRIBUNE_ALLOWED_UPLOAD_MIMES[$ext])) {
+            return ['valid' => false, 'error' => "Type de fichier '.{$ext}' non autorisé sur la tribune."];
+        }
+
+        $mime_base = strtolower(trim(explode(';', $detected_mime)[0] ?? ''));
+        // Never allow active HTML/SVG/XML/JS MIME types regardless of file extension
+        $dangerous_mimes = ['text/html', 'application/xhtml+xml', 'image/svg+xml', 'text/xml', 'application/xml', 'text/javascript', 'application/javascript', 'application/x-httpd-php', 'text/x-php'];
+        if (in_array($mime_base, $dangerous_mimes, true)) {
+            return ['valid' => false, 'error' => 'Contenu actif (HTML/SVG/XML/Script) strictement interdit.'];
+        }
+
+        $allowed_mimes = self::TRIBUNE_ALLOWED_UPLOAD_MIMES[$ext];
+        if (!in_array($mime_base, $allowed_mimes, true)) {
+            return ['valid' => false, 'error' => "Incohérence entre l'extension '.{$ext}' et le type MIME détecté ({$mime_base})."];
+        }
+
+        return [
+            'valid'     => true,
+            'ext'       => $ext,
+            'safe_mime' => $allowed_mimes[0]
+        ];
+    }
+
+    /**
+     * Computes hardened HTTP response headers for tribune_file_get.
+     * Prevents same-origin Stored XSS by enforcing CSP sandbox + nosniff and forcing attachment for non-raster files.
+     */
+    public static function getTribuneFileResponseHeaders(string $ext, string $stored_mime, string $orig_name): array {
+        $ext_lower = strtolower($ext);
+        $mime_base = strtolower(trim(explode(';', $stored_mime)[0] ?? ''));
+
+        $allowed_for_ext = self::TRIBUNE_ALLOWED_UPLOAD_MIMES[$ext_lower] ?? null;
+        if ($allowed_for_ext !== null && in_array($mime_base, $allowed_for_ext, true)) {
+            $safe_mime = $allowed_for_ext[0];
+        } else {
+            $safe_mime = 'application/octet-stream';
+        }
+
+        $is_inline_safe = in_array($safe_mime, self::TRIBUNE_INLINE_SAFE_MIMES, true);
+        $disposition = $is_inline_safe ? 'inline' : 'attachment';
+        $safe_filename = rawurlencode(basename(str_replace(["\r", "\n", "\0", '\\'], '', $orig_name)));
+
+        return [
+            'Content-Type'            => $safe_mime,
+            'Content-Disposition'     => "{$disposition}; filename=\"{$safe_filename}\"",
+            'X-Content-Type-Options'  => 'nosniff',
+            'Content-Security-Policy' => "sandbox; default-src 'none'; img-src 'self'; style-src 'none'; script-src 'none';",
+            'Referrer-Policy'         => 'no-referrer',
+            'Cache-Control'           => 'private, max-age=86400'
+        ];
+    }
+
+    /**
+     * Prunes temporary Tribune uploads older than $ttl_seconds (default 24h).
+     */
+    private static function pruneExpiredTribuneUploads(string $upload_dir, int $ttl_seconds = 86400): void {
+        if (!is_dir($upload_dir)) return;
+        $now = time();
+        $entries = @scandir($upload_dir) ?: [];
+        foreach ($entries as $entry) {
+            if ($entry[0] === '.' || substr($entry, -5) !== '.json') continue;
+            $meta_path = $upload_dir . '/' . $entry;
+            $mtime = @filemtime($meta_path);
+            if ($mtime !== false && ($now - $mtime) > $ttl_seconds) {
+                $token = substr($entry, 0, -5);
+                @unlink($meta_path);
+                @unlink($upload_dir . '/' . $token . '.bin');
+            }
+        }
+    }
+
     public static function getBoardsFilePath(string $base_dir): string {
         $project_root = dirname(dirname(dirname(__DIR__)));
         $p1 = $project_root . '/storage/tribune_boards.json';
@@ -899,22 +1029,30 @@ class TribuneActions {
         }
 
         if ($action === 'tribune_file_upload') {
+            $project_root = dirname(dirname(dirname(__DIR__)));
+            $is_authorized = \SimpleGallery\Kernel\Auth\AuthManager::isAdminLoggedIn()
+                || \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_upload', $project_root)
+                || \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_upload', $base_dir);
+
+            if (!$is_authorized) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => 'Accès refusé : le téléversement de fichiers sur la tribune requiert la permission d\'upload ou une connexion administrateur.']];
+            }
+
+            global $rate_limits;
+            $max_attempts = (int)($rate_limits['tribune_upload']['max_attempts'] ?? 15);
+            $decay_seconds = (int)($rate_limits['tribune_upload']['decay_seconds'] ?? 60);
+            $rl_key = 'tribune_upload_' . \SimpleGallery\Kernel\Security\RateLimiter::getClientIp();
+            if (!\SimpleGallery\Kernel\Security\RateLimiter::check($rl_key, $max_attempts, $decay_seconds)) {
+                return ['status' => 429, 'data' => ['success' => false, 'error' => 'Trop de téléversements récents. Veuillez patienter avant de réessayer.']];
+            }
+            \SimpleGallery\Kernel\Security\RateLimiter::increment($rl_key);
+
             if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
                 return ['status' => 400, 'data' => ['success' => false, 'error' => 'Aucun fichier valide n\'a été transmis ou erreur lors du téléversement.']];
             }
 
             $file = $_FILES['file'];
-            $max_size = 50 * 1024 * 1024;
-            if ($file['size'] > $max_size) {
-                return ['status' => 400, 'data' => ['success' => false, 'error' => 'Le fichier dépasse la taille maximale autorisée de 50 Mo.']];
-            }
-
-            $orig_name = basename($file['name']);
-            $ext = strtolower(pathinfo($orig_name, PATHINFO_EXTENSION));
-            $forbidden_exts = ['php', 'phtml', 'php3', 'php4', 'php5', 'php7', 'php8', 'phps', 'cgi', 'pl', 'py', 'sh', 'exe', 'bat', 'cmd', 'vbs', 'msi', 'phar', 'htaccess', 'user.ini', 'ini'];
-            if (in_array($ext, $forbidden_exts, true)) {
-                return ['status' => 400, 'data' => ['success' => false, 'error' => 'Type de fichier exécutable interdit pour des raisons de sécurité.']];
-            }
+            $orig_name = basename(str_replace('\\', '/', (string)$file['name']));
 
             $mime_type = 'application/octet-stream';
             if (function_exists('finfo_open')) {
@@ -929,8 +1067,17 @@ class TribuneActions {
                 if ($detected) $mime_type = $detected;
             }
 
+            $validation = self::validateTribuneUpload($orig_name, $mime_type, (int)($file['size'] ?? 0));
+            if (empty($validation['valid'])) {
+                return ['status' => 400, 'data' => ['success' => false, 'error' => $validation['error'] ?? 'Fichier refusé pour des raisons de sécurité.']];
+            }
+
+            $ext = $validation['ext'];
+            $safe_mime = $validation['safe_mime'];
+
             $upload_dir = $base_dir . '/storage/tribune_uploads';
             if (!is_dir($upload_dir)) @mkdir($upload_dir, 0755, true);
+            self::pruneExpiredTribuneUploads($upload_dir, 86400);
 
             $token = bin2hex(random_bytes(16));
             $bin_path = $upload_dir . '/' . $token . '.bin';
@@ -939,13 +1086,14 @@ class TribuneActions {
             if (!move_uploaded_file($file['tmp_name'], $bin_path)) {
                 return ['status' => 500, 'data' => ['success' => false, 'error' => 'Échec de l\'enregistrement du fichier temporaire sur le serveur.']];
             }
+            @chmod($bin_path, 0644);
 
             $now = time();
             $meta_data = [
                 'token'         => $token,
                 'original_name' => $orig_name,
-                'mime_type'     => $mime_type,
-                'size'          => $file['size'],
+                'mime_type'     => $safe_mime,
+                'size'          => (int)$file['size'],
                 'uploaded_at'   => $now,
                 'ext'           => $ext
             ];
@@ -956,8 +1104,8 @@ class TribuneActions {
                 'success'       => true,
                 'token'         => $token,
                 'original_name' => $orig_name,
-                'size'          => $file['size'],
-                'mime_type'     => $mime_type,
+                'size'          => (int)$file['size'],
+                'mime_type'     => $safe_mime,
                 'url'           => 'system/endpoints/api.php?action=tribune_file_get&token=' . $token
             ]];
         }
@@ -983,14 +1131,16 @@ class TribuneActions {
                 exit;
             }
 
-            $meta = @json_decode(@file_get_contents($meta_path), true);
-            $mime_type = $meta['mime_type'] ?? 'application/octet-stream';
-            $orig_name = $meta['original_name'] ?? ('tribune_' . $token . '.bin');
+            $meta = @json_decode(@file_get_contents($meta_path), true) ?: [];
+            $stored_mime = (string)($meta['mime_type'] ?? 'application/octet-stream');
+            $orig_name = (string)($meta['original_name'] ?? ('tribune_' . $token . '.bin'));
+            $ext = (string)($meta['ext'] ?? pathinfo($orig_name, PATHINFO_EXTENSION));
 
-            header('Content-Type: ' . $mime_type);
-            header('Content-Disposition: inline; filename="' . rawurlencode($orig_name) . '"');
+            $headers = self::getTribuneFileResponseHeaders($ext, $stored_mime, $orig_name);
+            foreach ($headers as $h_name => $h_val) {
+                header("{$h_name}: {$h_val}");
+            }
             header('Content-Length: ' . filesize($bin_path));
-            header('Cache-Control: public, max-age=86400');
 
             readfile($bin_path);
             exit;

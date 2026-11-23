@@ -20,6 +20,10 @@ $rate_limits = [
     'browser_proxy' => [
         'max_attempts'  => 30,
         'decay_seconds' => 60
+    ],
+    'tribune_upload' => [
+        'max_attempts'  => 15,
+        'decay_seconds' => 60
     ]
 ];
 

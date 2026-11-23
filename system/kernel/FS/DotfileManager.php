@@ -10,7 +10,11 @@ use SimpleGallery\Kernel\Security\SecurityManager;
  */
 class DotfileManager {
 
+    /**
+     * Evaluates local dotfile access state for a single directory (without walking parents).
+     */
     public static function getDirAccessInfo(string $dir_path, string $base_dir): array {
+        \SimpleGallery\Kernel\Auth\AuthManager::ensureSessionStarted();
         $rel = PathValidator::getRelativePath($dir_path, $base_dir);
 
         $has_password = file_exists($dir_path . '/.password');
@@ -27,25 +31,19 @@ class DotfileManager {
             $is_protected = false;
         } elseif ($has_private) {
             $is_private = true;
-        } elseif (basename($dir_path) === 'private') {
+        } elseif ($rel !== '' && basename($dir_path) === 'private') {
             $is_private = true;
         }
 
-        $is_unlocked = SecurityManager::isAdminLoggedIn();
-        if (!$is_unlocked && $rel !== '') {
-            if (!empty($_SESSION['unlocked_dirs'][$rel])) {
-                $is_unlocked = true;
-            } else {
-                $parts = explode('/', $rel);
-                $accum = '';
-                foreach ($parts as $p) {
-                    $accum = ($accum === '') ? $p : $accum . '/' . $p;
-                    if (!empty($_SESSION['unlocked_dirs'][$accum])) {
-                        $is_unlocked = true;
-                        break;
-                    }
-                }
-            }
+        $is_admin = SecurityManager::isAdminLoggedIn();
+        if ($is_admin) {
+            $is_unlocked = true;
+        } elseif ($is_private) {
+            $is_unlocked = false;
+        } elseif ($is_protected) {
+            $is_unlocked = (!empty($_SESSION['sg_unlocked_folders'][$rel]) || !empty($_SESSION['unlocked_dirs'][$rel]));
+        } else {
+            $is_unlocked = true;
         }
 
         $access_mode = 'public';
@@ -55,12 +53,118 @@ class DotfileManager {
             $access_mode = 'password';
         }
 
+        $is_accessible = $is_admin || (!$is_private && (!$is_protected || $is_unlocked));
+
         return [
-            'access_mode'  => $access_mode,
-            'is_private'   => $is_private,
-            'is_protected' => $is_protected,
-            'is_unlocked'  => $is_unlocked
+            'mode'              => $access_mode,
+            'access_mode'       => $access_mode,
+            'is_private'        => $is_private,
+            'is_protected'      => $is_protected,
+            'is_unlocked'       => $is_unlocked,
+            'is_accessible'     => $is_accessible,
+            'requires_auth'     => ($is_private || $is_protected),
+            'rel_path'          => $rel,
+            'blocking_rel_path' => $is_accessible ? null : $rel
         ];
+    }
+
+    /**
+     * Evaluates effective access state for $dir_path by walking every ancestor directory
+     * from $base_dir down to $dir_path. A parent .private or locked .password always
+     * restricts all descendant subdirectories.
+     */
+    public static function getEffectiveAccessInfo(string $dir_path, string $base_dir): array {
+        $is_admin = SecurityManager::isAdminLoggedIn();
+        $rel = PathValidator::getRelativePath($dir_path, $base_dir);
+        $real_base = rtrim(str_replace('\\', '/', realpath($base_dir) ?: $base_dir), '/');
+
+        // Build full chain of directories to check: root (if explicit .private/.password) + every ancestor segment
+        $chain = [];
+        if (file_exists($real_base . '/.private') || file_exists($real_base . '/.password')) {
+            $chain[] = $real_base;
+        }
+
+        if ($rel !== '') {
+            $parts = explode('/', $rel);
+            $accumulated = '';
+            foreach ($parts as $part) {
+                if ($part === '') continue;
+                $accumulated = ($accumulated === '') ? $part : $accumulated . '/' . $part;
+                $chain[] = $real_base . '/' . $accumulated;
+            }
+        } elseif (empty($chain)) {
+            return self::getDirAccessInfo($real_base, $base_dir);
+        }
+
+        $inherited_private = false;
+        $inherited_protected = false;
+        $blocking_mode = null;
+        $blocking_rel = null;
+
+        foreach ($chain as $check_dir) {
+            $step = self::getDirAccessInfo($check_dir, $base_dir);
+            if ($step['is_private']) {
+                $inherited_private = true;
+                if (!$is_admin && $blocking_mode === null) {
+                    $blocking_mode = 'private';
+                    $blocking_rel = $step['rel_path'];
+                }
+            } elseif ($step['is_protected']) {
+                $inherited_protected = true;
+                if (!$is_admin && !$step['is_unlocked'] && $blocking_mode === null) {
+                    $blocking_mode = 'password';
+                    $blocking_rel = $step['rel_path'];
+                }
+            }
+        }
+
+        $leaf = self::getDirAccessInfo($dir_path, $base_dir);
+
+        if ($blocking_mode === 'private') {
+            return [
+                'mode'              => 'private',
+                'access_mode'       => 'private',
+                'is_private'        => true,
+                'is_protected'      => false,
+                'is_unlocked'       => false,
+                'is_accessible'     => false,
+                'requires_auth'     => true,
+                'rel_path'          => $rel,
+                'blocking_rel_path' => $blocking_rel
+            ];
+        }
+
+        if ($blocking_mode === 'password') {
+            return [
+                'mode'              => 'password',
+                'access_mode'       => 'password',
+                'is_private'        => false,
+                'is_protected'      => true,
+                'is_unlocked'       => false,
+                'is_accessible'     => false,
+                'requires_auth'     => true,
+                'rel_path'          => $rel,
+                'blocking_rel_path' => $blocking_rel
+            ];
+        }
+
+        // Accessible (either admin, public, or all ancestor .password folders are unlocked)
+        if ($inherited_private && !$leaf['is_private']) {
+            $leaf['mode'] = 'private';
+            $leaf['access_mode'] = 'private';
+            $leaf['is_private'] = true;
+            $leaf['requires_auth'] = true;
+        } elseif ($inherited_protected && !$leaf['is_private'] && !$leaf['is_protected']) {
+            $leaf['mode'] = 'password';
+            $leaf['access_mode'] = 'password';
+            $leaf['is_protected'] = true;
+            $leaf['is_unlocked'] = true;
+            $leaf['requires_auth'] = true;
+        }
+
+        $leaf['is_accessible'] = true;
+        $leaf['blocking_rel_path'] = null;
+        return $leaf;
     }
 
     public static function isDirAccessible(string $dir_path, string $base_dir): bool {
@@ -68,29 +172,8 @@ class DotfileManager {
             return true;
         }
 
-        $rel = PathValidator::getRelativePath($dir_path, $base_dir);
-        if ($rel === '') {
-            return true;
-        }
-
-        $parts = explode('/', $rel);
-        $accumulated = '';
-        foreach ($parts as $part) {
-            $accumulated = ($accumulated === '') ? $part : $accumulated . '/' . $part;
-            $current_check_dir = $base_dir . '/' . $accumulated;
-
-            $access_info = self::getDirAccessInfo($current_check_dir, $base_dir);
-
-            if ($access_info['is_private']) {
-                return false;
-            }
-
-            if ($access_info['is_protected'] && !$access_info['is_unlocked']) {
-                return false;
-            }
-        }
-
-        return true;
+        $effective = self::getEffectiveAccessInfo($dir_path, $base_dir);
+        return !empty($effective['is_accessible']);
     }
 
     public static function loadComments(string $dir_path): array {

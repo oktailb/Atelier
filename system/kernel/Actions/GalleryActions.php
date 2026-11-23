@@ -54,7 +54,7 @@ class GalleryActions {
             ];
         }
 
-        $access_info = DotfileManager::getDirAccessInfo($target_dir, $base_dir);
+        $access_info = DotfileManager::getEffectiveAccessInfo($target_dir, $base_dir);
         if ($access_info['is_private'] && !AuthManager::isAdminLoggedIn()) {
             return [
                 'status' => 403,
@@ -69,7 +69,7 @@ class GalleryActions {
                     'success'      => true,
                     'is_locked'    => true,
                     'access_mode'  => 'password',
-                    'current_path' => PathValidator::getRelativePath($target_dir, $base_dir),
+                    'current_path' => $access_info['blocking_rel_path'] ?? PathValidator::getRelativePath($target_dir, $base_dir),
                     'message'      => __t('api.msg_password_required', [], null, $base_dir)
                 ]
             ];
@@ -380,21 +380,36 @@ class GalleryActions {
 
     public static function getAllMediaFlat(string $base_dir, array $media_types, array $ignore_list): array {
         $all_files = [];
+        if (!is_dir($base_dir) || !DotfileManager::isDirAccessible($base_dir, $base_dir)) {
+            return [
+                'status' => 200,
+                'data'   => [
+                    'success' => true,
+                    'files'   => [],
+                    'count'   => 0
+                ]
+            ];
+        }
+
+        $dir_iterator = new \RecursiveDirectoryIterator($base_dir, \RecursiveDirectoryIterator::SKIP_DOTS);
+        $filter_iterator = new \RecursiveCallbackFilterIterator($dir_iterator, function ($current) use ($base_dir, $ignore_list): bool {
+            $name = $current->getFilename();
+            if ($name === '' || $name[0] === '.' || in_array($name, $ignore_list, true)) {
+                return false;
+            }
+            if ($current->isDir()) {
+                return DotfileManager::isDirAccessible($current->getPathname(), $base_dir);
+            }
+            return true;
+        });
+
         $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($base_dir, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::SELF_FIRST
+            $filter_iterator,
+            \RecursiveIteratorIterator::LEAVES_ONLY
         );
 
         foreach ($iterator as $item) {
-            if ($item->isDir()) {
-                if (in_array($item->getFilename(), $ignore_list, true) || $item->getFilename()[0] === '.') {
-                    continue;
-                }
-                $access = DotfileManager::getDirAccessInfo($item->getPathname(), $base_dir);
-                if ($access['is_private'] && !AuthManager::isAdminLoggedIn()) {
-                    continue;
-                }
-            } elseif ($item->isFile()) {
+            if ($item->isFile()) {
                 $ext = strtolower($item->getExtension());
                 if (in_array($ext, $media_types['image'] ?? [], true) || in_array($ext, $media_types['video'] ?? [], true) || in_array($ext, $media_types['audio'] ?? [], true)) {
                     $rel = PathValidator::getRelativePath($item->getPathname(), $base_dir);
@@ -428,6 +443,13 @@ class GalleryActions {
             return [
                 'status' => 404,
                 'data'   => ['success' => false, 'error' => __t('api.err_file_not_found', [], null, $base_dir)]
+            ];
+        }
+
+        if (!DotfileManager::isDirAccessible(dirname($file_path), $base_dir)) {
+            return [
+                'status' => 403,
+                'data'   => ['success' => false, 'error' => __t('api.err_access_denied', [], null, $base_dir)]
             ];
         }
 

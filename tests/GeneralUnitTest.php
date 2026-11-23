@@ -1022,15 +1022,16 @@ class GeneralUnitTestSuite {
         $this->assert("BrowserProxyAction rejette IP privée 192.168.1.1 (Anti-SSRF)", !\SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::isSafePublicUrl('http://192.168.1.1/'));
         $this->assert("BrowserProxyAction accepte URL publique", \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::isSafePublicUrl('https://fr.wikipedia.org/wiki/Accueil'));
 
-        $proxy_ssrf_res = \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::handle('browser_proxy', ['url' => 'http://127.0.0.1:8080/test', 'test_mode' => true], []);
+        $proxy_ssrf_res = \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::handle('browser_proxy', ['url' => 'http://127.0.0.1:8080/test'], ['test_mode' => true]);
         $this->assert("BrowserProxyAction retourne 403 sur tentative SSRF", ($proxy_ssrf_res['status'] ?? 0) === 403);
 
         $mock_html = "<html><head><title>Test Page</title></head><body><a href=\"/page2\">Page 2</a></body></html>";
         $proxy_mock_res = \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::handle('browser_proxy', [
-            'url' => 'https://example.com/sub/index.html',
-            'mock_body' => $mock_html,
-            'test_mode' => true
-        ], []);
+            'url' => 'https://example.com/sub/index.html'
+        ], [
+            'test_mode' => true,
+            'mock_body' => $mock_html
+        ]);
         $this->assert("BrowserProxyAction retourne 200 sur page mockée", ($proxy_mock_res['status'] ?? 0) === 200);
         $rewritten = $proxy_mock_res['data']['content'] ?? '';
         $this->assert("BrowserProxyAction injecte la balise <base href='https://example.com/sub/'>", strpos($rewritten, '<base href="https://example.com/sub/"') !== false);

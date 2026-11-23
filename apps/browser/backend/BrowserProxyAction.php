@@ -154,19 +154,21 @@ class BrowserProxyAction {
             return null;
         }
 
-        $is_test = !empty($params['test_mode']) || !empty($context['test_mode']);
+        // Strict CLI-only test mode: never trust test_mode / mock_body / enforce_* from HTTP $_GET/$_POST params
+        $is_cli_runtime = (PHP_SAPI === 'cli') && empty($context['simulate_web']);
+        $is_test = $is_cli_runtime && !empty($context['test_mode']);
         $base_dir = (string)($context['base_dir'] ?? dirname(dirname(dirname(__DIR__))));
         $project_root = dirname(dirname(dirname(__DIR__)));
 
         // 1. Authentication / Permission Gate (prevents anonymous open-proxy abuse)
-        if (!$is_test || !empty($params['enforce_auth'])) {
+        if (!$is_test || !empty($context['enforce_auth'])) {
             $is_authorized = AuthManager::isAdminLoggedIn()
                 || PermissionsManager::hasPermission('can_use_browser_proxy', $project_root)
                 || PermissionsManager::hasPermission('can_use_browser_proxy', $base_dir);
 
             if (!$is_authorized) {
                 $err = 'Accès refusé : le proxy navigateur WebOS nécessite une connexion administrateur ou une autorisation explicite.';
-                if ($is_test || PHP_SAPI === 'cli') {
+                if ($is_test || $is_cli_runtime) {
                     return [
                         'status' => 403,
                         'data'   => ['success' => false, 'error' => $err]
@@ -177,14 +179,14 @@ class BrowserProxyAction {
         }
 
         // 2. IP Rate Limiting
-        if (!$is_test || !empty($params['enforce_rate_limit'])) {
+        if (!$is_test || !empty($context['enforce_rate_limit'])) {
             global $rate_limits;
             $max_attempts = (int)($rate_limits['browser_proxy']['max_attempts'] ?? 30);
             $decay_seconds = (int)($rate_limits['browser_proxy']['decay_seconds'] ?? 60);
 
             if (!RateLimiter::check('browser_proxy', $max_attempts, $decay_seconds)) {
                 $err = 'Trop de requêtes proxy. Veuillez patienter avant de réessayer.';
-                if ($is_test || PHP_SAPI === 'cli') {
+                if ($is_test || $is_cli_runtime) {
                     return [
                         'status' => 429,
                         'data'   => ['success' => false, 'error' => $err]
@@ -213,7 +215,7 @@ class BrowserProxyAction {
 
         if (!self::isSafePublicUrl($url)) {
             $err = 'Accès refusé : adresse IP ou réseau privé non autorisé (anti-SSRF).';
-            if ($is_test || PHP_SAPI === 'cli') {
+            if ($is_test || $is_cli_runtime) {
                 return [
                     'status' => 403,
                     'data'   => ['success' => false, 'error' => $err]
@@ -222,9 +224,9 @@ class BrowserProxyAction {
             self::sendWebError(403, '🛡️ Requête Bloquée (Anti-SSRF)', $err, $url);
         }
 
-        // Check if running in mock/CLI test mode
-        if ($is_test && !empty($params['mock_body'])) {
-            $processed = self::processHtml((string)$params['mock_body'], $url);
+        // Check if running in mock/CLI test mode (strictly from $context, never HTTP params)
+        if ($is_test && !empty($context['mock_body'])) {
+            $processed = self::processHtml((string)$context['mock_body'], $url);
             return [
                 'status' => 200,
                 'data'   => [
@@ -254,7 +256,7 @@ class BrowserProxyAction {
         ]);
 
         if (!empty($fetch['ssrf_blocked'])) {
-            if ($is_test || PHP_SAPI === 'cli') {
+            if ($is_test || $is_cli_runtime) {
                 return [
                     'status' => 403,
                     'data'   => ['success' => false, 'error' => $fetch['error']]
@@ -266,7 +268,7 @@ class BrowserProxyAction {
         if (!$fetch['success'] && empty($fetch['body'])) {
             $status = (int)($fetch['status_code'] ?: 502);
             $err_msg = $fetch['error'] ?: 'Impossible de contacter le serveur distant.';
-            if ($is_test || PHP_SAPI === 'cli') {
+            if ($is_test || $is_cli_runtime) {
                 return [
                     'status' => $status,
                     'data'   => ['success' => false, 'error' => $err_msg]
@@ -287,7 +289,7 @@ class BrowserProxyAction {
             $body = self::processHtml($body, $final_url);
         }
 
-        if ($is_test || PHP_SAPI === 'cli') {
+        if ($is_test || $is_cli_runtime) {
             return [
                 'status' => $status_code,
                 'data'   => [

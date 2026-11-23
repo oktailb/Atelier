@@ -736,27 +736,127 @@ HTACCESS;
         $escaped_html = \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::processHtml('<html><head></head><body>Hi</body></html>', $xss_url);
         $this->assert("BrowserProxy échappe </script> dans l'URL source (JSON_HEX_TAG)", stripos($escaped_html, '</script><script>alert(1)') === false);
 
-        // Auth gate check: guest rejected (403), admin allowed (200)
+        // Auth gate check: guest rejected (403), admin allowed (200), AND HTTP param test_mode=1 cannot bypass auth (SEC-01)
         $prev_admin_1 = $_SESSION['is_admin'] ?? null;
         $prev_admin_2 = $_SESSION['sg_admin_logged'] ?? null;
         unset($_SESSION['is_admin'], $_SESSION['sg_admin_logged']);
         $guest_proxy_res = \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::handle('browser_proxy', [
-            'url'          => 'https://example.com/',
-            'mock_body'    => '<html><body>ok</body></html>',
+            'url' => 'https://example.com/'
+        ], [
+            'base_dir'     => $this->temp_test_dir,
             'test_mode'    => true,
-            'enforce_auth' => true
-        ], ['base_dir' => $this->temp_test_dir]);
+            'enforce_auth' => true,
+            'mock_body'    => '<html><body>ok</body></html>'
+        ]);
         $this->assert("BrowserProxy refuse un invité non autorisé (403)", ($guest_proxy_res['status'] ?? 0) === 403);
+
+        // SEC-01: Passing test_mode=true & mock_body in HTTP $params (without $context['test_mode']) MUST be rejected (403)
+        $bypass_attempt_res = \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::handle('browser_proxy', [
+            'url'       => 'https://example.com/',
+            'test_mode' => true,
+            'mock_body' => '<html><body>bypassed</body></html>'
+        ], [
+            'base_dir' => $this->temp_test_dir
+        ]);
+        $this->assert("SEC-01: BrowserProxy rejette le contournement ?test_mode=1 depuis les paramètres HTTP (403)", ($bypass_attempt_res['status'] ?? 0) === 403);
 
         $_SESSION['is_admin'] = true;
         $_SESSION['sg_admin_logged'] = true;
         $admin_proxy_res = \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::handle('browser_proxy', [
-            'url'          => 'https://example.com/',
-            'mock_body'    => '<html><body>ok</body></html>',
+            'url' => 'https://example.com/'
+        ], [
+            'base_dir'     => $this->temp_test_dir,
             'test_mode'    => true,
-            'enforce_auth' => true
-        ], ['base_dir' => $this->temp_test_dir]);
+            'enforce_auth' => true,
+            'mock_body'    => '<html><body>ok</body></html>'
+        ]);
         $this->assert("BrowserProxy autorise un administrateur connecté (200)", ($admin_proxy_res['status'] ?? 0) === 200);
+        if ($prev_admin_1 === null) unset($_SESSION['is_admin']); else $_SESSION['is_admin'] = $prev_admin_1;
+        if ($prev_admin_2 === null) unset($_SESSION['sg_admin_logged']); else $_SESSION['sg_admin_logged'] = $prev_admin_2;
+
+        // SEC-02: Tribune File Upload Whitelist, Auth Gate & Hardened Delivery Headers (Anti-Stored XSS)
+        $val_html = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::validateTribuneUpload('evil.html', 'text/html', 120);
+        $this->assert("SEC-02: tribune_file_upload rejette les fichiers .html", empty($val_html['valid']));
+        $val_svg = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::validateTribuneUpload('xss.svg', 'image/svg+xml', 120);
+        $this->assert("SEC-02: tribune_file_upload rejette les fichiers .svg", empty($val_svg['valid']));
+        $val_spoof = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::validateTribuneUpload('fake.png', 'text/html', 120);
+        $this->assert("SEC-02: tribune_file_upload rejette un MIME text/html déguisé en .png", empty($val_spoof['valid']));
+        $val_double = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::validateTribuneUpload('shell.php.jpg', 'image/jpeg', 120);
+        $this->assert("SEC-02: tribune_file_upload rejette une double extension shell.php.jpg", empty($val_double['valid']));
+        $val_oversize = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::validateTribuneUpload('big.jpg', 'image/jpeg', 20 * 1024 * 1024);
+        $this->assert("SEC-02: tribune_file_upload rejette un fichier > 10 Mo", empty($val_oversize['valid']));
+        $val_ok_png = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::validateTribuneUpload('photo.png', 'image/png', 2048);
+        $this->assert("SEC-02: tribune_file_upload accepte un fichier image PNG légitime", !empty($val_ok_png['valid']));
+
+        $hdr_img = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::getTribuneFileResponseHeaders('png', 'image/png', 'photo.png');
+        $this->assert("SEC-02: tribune_file_get applique CSP sandbox sur image PNG", stripos($hdr_img['Content-Security-Policy'] ?? '', 'sandbox') !== false);
+        $this->assert("SEC-02: tribune_file_get applique X-Content-Type-Options: nosniff", ($hdr_img['X-Content-Type-Options'] ?? '') === 'nosniff');
+        $this->assert("SEC-02: tribune_file_get autorise inline pour PNG sûr", strpos($hdr_img['Content-Disposition'] ?? '', 'inline;') === 0);
+
+        $hdr_html = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::getTribuneFileResponseHeaders('html', 'text/html', 'evil.html');
+        $this->assert("SEC-02: tribune_file_get force octet-stream sur un fichier HTML legacy", ($hdr_html['Content-Type'] ?? '') === 'application/octet-stream');
+        $this->assert("SEC-02: tribune_file_get force attachment sur un fichier non-image", strpos($hdr_html['Content-Disposition'] ?? '', 'attachment;') === 0);
+
+        // SEC-02: Unauthorized guest upload rejected with 403
+        unset($_SESSION['is_admin'], $_SESSION['sg_admin_logged']);
+        $guest_upload_res = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::handle('tribune_file_upload', [], $this->temp_test_dir);
+        $this->assert("SEC-02: tribune_file_upload refuse un invité non autorisé (403)", ($guest_upload_res['status'] ?? 0) === 403);
+
+        // SEC-03, SEC-04, SEC-05: Recursive .private/.password inheritance across AuthManager, SearchEngine, GalleryActions, FileActions, ArchiveEngine
+        $sec_root = $this->temp_test_dir . '/sec_phase0_tree';
+        $pub_dir = $sec_root . '/public_album';
+        $priv_parent = $sec_root . '/secret_parent';
+        $priv_child = $priv_parent . '/nested_child';
+        $pwd_parent = $sec_root . '/locked_parent';
+        $pwd_child = $pwd_parent . '/nested_locked_child';
+        @mkdir($pub_dir, 0755, true);
+        @mkdir($priv_child, 0755, true);
+        @mkdir($pwd_child, 0755, true);
+
+        file_put_contents($pub_dir . '/visible.jpg', 'public-img');
+        file_put_contents($priv_parent . '/.private', "1\n");
+        file_put_contents($priv_child . '/hidden_nested.jpg', 'secret-img');
+        file_put_contents($pwd_parent . '/.password', password_hash('SecretPwd!', PASSWORD_DEFAULT) . "\n");
+        file_put_contents($pwd_child . '/locked_nested.jpg', 'locked-img');
+
+        $this->assert("SEC-03: AuthManager::isDirAccessible bloque un sous-dossier d'un parent .private", \SimpleGallery\Kernel\Auth\AuthManager::isDirAccessible($priv_child, $sec_root) === false);
+        $this->assert("SEC-03: is_dir_accessible bloque un sous-dossier d'un parent .password verrouillé", is_dir_accessible($pwd_child, $sec_root) === false);
+        $this->assert("SEC-03: is_dir_accessible autorise un dossier public", is_dir_accessible($pub_dir, $sec_root) === true);
+
+        global $media_types;
+        $mtypes = $media_types ?: ['image' => ['jpg', 'png'], 'video' => ['mp4'], 'audio' => ['mp3']];
+
+        $search_res = \SimpleGallery\Kernel\Search\SearchEngine::search($sec_root, $sec_root, ['q' => '', 'recursive' => true], [], $mtypes);
+        $search_names = array_column($search_res, 'name');
+        $this->assert("SEC-04: SearchEngine retourne le média public", in_array('visible.jpg', $search_names, true));
+        $this->assert("SEC-04: SearchEngine exclut les médias dans un sous-dossier .private", !in_array('hidden_nested.jpg', $search_names, true));
+        $this->assert("SEC-04: SearchEngine exclut les médias dans un sous-dossier .password verrouillé", !in_array('locked_nested.jpg', $search_names, true));
+
+        $gal_priv_sub = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => 'secret_parent/nested_child'], $sec_root, $mtypes, [], 'Test', '.thumbnails');
+        $this->assert("SEC-04: GalleryActions::getGallery refuse un sous-dossier de .private (403)", ($gal_priv_sub['status'] ?? 0) === 403);
+
+        $gal_pwd_sub = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => 'locked_parent/nested_locked_child'], $sec_root, $mtypes, [], 'Test', '.thumbnails');
+        $this->assert("SEC-04: GalleryActions::getGallery verrouille un sous-dossier de .password", !empty($gal_pwd_sub['data']['is_locked']));
+
+        $flat_res = \SimpleGallery\Kernel\Actions\GalleryActions::getAllMediaFlat($sec_root, $mtypes, []);
+        $flat_names = array_column($flat_res['data']['files'] ?? [], 'name');
+        $this->assert("SEC-04: getAllMediaFlat inclut le média public", in_array('visible.jpg', $flat_names, true));
+        $this->assert("SEC-04: getAllMediaFlat exclut les sous-dossiers .private", !in_array('hidden_nested.jpg', $flat_names, true));
+        $this->assert("SEC-04: getAllMediaFlat exclut les sous-dossiers .password verrouillés", !in_array('locked_nested.jpg', $flat_names, true));
+
+        $stream_priv = \SimpleGallery\Kernel\Actions\GalleryActions::getStreamUrl(['file' => 'secret_parent/nested_child/hidden_nested.jpg'], $sec_root);
+        $this->assert("SEC-04: getStreamUrl refuse un fichier sous .private (403)", ($stream_priv['status'] ?? 0) === 403);
+
+        $allowed_arch = \SimpleGallery\Kernel\FS\ArchiveEngine::collectAllowedFiles($sec_root, $sec_root, []);
+        $allowed_locals = array_column($allowed_arch, 'local');
+        $this->assert("SEC-05: ArchiveEngine::collectAllowedFiles inclut le média public", in_array('public_album/visible.jpg', $allowed_locals, true));
+        $this->assert("SEC-05: ArchiveEngine::collectAllowedFiles exclut les sous-dossiers .private", !in_array('secret_parent/nested_child/hidden_nested.jpg', $allowed_locals, true));
+        $this->assert("SEC-05: ArchiveEngine::collectAllowedFiles exclut les sous-dossiers .password verrouillés", !in_array('locked_parent/nested_locked_child/locked_nested.jpg', $allowed_locals, true));
+
+        $priv_zip_out = $this->temp_test_dir . '/should_not_create.zip';
+        $this->assert("SEC-05: ArchiveEngine refuse d'archiver directement un sous-dossier .private", \SimpleGallery\Kernel\FS\ArchiveEngine::createArchive('zip', $priv_child, $priv_zip_out, $sec_root, []) === false);
+        if (file_exists($priv_zip_out)) @unlink($priv_zip_out);
+
         if ($prev_admin_1 === null) unset($_SESSION['is_admin']); else $_SESSION['is_admin'] = $prev_admin_1;
         if ($prev_admin_2 === null) unset($_SESSION['sg_admin_logged']); else $_SESSION['sg_admin_logged'] = $prev_admin_2;
 

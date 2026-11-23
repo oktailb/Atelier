@@ -138,6 +138,9 @@ class FileActions {
             if (!$dir_target || !is_dir($dir_target)) {
                 return ['status' => 404, 'data' => ['success' => false, 'error' => __t('api.err_folder_not_found')]];
             }
+            if (!DotfileManager::isDirAccessible($dir_target, $base_dir)) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
 
             $comments = DotfileManager::loadDirComments($dir_target);
             if (trim((string)$comment) === '') {
@@ -167,6 +170,9 @@ class FileActions {
             $dir_target = PathValidator::sanitizeDirectory($req_dir, $base_dir);
             if (!$dir_target || !is_dir($dir_target)) {
                 return ['status' => 404, 'data' => ['success' => false, 'error' => __t('api.err_folder_not_found')]];
+            }
+            if (!DotfileManager::isDirAccessible($dir_target, $base_dir)) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
             }
 
             if ($title !== null) {
@@ -214,6 +220,9 @@ class FileActions {
             $target_dir = PathValidator::sanitizeDirectory($dir_param, $base_dir);
             if ($target_dir === null || !is_dir($target_dir)) {
                 return ['status' => 404, 'data' => ['success' => false, 'error' => 'Dossier cible introuvable ou accès refusé.']];
+            }
+            if (!DotfileManager::isDirAccessible($target_dir, $base_dir)) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
             }
 
             if (empty($_FILES)) {
@@ -341,6 +350,9 @@ class FileActions {
             if ($target_dir === null || !is_dir($target_dir)) {
                 return ['status' => 404, 'data' => ['success' => false, 'error' => __t('api.err_folder_not_found')]];
             }
+            if (!DotfileManager::isDirAccessible($target_dir, $base_dir)) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
 
             $clean_name = basename($name_param);
             if (empty($clean_name) || $clean_name[0] === '.' || preg_match('/[\/\\\\:\*\?"<>\|]/', $clean_name)) {
@@ -377,12 +389,19 @@ class FileActions {
             if ($target_dir_full === null || !is_dir($target_dir_full)) {
                 return ['status' => 404, 'data' => ['success' => false, 'error' => __t('api.err_source_or_dest_invalid')]];
             }
+            if (!DotfileManager::isDirAccessible($target_dir_full, $base_dir)) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
 
             // Single item string path (preserves exact legacy contract & HTTP status codes)
             if (!is_array($source_param)) {
                 $source_full = PathValidator::canonicalizeAndValidate((string)$source_param, $base_dir, true, false);
                 if ($source_full === null || !file_exists($source_full)) {
                     return ['status' => 404, 'data' => ['success' => false, 'error' => __t('api.err_source_or_dest_invalid')]];
+                }
+                $src_check_dir = is_dir($source_full) ? $source_full : dirname($source_full);
+                if (!DotfileManager::isDirAccessible($src_check_dir, $base_dir)) {
+                    return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
                 }
 
                 if (is_dir($source_full) && ($source_full === $target_dir_full || strpos($target_dir_full . '/', $source_full . '/') === 0)) {
@@ -425,6 +444,11 @@ class FileActions {
                 $source_full = PathValidator::canonicalizeAndValidate(trim($src_item), $base_dir, true, false);
                 if ($source_full === null || !file_exists($source_full)) {
                     $errors[] = basename($src_item) . ' introuvable';
+                    continue;
+                }
+                $src_check_dir = is_dir($source_full) ? $source_full : dirname($source_full);
+                if (!DotfileManager::isDirAccessible($src_check_dir, $base_dir)) {
+                    $errors[] = basename($src_item) . ' (accès refusé)';
                     continue;
                 }
                 if (is_dir($source_full) && ($source_full === $target_dir_full || strpos($target_dir_full . '/', $source_full . '/') === 0)) {
@@ -485,6 +509,10 @@ class FileActions {
             if ($source_full === null || $target_dir_full === null || !file_exists($source_full) || !is_dir($target_dir_full)) {
                 return ['status' => 404, 'data' => ['success' => false, 'error' => __t('api.err_source_or_dest_invalid')]];
             }
+            $src_check_dir = is_dir($source_full) ? $source_full : dirname($source_full);
+            if (!DotfileManager::isDirAccessible($src_check_dir, $base_dir) || !DotfileManager::isDirAccessible($target_dir_full, $base_dir)) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
 
             $dest_name = $new_name_param !== null ? basename($new_name_param) : basename($source_full);
             if (empty($dest_name) || $dest_name[0] === '.' || preg_match('/[\/\\\\:\*\?"<>\|]/', $dest_name)) {
@@ -541,6 +569,10 @@ class FileActions {
             if ($target_full === null || !file_exists($target_full)) {
                 return ['status' => 404, 'data' => ['success' => false, 'error' => __t('api.err_item_not_found')]];
             }
+            $del_check_dir = is_dir($target_full) ? $target_full : dirname($target_full);
+            if (!DotfileManager::isDirAccessible($del_check_dir, $base_dir)) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
 
             $parent_dir = dirname($target_full);
             $success = false;
@@ -593,6 +625,9 @@ class FileActions {
             $target_file = PathValidator::sanitizeFile($target_param, $base_dir);
             if ($target_file === null || !is_file($target_file) || PathValidator::isPathIgnored($target_file, $base_dir, $ignore_list)) {
                 return ['status' => 404, 'data' => ['success' => false, 'error' => __t('api.err_invalid_path')]];
+            }
+            if (!DotfileManager::isDirAccessible(dirname($target_file), $base_dir)) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
             }
 
             $ext = strtolower(pathinfo($target_file, PATHINFO_EXTENSION));
@@ -679,6 +714,9 @@ class FileActions {
             $file_full = PathValidator::canonicalizeAndValidate($file_param, $base_dir, false, false);
             if ($file_full === null) {
                 return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_invalid_path')]];
+            }
+            if (!DotfileManager::isDirAccessible(dirname($file_full), $base_dir)) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
             }
 
             $filename = basename($file_full);

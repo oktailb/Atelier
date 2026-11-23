@@ -70,6 +70,9 @@ class SearchEngine {
             if (!is_dir($dir) || PathValidator::isPathIgnored($dir, $base_dir, $ignore_list)) {
                 return;
             }
+            if (!DotfileManager::isDirAccessible($dir, $base_dir)) {
+                return;
+            }
 
             $items = @scandir($dir);
             if ($items === false) return;
