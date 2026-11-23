@@ -158,11 +158,23 @@
                 dropdown.appendChild(sep);
               } else {
                 const itemBtn = document.createElement('button');
-                itemBtn.className = 'webos-dropdown-item';
-                itemBtn.textContent = item.label || item.id;
-                itemBtn.style.cssText = 'display:flex; align-items:center; gap:6px; width:100%; text-align:left; background:none; border:none; color:var(--text-main, inherit); font-size:0.82rem; padding:7px 10px; border-radius:6px; cursor:pointer; transition:background 0.12s;';
+                itemBtn.className = 'webos-dropdown-item' + (item.checked ? ' is-active' : '');
+                const labelText = item.label || item.id;
+                if (typeof item.checked === 'boolean') {
+                  const checkSpan = document.createElement('span');
+                  checkSpan.textContent = item.checked ? '✓' : '';
+                  checkSpan.style.cssText = 'display:inline-block; width:14px; font-weight:700; color:var(--accent, #2563eb); flex-shrink:0;';
+                  const textSpan = document.createElement('span');
+                  textSpan.textContent = labelText;
+                  itemBtn.appendChild(checkSpan);
+                  itemBtn.appendChild(textSpan);
+                } else {
+                  itemBtn.textContent = labelText;
+                }
+                const activeBg = item.checked ? 'rgba(99, 102, 241, 0.12)' : 'none';
+                itemBtn.style.cssText = `display:flex; align-items:center; gap:6px; width:100%; text-align:left; background:${activeBg}; border:none; color:var(--text-main, inherit); font-size:0.82rem; font-weight:${item.checked ? '600' : '400'}; padding:7px 10px; border-radius:6px; cursor:pointer; transition:background 0.12s;`;
                 itemBtn.addEventListener('mouseenter', () => itemBtn.style.background = 'var(--border-color, rgba(99,102,241,0.18))');
-                itemBtn.addEventListener('mouseleave', () => itemBtn.style.background = 'none');
+                itemBtn.addEventListener('mouseleave', () => itemBtn.style.background = activeBg);
                 itemBtn.addEventListener('click', (e) => {
                   e.stopPropagation();
                   dropdown.style.display = 'none';

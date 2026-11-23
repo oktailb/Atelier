@@ -344,6 +344,7 @@
         viewItems.push({ separator: true });
         viewItems.push({
           id: 'renderer-auto',
+          checked: !this.activeRendererFlag,
           label: this.t('webapp.renderer_auto'),
           action: () => this.setRendererFlag('')
         });
@@ -351,6 +352,7 @@
           if (!f || !f.flag) return;
           viewItems.push({
             id: `renderer-${f.flag}`,
+            checked: this.activeRendererFlag === f.flag,
             label: `🎨 ${f.label || f.flag} (?${f.flag})`,
             action: () => this.setRendererFlag(f.flag)
           });
@@ -544,6 +546,7 @@
 
     setRendererFlag(flag) {
       this.activeRendererFlag = flag || '';
+      this.refreshMenus();
       this.reload();
     }
 
