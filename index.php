@@ -243,8 +243,17 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
           </div>
         </div>
 
-        <button id="adminBtn" class="btn-toggle" title="Mode Administration" data-i18n-title="nav.admin">
-          <span id="adminBtnIcon">🔑</span> <span id="adminBtnText" data-i18n="nav.admin">Admin</span>
+        <?php
+          $hdr_user = \SimpleGallery\Kernel\Auth\AuthManager::getCurrentUser();
+          $hdr_is_admin = is_admin_logged_in();
+          $hdr_icon = $hdr_user ? ($hdr_is_admin ? '🛡️' : '👤') : '🔑';
+          $hdr_label = $hdr_user
+            ? ($hdr_user['display_name'] ?: $hdr_user['username'])
+            : ($hdr_is_admin ? __t('nav.admin') : __t('auth.sign_in_short'));
+          $hdr_active = ($hdr_user || $hdr_is_admin) ? ' active' : '';
+        ?>
+        <button id="adminBtn" class="btn-toggle<?php echo $hdr_active; ?>" title="<?php echo htmlspecialchars($hdr_label, ENT_QUOTES, 'UTF-8'); ?>">
+          <span id="adminBtnIcon"><?php echo $hdr_icon; ?></span> <span id="adminBtnText"><?php echo htmlspecialchars($hdr_label, ENT_QUOTES, 'UTF-8'); ?></span>
         </button>
       </div>
     </div>

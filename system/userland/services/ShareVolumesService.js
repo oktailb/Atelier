@@ -100,19 +100,35 @@
     }
 
     updateHeaderUserBadge() {
+      const btnEl = document.getElementById('adminBtn');
       const iconEl = document.getElementById('adminBtnIcon');
       const textEl = document.getElementById('adminBtnText');
       if (!textEl) return;
       const user = this.getCurrentUser();
       if (user) {
+        const label = user.display_name || user.username;
         if (iconEl) iconEl.textContent = window.IS_ADMIN ? '🛡️' : '👤';
-        textEl.textContent = user.display_name || user.username;
+        textEl.textContent = label;
+        if (btnEl) {
+          btnEl.classList.add('active');
+          btnEl.title = `${label} (@${user.username} · ${user.role})`;
+        }
       } else if (window.IS_ADMIN) {
+        const label = t('nav.admin');
         if (iconEl) iconEl.textContent = '🔑';
-        textEl.textContent = t('nav.admin');
+        textEl.textContent = label;
+        if (btnEl) {
+          btnEl.classList.add('active');
+          btnEl.title = label;
+        }
       } else {
+        const label = t('auth.sign_in_short');
         if (iconEl) iconEl.textContent = '🔑';
-        textEl.textContent = t('auth.sign_in_short');
+        textEl.textContent = label;
+        if (btnEl) {
+          btnEl.classList.remove('active');
+          btnEl.title = label;
+        }
       }
     }
 
@@ -438,6 +454,10 @@
     const boot = () => {
       service.updateHeaderUserBadge();
       service.checkIncomingShareLink();
+      if (window.EventBus && typeof window.EventBus.on === 'function') {
+        window.EventBus.on('locale:changed', () => service.updateHeaderUserBadge());
+        window.EventBus.on('auth:changed', () => service.updateHeaderUserBadge());
+      }
     };
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', boot);

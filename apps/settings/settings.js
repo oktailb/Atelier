@@ -223,11 +223,11 @@
       ` : `
         <div>
           <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">
-            ${this.t('settings.admin_required_notice')}
+            ${this.t('auth.login_notice')}
           </div>
           <form id="settingsLoginForm" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
             <input type="text" id="settingsUserInput" class="admin-input" style="flex:0.85; min-width:160px;" placeholder="${this.escapeHtml(this.t('auth.username_optional_placeholder'))}" autocomplete="username" />
-            <input type="password" id="settingsPassInput" class="admin-input" style="flex:1; min-width:180px;" placeholder="${this.t('admin.password_placeholder')}" required autofocus autocomplete="current-password" />
+            <input type="password" id="settingsPassInput" class="admin-input" style="flex:1; min-width:180px;" placeholder="${this.escapeHtml(this.t('auth.password_placeholder'))}" required autofocus autocomplete="current-password" />
             <button type="submit" class="sysmon-action-btn" style="padding:8px 18px; background:var(--accent-primary, #6366f1); color:#fff; font-weight:600;">
               🔑 ${this.t('admin.login_btn')}
             </button>
@@ -270,16 +270,16 @@
 
       return `
         ${window.sys.ui.card({
-          title: 'admin.login_title',
-          icon: '🔐',
+          title: 'auth.account_session_title',
+          icon: currentUser ? (this.isAdmin ? '🛡️' : '👤') : '🔐',
           content: authContent
         })}
 
-        ${window.sys.ui.card({
+        ${(!currentUser || this.isAdmin) ? window.sys.ui.card({
           title: 'admin.perms_title',
           icon: '🛡️',
           content: permsContent
-        })}
+        }) : ''}
 
         ${this.isAdmin ? window.sys.ui.card({
           title: 'admin.change_password',
@@ -324,7 +324,11 @@
           if (window.EventBus) {
             window.EventBus.emit('fs:changed');
           }
-          this.toast.success(this.t('admin.login_success'));
+          if (json.user && !isAdmin) {
+            this.toast.success(this.t('auth.user_login_success', { name: json.user.display_name || json.user.username }));
+          } else {
+            this.toast.success(this.t('admin.login_success'));
+          }
           this.render();
         } else {
           if (errEl) {
@@ -360,7 +364,7 @@
         if (window.EventBus) {
           window.EventBus.emit('fs:changed');
         }
-        this.toast.info('Déconnexion réussie');
+        this.toast.info(this.t('auth.logout_success'));
         this.render();
       } catch (e) {}
     }
