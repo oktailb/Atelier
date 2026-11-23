@@ -72,7 +72,11 @@
                     <span style="font-weight:400;color:var(--text-muted);">(@${esc(u.username)})</span>
                     <span style="margin-left:6px;padding:1px 7px;border-radius:99px;font-size:0.7rem;background:rgba(56,189,248,0.14);color:${roleColor};font-weight:700;">${esc(u.role)}</span>
                   </div>
-                  <div style="font-size:0.75rem;color:var(--text-muted);font-family:monospace;">🏠 /${esc(u.home_dir)}</div>
+                  <div style="font-size:0.75rem;color:var(--text-muted);font-family:monospace;">
+                    <button type="button" class="users-open-home-btn" data-home="${esc(u.home_dir)}" style="padding:2px 7px;border-radius:6px;border:1px solid var(--border-color);background:transparent;color:var(--accent-primary, #6366f1);cursor:pointer;font-size:0.75rem;font-family:monospace;">
+                      📂 /${esc(u.home_dir)}
+                    </button>
+                  </div>
                 </div>
                 <div style="display:flex;gap:6px;align-items:center;">
                   <button type="button" class="users-toggle-active-btn" data-id="${u.id}" data-active="${active ? '1' : '0'}" style="padding:4px 10px;border-radius:6px;border:1px solid var(--border-color);background:transparent;color:${active ? '#22c55e' : '#ef4444'};cursor:pointer;font-size:0.76rem;font-weight:600;">
@@ -222,10 +226,23 @@
       if (res && res.success) {
         settingsApp.toast.success(t('users.user_created_toast'));
         if (window.sys && window.sys.shares) await window.sys.shares.refreshIdentity();
+        if (window.EventBus && typeof window.EventBus.emit === 'function') {
+          window.EventBus.emit('fs:changed');
+        }
         rerender();
       } else {
         settingsApp.toast.error((res && res.error) || t('users.action_error'));
       }
+    });
+
+    container.querySelectorAll('.users-open-home-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const homeDir = btn.dataset.home || '';
+        if (!homeDir) return;
+        if (window.explorerApp && typeof window.explorerApp.open === 'function') {
+          window.explorerApp.open({ dir: homeDir });
+        }
+      });
     });
 
     container.querySelectorAll('.users-toggle-active-btn').forEach(btn => {
@@ -280,7 +297,7 @@
         const userIds = box
           ? Array.from(box.querySelectorAll('.group-member-chk:checked')).map(c => parseInt(c.value, 10))
           : [];
-        const res = await settingsApp.api.post('set_group_members', { group_id: groupId, user_ids: userIds });
+        const res = await settingsApp.api.post('set_group_members', { group_id: groupId, member_ids: userIds });
         if (res && res.success) {
           settingsApp.toast.success(t('users.group_saved_toast'));
           rerender();

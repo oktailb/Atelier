@@ -1201,7 +1201,14 @@ class GeneralUnitTestSuite {
             'name' => 'studio', 'display_name' => 'Équipe Studio'
         ]);
         $studio = $studio_res['group'] ?? [];
-        \SimpleGallery\Kernel\Auth\UserManager::setGroupMembers($p1_root, (int)$studio['id'], [(int)$bob['id']]);
+        $_SESSION['is_admin'] = true;
+        $_SESSION['sg_admin_logged'] = true;
+        $set_mem_res = \SimpleGallery\Kernel\Actions\UserActions::handle('set_group_members', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['group_id' => (int)$studio['id'], 'member_ids' => [(int)$bob['id']]]
+        ]);
+        $this->assert("Phase 1: API set_group_members persiste member_ids et renvoie la liste", ($set_mem_res['status'] ?? 0) === 200 && in_array((int)$bob['id'], $set_mem_res['data']['member_ids'] ?? [], true));
+        unset($_SESSION['is_admin'], $_SESSION['sg_admin_logged']);
         $bob_groups = \SimpleGallery\Kernel\Auth\UserManager::getUserGroupIds($p1_root, (int)$bob['id']);
         $this->assert("Phase 1: Bob appartient au groupe studio", in_array((int)$studio['id'], $bob_groups, true));
 

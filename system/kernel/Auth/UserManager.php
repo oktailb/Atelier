@@ -9,6 +9,7 @@ namespace SimpleGallery\Kernel\Auth;
 
 use SimpleGallery\Kernel\Config\ConfigStore;
 use SimpleGallery\Kernel\Data\AtelierStore;
+use SimpleGallery\Kernel\FS\CacheManager;
 
 class UserManager {
 
@@ -61,6 +62,9 @@ class UserManager {
         if (!file_exists($usersRoot . '/.private')) {
             @file_put_contents($usersRoot . '/.private', "1\n", LOCK_EX);
         }
+        if (!file_exists($usersRoot . '/.title')) {
+            @file_put_contents($usersRoot . '/.title', "Users\n", LOCK_EX);
+        }
 
         $homeAbs = $usersRoot . '/' . $username;
         if (!is_dir($homeAbs)) {
@@ -72,6 +76,14 @@ class UserManager {
         if (!file_exists($homeAbs . '/.title')) {
             $title = $displayName !== '' ? $displayName : ucfirst($username);
             @file_put_contents($homeAbs . '/.title', $title . "\n", LOCK_EX);
+        }
+
+        // Invalidate Explorer directory cache for storage root and users/ so the new home appears immediately
+        if (class_exists(CacheManager::class)) {
+            $thumbDir = isset($GLOBALS['thumbnail_dir']) ? (string)$GLOBALS['thumbnail_dir'] : '.thumbnails';
+            CacheManager::invalidateDirCache($realBase, $realBase, $thumbDir);
+            CacheManager::invalidateDirCache($usersRoot, $realBase, $thumbDir);
+            CacheManager::invalidateDirCache($homeAbs, $realBase, $thumbDir);
         }
 
         return $relHome;

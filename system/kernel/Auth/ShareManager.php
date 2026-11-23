@@ -154,6 +154,21 @@ class ShareManager {
         $volumes = [];
 
         if (!$user) {
+            // For legacy root admin, expose `users/` shortcut in Explorer bar when user homes exist
+            if (AuthManager::isAdminLoggedIn() && is_dir(rtrim(str_replace('\\', '/', $baseDir), '/') . '/users')) {
+                $volumes[] = [
+                    'id'              => 'vol-admin-users',
+                    'kind'            => 'users_root',
+                    'mount_name'      => 'Users',
+                    'mount_icon'      => '👥',
+                    'path'            => 'users',
+                    'permission'      => 'admin',
+                    'owner_username'  => 'admin',
+                    'owner_name'      => 'Admin',
+                    'show_on_desktop' => false,
+                    'is_encrypted'    => false
+                ];
+            }
             return $volumes;
         }
 

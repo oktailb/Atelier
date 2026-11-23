@@ -121,7 +121,7 @@ class UserActions {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
             }
             $gid = (int)($in['group_id'] ?? $in['id'] ?? 0);
-            $memberIds = $in['member_ids'] ?? [];
+            $memberIds = $in['member_ids'] ?? $in['user_ids'] ?? [];
             if (is_string($memberIds)) {
                 $memberIds = json_decode($memberIds, true) ?: [];
             }
