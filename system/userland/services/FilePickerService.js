@@ -188,9 +188,12 @@
         let currentPath = options.initialPath || '';
         const selectedItems = new Map();
 
-        const isLightTheme =
-          document.body?.getAttribute('data-theme') === 'light' ||
-          document.documentElement?.getAttribute('data-theme') === 'light';
+        const activeTheme = String(
+          document.body?.getAttribute('data-theme') ||
+          document.documentElement?.getAttribute('data-theme') ||
+          ''
+        ).toLowerCase();
+        const isLightTheme = activeTheme.includes('light');
 
         const palette = isLightTheme ? {
           dialogBg: '#ffffff',

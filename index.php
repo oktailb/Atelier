@@ -109,6 +109,7 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
     :root, :root[data-theme="<?php echo $theme_preset; ?>"], body[data-theme="<?php echo $theme_preset; ?>"] {
       --bg-main: <?php echo $active_theme['bg_main']; ?>;
       --window-bg: <?php echo $active_theme['window_bg'] ?? $active_theme['bg_main']; ?>;
+      --bg-panel: <?php echo $active_theme['window_bg'] ?? $active_theme['bg_main']; ?>;
       --header-bg: <?php echo $active_theme['header_bg'] ?? $active_theme['card_bg']; ?>;
       --menu-bar-bg: <?php echo $active_theme['menu_bar_bg'] ?? $active_theme['bg_main']; ?>;
       --sidebar-bg: <?php echo $active_theme['sidebar_bg'] ?? 'rgba(0, 0, 0, 0.25)'; ?>;

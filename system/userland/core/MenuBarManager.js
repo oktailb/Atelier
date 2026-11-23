@@ -142,26 +142,26 @@
           const btn = document.createElement('button');
           btn.className = 'webos-menubar-btn';
           btn.textContent = menu.label || menu.id;
-          btn.style.cssText = 'background:none; border:none; color:inherit; font-size:0.85rem; font-weight:500; padding:4px 10px; border-radius:6px; cursor:pointer; transition:background 0.15s;';
-          btn.addEventListener('mouseenter', () => btn.style.background = 'rgba(255,255,255,0.1)');
+          btn.style.cssText = 'background:none; border:none; color:var(--text-main, inherit); font-size:0.85rem; font-weight:500; padding:4px 10px; border-radius:6px; cursor:pointer; transition:background 0.15s;';
+          btn.addEventListener('mouseenter', () => btn.style.background = 'var(--border-color, rgba(128,128,128,0.16))');
           btn.addEventListener('mouseleave', () => { if (!menuWrapper.classList.contains('open')) btn.style.background = 'none'; });
 
           const dropdown = document.createElement('div');
           dropdown.className = 'webos-menubar-dropdown';
-          dropdown.style.cssText = 'display:none; position:absolute; top:calc(100% + 4px); left:0; min-width:180px; background:var(--bg-panel, #1e293b); border:1px solid rgba(255,255,255,0.1); border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,0.4); padding:6px; z-index:10000; flex-direction:column; gap:2px;';
+          dropdown.style.cssText = 'display:none; position:absolute; top:calc(100% + 4px); left:0; min-width:210px; background:var(--window-bg, var(--bg-panel, #1e293b)); color:var(--text-main, #f8fafc); border:1px solid var(--border-color, rgba(255,255,255,0.12)); border-radius:10px; box-shadow:0 12px 30px rgba(0,0,0,0.32); backdrop-filter:blur(16px); padding:6px; z-index:10000; flex-direction:column; gap:2px;';
 
           if (Array.isArray(menu.items)) {
             menu.items.forEach((item) => {
               if (item.separator) {
                 const sep = document.createElement('div');
-                sep.style.cssText = 'height:1px; background:rgba(255,255,255,0.1); margin:4px 0;';
+                sep.style.cssText = 'height:1px; background:var(--border-color, rgba(255,255,255,0.1)); margin:4px 0;';
                 dropdown.appendChild(sep);
               } else {
                 const itemBtn = document.createElement('button');
                 itemBtn.className = 'webos-dropdown-item';
                 itemBtn.textContent = item.label || item.id;
-                itemBtn.style.cssText = 'display:flex; align-items:center; width:100%; text-align:left; background:none; border:none; color:inherit; font-size:0.82rem; padding:6px 10px; border-radius:5px; cursor:pointer;';
-                itemBtn.addEventListener('mouseenter', () => itemBtn.style.background = 'rgba(255,255,255,0.1)');
+                itemBtn.style.cssText = 'display:flex; align-items:center; gap:6px; width:100%; text-align:left; background:none; border:none; color:var(--text-main, inherit); font-size:0.82rem; padding:7px 10px; border-radius:6px; cursor:pointer; transition:background 0.12s;';
+                itemBtn.addEventListener('mouseenter', () => itemBtn.style.background = 'var(--border-color, rgba(99,102,241,0.18))');
                 itemBtn.addEventListener('mouseleave', () => itemBtn.style.background = 'none');
                 itemBtn.addEventListener('click', (e) => {
                   e.stopPropagation();
@@ -183,7 +183,7 @@
             if (!isOpen) {
               dropdown.style.display = 'flex';
               menuWrapper.classList.add('open');
-              btn.style.background = 'rgba(255,255,255,0.15)';
+              btn.style.background = 'var(--border-color, rgba(128,128,128,0.2))';
             }
           });
 

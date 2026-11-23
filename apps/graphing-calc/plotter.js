@@ -68,9 +68,10 @@
         ? getComputedStyle(document.documentElement)
         : null;
       const bg = rootStyle ? (rootStyle.getPropertyValue('--bg-main') || '').trim() : '';
-      const isLight = typeof document !== 'undefined' &&
-        (document.body?.getAttribute('data-theme') === 'light' ||
-          document.documentElement?.getAttribute('data-theme') === 'light');
+      const activeTheme = typeof document !== 'undefined'
+        ? String(document.body?.getAttribute('data-theme') || document.documentElement?.getAttribute('data-theme') || '').toLowerCase()
+        : '';
+      const isLight = activeTheme.includes('light');
 
       return isLight ? {
         bg: '#f8fafc',

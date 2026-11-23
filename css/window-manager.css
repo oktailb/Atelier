@@ -263,9 +263,9 @@
   min-width: 210px;
   padding: 6px;
   border-radius: 10px;
-  background: var(--bg-panel, #1e293b);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.55);
+  background: var(--window-bg, #1e293b);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.14));
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(14px);
   color: var(--text-main, #f8fafc);
   font-size: 0.84rem;
@@ -283,7 +283,7 @@
 .explorer-open-with-sep {
   height: 1px;
   margin: 4px 0;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--border-color, rgba(255, 255, 255, 0.1));
 }
 
 .explorer-open-with-item {
@@ -295,7 +295,7 @@
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: inherit;
+  color: var(--text-main, inherit);
   cursor: pointer;
   text-align: left;
   font-size: 0.84rem;
@@ -303,13 +303,13 @@
 }
 
 .explorer-open-with-item:hover {
-  background: rgba(99, 102, 241, 0.22);
+  background: var(--border-color, rgba(99, 102, 241, 0.22));
 }
 
 .inspector-open-with-section {
   margin: 0.75rem 0;
   padding-top: 0.6rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
 }
 
 .inspector-open-with-title {
