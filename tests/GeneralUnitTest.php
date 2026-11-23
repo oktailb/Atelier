@@ -129,6 +129,7 @@ class GeneralUnitTestSuite {
         $this->testDisabledAppsFilteringAndTribuneStandalone();
         $this->testClipboardAndKeyboardShortcuts();
         $this->testAutorunAndExplorerEnhancements();
+        $this->testPhase1MultiUserVolumesTagsCrypto();
 
         $_SESSION = $saved_session;
 
@@ -1170,6 +1171,99 @@ class GeneralUnitTestSuite {
         @rmdir($tmp_root . '/config');
         @rmdir($tmp_root);
 
+    }
+
+    private function testPhase1MultiUserVolumesTagsCrypto(): void {
+        echo "\n👥 [19/19] Phase 1 : Multi-Utilisateurs, Groupes, Volumes Montés, Tags & Métadonnées E2EE...\n";
+
+        $saved_sess = $_SESSION ?? [];
+        $_SESSION = [];
+        \SimpleGallery\Kernel\Data\AtelierStore::resetCache();
+
+        $p1_root = $this->test_dir . '/phase1_func_sandbox';
+        @mkdir($p1_root, 0755, true);
+
+        // 1. Store driver & schema initialization
+        $store = \SimpleGallery\Kernel\Data\AtelierStore::forRoot($p1_root);
+        $driver = $store->getDriverName();
+        $this->assert("Phase 1: AtelierStore initialise un moteur valide (sqlite ou json)", in_array($driver, ['sqlite', 'json'], true));
+
+        // 2. Create users & group & membership
+        $alice_res = \SimpleGallery\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
+            'username' => 'alice', 'password' => 'Alice123!', 'role' => 'user', 'display_name' => 'Alice Dupont'
+        ]);
+        $bob_res = \SimpleGallery\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
+            'username' => 'bob', 'password' => 'Bob1234!', 'role' => 'user', 'display_name' => 'Bob Martin'
+        ]);
+        $alice = $alice_res['user'] ?? [];
+        $bob = $bob_res['user'] ?? [];
+        $studio_res = \SimpleGallery\Kernel\Auth\UserManager::createGroup($p1_root, [
+            'name' => 'studio', 'display_name' => 'Équipe Studio'
+        ]);
+        $studio = $studio_res['group'] ?? [];
+        \SimpleGallery\Kernel\Auth\UserManager::setGroupMembers($p1_root, (int)$studio['id'], [(int)$bob['id']]);
+        $bob_groups = \SimpleGallery\Kernel\Auth\UserManager::getUserGroupIds($p1_root, (int)$bob['id']);
+        $this->assert("Phase 1: Bob appartient au groupe studio", in_array((int)$studio['id'], $bob_groups, true));
+
+        // 3. Alice shares folder with group 'studio' -> appears in Bob's mounted volumes
+        @mkdir($p1_root . '/users/alice/projets', 0755, true);
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($alice);
+        \SimpleGallery\Kernel\Auth\ShareManager::createUserShare($p1_root, $p1_root, [
+            'source_path'     => 'users/alice/projets',
+            'target_type'     => 'group',
+            'target_id'       => (int)$studio['id'],
+            'permission'      => 'write',
+            'mount_name'      => 'Disque Studio',
+            'mount_icon'      => '🎬',
+            'show_on_desktop' => 1
+        ]);
+
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($bob);
+        $bob_vols = \SimpleGallery\Kernel\Auth\ShareManager::getMountedVolumesForCurrentUser($p1_root);
+        $vol_names = array_column($bob_vols, 'mount_name');
+        $vol_kinds = array_column($bob_vols, 'kind');
+        $this->assert("Phase 1: Bob reçoit son volume Home + le volume partagé de groupe 'Disque Studio'", in_array('home', $vol_kinds, true) && in_array('Disque Studio', $vol_names, true));
+        $this->assert("Phase 1: Bob dispose bien du droit d'écriture via le partage de groupe", \SimpleGallery\Kernel\Auth\ShareManager::canWritePath('users/alice/projets', $p1_root) === true);
+
+        // 4. Future-proof Tagging/Classification & E2EE metadata schema hooks
+        $tags_saved = \SimpleGallery\Kernel\Auth\ShareManager::setItemTags($p1_root, 'users/alice/projets', ['client', 'prioritaire']);
+        $tags_read = \SimpleGallery\Kernel\Auth\ShareManager::getItemTags($p1_root, 'users/alice/projets');
+        $tag_slugs = array_column($tags_read, 'slug');
+        $this->assert("Phase 1: Tags/Classification persistés sur un chemin VFS", count($tags_saved) === 2 && in_array('client', $tag_slugs, true) && in_array('prioritaire', $tag_slugs, true));
+
+        \SimpleGallery\Kernel\Auth\ShareManager::setItemMetadata($p1_root, 'users/alice/projets/coffre.bin', [
+            'classification' => 'confidential',
+            'is_encrypted' => 1,
+            'crypto_algo' => 'AES-256-GCM',
+            'crypto_key_id' => 'vault-key-01',
+            'crypto_iv' => '00112233445566778899aabb'
+        ]);
+        $meta = \SimpleGallery\Kernel\Auth\ShareManager::getItemMetadata($p1_root, 'users/alice/projets/coffre.bin');
+        $this->assert("Phase 1: Métadonnées futures (classification + E2EE AES-256-GCM) stockées et relues",
+            ($meta['classification'] ?? '') === 'confidential' &&
+            (int)($meta['is_encrypted'] ?? 0) === 1 &&
+            ($meta['crypto_algo'] ?? '') === 'AES-256-GCM'
+        );
+
+        // 5. Audit logging records security events
+        \SimpleGallery\Kernel\Auth\AuditLogger::log($p1_root, 'test_audit_event', 'users/alice/projets', 'ok', ['ok' => true]);
+        $logs = \SimpleGallery\Kernel\Auth\AuditLogger::recent($p1_root, 10);
+        $this->assert("Phase 1: AuditLogger enregistre et renvoie les événements récents", count($logs) >= 1 && ($logs[0]['action'] ?? '') === 'test_audit_event');
+
+        // 6. PluginDiscovery loads apps/settings/users-panel.js and apps/settings/locales/{fr,en,ja}.json
+        $discovered = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir, true);
+        $this->assert("Phase 1: PluginDiscovery charge apps/settings/users-panel.js dans scripts", in_array('apps/settings/users-panel.js', $discovered['settings']['scripts'] ?? [], true));
+
+        $tr_fr = \SimpleGallery\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'fr', true);
+        $tr_en = \SimpleGallery\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'en', true);
+        $tr_ja = \SimpleGallery\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'ja', true);
+        $this->assert("Phase 1: Locales autonomes apps/settings/locales/{fr,en,ja}.json chargées par PluginDiscovery",
+            !empty($tr_fr['settings.tab_users']) && !empty($tr_en['settings.tab_users']) && !empty($tr_ja['settings.tab_users']) &&
+            !empty($tr_fr['users.section_users']) && !empty($tr_en['users.section_users']) && !empty($tr_ja['users.section_users'])
+        );
+
+        $_SESSION = $saved_sess;
+        \SimpleGallery\Kernel\Data\AtelierStore::resetCache();
     }
 }
 

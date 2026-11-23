@@ -1088,6 +1088,109 @@ try {
   assert("FEAT-09 vérifications kit dev", false, e.stack);
 }
 
+// -------------------------------------------------------------
+// 14. PHASE 1 : Multi-Utilisateurs, Volumes Montés (Bureau + Explorer) & Panel Admin
+// -------------------------------------------------------------
+console.log('\n👥 [14/14] Phase 1 : Multi-Utilisateurs, Volumes Montés & Panel Utilisateurs/Partages...');
+try {
+  const shareSvcPath = path.join(rootDir, 'system', 'userland', 'services', 'ShareVolumesService.js');
+  const usersPanelPath = path.join(appsDir, 'settings', 'users-panel.js');
+  assert("Phase 1: ShareVolumesService.js et apps/settings/users-panel.js présents",
+    fs.existsSync(shareSvcPath) && fs.existsSync(usersPanelPath)
+  );
+  assert("Phase 1: index.php charge ShareVolumesService.js et injecte SG_CURRENT_USER / SG_MOUNTED_VOLUMES",
+    indexPhpSrc.includes('system/userland/services/ShareVolumesService.js') &&
+    indexPhpSrc.includes('window.SG_CURRENT_USER') &&
+    indexPhpSrc.includes('window.SG_MOUNTED_VOLUMES')
+  );
+
+  // Verify ShareVolumesService renders Explorer mounted volumes bar & share button
+  const shareCode = fs.readFileSync(shareSvcPath, 'utf8');
+  const mockVolWin = {
+    IS_ADMIN: false,
+    SG_CURRENT_USER: { id: 2, username: 'bob', display_name: 'Bob', role: 'user', home_dir: 'users/bob' },
+    SG_MOUNTED_VOLUMES: [
+      { id: 'home_2', kind: 'home', path: 'users/bob', mount_name: 'Bob', mount_icon: '🏠', permission: 'manage', show_on_desktop: true, is_encrypted: false },
+      { id: 'share_9', kind: 'shared', path: 'users/alice/studio', mount_name: 'Studio Drive', mount_icon: '💽', permission: 'write', owner_username: 'alice', show_on_desktop: true, is_encrypted: true },
+      { id: 'share_10', kind: 'shared', path: 'users/alice/hidden_desk', mount_name: 'NoDesk', mount_icon: '📁', permission: 'read', owner_username: 'alice', show_on_desktop: false, is_encrypted: false }
+    ],
+    location: { search: '', origin: 'https://atelier.local', pathname: '/' },
+    sys: { i18n: { t: (k) => k } }
+  };
+  const mockDoc = {
+    readyState: 'complete',
+    body: { getAttribute: () => 'dark-glass' },
+    documentElement: { getAttribute: () => 'dark-glass' },
+    getElementById: () => null,
+    addEventListener: () => {}
+  };
+  new Function('window', 'document', shareCode)(mockVolWin, mockDoc);
+  const svc = mockVolWin.sys.shares;
+  const fakeBar = {
+    style: {},
+    innerHTML: '',
+    querySelectorAll: () => [],
+    querySelector: () => null
+  };
+  svc.renderExplorerMountsBar(fakeBar, 'users/bob/photos', () => {});
+  assert("Phase 1: ShareVolumesService rend la barre des volumes montés (Home + Studio Drive RW 🔐 + bouton Partager)",
+    fakeBar.style.display === 'flex' &&
+    fakeBar.innerHTML.includes('Studio Drive') &&
+    fakeBar.innerHTML.includes('🔐') &&
+    fakeBar.innerHTML.includes('RW') &&
+    fakeBar.innerHTML.includes('data-share-path="users/bob/photos"')
+  );
+
+  // Verify DesktopShortcutsManager mounts volumes as desktop disk icons
+  const shortcutsCode = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'desktop', 'DesktopShortcuts.js'), 'utf8');
+  const scWin = {
+    SG_MOUNTED_VOLUMES: mockVolWin.SG_MOUNTED_VOLUMES,
+    SG_DESKTOP_CONFIG: { shortcuts: [] },
+    localStorage: { getItem: () => null, setItem: () => {} },
+    EventBus: { on: () => {} }
+  };
+  const scDoc = { readyState: 'loading', getElementById: () => null, addEventListener: () => {} };
+  new Function('window', 'document', shortcutsCode)(scWin, scDoc);
+  const scMgr = scWin.sys.desktopShortcuts;
+  const effective = scMgr.getEffectiveShortcuts();
+  const volItems = effective.filter(s => s.type === 'volume');
+  assert("Phase 1: DesktopShortcutsManager monte les volumes (show_on_desktop=true) comme icônes de disque sur le bureau",
+    volItems.length === 2 &&
+    volItems.some(v => v.path === 'users/bob' && v.kind === 'home') &&
+    volItems.some(v => v.path === 'users/alice/studio' && v.name === 'Studio Drive' && v.permission === 'write' && v.isEncrypted === true) &&
+    !volItems.some(v => v.path === 'users/alice/hidden_desk')
+  );
+
+  // Verify users-panel.js registers custom section cleanly without syntax errors
+  const usersPanelCode = fs.readFileSync(usersPanelPath, 'utf8');
+  const registeredSections = [];
+  const panelWin = {
+    SettingsApp: { registerSection: (s) => registeredSections.push(s) },
+    setTimeout: (fn) => fn()
+  };
+  new Function('window', usersPanelCode)(panelWin);
+  assert("Phase 1: users-panel.js enregistre la section 'users' dans SettingsApp",
+    registeredSections.length === 1 && registeredSections[0].id === 'users' && typeof registeredSections[0].render === 'function'
+  );
+
+  // Verify strict FR/EN/JA parity on apps/settings/locales/ and root locales/
+  const sFr = Object.keys(JSON.parse(fs.readFileSync(path.join(appsDir, 'settings', 'locales', 'fr.json'), 'utf8'))).sort();
+  const sEn = Object.keys(JSON.parse(fs.readFileSync(path.join(appsDir, 'settings', 'locales', 'en.json'), 'utf8'))).sort();
+  const sJa = Object.keys(JSON.parse(fs.readFileSync(path.join(appsDir, 'settings', 'locales', 'ja.json'), 'utf8'))).sort();
+  assert("Phase 1: Parité stricte FR/EN/JA sur apps/settings/locales/",
+    JSON.stringify(sFr) === JSON.stringify(sEn) && JSON.stringify(sEn) === JSON.stringify(sJa) && sFr.length >= 30
+  );
+
+  const rFr = Object.keys(JSON.parse(fs.readFileSync(path.join(rootDir, 'locales', 'fr.json'), 'utf8')).translations).sort();
+  const rEn = Object.keys(JSON.parse(fs.readFileSync(path.join(rootDir, 'locales', 'en.json'), 'utf8')).translations).sort();
+  const rJa = Object.keys(JSON.parse(fs.readFileSync(path.join(rootDir, 'locales', 'ja.json'), 'utf8')).translations).sort();
+  assert("Phase 1: Parité stricte FR/EN/JA sur locales/ système",
+    JSON.stringify(rFr) === JSON.stringify(rEn) && JSON.stringify(rEn) === JSON.stringify(rJa)
+  );
+} catch (e) {
+  assert("Phase 1 exécution runtime UI", false, e.stack);
+}
+
 
 console.log('\n============================================================');
 console.log(` 📊 SCORECARD DES TESTS ISO-FONCTIONNELS JS : ${passedChecks}/${totalChecks} PASS`);

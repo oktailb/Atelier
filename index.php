@@ -80,6 +80,7 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
   <script src="system/userland/services/ClipboardService.js" defer></script>
   <script src="system/userland/core/ShortcutManager.js" defer></script>
   <script src="system/userland/services/FilePickerService.js?v=<?php echo filemtime(__DIR__ . '/system/userland/services/FilePickerService.js'); ?>" defer></script>
+  <script src="system/userland/services/ShareVolumesService.js?v=<?php echo filemtime(__DIR__ . '/system/userland/services/ShareVolumesService.js'); ?>" defer></script>
   <script src="system/userland/services/TaskbarService.js?v=<?php echo filemtime(__DIR__ . '/system/userland/services/TaskbarService.js'); ?>" defer></script>
   <script src="system/userland/desktop/WallpaperManager.js?v=<?php echo filemtime(__DIR__ . '/system/userland/desktop/WallpaperManager.js'); ?>" defer></script>
   <script src="system/userland/desktop/TaskbarClock.js" defer></script>
@@ -188,6 +189,8 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
     window.CSRF_TOKEN = <?php echo json_encode(get_csrf_token()); ?>;
     window.SG_CSRF_TOKEN = window.CSRF_TOKEN;
     window.IS_ADMIN = <?php echo is_admin_logged_in() ? 'true' : 'false'; ?>;
+    window.SG_CURRENT_USER = <?php echo json_encode(\SimpleGallery\Kernel\Auth\AuthManager::getCurrentUser(), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+    window.SG_MOUNTED_VOLUMES = <?php echo json_encode(\SimpleGallery\Kernel\Auth\ShareManager::getMountedVolumesForCurrentUser($real_base_dir), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
   </script>
 
   <!-- WebOS Desktop Host Environment -->

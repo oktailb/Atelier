@@ -95,21 +95,22 @@ flowchart TB
 
 ## 5. Feuille de Route Technique par Phases
 
-### 🟦 Phase A — Socle Multi-Utilisateurs, RBAC & Liens de Partage Signés
+### 🟦 Phase A — Socle Multi-Utilisateurs, RBAC & Liens de Partage Signés *(✅ Étape 1 livrée — socle multi-utilisateurs, volumes montés, liens signés, tags/E2EE ready)*
 *Objectif : passer du modèle mono-admin à une vraie gestion d'utilisateurs et de partages professionnels tout en préservant la rétrocompatibilité des dotfiles.*
 
-- **Base SQLite WAL embarquée (`storage/atelier.sqlite`)** avec migrations versionnées automatiques (et abstraction PDO compatible PostgreSQL pour le SaaS) :
-  - Tables : `users`, `groups`, `group_members`, `sessions`, `acl_rules`, `share_links`, `audit_logs`.
-- **Comptes & Authentification** :
-  - Rôles système (`superadmin`, `admin`, `user`, `guest`).
-  - Hachage `PASSWORD_ARGON2ID` (fallback `PASSWORD_BCRYPT`), 2FA **TOTP** (QR Code + codes de secours), gestion des sessions actives (révocation à distance), invitations par lien/e-mail.
-  - Option Enterprise : **SSO OpenID Connect (OIDC)** (Keycloak, Authentik, Google/Microsoft Workspace) et **LDAP**.
-- **Espaces de fichiers isolés & ACL** :
-  - Espace privé par utilisateur (`storage/media/users/<username>/`), espaces partagés d'équipe (`storage/media/shared/<team>/`), et galerie publique optionnelle.
-  - Résolution unifiée des droits dans `AccessControlService` combinant ACL SQLite (héritage récursif) + rétrocompatibilité des dotfiles `.private`/`.password`/`.public`.
-- **Liens de partage signés (`/s/<token>`)** :
-  - Partage d'un fichier ou dossier avec : date d'expiration, mot de passe optionnel, limite de téléchargements, mode **Lecture/Galerie seule** ou **Boîte de dépôt** (*File Drop* pour recevoir des fichiers de clients sans compte).
-- **Quotas disque par utilisateur** avec indicateur visuel dans l'Explorateur et le Moniteur Système.
+- [x] **Couche Données Relationnelle dual-driver (`AtelierStore`)** : `PDO_SQLITE` WAL (`storage/atelier.sqlite`) automatique si activé + fallback JSON atomique verrouillé (`storage/atelier_db/`) avec migrations versionnées et 11 tables : `users`, `groups`, `group_members`, `user_shares`, `share_links`, `acl_rules`, `tags`, `item_tags`, `item_metadata`, `vault_keys`, `audit_logs`.
+- [x] **Comptes, Groupes & Authentification (Socle)** :
+  - Rôles système (`superadmin`, `admin`, `user`, `guest`), hachage `PASSWORD_ARGON2ID` (fallback `PASSWORD_BCRYPT`), rétrocompatibilité complète avec la connexion admin legacy (`.admin_password_hash`).
+  - Panneau **Utilisateurs & Partages** dans le Panneau de Configuration (`apps/settings/users-panel.js`) + Journal d'audit sécurité (`AuditLogger`).
+  - [ ] *Phase A.2* : 2FA **TOTP** (QR Code + codes de secours), révocation de sessions actives, invitations par lien/e-mail, SSO **OIDC** / **LDAP**.
+- [x] **Espaces isolés, Partages inter-utilisateurs & Volumes Montés** :
+  - Espace personnel privé automatique (`users/<username>/` avec `.private`), isolation stricte des dossiers frères, permissions `read` / `write` / `admin` par utilisateur ou groupe (`ShareManager`).
+  - Montage visuel automatique en **icône de disque sur le Bureau** (`DesktopShortcuts.js`, badges `R`/`RW` et `🔐`) et dans la **barre Volumes Montés de l'Explorateur** (`ShareVolumesService.js`) avec boîte de partage intégrée.
+- [x] **Liens de partage signés (`?share=<token>`)** :
+  - Partage avec date d'expiration, mot de passe optionnel, limite de téléchargements et révocation instantanée (`access_share_link`).
+  - [ ] *Phase A.2* : URL courte `/s/<token>`, mode **Boîte de dépôt** (*File Drop*) et quotas disque visuels dans l'Explorateur / Moniteur Système.
+- [x] **Socle futur Tagging / Classification & Cryptographie E2EE** :
+  - Schéma et APIs prêts pour le tagging/classification (`tags`, `item_tags`, `item_metadata.classification`) et le chiffrement bout-en-bout côté client (`vault_keys`, `item_metadata.is_encrypted`/`crypto_algo`/`crypto_iv`, `user_shares.crypto_wrapped_key`, `users.public_key`/`key_salt`).
 
 ---
 

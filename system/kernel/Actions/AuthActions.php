@@ -15,6 +15,7 @@ class AuthActions {
         $raw_body = is_array($context) ? ($context['raw_body'] ?? $params) : $params;
 
         if ($action === 'login') {
+            $username = trim((string)($_POST['username'] ?? $raw_body['username'] ?? ''));
             $password = $_POST['password'] ?? $raw_body['password'] ?? '';
             $ip_key = 'login_' . RateLimiter::getClientIp();
 
@@ -22,6 +23,31 @@ class AuthActions {
                 return ['status' => 429, 'data' => ['success' => false, 'error' => __t('api.err_rate_limit')]];
             }
 
+            // 1. Multi-user account authentication when a username is supplied
+            if ($username !== '') {
+                $authUser = \SimpleGallery\Kernel\Auth\UserManager::authenticate($project_root, $username, (string)$password);
+                if ($authUser !== null) {
+                    RateLimiter::reset($ip_key);
+                    AuthManager::loginUserSession($authUser);
+                    \SimpleGallery\Kernel\Auth\AuditLogger::log($project_root, 'user_login', $authUser['home_dir'], 'ok', ['username' => $authUser['username']]);
+                    return ['status' => 200, 'data' => [
+                        'success'         => true,
+                        'message'         => __t('api.msg_auth_success'),
+                        'user'            => $authUser,
+                        'is_admin'        => AuthManager::isAdminLoggedIn(),
+                        'mounted_volumes' => \SimpleGallery\Kernel\Auth\ShareManager::getMountedVolumesForCurrentUser($base_dir),
+                        'csrf_token'      => get_csrf_token()
+                    ]];
+                }
+                // Allow 'admin' username to fall through to legacy .admin_password_hash if no SQLite 'admin' user exists
+                if (strtolower($username) !== 'admin' || \SimpleGallery\Kernel\Auth\UserManager::findByUsername($project_root, 'admin') !== null) {
+                    RateLimiter::increment($ip_key);
+                    \SimpleGallery\Kernel\Auth\AuditLogger::log($project_root, 'user_login', '', 'failed', ['username' => $username]);
+                    return ['status' => 401, 'data' => ['success' => false, 'error' => __t('api.err_invalid_password')]];
+                }
+            }
+
+            // 2. Legacy single-admin authentication (.admin_password_hash)
             $admin_hash = AuthManager::getPasswordHash('', $base_dir);
 
             if (!empty($admin_hash) && password_verify($password, $admin_hash)) {
@@ -30,12 +56,16 @@ class AuthActions {
                 if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_ACTIVE && !headers_sent()) {
                     @session_regenerate_id(true);
                 }
+                unset($_SESSION['sg_user']);
                 $_SESSION['sg_admin_logged'] = true;
                 $_SESSION['is_admin'] = true;
+                \SimpleGallery\Kernel\Auth\AuditLogger::log($project_root, 'admin_login', '', 'ok');
 
                 return ['status' => 200, 'data' => [
                     'success'    => true,
                     'message'    => __t('api.msg_auth_success'),
+                    'user'       => null,
+                    'is_admin'   => true,
                     'csrf_token' => get_csrf_token()
                 ]];
             }
@@ -45,9 +75,8 @@ class AuthActions {
         }
 
         if ($action === 'logout') {
-            AuthManager::ensureSessionStarted();
-            unset($_SESSION['sg_admin_logged']);
-            unset($_SESSION['is_admin']);
+            \SimpleGallery\Kernel\Auth\AuditLogger::log($project_root, 'logout', '', 'ok');
+            AuthManager::logoutSession();
             return ['status' => 200, 'data' => ['success' => true, 'message' => __t('api.msg_logged_out')]];
         }
 

@@ -30,14 +30,40 @@
       this.render();
       this.initDropZone();
       this.initContextMenu();
+
+      if (window.EventBus && typeof window.EventBus.on === 'function') {
+        window.EventBus.on('volumes:changed', () => this.render());
+        window.EventBus.on('auth:changed', () => this.render());
+      }
+    }
+
+    getEffectiveShortcuts() {
+      const config = window.SG_DESKTOP_CONFIG || {};
+      const baseShortcuts = (config.shortcuts || []).filter(s => s.enabled !== false);
+      const mountedVolumes = Array.isArray(window.SG_MOUNTED_VOLUMES)
+        ? window.SG_MOUNTED_VOLUMES.filter(v => v && v.show_on_desktop !== false)
+        : [];
+
+      const volumeShortcuts = mountedVolumes.map(v => ({
+        id: v.id || `vol-${v.path}`,
+        type: 'volume',
+        kind: v.kind || 'shared',
+        name: v.mount_name || v.path,
+        icon: v.mount_icon || (v.kind === 'home' ? '🏠' : '💽'),
+        path: v.path,
+        permission: v.permission || 'read',
+        ownerName: v.owner_name || v.owner_username || '',
+        isEncrypted: Boolean(v.is_encrypted)
+      }));
+
+      return [...baseShortcuts, ...volumeShortcuts];
     }
 
     render() {
       if (!this.container) this.container = document.getElementById('desktopShortcuts');
       if (!this.container) return;
 
-      const config = window.SG_DESKTOP_CONFIG || {};
-      const shortcuts = (config.shortcuts || []).filter(s => s.enabled !== false);
+      const shortcuts = this.getEffectiveShortcuts();
 
       if (shortcuts.length === 0) {
         this.container.innerHTML = '';
@@ -58,7 +84,23 @@
         }
 
         let iconContent = '';
-        if (type === 'folder') {
+        let extraBadge = '';
+        let tooltip = label;
+        if (type === 'volume') {
+          iconContent = shortcut.icon || '💽';
+          const permTag = shortcut.kind === 'shared'
+            ? (shortcut.permission === 'read' ? 'R' : 'RW')
+            : '';
+          extraBadge = permTag
+            ? `<span class="desktop-shortcut-badge" style="font-size:0.62rem;font-weight:700;padding:1px 4px;border-radius:4px;background:${shortcut.permission === 'read' ? '#0ea5e9' : '#22c55e'};color:#fff;">${permTag}</span>`
+            : '';
+          if (shortcut.isEncrypted) {
+            extraBadge += `<span class="desktop-shortcut-badge" style="left:4px;right:auto;">🔐</span>`;
+          }
+          if (shortcut.kind === 'shared' && shortcut.ownerName) {
+            tooltip = `${label} (${shortcut.ownerName} · ${shortcut.permission})`;
+          }
+        } else if (type === 'folder') {
           if (shortcut.cover_url) {
             iconContent = `<img src="${this.escapeHtml(shortcut.cover_url)}" class="desktop-shortcut-thumb" alt="${this.escapeHtml(label)}" /><span class="desktop-shortcut-badge">📁</span>`;
           } else {
@@ -78,8 +120,8 @@
         }
 
         return `
-          <div class="desktop-shortcut-card" data-shortcut-id="${this.escapeHtml(shortcut.id)}" tabindex="0" title="${this.escapeHtml(label)}">
-            <div class="desktop-shortcut-icon">${iconContent}</div>
+          <div class="desktop-shortcut-card ${type === 'volume' ? 'desktop-volume-card' : ''}" data-shortcut-id="${this.escapeHtml(shortcut.id)}" tabindex="0" title="${this.escapeHtml(tooltip)}">
+            <div class="desktop-shortcut-icon">${iconContent}${extraBadge}</div>
             <div class="desktop-shortcut-label">${this.escapeHtml(label)}</div>
           </div>
         `;
@@ -113,7 +155,7 @@
         if (appMgr && typeof appMgr.launchApp === 'function') {
           appMgr.launchApp(shortcut.appId);
         }
-      } else if (type === 'folder') {
+      } else if (type === 'folder' || type === 'volume') {
         if (window.explorerApp && typeof window.explorerApp.open === 'function') {
           window.explorerApp.open({ initialPath: shortcut.path });
         }

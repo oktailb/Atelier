@@ -36,12 +36,57 @@ class AuthManager {
     }
 
     /**
-     * Check if currently logged in as administrator
+     * Check if currently logged in as administrator (legacy admin OR multi-user admin/superadmin)
      */
     public static function isAdminLoggedIn(): bool {
         self::ensureSessionStarted();
-        return (!empty($_SESSION['sg_admin_logged']) && $_SESSION['sg_admin_logged'] === true)
-            || (!empty($_SESSION['is_admin']) && $_SESSION['is_admin'] === true);
+        if ((!empty($_SESSION['sg_admin_logged']) && $_SESSION['sg_admin_logged'] === true)
+            || (!empty($_SESSION['is_admin']) && $_SESSION['is_admin'] === true)) {
+            return true;
+        }
+        $user = $_SESSION['sg_user'] ?? null;
+        if (is_array($user) && in_array($user['role'] ?? '', ['superadmin', 'admin'], true)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Returns the sanitized currently logged-in multi-user account, or null if guest/legacy-only.
+     */
+    public static function getCurrentUser(): ?array {
+        self::ensureSessionStarted();
+        $user = $_SESSION['sg_user'] ?? null;
+        return (is_array($user) && !empty($user['id']) && !empty($user['username'])) ? $user : null;
+    }
+
+    /**
+     * Returns true if either a multi-user account or legacy admin is authenticated.
+     */
+    public static function isLoggedIn(): bool {
+        return self::isAdminLoggedIn() || (self::getCurrentUser() !== null);
+    }
+
+    /**
+     * Stores an authenticated multi-user session (and sets admin flags when role is admin/superadmin).
+     */
+    public static function loginUserSession(array $sanitizedUser): void {
+        self::ensureSessionStarted();
+        if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_ACTIVE && !headers_sent()) {
+            @session_regenerate_id(true);
+        }
+        $_SESSION['sg_user'] = $sanitizedUser;
+        $isAdmin = in_array($sanitizedUser['role'] ?? '', ['superadmin', 'admin'], true);
+        $_SESSION['sg_admin_logged'] = $isAdmin;
+        $_SESSION['is_admin'] = $isAdmin;
+    }
+
+    /**
+     * Clears both legacy admin and multi-user session state.
+     */
+    public static function logoutSession(): void {
+        self::ensureSessionStarted();
+        unset($_SESSION['sg_admin_logged'], $_SESSION['is_admin'], $_SESSION['sg_user']);
     }
 
     /**

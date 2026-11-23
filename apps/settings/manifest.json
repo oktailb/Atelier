@@ -22,8 +22,12 @@
     "js": "settings.js",
     "css": "settings.css"
   },
+  "scripts": [
+    "users-panel.js"
+  ],
   "capabilities": [
     "admin_auth",
+    "multi_user_management",
     "permissions_matrix",
     "wallpaper_manager",
     "theme_switcher",

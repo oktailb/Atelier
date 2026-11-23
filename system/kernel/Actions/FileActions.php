@@ -138,7 +138,8 @@ class FileActions {
         }
 
         if ($action === 'save_comment') {
-            if (!PermissionsManager::hasPermission('can_comment', $base_dir)) {
+            $dir_param = $_POST['dir'] ?? $raw_body['dir'] ?? '';
+            if (!PermissionsManager::hasPermission('can_comment', $base_dir, (string)$dir_param)) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_comment_denied')]];
             }
 
@@ -224,11 +225,10 @@ class FileActions {
         }
 
         if ($action === 'upload_file' || $action === 'upload_media') {
-            if (!PermissionsManager::hasPermission('can_upload', $base_dir)) {
+            $dir_param = $_POST['dir'] ?? $_GET['dir'] ?? '';
+            if (!PermissionsManager::hasPermission('can_upload', $base_dir, (string)$dir_param)) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => 'Accès refusé. Permission d\'upload manquante.']];
             }
-
-            $dir_param = $_POST['dir'] ?? $_GET['dir'] ?? '';
             $target_dir = PathValidator::sanitizeDirectory($dir_param, $base_dir);
             if ($target_dir === null || !is_dir($target_dir)) {
                 return ['status' => 404, 'data' => ['success' => false, 'error' => 'Dossier cible introuvable ou accès refusé.']];
@@ -351,7 +351,8 @@ class FileActions {
         }
 
         if ($action === 'create_folder') {
-            if (!PermissionsManager::hasPermission('can_create_folder', $base_dir)) {
+            $dir_param = $_POST['dir'] ?? $raw_body['dir'] ?? '';
+            if (!PermissionsManager::hasPermission('can_create_folder', $base_dir, (string)$dir_param)) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_create_folder_denied')]];
             }
 
@@ -389,12 +390,12 @@ class FileActions {
         }
 
         if ($action === 'move_item') {
-            if (!PermissionsManager::hasPermission('can_move', $base_dir)) {
-                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_move_denied')]];
-            }
-
             $source_param = $_POST['source'] ?? $raw_body['source'] ?? '';
             $target_dir_param = $_POST['target_dir'] ?? $raw_body['target_dir'] ?? '';
+            $perm_path = is_array($source_param) ? (string)$target_dir_param : (string)$source_param;
+            if (!PermissionsManager::hasPermission('can_move', $base_dir, $perm_path) || !PermissionsManager::hasPermission('can_move', $base_dir, (string)$target_dir_param)) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_move_denied')]];
+            }
             $new_name_param = isset($_POST['new_name']) ? trim($_POST['new_name']) : (isset($raw_body['new_name']) ? trim($raw_body['new_name']) : null);
 
             $target_dir_full = PathValidator::sanitizeDirectory($target_dir_param, $base_dir);
@@ -569,7 +570,8 @@ class FileActions {
         }
 
         if ($action === 'delete_item' || $action === 'delete_file' || $action === 'delete_folder') {
-            if (!PermissionsManager::hasPermission('can_delete', $base_dir)) {
+            $del_target_param = $_POST['target'] ?? $raw_body['target'] ?? $_POST['path'] ?? $raw_body['path'] ?? $_POST['file'] ?? $raw_body['file'] ?? '';
+            if (!PermissionsManager::hasPermission('can_delete', $base_dir, (string)$del_target_param)) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_delete_denied')]];
             }
 
@@ -716,12 +718,11 @@ class FileActions {
         }
 
         if ($action === 'save_text_file' || $action === 'save_file_content') {
-            if (!PermissionsManager::hasPermission('can_upload', $base_dir) && !AuthManager::isAdminLoggedIn()) {
-                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_save_denied')]];
-            }
-
             $file_param = $raw_body['file'] ?? $raw_body['path'] ?? $_POST['file'] ?? $_POST['path'] ?? '';
             $content    = $raw_body['content'] ?? $_POST['content'] ?? '';
+            if (!PermissionsManager::hasPermission('can_upload', $base_dir, (string)$file_param) && !AuthManager::isAdminLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_save_denied')]];
+            }
 
             $file_full = PathValidator::canonicalizeAndValidate($file_param, $base_dir, false, false);
             if ($file_full === null) {

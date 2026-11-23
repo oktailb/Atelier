@@ -11,6 +11,10 @@
 /storage/disabled_apps.json
 /storage/desktop.json
 /storage/sim_technicians.json
+/storage/atelier.sqlite
+/storage/atelier.sqlite-wal
+/storage/atelier.sqlite-shm
+/storage/atelier_db/
 scratch/
 # Fichiers sensibles & authentification
 .admin_password_hash

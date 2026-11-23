@@ -80,11 +80,25 @@ class PermissionsManager {
     }
 
     /**
-     * Check if a given permission is granted to the current user (Admin always returns true)
+     * Check if a given permission is granted to the current user (Admin always returns true).
+     * When $target_rel_path is provided, also honors multi-user home ownership & user/group shares.
      */
-    public static function hasPermission(string $permission_key, string $base_dir): bool {
+    public static function hasPermission(string $permission_key, string $base_dir, ?string $target_rel_path = null): bool {
         if (AuthManager::isAdminLoggedIn()) {
             return true;
+        }
+
+        if ($target_rel_path !== null) {
+            $write_perms = ['can_upload', 'can_delete', 'can_move', 'can_comment', 'can_create_folder'];
+            if (in_array($permission_key, $write_perms, true)) {
+                if (\SimpleGallery\Kernel\Auth\ShareManager::canWritePath($target_rel_path, $base_dir)) {
+                    return true;
+                }
+            } elseif (in_array($permission_key, ['can_download_item', 'can_download_archive'], true)) {
+                if (\SimpleGallery\Kernel\Auth\ShareManager::canReadPath($target_rel_path, $base_dir)) {
+                    return true;
+                }
+            }
         }
 
         $perms = self::loadPermissions($base_dir);

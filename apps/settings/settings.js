@@ -180,14 +180,20 @@
     // TAB 1: SECURITY & GUEST PERMISSIONS MATRIX
     // -------------------------------------------------------------
     renderSecurityTab() {
-      const authContent = this.isAdmin ? `
+      const currentUser = (window.sys && window.sys.shares && window.sys.shares.getCurrentUser()) || window.SG_CURRENT_USER || null;
+      const isLoggedIn = this.isAdmin || Boolean(currentUser);
+      const connectedLabel = currentUser
+        ? `${currentUser.display_name || currentUser.username} (@${currentUser.username} · ${currentUser.role})`
+        : this.t('admin.status_connected');
+
+      const authContent = isLoggedIn ? `
         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
           <div>
             <div style="font-weight:700; font-size:0.95rem; margin-bottom:4px; color:#22c55e;">
-              ${this.t('admin.status_connected')}
+              ${this.escapeHtml(connectedLabel)}
             </div>
             <div style="font-size:0.8rem; color:var(--text-muted);">
-              ${this.t('admin.active_notice')}
+              ${this.escapeHtml(this.isAdmin ? this.t('admin.active_notice') : this.t('auth.user_active_notice'))}
             </div>
           </div>
           <button type="button" id="settingsAuthLogoutBtn" class="sysmon-action-btn" style="padding:6px 14px; font-size:0.85rem; background:rgba(239,68,68,0.2); color:#f87171; border:1px solid rgba(239,68,68,0.4);">
@@ -200,7 +206,8 @@
             ${this.t('settings.admin_required_notice')}
           </div>
           <form id="settingsLoginForm" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-            <input type="password" id="settingsPassInput" class="admin-input" style="flex:1; min-width:200px;" placeholder="${this.t('admin.password_placeholder')}" required autofocus />
+            <input type="text" id="settingsUserInput" class="admin-input" style="flex:0.85; min-width:160px;" placeholder="${this.escapeHtml(this.t('auth.username_optional_placeholder'))}" autocomplete="username" />
+            <input type="password" id="settingsPassInput" class="admin-input" style="flex:1; min-width:180px;" placeholder="${this.t('admin.password_placeholder')}" required autofocus autocomplete="current-password" />
             <button type="submit" class="sysmon-action-btn" style="padding:8px 18px; background:var(--accent-primary, #6366f1); color:#fff; font-weight:600;">
               🔑 ${this.t('admin.login_btn')}
             </button>
@@ -263,22 +270,33 @@
     }
 
     async loginAdmin(container) {
+      const userInput = container.querySelector('#settingsUserInput');
       const input = container.querySelector('#settingsPassInput');
       const errEl = container.querySelector('#settingsLoginError');
       if (!input || !input.value) return;
+      const username = userInput ? userInput.value.trim() : '';
 
       try {
-        const json = await this.api.post('login', { password: input.value });
+        const json = await this.api.post('login', { username, password: input.value });
         if (json.success) {
-          window.IS_ADMIN = true;
+          const isAdmin = json.is_admin !== undefined ? Boolean(json.is_admin) : true;
+          window.IS_ADMIN = isAdmin;
+          window.SG_CURRENT_USER = json.user || null;
+          if (Array.isArray(json.mounted_volumes)) {
+            window.SG_MOUNTED_VOLUMES = json.mounted_volumes;
+          }
           if (window.desktop) {
-            window.desktop.state.isAdmin = true;
+            window.desktop.state.isAdmin = isAdmin;
             if (json.csrf_token) {
               window.desktop.state.csrfToken = json.csrf_token;
               window.CSRF_TOKEN = json.csrf_token;
+              window.SG_CSRF_TOKEN = json.csrf_token;
             }
             const adminBtn = document.getElementById('adminBtn');
             if (adminBtn) adminBtn.classList.add('active');
+          }
+          if (window.sys && window.sys.shares && typeof window.sys.shares.refreshIdentity === 'function') {
+            await window.sys.shares.refreshIdentity();
           }
           if (window.explorerApp && typeof window.explorerApp.loadDirectory === 'function') {
             window.explorerApp.loadDirectory(window.explorerApp.state?.currentPath);
@@ -306,10 +324,15 @@
       try {
         await this.api.post('logout', {});
         window.IS_ADMIN = false;
+        window.SG_CURRENT_USER = null;
+        window.SG_MOUNTED_VOLUMES = [];
         if (window.desktop) {
           window.desktop.state.isAdmin = false;
           const adminBtn = document.getElementById('adminBtn');
           if (adminBtn) adminBtn.classList.remove('active');
+        }
+        if (window.sys && window.sys.shares && typeof window.sys.shares.refreshIdentity === 'function') {
+          await window.sys.shares.refreshIdentity();
         }
         if (window.explorerApp && typeof window.explorerApp.loadDirectory === 'function') {
           window.explorerApp.loadDirectory(window.explorerApp.state?.currentPath);

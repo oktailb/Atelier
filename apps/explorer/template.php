@@ -7,6 +7,9 @@
 <template id="explorerAppTemplate">
   <!-- Explorer Application Workspace (Mounted inside WebOS Window) -->
   <div class="webos-explorer-container">
+    <!-- Mounted Volumes & Shared Drives Strip (Phase 1 Multi-User Shares) -->
+    <div class="explorer-volumes-bar" style="display: none; padding: 6px 12px; border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.08)); background: var(--header-bg, rgba(0,0,0,0.06));"></div>
+
     <!-- Breadcrumbs Navigation Bar -->
     <div class="breadcrumbs-container">
       <nav class="breadcrumbs" aria-label="Breadcrumb Navigation">

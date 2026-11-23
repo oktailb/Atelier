@@ -14,8 +14,9 @@
       this.id = instanceId;
       this.winId = `explorer-${instanceId}`;
 
+      const initialDir = options.dir !== undefined ? options.dir : (options.initialPath !== undefined ? options.initialPath : '');
       this.state = {
-        currentPath: options.dir !== undefined ? options.dir : '',
+        currentPath: initialDir,
         directories: [],
         files: [],
         filteredFiles: [],
@@ -164,6 +165,7 @@
     initElements() {
       const root = this.containerEl;
       this.el = {
+        volumesBar: root.querySelector('.explorer-volumes-bar'),
         breadcrumbs: root.querySelector('.breadcrumbs'),
         folderSection: root.querySelector('.folder-section'),
         foldersGrid: root.querySelector('.folders-grid'),
@@ -407,6 +409,7 @@
         this.manager.updateMenuBarForActiveInstance();
 
         this.renderBreadcrumbs(json.breadcrumbs || []);
+        this.renderVolumesBar();
         this.renderFolders(json.directories || []);
 
         // Reset category filter on navigation
@@ -493,6 +496,17 @@
 
       if (this.el.folderSettingsBtn) {
         this.el.folderSettingsBtn.style.display = this.state.isAdmin ? 'inline-flex' : 'none';
+      }
+    }
+
+    renderVolumesBar() {
+      if (!this.el || !this.el.volumesBar) return;
+      if (window.sys && window.sys.shares && typeof window.sys.shares.renderExplorerMountsBar === 'function') {
+        window.sys.shares.renderExplorerMountsBar(
+          this.el.volumesBar,
+          this.state.currentPath || '',
+          (targetPath) => this.loadDirectory(targetPath)
+        );
       }
     }
 
@@ -2740,13 +2754,22 @@
       this.bindMenuBar();
       this.bindGlobalModals();
 
-      // Listen for filesystem changes across all instances
+      // Listen for filesystem & mounted volume changes across all instances
       if (window.EventBus && typeof window.EventBus.on === 'function') {
         window.EventBus.on('fs:changed', () => {
           this.instances.forEach(inst => {
             inst.loadDirectory(inst.state.currentPath);
           });
         });
+        const refreshVolumes = () => {
+          this.instances.forEach(inst => {
+            if (typeof inst.renderVolumesBar === 'function') {
+              inst.renderVolumesBar();
+            }
+          });
+        };
+        window.EventBus.on('volumes:changed', refreshVolumes);
+        window.EventBus.on('auth:changed', refreshVolumes);
       }
 
       // Initial window on DOMContentLoaded handled by OS Boot / Autostart Processor
@@ -2823,17 +2846,19 @@
         return this.createInstance(params);
       }
 
-      // If params.dir is specified, check if an existing instance already views it
-      if (params.dir !== undefined) {
+      // Normalize initialPath -> dir for callers like DesktopShortcuts / ShareVolumesService
+      const targetDir = params.dir !== undefined ? params.dir : params.initialPath;
+      if (targetDir !== undefined) {
+        const normalizedParams = Object.assign({}, params, { dir: targetDir });
         for (const inst of this.instances.values()) {
-          if (inst.state.currentPath === params.dir) {
+          if (inst.state.currentPath === targetDir) {
             if (inst.win.state === 'minimized') window.WindowManager.restoreWindow(inst.winId);
             window.WindowManager.focusWindow(inst.winId);
             return inst;
           }
         }
         // If not found, open a new instance for this folder
-        return this.createInstance(params);
+        return this.createInstance(normalizedParams);
       }
 
       // If launched without params, create a new explorer instance or focus the active one

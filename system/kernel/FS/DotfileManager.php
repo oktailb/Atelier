@@ -120,6 +120,24 @@ class DotfileManager {
 
         $leaf = self::getDirAccessInfo($dir_path, $base_dir);
 
+        // Phase 1 Multi-User / Share override: if blocked by a .private/.password ancestor,
+        // check whether the logged-in user owns this home path, holds an active user/group share,
+        // or has unlocked a valid signed share link covering this path.
+        if ($blocking_mode !== null && \SimpleGallery\Kernel\Auth\ShareManager::canReadPath($rel, $base_dir)) {
+            return [
+                'mode'              => $leaf['mode'],
+                'access_mode'       => $leaf['access_mode'],
+                'is_private'        => $inherited_private,
+                'is_protected'      => $inherited_protected,
+                'is_unlocked'       => true,
+                'is_accessible'     => true,
+                'requires_auth'     => false,
+                'rel_path'          => $rel,
+                'blocking_rel_path' => null,
+                'granted_via_share' => true
+            ];
+        }
+
         if ($blocking_mode === 'private') {
             return [
                 'mode'              => 'private',
