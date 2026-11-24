@@ -743,6 +743,7 @@
     "vfs.many_selected": "{count} éléments sélectionnés",
     "vfs.save_folder_hint": "Naviguez vers le dossier cible puis validez.",
     "vfs.save_target_info": "Destination : {path}",
+    "vfs.read_only_folder": "🔒 Dossier en lecture seule ({path}) — choisissez votre espace personnel ou un volume RW.",
     "vfs.saved_to_gallery": "Enregistré dans la Galerie : {name}",
     "vfs.save_denied": "Impossible d'enregistrer dans la Galerie (permission d'upload requise).",
     "vfs.upload_unavailable": "Service de téléversement indisponible.",

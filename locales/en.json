@@ -743,6 +743,7 @@
     "vfs.many_selected": "{count} items selected",
     "vfs.save_folder_hint": "Browse to the target folder and confirm.",
     "vfs.save_target_info": "Destination: {path}",
+    "vfs.read_only_folder": "🔒 Read-only folder ({path}) — switch to your personal workspace or an RW volume.",
     "vfs.saved_to_gallery": "Saved to Gallery: {name}",
     "vfs.save_denied": "Unable to save to Gallery (upload permission required).",
     "vfs.upload_unavailable": "Upload service unavailable.",

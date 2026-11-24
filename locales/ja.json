@@ -743,6 +743,7 @@
     "vfs.many_selected": "{count} 件選択中",
     "vfs.save_folder_hint": "保存先フォルダを選んで確定してください。",
     "vfs.save_target_info": "保存先: {path}",
+    "vfs.read_only_folder": "🔒 読み取り専用フォルダ ({path}) — 個人スペースまたはRWボリュームを選択してください。",
     "vfs.saved_to_gallery": "ギャラリーに保存しました: {name}",
     "vfs.save_denied": "ギャラリーへ保存できません（アップロード権限が必要です）。",
     "vfs.upload_unavailable": "アップロードサービスが利用できません。",

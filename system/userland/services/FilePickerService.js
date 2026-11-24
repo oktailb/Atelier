@@ -185,7 +185,25 @@
         const isMultiple = !isFolderMode && !isSaveMode && Boolean(options.multiple);
         const allowLocalFallback = Boolean(options.allowLocalFallback);
         const acceptFilter = options.accept || '*/*';
+
+        const getMountedVolumes = () => {
+          if (window.sys && window.sys.shares && typeof window.sys.shares.getVolumes === 'function') {
+            return window.sys.shares.getVolumes();
+          }
+          return Array.isArray(window.SG_MOUNTED_VOLUMES) ? window.SG_MOUNTED_VOLUMES : [];
+        };
+
+        const currentUser = (window.sys && window.sys.shares && typeof window.sys.shares.getCurrentUser === 'function')
+          ? window.sys.shares.getCurrentUser()
+          : (window.SG_CURRENT_USER || null);
+
+        // In Save mode, default a standard user to their personal home when no explicit folder was requested
         let currentPath = options.initialPath || '';
+        if (isSaveMode && !currentPath && !window.IS_ADMIN && currentUser && currentUser.home_dir) {
+          currentPath = currentUser.home_dir;
+        }
+        let currentParentPath = null;
+        let currentCanUpload = true;
         const selectedItems = new Map();
 
         const activeTheme = String(
@@ -274,6 +292,8 @@
             <button type="button" class="picker-close-btn" style="background: transparent; border: none; color: ${palette.muted}; font-size: 20px; cursor: pointer; line-height: 1; padding: 4px 8px; border-radius: 6px;">&times;</button>
           </div>
 
+          <div class="picker-volumes-bar" style="display: none; padding: 8px 20px; border-bottom: 1px solid ${palette.border}; background: ${palette.headerBg}; align-items: center; gap: 6px; flex-wrap: wrap;"></div>
+
           <div class="picker-toolbar" style="padding: 10px 20px; border-bottom: 1px solid ${palette.border}; display: flex; align-items: center; gap: 12px; background: ${palette.toolbarBg};">
             <button type="button" class="picker-up-btn" style="padding: 6px 12px; background: ${palette.btnBg}; border: 1px solid ${palette.border}; border-radius: 6px; color: ${palette.btnText}; cursor: pointer; font-size: 12px;">⬆ ${escapeHtml(translate('vfs.parent_dir'))}</button>
             <div class="picker-breadcrumbs" style="flex: 1; display: flex; align-items: center; gap: 6px; font-size: 13px; color: ${palette.muted}; overflow-x: auto; white-space: nowrap;"></div>
@@ -302,6 +322,7 @@
         document.body.appendChild(overlay);
 
         const contentEl = dialog.querySelector('.picker-content');
+        const volumesBarEl = dialog.querySelector('.picker-volumes-bar');
         const breadcrumbsEl = dialog.querySelector('.picker-breadcrumbs');
         const searchInput = dialog.querySelector('.picker-search-input');
         const upBtn = dialog.querySelector('.picker-up-btn');
@@ -346,10 +367,65 @@
         this.activeDialog = { close: closeDialog };
         document.addEventListener('keydown', keyHandler);
 
+        const renderVolumesBar = () => {
+          if (!volumesBarEl) return;
+          const volumes = getMountedVolumes();
+          if (!volumes || volumes.length === 0) {
+            volumesBarEl.style.display = 'none';
+            volumesBarEl.innerHTML = '';
+            return;
+          }
+
+          volumesBarEl.style.display = 'flex';
+          const normCur = String(currentPath || '').replace(/^\/+|\/+$/g, '');
+          const pillStyle = (active) => `
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 4px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; cursor: pointer;
+            border: 1px solid ${active ? 'var(--accent, #6366f1)' : palette.border};
+            background: ${active ? 'var(--accent, #6366f1)' : palette.btnBg};
+            color: ${active ? '#ffffff' : palette.btnText};
+          `;
+
+          const pills = [
+            `<button type="button" class="picker-vol-pill" data-vol-path="" style="${pillStyle(normCur === '')}">
+              <span>💾</span><span>${escapeHtml(translate('vfs.root_storage'))}</span>
+            </button>`
+          ];
+
+          volumes.forEach((v) => {
+            const vPath = String(v.path || '').replace(/^\/+|\/+$/g, '');
+            const isActive = normCur === vPath || normCur.startsWith(vPath + '/');
+            const permBadge = v.kind === 'shared'
+              ? `<span style="font-size:10px;font-weight:800;padding:1px 5px;border-radius:4px;background:${v.permission === 'read' ? 'rgba(14,165,233,0.25)' : 'rgba(34,197,94,0.28)'};">${v.permission === 'read' ? 'R' : 'RW'}</span>`
+              : '';
+            const lockIcon = v.is_encrypted ? ' 🔐' : '';
+            pills.push(`
+              <button type="button" class="picker-vol-pill" data-vol-path="${escapeHtml(vPath)}" style="${pillStyle(isActive)}">
+                <span>${escapeHtml(v.mount_icon || (v.kind === 'home' ? '🏠' : '💽'))}</span>
+                <span>${escapeHtml(v.mount_name)}${lockIcon}</span>
+                ${permBadge}
+              </button>
+            `);
+          });
+
+          volumesBarEl.innerHTML = pills.join('');
+          volumesBarEl.querySelectorAll('[data-vol-path]').forEach((btn) => {
+            btn.addEventListener('click', () => loadDirectory(btn.dataset.volPath || ''));
+          });
+        };
+
         const updateSelectionUI = () => {
           if (isSaveMode) {
             const fname = (saveFilenameInput ? saveFilenameInput.value : '').trim();
             const dirLabel = currentPath ? `/${currentPath}` : '/';
+            if (!currentCanUpload) {
+              selectionInfo.textContent = translate('vfs.read_only_folder', { path: dirLabel });
+              selectionInfo.style.color = '#f59e0b';
+              confirmBtn.disabled = true;
+              confirmBtn.style.opacity = '0.45';
+              return;
+            }
+            selectionInfo.style.color = palette.muted;
             selectionInfo.textContent = translate('vfs.save_target_info', { path: dirLabel });
             confirmBtn.disabled = !fname;
             confirmBtn.style.opacity = fname ? '1' : '0.5';
@@ -377,6 +453,7 @@
 
         const loadDirectory = async (dirPath) => {
           currentPath = dirPath || '';
+          renderVolumesBar();
           contentEl.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: ${palette.muted}; padding: 40px;">${escapeHtml(translate('vfs.loading'))}</div>`;
           if (isSaveMode) updateSelectionUI();
 
@@ -393,6 +470,14 @@
               contentEl.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: #ef4444; padding: 40px;">${escapeHtml(translate('vfs.load_error'))}</div>`;
               return;
             }
+
+            currentParentPath = (data.parent_path !== undefined && data.parent_path !== null) ? data.parent_path : null;
+            currentCanUpload = Boolean(
+              (data.user_rights && (data.user_rights.is_admin || data.user_rights.can_upload)) ||
+              data.is_admin ||
+              window.IS_ADMIN
+            );
+            if (isSaveMode) updateSelectionUI();
 
             // Render Breadcrumbs
             breadcrumbsEl.innerHTML = '';
@@ -411,7 +496,7 @@
               }
             });
 
-            upBtn.disabled = !data.parent_path && (data.current_path === '' || currentPath === '');
+            upBtn.disabled = (currentParentPath === null && (data.current_path === '' || currentPath === ''));
             upBtn.style.opacity = upBtn.disabled ? '0.4' : '1';
 
             const dirs = data.directories || [];
@@ -551,6 +636,10 @@
         };
 
         upBtn.addEventListener('click', () => {
+          if (currentParentPath !== null) {
+            loadDirectory(currentParentPath);
+            return;
+          }
           if (currentPath === '') return;
           const parts = currentPath.split('/');
           parts.pop();

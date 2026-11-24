@@ -938,6 +938,12 @@ try {
     fp.matchesAccept({ name: 'pic.jpg', extension: 'jpg', category: 'image' }, 'image/*') &&
     !fp.matchesAccept({ name: 'song.mp3', extension: 'mp3', category: 'audio' }, 'image/*,application/pdf')
   );
+  assert("FEAT-06 + Phase 1: FilePickerService intègre la barre des volumes montés (users/<name>, partages) et la navigation parent_path",
+    pickerCode.includes('picker-volumes-bar') &&
+    pickerCode.includes('renderVolumesBar') &&
+    pickerCode.includes('currentUser.home_dir') &&
+    pickerCode.includes('currentParentPath')
+  );
 
   // Test WebAppVfsBridge hooks & security isolation
   const uploadedPayloads = [];
