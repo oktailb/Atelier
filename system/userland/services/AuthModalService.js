@@ -20,16 +20,21 @@
   }
 
   function t(key, replacements = {}) {
+    let val = key;
     if (window.I18nEngine && typeof window.I18nEngine.t === 'function') {
-      return window.I18nEngine.t(key, replacements);
+      val = window.I18nEngine.t(key, replacements);
+    } else if (window.sys && window.sys.i18n && typeof window.sys.i18n.t === 'function') {
+      val = window.sys.i18n.t(key, replacements);
+    } else if (window.desktop && typeof window.desktop.t === 'function') {
+      val = window.desktop.t(key, replacements);
     }
-    if (window.sys && window.sys.i18n && typeof window.sys.i18n.t === 'function') {
-      return window.sys.i18n.t(key, replacements);
+    if (val === key && window.SG_I18N_CONFIG && window.SG_I18N_CONFIG.translations && window.SG_I18N_CONFIG.translations[key]) {
+      val = window.SG_I18N_CONFIG.translations[key];
+      Object.entries(replacements).forEach(([k, v]) => {
+        val = val.replace(new RegExp(`\\{${k}\\}`, 'g'), v);
+      });
     }
-    if (window.desktop && typeof window.desktop.t === 'function') {
-      return window.desktop.t(key, replacements);
-    }
-    return key;
+    return val;
   }
 
   function toast(level, msg) {
@@ -1333,6 +1338,17 @@
   const service = new AuthModalService();
   window.AuthModalService = AuthModalService;
   window.sys.authModal = service;
+
+  // Live re-render if locale changes asynchronously while the modal is open
+  const bindLocaleSync = () => {
+    const bus = (window.sys && window.sys.events) || window.EventBus;
+    if (bus && typeof bus.on === 'function') {
+      bus.on('locale:changed', () => {
+        if (service.isOpen()) service.render();
+      });
+    }
+  };
+  bindLocaleSync();
 
   // Auto-handle ?verify_email=, ?reset_password=, ?invite= links on page load
   if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {

@@ -101,6 +101,13 @@ class I18nEngine {
      * Detect preferred locale from browser HTTP_ACCEPT_LANGUAGE
      */
     public static function detectBrowserLocale(array $available_locales, string $default = 'fr'): string {
+        if (!empty($_COOKIE['sg_locale'])) {
+            $cookie_code = strtolower(trim((string)$_COOKIE['sg_locale']));
+            if (isset($available_locales[$cookie_code])) {
+                return $cookie_code;
+            }
+        }
+
         if (!isset($_SERVER['HTTP_ACCEPT_LANGUAGE']) || empty($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
             return $default;
         }

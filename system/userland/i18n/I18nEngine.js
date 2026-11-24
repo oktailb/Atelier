@@ -6,6 +6,35 @@ class I18nEngine {
         this.currentLocale = 'fr';
         this.translations = {};
         this.availableLocales = {};
+        this.hydrateFromBootstrap();
+    }
+
+    /**
+     * Synchronously hydrates translations from the server-injected bootstrap payload
+     * (`window.SG_I18N_CONFIG` or `<script id="initialLocalesConfig">`) so early boot
+     * services, modals, and toasts NEVER see an empty dictionary before `desktop.js` runs.
+     */
+    hydrateFromBootstrap() {
+        let cfg = (typeof window !== 'undefined' && window.SG_I18N_CONFIG) ? window.SG_I18N_CONFIG : null;
+        if (!cfg && typeof document !== 'undefined' && typeof document.getElementById === 'function') {
+            const el = document.getElementById('initialLocalesConfig');
+            if (el && el.textContent) {
+                try {
+                    cfg = JSON.parse(el.textContent);
+                } catch (e) {}
+            }
+        }
+        if (cfg && typeof cfg === 'object') {
+            if (cfg.default) {
+                this.currentLocale = String(cfg.default);
+            }
+            if (cfg.locales && typeof cfg.locales === 'object') {
+                this.availableLocales = cfg.locales;
+            }
+            if (cfg.translations && typeof cfg.translations === 'object' && Object.keys(cfg.translations).length > 0) {
+                this.translations = cfg.translations;
+            }
+        }
     }
 
     async init(defaultLocale = 'fr') {
@@ -30,7 +59,10 @@ class I18nEngine {
     }
 
     t(key, replacements = {}) {
-        let text = this.translations[key] || key;
+        if (!this.translations || Object.keys(this.translations).length === 0) {
+            this.hydrateFromBootstrap();
+        }
+        let text = (this.translations && this.translations[key]) || key;
         for (const [k, v] of Object.entries(replacements)) {
             text = text.replace(new RegExp(`\\{${k}\\}`, 'g'), v);
         }

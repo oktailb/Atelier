@@ -1201,6 +1201,20 @@ try {
   );
   authWin.sys.authModal.close(true);
 
+  // Verify I18nEngine hydrates synchronously from window.SG_I18N_CONFIG at boot (fixes early modal/toast i18n race)
+  const i18nEngineCode = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'i18n', 'I18nEngine.js'), 'utf8');
+  const bootI18nWin = {
+    SG_I18N_CONFIG: {
+      default: 'fr',
+      locales: { fr: { code: 'fr', name: 'Français' } },
+      translations: { 'auth_modal.verify_email_title': "Vérification de l'adresse e-mail" }
+    }
+  };
+  new Function('window', 'document', i18nEngineCode)(bootI18nWin, { getElementById: () => null });
+  assert("I18nEngine hydrate immédiatement depuis window.SG_I18N_CONFIG avant le boot de desktop.js",
+    bootI18nWin.I18nEngine.t('auth_modal.verify_email_title') === "Vérification de l'adresse e-mail"
+  );
+
   // Verify ShareVolumesService renders Explorer mounted volumes bar & share button
   const shareCode = fs.readFileSync(shareSvcPath, 'utf8');
   const mockVolWin = {

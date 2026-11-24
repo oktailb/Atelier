@@ -242,6 +242,7 @@
     finishLocaleChange(code) {
       try {
         localStorage.setItem('sg_locale', code);
+        document.cookie = `sg_locale=${encodeURIComponent(code)}; path=/; max-age=31536000; SameSite=Lax`;
       } catch (e) {}
 
       document.documentElement.lang = code;
