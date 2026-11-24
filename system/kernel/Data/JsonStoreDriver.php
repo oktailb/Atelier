@@ -24,7 +24,8 @@ class JsonStoreDriver implements AtelierStoreInterface {
         'item_tags',
         'item_metadata',
         'vault_keys',
-        'audit_logs'
+        'audit_logs',
+        'auth_tokens'
     ];
 
     private const UNIQUE_COLUMNS = [
@@ -32,7 +33,8 @@ class JsonStoreDriver implements AtelierStoreInterface {
         'groups'      => ['name'],
         'share_links' => ['token'],
         'tags'        => ['slug'],
-        'vault_keys'  => ['key_fingerprint']
+        'vault_keys'  => ['key_fingerprint'],
+        'auth_tokens' => ['token_hash']
     ];
 
     public function __construct(string $dbDir) {

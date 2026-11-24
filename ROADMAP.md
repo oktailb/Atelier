@@ -40,7 +40,7 @@ Atelier by GallusTech dispose déjà d'un ADN unique que les clouds classiques n
 
 | Capacité | État actuel (Atelier by GallusTech) | Cible Cloud / SaaS | Priorité |
 |---|---|---|---|
-| **Authentification & Utilisateurs** | 1 compte Admin (`.admin_password_hash`) + visiteurs | Multi-utilisateurs, groupes, RBAC/ACL fin, Argon2id, 2FA/TOTP, SSO (OIDC/LDAP) | **Critique** |
+| **Authentification & Utilisateurs** | Multi-utilisateurs + groupes + homes `storage/users/` + box login dédiée (`Phase A.1`) | Inscription autonome, vérif email, 2FA/TOTP, codes de secours, invitations, SSO (OIDC/LDAP) (`Phase A.2`) | **Critique** |
 | **Partage externe** | Dossiers `.public` / `.private` / `.password` | Liens signés temporaires (expiration, mot de passe, quota, lecture seule vs boîte de dépôt) | **Critique** |
 | **Stockage & Gros fichiers** | Disque local + upload PHP standard | Abstraction `StorageDriver` (Local + S3/R2/MinIO), uploads fragmentés (*chunked/TUS* multi-Go), quotas, corbeille 30j, versioning | **Critique** |
 | **Base de données & Recherche** | `scandir()` + caches JSON plats | **SQLite WAL** (mono-instance zéro-dépendance) / **PostgreSQL** (SaaS) pour indexation instantanée, droits, métadonnées, audit | **Élevée** |
@@ -95,22 +95,95 @@ flowchart TB
 
 ## 5. Feuille de Route Technique par Phases
 
-### 🟦 Phase A — Socle Multi-Utilisateurs, RBAC & Liens de Partage Signés *(✅ Étape 1 livrée — socle multi-utilisateurs, volumes montés, liens signés, tags/E2EE ready)*
-*Objectif : passer du modèle mono-admin à une vraie gestion d'utilisateurs et de partages professionnels tout en préservant la rétrocompatibilité des dotfiles.*
+### 🟦 Phase A — Socle Multi-Utilisateurs, RBAC, Inscription Autonome & 2FA
+
+#### ✅ Phase A.1 — Socle Multi-Utilisateurs, Volumes Montés & Liens Signés *(Livrée & Auditée)*
+*Objectif : passer du modèle mono-admin à une vraie gestion d'utilisateurs et de partages professionnels tout en préservant la rétrocompatibilité des dotfiles et la galerie publique.*
 
 - [x] **Couche Données Relationnelle dual-driver (`AtelierStore`)** : `PDO_SQLITE` WAL (`storage/atelier.sqlite`) automatique si activé + fallback JSON atomique verrouillé (`storage/atelier_db/`) avec migrations versionnées et 11 tables : `users`, `groups`, `group_members`, `user_shares`, `share_links`, `acl_rules`, `tags`, `item_tags`, `item_metadata`, `vault_keys`, `audit_logs`.
 - [x] **Comptes, Groupes & Authentification (Socle)** :
-  - Rôles système (`superadmin`, `admin`, `user`, `guest`), hachage `PASSWORD_ARGON2ID` (fallback `PASSWORD_BCRYPT`), rétrocompatibilité complète avec la connexion admin legacy (`.admin_password_hash`).
-  - Panneau **Utilisateurs & Partages** dans le Panneau de Configuration (`apps/settings/users-panel.js`) + Journal d'audit sécurité (`AuditLogger`).
-  - [ ] *Phase A.2* : 2FA **TOTP** (QR Code + codes de secours), révocation de sessions actives, invitations par lien/e-mail, SSO **OIDC** / **LDAP**.
+  - Rôles système (`superadmin`, `admin`, `user`, `guest`), hachage `PASSWORD_ARGON2ID` (fallback `PASSWORD_BCRYPT`), revalidation de session à chaque requête (`AuthManager::revalidateActiveUser()`), rétrocompatibilité admin legacy (`.admin_password_hash`).
+  - Box de connexion/compte dédiée centrée sur bureau flouté (`system/userland/services/AuthModalService.js`) avec emplacements prêts pour 2FA/TOTP et QR.
+  - Panneau **Utilisateurs & Partages** intégré dans les Paramètres (`apps/settings/users-panel.js`) + Journal d'audit sécurité (`AuditLogger`).
 - [x] **Espaces isolés, Partages inter-utilisateurs & Volumes Montés** :
-  - Espace personnel privé automatique (`users/<username>/` avec `.private`), isolation stricte des dossiers frères, permissions `read` / `write` / `admin` par utilisateur ou groupe (`ShareManager`).
-  - Montage visuel automatique en **icône de disque sur le Bureau** (`DesktopShortcuts.js`, badges `R`/`RW` et `🔐`) et dans la **barre Volumes Montés de l'Explorateur** (`ShareVolumesService.js`) avec boîte de partage intégrée.
+  - Stockage utilisateur séparé dans `storage/users/<username>/` (avec `.htaccess` + `.private`), laissant `storage/media/` intact comme galerie commune/publique.
+  - Permissions `read` / `write` / `admin` par utilisateur ou groupe (`ShareManager`), montage visuel en **icône de disque sur le Bureau** (`DesktopShortcuts.js`, badges `R`/`RW`/`🔐`) et dans la **barre Volumes Montés** de l'Explorateur et du sélecteur VFS (`ShareVolumesService.js`, `FilePickerService.js`).
 - [x] **Liens de partage signés (`?share=<token>`)** :
-  - Partage avec date d'expiration, mot de passe optionnel, limite de téléchargements et révocation instantanée (`access_share_link`).
-  - [ ] *Phase A.2* : URL courte `/s/<token>`, mode **Boîte de dépôt** (*File Drop*) et quotas disque visuels dans l'Explorateur / Moniteur Système.
+  - Date d'expiration, mot de passe optionnel, limite de téléchargements, mode **Boîte de dépôt** (`drop`, upload seul) et révocation instantanée (`access_share_link`).
+- [x] **Registre de Formats dynamique (`FormatRegistry`) & Pont VFS WASM** :
+  - Auto-enregistrement des formats par les apps natives (`apps/*/manifest.json`) et externes/WASM (`StandaloneWebAppManifestSynthesizer` + `config/external_apps.json`) avec blacklist sécurité immuable, et compatibilité `Promise` multi-realm (`wasm-bindgen`).
 - [x] **Socle futur Tagging / Classification & Cryptographie E2EE** :
   - Schéma et APIs prêts pour le tagging/classification (`tags`, `item_tags`, `item_metadata.classification`) et le chiffrement bout-en-bout côté client (`vault_keys`, `item_metadata.is_encrypted`/`crypto_algo`/`crypto_iv`, `user_shares.crypto_wrapped_key`, `users.public_key`/`key_salt`).
+
+---
+
+#### ✅ Phase A.2 — Inscription Autonome, Vérification Email, 2FA TOTP & Pilotage Admin *(Livrée & Testée)*
+*Objectif : boucler un cycle de vie de compte 100 % autonome, sécurisé par défaut (`secure-by-default`), sans dépendance externe (PHP natif + Vanilla JS) et intégralement configurable par l'administrateur.*
+
+##### 1. Modèle de données (Migration v2 `AtelierStore`) & Configuration Admin (`AuthSettings`)
+- [x] **Migration v2** (`SqliteStoreDriver.php` + `JsonStoreDriver.php`) :
+  - Extension de la table `users` : `email_verified_at` (`INTEGER NULL`), `approval_status` (`approved` | `pending` | `rejected`), `totp_confirmed_at` (`INTEGER NULL`), `totp_recovery_codes_json` (tableau de codes hashés), `totp_last_step` (compteur anti-replay TOTP).
+  - Nouvelle table `auth_tokens` : `id`, `user_id`, `token_hash` (**SHA-256 uniquement — aucun token stocké en clair**), `type` (`email_verify` | `password_reset` | `invite`), `target_email`, `meta_json`, `expires_at`, `used_at`, `created_at`.
+- [x] **Nouveau service `system/kernel/Auth/AuthSettings.php`** (`storage/auth_settings.json` via `ConfigStore`) :
+  - **Mode d'inscription** :
+    - `disabled` *(défaut sécurisé)* : création de compte réservée à l'admin.
+    - `invite_only` : inscription possible uniquement via un lien/code d'invitation généré par l'admin.
+    - `approval` : inscription autonome + vérification email + validation manuelle par un admin avant activation.
+    - `open` : inscription autonome complète activée dès la vérification de l'email.
+  - **Règles comptes & anti-abus** : vérification email obligatoire (`bool`), TTL des liens de vérification/reset (ex. 24 h / 1 h), liste blanche/noire de domaines email (`allowed_email_domains`, `blocked_email_domains`), quota disque par défaut (`default_quota_bytes`), groupes assignés automatiquement (`default_group_ids`), longueur minimale du mot de passe, honeypot invisible + `RateLimiter` par IP et par email.
+  - **Politique 2FA (TOTP)** : `disabled` | `optional` | `required_admins` | `required_all`.
+  - **Transport Email** : driver `outbox_log` (boîte locale `storage/mail_outbox/` pour dev/tests sans serveur SMTP), `php_mail` (`mail()`), ou `smtp` (`host`, `port`, `encryption`: `tls`/`ssl`/`none`, `username`, `password` jamais renvoyé en clair à l'UI, `from_email`, `from_name`, `public_base_url` pour des liens propres derrière reverse proxy).
+
+##### 2. Moteur Email natif (`Mailer`) & Cycle de vie Inscription / Vérification / Récupération
+- [x] **Nouveau module `system/kernel/Mail/Mailer.php`** *(100 % PHP natif, zéro dépendance Composer)* :
+  - Client SMTP via `stream_socket_client()` (`EHLO`, `STARTTLS`, `AUTH PLAIN`/`LOGIN`, `MAIL FROM`/`RCPT TO`/`DATA`) + fallback `mail()` + mode `outbox_log`.
+  - Templates d'emails multilingues (`fr` / `en` / `ja`) : vérification d'adresse email, lien d'invitation, notification d'approbation/refus, réinitialisation de mot de passe, email de test admin.
+- [x] **Nouveau module `system/kernel/Auth/RegistrationService.php`** & endpoints API (`AuthActions.php` / `UserActions.php`) :
+  - `register` : validation identifiant/email/domaine/mot de passe, honeypot + rate-limit, création du compte en état **inactif** (`is_active = 0`). **Invariant disque** : `storage/users/<username>` n'est créé qu'à l'activation effective du compte (aucune pollution disque par des inscriptions non vérifiées ou bots).
+  - `verify_email` : vérifie le token SHA-256 à usage unique non expiré, marque `email_verified_at`, puis active le compte et crée son home (modes `open`/`invite_only`) ou le place en file d'approbation admin (mode `approval`).
+  - `resend_verification` (rate-limité) : invalide les anciens tokens de vérification et émet un nouveau lien.
+  - `request_password_reset` & `confirm_password_reset` : réponses **anti-énumération** (ne révèle jamais si un email existe), révocation des anciens tokens, hachage Argon2id du nouveau mot de passe + log d'audit.
+  - Invitations & approbations admin : `create_invite`, `list_invites`, `revoke_invite`, `approve_user`, `reject_user`.
+
+##### 3. Authentification 2FA TOTP (RFC 6238), Codes de Secours & QR Code Local
+- [x] **Nouveau module `system/kernel/Auth/TotpManager.php`** *(PHP pur, zéro dépendance)* :
+  - Génération de secret Base32 160 bits (`random_bytes(20)`) et URI standard `otpauth://totp/<Issuer>:<username>?secret=...&issuer=...`.
+  - Vérification RFC 6238 (SHA-1, 6 chiffres, période 30 s, tolérance ±1 pas, `hash_equals`, protection **anti-replay** via `totp_last_step`).
+  - Génération de **8 codes de secours à usage unique** (affichés une seule fois à l'enrôlement, stockés hashés dans `totp_recovery_codes_json`, consommables une seule fois).
+- [x] **Générateur de QR Code SVG 100 % local (`QrCodeSvg.php`)** :
+  - **Invariant sécurité** : le secret TOTP ne transite jamais par un service QR externe ; rendu SVG purement local côté serveur.
+- [x] **Flux de connexion sécurisé en 2 temps (`AuthActions.php`)** :
+  - Étape 1 (`login`) : si mot de passe valide et 2FA actif, création uniquement d'un challenge de session temporaire (TTL 5 min, **sans** authentifier `$_SESSION['sg_user']` ni `$_SESSION['is_admin']`) et retour `{ requires_2fa: true }`.
+  - Étape 2 (`verify_2fa_login`) : validation du code TOTP ou d'un code de secours, puis ouverture réelle de la session avec `session_regenerate_id(true)`.
+  - Enrôlement forcé (`requires_2fa_setup: true`) si la politique admin impose le 2FA (`required_admins` / `required_all`) sur un compte non encore équipé.
+  - Endpoints self-service utilisateur : `begin_2fa_setup`, `confirm_2fa_setup`, `disable_2fa` (avec confirmation du mot de passe), `regenerate_recovery_codes`.
+
+##### 4. Parcours UX complet dans `AuthModalService.js` & Routes URL (`index.php`)
+- [x] **Onglet / Mode *Créer un compte*** dans [AuthModalService.js](file:///c:/Users/ec135/AndroidStudioProjects/SimpleGallery/system/userland/services/AuthModalService.js) :
+  - Visible uniquement si l'inscription est autorisée (`window.SG_AUTH_POLICY`) ou lorsqu'un lien `?invite=<token>` est ouvert.
+  - Champs : identifiant, nom affiché, email, mot de passe + confirmation (indicateur de robustesse), code d'invitation (si requis), honeypot invisible.
+  - Écran post-inscription clair (*« Vérifiez votre boîte mail »* + bouton *« Renvoyer le lien »*).
+- [x] **Prise en charge automatique des liens URL** au chargement d'[index.php](file:///c:/Users/ec135/AndroidStudioProjects/SimpleGallery/index.php) :
+  - `?verify_email=<token>` → ouvre la box dédiée, valide le lien et propose la connexion (ou l'enrôlement 2FA si imposé).
+  - `?reset_password=<token>` → ouvre directement le formulaire de définition du nouveau mot de passe.
+  - `?invite=<token>` → ouvre la création de compte avec le jeton d'invitation pré-validé.
+- [x] **Assistant 2FA & Récupération** :
+  - Dans la vue *Mon Compte* de `AuthModalService` (ou forcé à la 1re connexion) : QR code SVG local + clé manuelle copiable + champ de confirmation 6 chiffres + téléchargement/copie des codes de secours + désactivation sécurisée.
+  - Lien **« Mot de passe oublié ? »** intégré à l'écran de connexion.
+
+##### 5. Panneau Admin, i18n, Qualité & Extensions Phase A.2
+- [x] **Panneau Admin dans [apps/settings/users-panel.js](file:///c:/Users/ec135/AndroidStudioProjects/SimpleGallery/apps/settings/users-panel.js)** :
+  - Carte **Inscriptions & Politique 2FA** (mode d'inscription, politique 2FA, domaines autorisés/bloqués, quota & groupes par défaut, longueur min mot de passe).
+  - Carte **Email & SMTP** (choix driver, paramètres SMTP, URL publique, bouton **« Envoyer un email de test »**, aperçu des derniers emails en mode `outbox_log`).
+  - File des **comptes en attente d'approbation** (*Approuver* / *Refuser*) et gestionnaire de **liens d'invitation** (générer, copier le lien, révoquer).
+- [x] **Internationalisation stricte (`fr` / `en` / `ja`)** :
+  - Clés `auth_modal.*` dans `locales/{fr,en,ja}.json` ; clés admin dans `apps/settings/locales/{fr,en,ja}.json` ; zéro chaîne de repli en dur dans `this.t()`.
+- [x] **Suite de tests automatisés dédiée (`tests/SecurityUnitTest.php`, `tests/GeneralUnitTest.php`, `tests/test_js_runtime.mjs`)** :
+  - Inscription autonome (refus si `disabled`, filtrage domaines, tokens expirés/réutilisés, mode `approval`, mode `invite_only`, home non créé avant activation).
+  - TOTP RFC 6238 (vecteurs standards, anti-replay, codes de secours, non-élévation de session avant étape 2 du login, enrôlement obligatoire).
+  - Reset mot de passe anti-énumération, `Mailer` mode `outbox_log`, parité stricte i18n FR/EN/JA, parcours UI `AuthModalService`.
+- [ ] **Autres compléments Phase A.2 (suite)** :
+  - URL courte de partage `/s/<token>`, quotas disque visuels dans l'Explorateur / Moniteur Système, révocation de sessions actives, SSO **OIDC** / **LDAP**.
 
 ---
 

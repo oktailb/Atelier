@@ -197,6 +197,7 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
     window.IS_ADMIN = <?php echo is_admin_logged_in() ? 'true' : 'false'; ?>;
     window.SG_CURRENT_USER = <?php echo json_encode(\SimpleGallery\Kernel\Auth\AuthManager::getCurrentUser(), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
     window.SG_MOUNTED_VOLUMES = <?php echo json_encode(\SimpleGallery\Kernel\Auth\ShareManager::getMountedVolumesForCurrentUser($real_base_dir), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+    window.SG_AUTH_POLICY = <?php echo json_encode(\SimpleGallery\Kernel\Auth\AuthSettings::getPublicPolicy(__DIR__), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
   </script>
 
   <!-- WebOS Desktop Host Environment -->

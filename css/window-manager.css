@@ -1441,3 +1441,200 @@ body[data-theme*="light"] .atelier-auth-displayname,
 :root[data-theme*="light"] .atelier-auth-displayname {
   color: #0f172a;
 }
+
+/* Phase A.2 — Registration, Verification, 2FA Setup & Recovery Codes */
+.atelier-auth-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.atelier-auth-link-btn {
+  border: none;
+  background: transparent;
+  color: var(--accent-primary, #818cf8);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.atelier-auth-link-btn:hover {
+  opacity: 0.85;
+}
+
+.atelier-auth-strength-track {
+  height: 4px;
+  border-radius: 99px;
+  background: rgba(148, 163, 184, 0.2);
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.atelier-auth-strength-fill {
+  height: 100%;
+  width: 0%;
+  transition: width 0.2s ease, background 0.2s ease;
+}
+
+.atelier-auth-status-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 12px 6px;
+}
+
+.atelier-auth-status-icon {
+  font-size: 2.3rem;
+  line-height: 1;
+}
+
+.atelier-auth-status-text {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--text-main, #e2e8f0);
+}
+
+.atelier-auth-email-line {
+  font-size: 0.76rem;
+  color: var(--text-muted, #94a3b8);
+  margin-top: 2px;
+}
+
+.atelier-auth-security-card {
+  padding: 11px 13px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  background: var(--bg-card, rgba(255, 255, 255, 0.04));
+  margin-bottom: 12px;
+}
+
+.atelier-auth-security-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.atelier-auth-security-title {
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.atelier-auth-security-sub {
+  font-size: 0.75rem;
+  margin-top: 2px;
+}
+
+.atelier-auth-badge-ok {
+  color: #22c55e;
+  font-weight: 600;
+}
+
+.atelier-auth-badge-muted {
+  color: var(--text-muted, #94a3b8);
+}
+
+.atelier-auth-mini-btn {
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.16));
+  background: transparent;
+  color: var(--text-main, #f8fafc);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.atelier-auth-mini-btn.primary {
+  background: var(--accent-primary, #6366f1);
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.atelier-auth-mini-btn.danger {
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #ef4444;
+}
+
+.atelier-auth-totp-setup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.atelier-auth-qr-live-box {
+  width: 176px;
+  height: 176px;
+  padding: 8px;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.atelier-auth-qr-live-box svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.atelier-auth-secret-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.atelier-auth-secret-code {
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: rgba(148, 163, 184, 0.14);
+  font-family: monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  word-break: break-all;
+}
+
+.atelier-auth-recovery-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
+
+.atelier-auth-recovery-chip {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.14));
+  background: rgba(148, 163, 184, 0.12);
+  font-family: monospace;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+body[data-theme*="light"] .atelier-auth-security-card,
+:root[data-theme*="light"] .atelier-auth-security-card {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: rgba(15, 23, 42, 0.14);
+}
+
+body[data-theme*="light"] .atelier-auth-status-text,
+:root[data-theme*="light"] .atelier-auth-status-text,
+body[data-theme*="light"] .atelier-auth-mini-btn:not(.primary):not(.danger),
+:root[data-theme*="light"] .atelier-auth-mini-btn:not(.primary):not(.danger) {
+  color: #0f172a;
+}

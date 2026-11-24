@@ -30,19 +30,24 @@ class UserManager {
 
     public static function sanitizeUserForOutput(?array $user): ?array {
         if (!$user) return null;
+        $hasConfirmed2fa = !empty($user['totp_secret']) && !empty($user['totp_confirmed_at']);
         return [
-            'id'            => (int)$user['id'],
-            'username'      => (string)$user['username'],
-            'display_name'  => (string)($user['display_name'] ?? $user['username']),
-            'email'         => (string)($user['email'] ?? ''),
-            'role'          => (string)($user['role'] ?? 'user'),
-            'home_dir'      => (string)($user['home_dir'] ?? ('users/' . $user['username'])),
-            'quota_bytes'   => (int)($user['quota_bytes'] ?? 0),
-            'is_active'     => !empty($user['is_active']),
-            'has_2fa'       => !empty($user['totp_secret']),
-            'has_e2ee_key'  => !empty($user['public_key']),
-            'created_at'    => (int)($user['created_at'] ?? 0),
-            'last_login_at' => isset($user['last_login_at']) ? (int)$user['last_login_at'] : null
+            'id'                => (int)$user['id'],
+            'username'          => (string)$user['username'],
+            'display_name'      => (string)($user['display_name'] ?? $user['username']),
+            'email'             => (string)($user['email'] ?? ''),
+            'email_verified'    => !empty($user['email_verified_at']),
+            'email_verified_at' => isset($user['email_verified_at']) && $user['email_verified_at'] !== null ? (int)$user['email_verified_at'] : null,
+            'approval_status'   => (string)($user['approval_status'] ?? 'approved'),
+            'role'              => (string)($user['role'] ?? 'user'),
+            'home_dir'          => (string)($user['home_dir'] ?? ('users/' . $user['username'])),
+            'quota_bytes'       => (int)($user['quota_bytes'] ?? 0),
+            'is_active'         => !empty($user['is_active']),
+            'has_2fa'           => $hasConfirmed2fa,
+            'totp_pending'      => !empty($user['totp_secret']) && empty($user['totp_confirmed_at']),
+            'has_e2ee_key'      => !empty($user['public_key']),
+            'created_at'        => (int)($user['created_at'] ?? 0),
+            'last_login_at'     => isset($user['last_login_at']) ? (int)$user['last_login_at'] : null
         ];
     }
 
@@ -111,13 +116,36 @@ class UserManager {
         return $store->selectOne('users', ['username' => $slug]);
     }
 
+    public static function findByEmail(string $baseOrRoot, string $email): ?array {
+        $needle = strtolower(trim($email));
+        if ($needle === '' || strpos($needle, '@') === false) {
+            return null;
+        }
+        $store = AtelierStore::forRoot($baseOrRoot);
+        $rows = $store->select('users');
+        foreach ($rows as $row) {
+            if (strtolower(trim((string)($row['email'] ?? ''))) === $needle) {
+                return $row;
+            }
+        }
+        return null;
+    }
+
     public static function createUser(string $projectRoot, string $mediaDir, array $input): array {
         $username = self::sanitizeUsername((string)($input['username'] ?? ''));
         $password = (string)($input['password'] ?? '');
         $displayName = trim((string)($input['display_name'] ?? $username));
-        $email = trim((string)($input['email'] ?? ''));
+        $email = strtolower(trim((string)($input['email'] ?? '')));
         $role = strtolower(trim((string)($input['role'] ?? 'user')));
         $quotaBytes = max(0, (int)($input['quota_bytes'] ?? 0));
+        $isActive = array_key_exists('is_active', $input) ? (!empty($input['is_active']) ? 1 : 0) : 1;
+        $approvalStatus = in_array($input['approval_status'] ?? 'approved', ['approved', 'pending', 'rejected'], true)
+            ? (string)($input['approval_status'] ?? 'approved')
+            : 'approved';
+        $emailVerifiedAt = array_key_exists('email_verified_at', $input)
+            ? ($input['email_verified_at'] !== null ? (int)$input['email_verified_at'] : null)
+            : ($email !== '' && $isActive === 1 ? time() : null);
+        $createHome = array_key_exists('create_home', $input) ? (bool)$input['create_home'] : ($isActive === 1);
 
         if ($username === '' || strlen($username) < 2 || strlen($username) > 40) {
             return ['success' => false, 'status' => 400, 'error' => 'Invalid username (2-40 chars, a-z0-9._-).'];
@@ -138,24 +166,31 @@ class UserManager {
         }
 
         $now = time();
-        $homeDir = self::ensureUserHomeDir($mediaDir, $username, $displayName);
+        $homeDir = $createHome
+            ? self::ensureUserHomeDir($mediaDir, $username, $displayName)
+            : ('users/' . $username);
 
         $id = $store->insert('users', [
-            'username'         => $username,
-            'display_name'     => $displayName !== '' ? $displayName : $username,
-            'email'            => $email,
-            'password_hash'    => self::hashPassword($password),
-            'role'             => $role,
-            'home_dir'         => $homeDir,
-            'quota_bytes'      => $quotaBytes,
-            'is_active'        => 1,
-            'totp_secret'      => null,
-            'public_key'       => null,
-            'key_salt'         => null,
-            'preferences_json' => '{}',
-            'created_at'       => $now,
-            'updated_at'       => $now,
-            'last_login_at'    => null
+            'username'                 => $username,
+            'display_name'             => $displayName !== '' ? $displayName : $username,
+            'email'                    => $email,
+            'email_verified_at'        => $emailVerifiedAt,
+            'approval_status'          => $approvalStatus,
+            'password_hash'            => self::hashPassword($password),
+            'role'                     => $role,
+            'home_dir'                 => $homeDir,
+            'quota_bytes'              => $quotaBytes,
+            'is_active'                => $isActive,
+            'totp_secret'              => null,
+            'totp_confirmed_at'        => null,
+            'totp_recovery_codes_json' => null,
+            'totp_last_step'           => null,
+            'public_key'               => null,
+            'key_salt'                 => null,
+            'preferences_json'         => '{}',
+            'created_at'               => $now,
+            'updated_at'               => $now,
+            'last_login_at'            => null
         ]);
 
         $created = self::findById($projectRoot, (int)$id);
@@ -220,11 +255,12 @@ class UserManager {
             return ['success' => false, 'status' => 404, 'error' => 'User not found.'];
         }
 
-        // Clean up memberships, shares & links owned/targeting this user
+        // Clean up memberships, shares, links & tokens owned/targeting this user
         $store->delete('group_members', ['user_id' => $userId]);
         $store->delete('user_shares', ['owner_user_id' => $userId]);
         $store->delete('user_shares', ['target_type' => 'user', 'target_id' => $userId]);
         $store->delete('share_links', ['owner_user_id' => $userId]);
+        $store->delete('auth_tokens', ['user_id' => $userId]);
         $store->delete('users', ['id' => $userId]);
 
         AuditLogger::log($projectRoot, 'user_delete', (string)$existing['home_dir'], 'ok', ['username' => $existing['username']]);
@@ -232,20 +268,52 @@ class UserManager {
     }
 
     /**
-     * Authenticates a user by username + password and returns sanitized user array on success, or null.
+     * Authenticates a user by username (or email) + password and returns sanitized user array on success, or null.
+     * Also returns raw status via `authenticateDetailed()` for 2FA/pending-verification flows.
      */
-    public static function authenticate(string $projectRoot, string $username, string $password): ?array {
-        $user = self::findByUsername($projectRoot, $username);
-        if (!$user || empty($user['is_active'])) {
-            return null;
+    public static function authenticateDetailed(string $projectRoot, string $identifier, string $password): array {
+        $rawId = trim($identifier);
+        $user = self::findByUsername($projectRoot, $rawId);
+        if (!$user && strpos($rawId, '@') !== false) {
+            $user = self::findByEmail($projectRoot, $rawId);
+        }
+        if (!$user) {
+            return ['ok' => false, 'reason' => 'invalid_credentials'];
         }
         if (!password_verify($password, (string)$user['password_hash'])) {
-            return null;
+            return ['ok' => false, 'reason' => 'invalid_credentials'];
+        }
+        if (empty($user['is_active'])) {
+            $approval = (string)($user['approval_status'] ?? 'approved');
+            if ($approval === 'rejected') {
+                return ['ok' => false, 'reason' => 'account_rejected'];
+            }
+            if (empty($user['email_verified_at']) && !empty($user['email'])) {
+                return ['ok' => false, 'reason' => 'email_unverified', 'email' => (string)$user['email']];
+            }
+            if ($approval === 'pending') {
+                return ['ok' => false, 'reason' => 'pending_approval'];
+            }
+            return ['ok' => false, 'reason' => 'account_disabled'];
         }
 
+        return [
+            'ok'   => true,
+            'raw'  => $user,
+            'user' => self::sanitizeUserForOutput($user)
+        ];
+    }
+
+    public static function authenticate(string $projectRoot, string $username, string $password): ?array {
+        $res = self::authenticateDetailed($projectRoot, $username, $password);
+        if (empty($res['ok'])) {
+            return null;
+        }
+        $user = $res['raw'];
         $store = AtelierStore::forRoot($projectRoot);
-        $store->update('users', ['last_login_at' => time()], ['id' => (int)$user['id']]);
-        $user['last_login_at'] = time();
+        $now = time();
+        $store->update('users', ['last_login_at' => $now], ['id' => (int)$user['id']]);
+        $user['last_login_at'] = $now;
 
         return self::sanitizeUserForOutput($user);
     }

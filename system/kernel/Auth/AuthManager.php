@@ -90,6 +90,7 @@ class AuthManager {
             $_SESSION['sg_admin_logged'],
             $_SESSION['is_admin'],
             $_SESSION['sg_user'],
+            $_SESSION['sg_2fa_pending'],
             $_SESSION['sg_unlocked_folders'],
             $_SESSION['unlocked_dirs'],
             $_SESSION['sg_unlocked_shares']

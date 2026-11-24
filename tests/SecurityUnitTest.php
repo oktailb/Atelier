@@ -1278,6 +1278,242 @@ HTACCESS;
         ]);
         $this->assert("Phase 1: Lien signé révoqué est rejeté (410/404)", in_array(($after_revoke['status'] ?? 0), [404, 410], true));
 
+        // 10. Phase A.2 — Self-Registration, Email Verification, Invites, Approvals, Password Reset & RFC 6238 TOTP 2FA
+        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        // 10.1 Secure-by-default: registration disabled
+        $reg_disabled = \SimpleGallery\Kernel\Actions\AuthActions::handle('register_account', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['username' => 'charlie', 'email' => 'charlie@studio.fr', 'password' => 'StrongPass99!']
+        ]);
+        $this->assert("Phase A.2: Inscription autonome refusée par défaut (registration_mode=disabled -> 403)", ($reg_disabled['status'] ?? 0) === 403);
+
+        // Non-admin cannot modify auth settings or create invites
+        $unauth_cfg = \SimpleGallery\Kernel\Actions\AuthActions::handle('save_auth_settings', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['settings' => ['registration_mode' => 'open']]
+        ]);
+        $this->assert("Phase A.2: Invité ne peut pas modifier auth_settings (403)", ($unauth_cfg['status'] ?? 0) === 403);
+
+        // 10.2 Admin enables open registration + email verification + domain whitelist + outbox_log
+        $_SESSION['sg_admin_logged'] = true;
+        $_SESSION['is_admin'] = true;
+        $save_cfg = \SimpleGallery\Kernel\Actions\AuthActions::handle('save_auth_settings', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => [
+                'settings' => [
+                    'registration_mode'          => 'open',
+                    'require_email_verification' => true,
+                    'allow_password_reset'       => true,
+                    'min_password_length'        => 8,
+                    'allowed_email_domains'      => 'studio.fr',
+                    'totp_policy'                => 'optional',
+                    'mail_driver'                => 'outbox_log',
+                    'public_base_url'            => 'https://atelier.test'
+                ]
+            ]
+        ]);
+        $this->assert("Phase A.2: Admin configure registration_mode=open + domaine studio.fr + outbox_log", ($save_cfg['status'] ?? 0) === 200);
+
+        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        // Domain filtering check
+        $bad_domain = \SimpleGallery\Kernel\Actions\AuthActions::handle('register_account', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['username' => 'intruder', 'email' => 'intruder@evil.org', 'password' => 'StrongPass99!']
+        ]);
+        $this->assert("Phase A.2: Domaine e-mail hors liste blanche rejeté (403)", ($bad_domain['status'] ?? 0) === 403);
+
+        // Valid self-registration -> inactive until email verified, home NOT created yet
+        $reg_ok = \SimpleGallery\Kernel\Actions\AuthActions::handle('register_account', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['username' => 'charlie', 'display_name' => 'Charlie', 'email' => 'charlie@studio.fr', 'password' => 'StrongPass99!']
+        ]);
+        $this->assert("Phase A.2: Inscription autonome crée un compte inactif sans dossier home avant vérification",
+            ($reg_ok['status'] ?? 0) === 200 &&
+            !empty($reg_ok['data']['requires_email_verification']) &&
+            empty($reg_ok['data']['activated']) &&
+            !is_dir($users_root . '/charlie')
+        );
+
+        // Login before email verification must fail (403 email_unverified) without elevating session
+        $pre_verify_login = \SimpleGallery\Kernel\Actions\AuthActions::handle('login', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['username' => 'charlie', 'password' => 'StrongPass99!']
+        ]);
+        $this->assert("Phase A.2: Connexion avant vérification e-mail refusée (403 email_unverified)",
+            ($pre_verify_login['status'] ?? 0) === 403 &&
+            ($pre_verify_login['data']['code'] ?? '') === 'email_unverified' &&
+            \SimpleGallery\Kernel\Auth\AuthManager::isLoggedIn() === false
+        );
+
+        // Extract verification token from outbox_log & verify token is stored hashed in auth_tokens
+        $outbox_msgs = \SimpleGallery\Kernel\Mail\Mailer::listOutbox($p1_root, 5);
+        $verify_token = '';
+        if (!empty($outbox_msgs[0]['text']) && preg_match('/\?verify_email=([A-Za-z0-9_-]+)/', $outbox_msgs[0]['text'], $vm)) {
+            $verify_token = $vm[1];
+        }
+        $stored_tok = \SimpleGallery\Kernel\Data\AtelierStore::forRoot($p1_root)->selectOne('auth_tokens', ['type' => 'email_verify']);
+        $this->assert("Phase A.2: E-mail de vérification émis dans outbox_log et jeton stocké hashé SHA-256",
+            $verify_token !== '' &&
+            is_array($stored_tok) &&
+            ($stored_tok['token_hash'] ?? '') === hash('sha256', $verify_token)
+        );
+
+        // Verify email -> activates Charlie and creates storage/users/charlie; replay rejected
+        $ver_res = \SimpleGallery\Kernel\Actions\AuthActions::handle('verify_email', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['token' => $verify_token]
+        ]);
+        $ver_replay = \SimpleGallery\Kernel\Actions\AuthActions::handle('verify_email', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['token' => $verify_token]
+        ]);
+        $this->assert("Phase A.2: verify_email active Charlie, crée son home et interdit la réutilisation du jeton",
+            ($ver_res['status'] ?? 0) === 200 &&
+            !empty($ver_res['data']['activated']) &&
+            is_dir($users_root . '/charlie') &&
+            ($ver_replay['status'] ?? 0) === 400
+        );
+
+        // 10.3 Password reset (anti-enumeration + functional token confirmation)
+        $reset_unknown = \SimpleGallery\Kernel\Actions\AuthActions::handle('request_password_reset', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['email' => 'nobody@studio.fr']
+        ]);
+        $reset_charlie = \SimpleGallery\Kernel\Actions\AuthActions::handle('request_password_reset', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['email' => 'charlie@studio.fr']
+        ]);
+        $outbox_after_reset = \SimpleGallery\Kernel\Mail\Mailer::listOutbox($p1_root, 5);
+        $reset_token = '';
+        foreach ($outbox_after_reset as $om) {
+            if (preg_match('/\?reset_password=([A-Za-z0-9_-]+)/', (string)($om['text'] ?? ''), $rm)) {
+                $reset_token = $rm[1];
+                break;
+            }
+        }
+        $reset_confirm = \SimpleGallery\Kernel\Actions\AuthActions::handle('confirm_password_reset', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['token' => $reset_token, 'password' => 'NewCharliePass99!']
+        ]);
+        $this->assert("Phase A.2: Réinitialisation mot de passe anti-énumération + mise à jour effective",
+            ($reset_unknown['status'] ?? 0) === 200 &&
+            ($reset_charlie['status'] ?? 0) === 200 &&
+            $reset_token !== '' &&
+            ($reset_confirm['status'] ?? 0) === 200 &&
+            \SimpleGallery\Kernel\Auth\UserManager::authenticate($p1_root, 'charlie', 'StrongPass99!') === null &&
+            \SimpleGallery\Kernel\Auth\UserManager::authenticate($p1_root, 'charlie', 'NewCharliePass99!') !== null
+        );
+
+        // 10.4 Invite-only mode & approval mode
+        $_SESSION['sg_admin_logged'] = true;
+        $_SESSION['is_admin'] = true;
+        \SimpleGallery\Kernel\Auth\AuthSettings::save($p1_root, ['registration_mode' => 'invite_only', 'require_email_verification' => false]);
+        $inv_create = \SimpleGallery\Kernel\Actions\AuthActions::handle('create_invite', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['email' => 'eve@studio.fr', 'role' => 'user', 'ttl_days' => 5]
+        ]);
+        $inv_token = $inv_create['data']['invite']['token'] ?? '';
+        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        $no_inv = \SimpleGallery\Kernel\Actions\AuthActions::handle('register_account', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['username' => 'eve', 'email' => 'eve@studio.fr', 'password' => 'EveSecret99!']
+        ]);
+        $with_inv = \SimpleGallery\Kernel\Actions\AuthActions::handle('register_account', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['username' => 'eve', 'email' => 'eve@studio.fr', 'password' => 'EveSecret99!', 'invite_token' => $inv_token]
+        ]);
+        $replay_inv = \SimpleGallery\Kernel\Actions\AuthActions::handle('register_account', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['username' => 'eve2', 'email' => 'eve@studio.fr', 'password' => 'EveSecret99!', 'invite_token' => $inv_token]
+        ]);
+        $this->assert("Phase A.2: Mode invite_only exige un jeton valide à usage unique",
+            $inv_token !== '' &&
+            ($no_inv['status'] ?? 0) === 403 &&
+            ($with_inv['status'] ?? 0) === 200 &&
+            ($replay_inv['status'] ?? 0) === 403
+        );
+
+        // 10.5 RFC 6238 TOTP Reference Vector + Local QR SVG + 2-Step Login + Anti-Replay + Recovery Codes
+        $rfc_code = \SimpleGallery\Kernel\Auth\TotpManager::getCode('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', 59);
+        $this->assert("Phase A.2: TotpManager conforme au vecteur RFC 6238 (t=59 -> 287082)", $rfc_code === '287082');
+
+        $qr_svg = \SimpleGallery\Kernel\Auth\QrCodeSvg::render('otpauth://totp/Atelier:charlie?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=Atelier');
+        $this->assert("Phase A.2: QrCodeSvg génère un SVG local sans aucun appel externe",
+            strpos($qr_svg, '<svg ') === 0 &&
+            strpos($qr_svg, '<path d="') !== false &&
+            stripos($qr_svg, '<image') === false &&
+            stripos($qr_svg, 'href=') === false &&
+            stripos($qr_svg, 'https://') === false
+        );
+
+        // Charlie logs in and enrolls 2FA
+        $charlie_user = \SimpleGallery\Kernel\Auth\UserManager::authenticate($p1_root, 'charlie', 'NewCharliePass99!');
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($charlie_user);
+        $setup_res = \SimpleGallery\Kernel\Actions\AuthActions::handle('begin_2fa_setup', [], ['base_dir' => $p1_root]);
+        $secret = $setup_res['data']['secret'] ?? '';
+        $now_code = \SimpleGallery\Kernel\Auth\TotpManager::getCode($secret);
+        $confirm_res = \SimpleGallery\Kernel\Actions\AuthActions::handle('confirm_2fa_setup', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['totp_code' => $now_code]
+        ]);
+        $rec_codes = $confirm_res['data']['recovery_codes'] ?? [];
+        $this->assert("Phase A.2: Enrôlement 2FA génère QR SVG local et 8 codes de secours",
+            ($setup_res['status'] ?? 0) === 200 &&
+            strlen($secret) >= 24 &&
+            strpos((string)($setup_res['data']['qr_svg'] ?? ''), '<svg ') === 0 &&
+            ($confirm_res['status'] ?? 0) === 200 &&
+            count($rec_codes) === 8
+        );
+
+        // Logout & test 2-step login: Step 1 MUST NOT elevate session!
+        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        $step1 = \SimpleGallery\Kernel\Actions\AuthActions::handle('login', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['username' => 'charlie', 'password' => 'NewCharliePass99!']
+        ]);
+        $this->assert("Phase A.2: Étape 1 du login 2FA renvoie requires_2fa sans authentifier la session",
+            ($step1['status'] ?? 0) === 200 &&
+            !empty($step1['data']['requires_2fa']) &&
+            \SimpleGallery\Kernel\Auth\AuthManager::isLoggedIn() === false
+        );
+
+        // Anti-replay: reusing exact same TOTP code from confirm_2fa_setup MUST fail!
+        $replay_totp = \SimpleGallery\Kernel\Actions\AuthActions::handle('verify_2fa_login', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['totp_code' => $now_code]
+        ]);
+        $this->assert("Phase A.2: Anti-replay rejette la réutilisation du même pas TOTP (401)",
+            ($replay_totp['status'] ?? 0) === 401 &&
+            \SimpleGallery\Kernel\Auth\AuthManager::isLoggedIn() === false
+        );
+
+        // Step 2 with single-use recovery code succeeds and opens session; replaying same recovery code fails!
+        $step2_rec = \SimpleGallery\Kernel\Actions\AuthActions::handle('verify_2fa_login', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['totp_code' => $rec_codes[0]]
+        ]);
+        $this->assert("Phase A.2: Code de secours 2FA valide complète la connexion (7 restants)",
+            ($step2_rec['status'] ?? 0) === 200 &&
+            !empty($step2_rec['data']['success']) &&
+            !empty($step2_rec['data']['used_recovery_code']) &&
+            ($step2_rec['data']['remaining_recovery_codes'] ?? -1) === 7 &&
+            \SimpleGallery\Kernel\Auth\AuthManager::isLoggedIn() === true
+        );
+
+        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        \SimpleGallery\Kernel\Actions\AuthActions::handle('login', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['username' => 'charlie', 'password' => 'NewCharliePass99!']
+        ]);
+        $replay_rec = \SimpleGallery\Kernel\Actions\AuthActions::handle('verify_2fa_login', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['totp_code' => $rec_codes[0]]
+        ]);
+        $this->assert("Phase A.2: Un code de secours déjà consommé est rejeté (401)",
+            ($replay_rec['status'] ?? 0) === 401 &&
+            \SimpleGallery\Kernel\Auth\AuthManager::isLoggedIn() === false
+        );
+
         $_SESSION = $saved_sess;
         \SimpleGallery\Kernel\Data\AtelierStore::resetCache();
     }

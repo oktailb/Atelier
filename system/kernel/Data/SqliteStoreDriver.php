@@ -32,7 +32,8 @@ class SqliteStoreDriver implements AtelierStoreInterface {
         'item_tags',
         'item_metadata',
         'vault_keys',
-        'audit_logs'
+        'audit_logs',
+        'auth_tokens'
     ];
 
     public function __construct(string $dbPath) {
@@ -239,6 +240,55 @@ class SqliteStoreDriver implements AtelierStoreInterface {
 
                 $ins = $this->pdo->prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)");
                 $ins->execute([1, 'initial_atelier_phase1_schema', time()]);
+                $this->pdo->commit();
+            } catch (\Throwable $e) {
+                $this->pdo->rollBack();
+                throw $e;
+            }
+        }
+
+        if (empty($applied[2])) {
+            $this->pdo->beginTransaction();
+            try {
+                // Inspect existing columns on users before ALTER TABLE
+                $existingCols = [];
+                $colStmt = $this->pdo->query("PRAGMA table_info(users)");
+                if ($colStmt) {
+                    foreach ($colStmt->fetchAll(PDO::FETCH_ASSOC) as $c) {
+                        $existingCols[(string)$c['name']] = true;
+                    }
+                }
+                $alterCols = [
+                    'email_verified_at'        => "ALTER TABLE users ADD COLUMN email_verified_at INTEGER DEFAULT NULL",
+                    'approval_status'          => "ALTER TABLE users ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'approved'",
+                    'totp_confirmed_at'        => "ALTER TABLE users ADD COLUMN totp_confirmed_at INTEGER DEFAULT NULL",
+                    'totp_recovery_codes_json' => "ALTER TABLE users ADD COLUMN totp_recovery_codes_json TEXT DEFAULT NULL",
+                    'totp_last_step'           => "ALTER TABLE users ADD COLUMN totp_last_step INTEGER DEFAULT NULL"
+                ];
+                foreach ($alterCols as $colName => $sql) {
+                    if (empty($existingCols[$colName])) {
+                        $this->pdo->exec($sql);
+                    }
+                }
+
+                $this->pdo->exec("
+                    CREATE TABLE IF NOT EXISTS auth_tokens (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER DEFAULT NULL,
+                        token_hash TEXT NOT NULL UNIQUE,
+                        type TEXT NOT NULL,
+                        target_email TEXT DEFAULT '',
+                        meta_json TEXT DEFAULT '{}',
+                        expires_at INTEGER NOT NULL,
+                        used_at INTEGER DEFAULT NULL,
+                        created_at INTEGER NOT NULL
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_auth_tokens_hash ON auth_tokens(token_hash);
+                    CREATE INDEX IF NOT EXISTS idx_auth_tokens_type ON auth_tokens(type);
+                ");
+
+                $ins = $this->pdo->prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)");
+                $ins->execute([2, 'atelier_phase_a2_self_registration_2fa', time()]);
                 $this->pdo->commit();
             } catch (\Throwable $e) {
                 $this->pdo->rollBack();

@@ -1168,7 +1168,36 @@ try {
     loginHtml.includes('authModalPassword') &&
     loginHtml.includes('authModalTotp') &&
     loginHtml.includes('data-auth-mode="qr"') &&
-    loginHtml.includes('authModalOptOpenHome')
+    loginHtml.includes('authModalOptOpenHome') &&
+    !loginHtml.includes('data-auth-mode="register"')
+  );
+
+  // Phase A.2: Enable registration policy -> Register tab, 2FA setup (local SVG QR), recovery codes & forgot password
+  authWin.SG_AUTH_POLICY = {
+    registration_mode: 'open',
+    registration_enabled: true,
+    invite_required: false,
+    approval_required: false,
+    require_email_verification: true,
+    allow_password_reset: true,
+    min_password_length: 8,
+    totp_policy: 'optional',
+    totp_enabled: true
+  };
+  authWin.sys.authModal.open({ mode: 'register' });
+  const regHtml = authWin.sys.authModal.overlayEl.innerHTML;
+  authWin.sys.authModal.open({ mode: 'totp_setup', context: { setup: { secret: 'JBSWY3DPEHPK3PXP', qr_svg: '<svg><path d="M0,0"/></svg>' } } });
+  const totpSetupHtml = authWin.sys.authModal.overlayEl.innerHTML;
+  authWin.sys.authModal.open({ mode: 'totp_codes', context: { codes: ['AAAA-BBBB', 'CCCC-DDDD'] } });
+  const codesHtml = authWin.sys.authModal.overlayEl.innerHTML;
+  assert("Phase A.2: AuthModalService rend inscription autonome, assistant 2FA (QR SVG local) et codes de secours",
+    regHtml.includes('data-auth-mode="register"') &&
+    regHtml.includes('authRegEmail') &&
+    regHtml.includes('authRegHoneypot') &&
+    totpSetupHtml.includes('JBSWY3DPEHPK3PXP') &&
+    totpSetupHtml.includes('authSetupTotpCode') &&
+    codesHtml.includes('AAAA-BBBB') &&
+    codesHtml.includes('authDownloadRecoveryBtn')
   );
   authWin.sys.authModal.close(true);
 
