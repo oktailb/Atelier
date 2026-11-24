@@ -281,11 +281,21 @@
       };
     }
 
+    getUserStorageScope() {
+      const u = (window.sys && window.sys.shares && typeof window.sys.shares.getCurrentUser === 'function')
+        ? window.sys.shares.getCurrentUser()
+        : window.SG_CURRENT_USER;
+      if (u && u.username) return `user_${u.username}`;
+      return window.IS_ADMIN ? 'admin' : 'guest';
+    }
+
     loadSavedPreferences() {
       try {
         const savedView = localStorage.getItem('gallery_view_mode');
         if (savedView) this.state.viewMode = savedView;
-        const savedFavs = JSON.parse(localStorage.getItem('sg_favorites') || '[]');
+        const scope = this.getUserStorageScope();
+        const rawFavs = localStorage.getItem(`sg_favorites_${scope}`) || (scope === 'guest' ? localStorage.getItem('sg_favorites') : null) || '[]';
+        const savedFavs = JSON.parse(rawFavs);
         this.state.favorites = Array.isArray(savedFavs) ? savedFavs : [];
       } catch (e) { }
     }
@@ -1251,15 +1261,17 @@
 
     saveFolderSort(dirPath, sortBy, sortOrder) {
       try {
-        const sorts = JSON.parse(localStorage.getItem('sg_folder_sorts') || '{}');
+        const key = `sg_folder_sorts_${this.getUserStorageScope()}`;
+        const sorts = JSON.parse(localStorage.getItem(key) || '{}');
         sorts[dirPath || '__root__'] = { sortBy, sortOrder };
-        localStorage.setItem('sg_folder_sorts', JSON.stringify(sorts));
+        localStorage.setItem(key, JSON.stringify(sorts));
       } catch (e) { }
     }
 
     getFolderSort(dirPath) {
       try {
-        const sorts = JSON.parse(localStorage.getItem('sg_folder_sorts') || '{}');
+        const key = `sg_folder_sorts_${this.getUserStorageScope()}`;
+        const sorts = JSON.parse(localStorage.getItem(key) || '{}');
         return sorts[dirPath || '__root__'] || null;
       } catch (e) {
         return null;
@@ -1276,7 +1288,7 @@
         this.showToast(this.t('lightbox.favorite_added'), 'success');
       }
       try {
-        localStorage.setItem('sg_favorites', JSON.stringify(this.state.favorites));
+        localStorage.setItem(`sg_favorites_${this.getUserStorageScope()}`, JSON.stringify(this.state.favorites));
       } catch (e) { }
 
       this.manager.updateMenuBarForActiveInstance();
@@ -2763,6 +2775,9 @@
         });
         const refreshVolumes = () => {
           this.instances.forEach(inst => {
+            if (typeof inst.loadSavedPreferences === 'function') {
+              inst.loadSavedPreferences();
+            }
             if (typeof inst.renderVolumesBar === 'function') {
               inst.renderVolumesBar();
             }

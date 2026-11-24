@@ -408,9 +408,9 @@ class FileActions {
 
             $is_protected_user_root = function(string $rel_path): bool {
                 $clean = trim(str_replace('\\', '/', $rel_path), '/');
-                if ($clean === 'users') return true;
+                if (strcasecmp($clean, 'users') === 0) return true;
                 // Protect top-level user home directory `users/<username>` from being moved/deleted by non-admins
-                if (preg_match('#^users/[^/]+$#', $clean) && !AuthManager::isAdminLoggedIn()) return true;
+                if (preg_match('#^users/[^/]+$#i', $clean) && !AuthManager::isAdminLoggedIn()) return true;
                 return false;
             };
 
@@ -602,7 +602,7 @@ class FileActions {
             $target_rel = PathValidator::getRelativePath($target_full, $base_dir);
             $target_rel_clean = trim(str_replace('\\', '/', $target_rel), '/');
             // Never allow deleting `users` root or a top-level user home folder via delete_item
-            if ($target_rel_clean === 'users' || (preg_match('#^users/[^/]+$#', $target_rel_clean) && !AuthManager::isAdminLoggedIn())) {
+            if (strcasecmp($target_rel_clean, 'users') === 0 || (preg_match('#^users/[^/]+$#i', $target_rel_clean) && !AuthManager::isAdminLoggedIn())) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_delete_denied')]];
             }
             if (!PermissionsManager::hasPermission('can_delete', $base_dir, $target_rel_clean)) {

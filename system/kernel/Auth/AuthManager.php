@@ -82,11 +82,47 @@ class AuthManager {
     }
 
     /**
-     * Clears both legacy admin and multi-user session state.
+     * Clears both legacy admin, multi-user session state, and any unlocked private folders/share links.
      */
     public static function logoutSession(): void {
         self::ensureSessionStarted();
-        unset($_SESSION['sg_admin_logged'], $_SESSION['is_admin'], $_SESSION['sg_user']);
+        unset(
+            $_SESSION['sg_admin_logged'],
+            $_SESSION['is_admin'],
+            $_SESSION['sg_user'],
+            $_SESSION['sg_unlocked_folders'],
+            $_SESSION['unlocked_dirs'],
+            $_SESSION['sg_unlocked_shares']
+        );
+        if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_ACTIVE && !headers_sent()) {
+            @session_regenerate_id(true);
+        }
+    }
+
+    /**
+     * Re-validates the active multi-user session against persistent storage on every request:
+     * immediately revokes sessions for disabled or deleted accounts and syncs role changes.
+     */
+    public static function revalidateActiveUser(string $baseOrRoot): void {
+        self::ensureSessionStarted();
+        $sessionUser = $_SESSION['sg_user'] ?? null;
+        if (!is_array($sessionUser) || empty($sessionUser['id'])) {
+            return;
+        }
+        try {
+            $dbUser = UserManager::findById($baseOrRoot, (int)$sessionUser['id']);
+            if (!$dbUser || empty($dbUser['is_active'])) {
+                self::logoutSession();
+                return;
+            }
+            $fresh = UserManager::sanitizeUserForOutput($dbUser);
+            $_SESSION['sg_user'] = $fresh;
+            $isAdmin = in_array($fresh['role'] ?? '', ['superadmin', 'admin'], true);
+            $_SESSION['sg_admin_logged'] = $isAdmin;
+            $_SESSION['is_admin'] = $isAdmin;
+        } catch (\Throwable $e) {
+            // Do not crash if storage is temporarily unavailable
+        }
     }
 
     /**

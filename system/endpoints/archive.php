@@ -14,6 +14,7 @@ use SimpleGallery\Kernel\Media\BinaryLocator;
 use SimpleGallery\Kernel\Security\PathValidator;
 
 ensure_session_started();
+AuthManager::revalidateActiveUser($project_root);
 
 $format = strtolower($_GET['format'] ?? 'zip');
 $req_dir = $_GET['dir'] ?? '';

@@ -80,13 +80,13 @@ class DotfileManager {
 
         // Build full chain of directories to check: root (if explicit .private/.password) + every ancestor segment
         $chain = [];
-        $is_users_ns = ($rel === 'users' || strpos($rel, 'users/') === 0);
+        $is_users_ns = (strcasecmp($rel, 'users') === 0 || stripos($rel, 'users/') === 0);
         $users_root = PathValidator::getUsersRoot($base_dir);
         $real_users_root = rtrim(str_replace('\\', '/', realpath($users_root) ?: $users_root), '/');
 
         if ($is_users_ns && is_dir($real_users_root)) {
             $chain[] = $real_users_root;
-            $sub_rel = ($rel === 'users') ? '' : substr($rel, 6);
+            $sub_rel = (strcasecmp($rel, 'users') === 0) ? '' : substr($rel, 6);
             if ($sub_rel !== '') {
                 $parts = explode('/', $sub_rel);
                 $accumulated = '';

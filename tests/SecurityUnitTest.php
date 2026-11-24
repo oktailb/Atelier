@@ -1178,6 +1178,52 @@ HTACCESS;
         $this->assert("Audit M1: list_tags refuse un invité non connecté (403)", ($guest_list_tags['status'] ?? 0) === 403);
         \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($bob_auth);
 
+        // S1: Case-insensitive users/ namespace protection (anti Windows/macOS NTFS/APFS bypass)
+        \SimpleGallery\Kernel\FS\PermissionsManager::savePermissions($p1_root, ['can_upload' => true, 'can_delete' => true]);
+        $this->assert("Audit S1: Users/Alice/shared_ro (casse mixte) reste isolé de la matrice invité",
+            \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root, 'Users/Alice/shared_ro') === false &&
+            \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_delete', $p1_root, 'USERS/alice/shared_ro/note.txt') === false
+        );
+        \SimpleGallery\Kernel\FS\PermissionsManager::savePermissions($p1_root, \SimpleGallery\Kernel\FS\PermissionsManager::DEFAULT_PERMISSIONS);
+
+        // S3: File Drop share link grants can_upload ONLY (NEVER can_delete or can_move!)
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($alice_auth);
+        $drop_link_res = \SimpleGallery\Kernel\Actions\UserActions::handle('create_share_link', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['target_path' => 'users/alice/shared_ro', 'mode' => 'drop']
+        ]);
+        $drop_token = $drop_link_res['data']['link']['token'] ?? '';
+        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        \SimpleGallery\Kernel\Actions\UserActions::handle('access_share_link', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['token' => $drop_token]
+        ]);
+        $this->assert("Audit S3: Un lien File Drop (mode=drop) autorise uniquement can_upload, JAMAIS can_delete ni can_move",
+            \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root, 'users/alice/shared_ro') === true &&
+            \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_delete', $p1_root, 'users/alice/shared_ro/note.txt') === false &&
+            \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_move', $p1_root, 'users/alice/shared_ro/note.txt') === false
+        );
+
+        // S4: logoutSession purges unlocked folders & unlocked share links (shared browser safety)
+        $_SESSION['sg_unlocked_folders'] = ['locked' => true];
+        $_SESSION['unlocked_dirs'] = ['locked' => true];
+        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        $this->assert("Audit S4: logoutSession purge sg_unlocked_folders, unlocked_dirs et sg_unlocked_shares",
+            empty($_SESSION['sg_unlocked_folders']) && empty($_SESSION['unlocked_dirs']) && empty($_SESSION['sg_unlocked_shares'])
+        );
+
+        // S2: Disabling a logged-in user immediately revokes their active session on next request
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($bob_auth);
+        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, (int)$bob['id'], ['is_active' => 0]);
+        \SimpleGallery\Kernel\Auth\AuthManager::revalidateActiveUser($p1_root);
+        $this->assert("Audit S2: Désactiver un utilisateur révoque immédiatement sa session active",
+            \SimpleGallery\Kernel\Auth\AuthManager::getCurrentUser() === null &&
+            \SimpleGallery\Kernel\Auth\AuthManager::isLoggedIn() === false
+        );
+        // Re-enable bob for remainder of test
+        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, (int)$bob['id'], ['is_active' => 1]);
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($bob_auth);
+
         // 8. Revoke RO share as Alice -> Bob immediately loses access
         \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($alice_auth);
         $rev_res = \SimpleGallery\Kernel\Actions\UserActions::handle('revoke_user_share', [], [

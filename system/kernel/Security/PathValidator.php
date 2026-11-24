@@ -81,7 +81,7 @@ class PathValidator {
         $trimmed_left = ltrim($clean_path, '/');
 
         // Reject any path containing `..` traversal segments early for virtual namespace safety
-        if ($trimmed_left === 'users' || strpos($trimmed_left, 'users/') === 0) {
+        if (strcasecmp($trimmed_left, 'users') === 0 || stripos($trimmed_left, 'users/') === 0) {
             $segments = explode('/', $trimmed_left);
             foreach ($segments as $seg) {
                 if ($seg === '..') {
@@ -89,7 +89,7 @@ class PathValidator {
                 }
             }
             $users_root = self::getUsersRoot($base_dir);
-            $sub = ($trimmed_left === 'users') ? '' : substr($trimmed_left, 6);
+            $sub = (strcasecmp($trimmed_left, 'users') === 0) ? '' : substr($trimmed_left, 6);
             $resolved_user_path = self::canonicalizeWithinRoot($sub, $users_root, $must_exist, $allow_root);
             if ($resolved_user_path !== null) {
                 return $resolved_user_path;
@@ -146,20 +146,21 @@ class PathValidator {
 
         // Map dedicated `storage/users/...` paths back to virtual `users/...` relative paths FIRST
         // (must run before `$base_dir` check in case `$base_dir` is a parent directory like a test sandbox)
+        $ci = (PHP_OS_FAMILY === 'Windows' || PHP_OS_FAMILY === 'Darwin');
         $users_root = self::getUsersRoot($base_dir);
         $real_users = realpath($users_root);
         $users_root_norm = rtrim(str_replace('\\', '/', $real_users !== false ? $real_users : $users_root), '/');
-        if ($full_path === $users_root_norm) {
+        if ($ci ? (strcasecmp($full_path, $users_root_norm) === 0) : ($full_path === $users_root_norm)) {
             return 'users';
         }
-        if (strpos($full_path, $users_root_norm . '/') === 0) {
+        if ($ci ? (stripos($full_path, $users_root_norm . '/') === 0) : (strpos($full_path, $users_root_norm . '/') === 0)) {
             return 'users/' . substr($full_path, strlen($users_root_norm) + 1);
         }
 
-        if ($full_path === $base_dir) {
+        if ($ci ? (strcasecmp($full_path, $base_dir) === 0) : ($full_path === $base_dir)) {
             return '';
         }
-        if (strpos($full_path, $base_dir . '/') === 0) {
+        if ($ci ? (stripos($full_path, $base_dir . '/') === 0) : (strpos($full_path, $base_dir . '/') === 0)) {
             return substr($full_path, strlen($base_dir) + 1);
         }
 

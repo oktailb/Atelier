@@ -90,12 +90,19 @@ class PermissionsManager {
 
         if ($target_rel_path !== null) {
             $norm = trim(str_replace('\\', '/', $target_rel_path), '/');
-            $is_users_ns = ($norm === 'users' || strpos($norm, 'users/') === 0);
+            $is_users_ns = (strcasecmp($norm, 'users') === 0 || stripos($norm, 'users/') === 0);
             $share_perm = \SimpleGallery\Kernel\Auth\ShareManager::resolveEffectivePathPermission($norm, $base_dir);
             $is_acl_governed = $is_users_ns || ($share_perm !== 'none');
 
-            $write_perms = ['can_upload', 'can_delete', 'can_move', 'can_comment', 'can_create_folder'];
-            if (in_array($permission_key, $write_perms, true)) {
+            if ($permission_key === 'can_upload') {
+                $can_upload = \SimpleGallery\Kernel\Auth\ShareManager::canUploadPath($norm, $base_dir);
+                if ($is_acl_governed) {
+                    return $can_upload;
+                }
+                if ($can_upload) {
+                    return true;
+                }
+            } elseif (in_array($permission_key, ['can_delete', 'can_move', 'can_comment', 'can_create_folder'], true)) {
                 $can_write = \SimpleGallery\Kernel\Auth\ShareManager::canWritePath($norm, $base_dir);
                 if ($is_acl_governed) {
                     // Strict isolation: user homes & shared folders NEVER fall back to the public guest matrix

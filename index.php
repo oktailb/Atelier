@@ -188,6 +188,7 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
     window.SG_AUTOSTART_CONFIG = <?php echo json_encode(get_autostart_config(__DIR__), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
     window.CSRF_TOKEN = <?php echo json_encode(get_csrf_token()); ?>;
     window.SG_CSRF_TOKEN = window.CSRF_TOKEN;
+    <?php \SimpleGallery\Kernel\Auth\AuthManager::revalidateActiveUser(__DIR__); ?>
     window.IS_ADMIN = <?php echo is_admin_logged_in() ? 'true' : 'false'; ?>;
     window.SG_CURRENT_USER = <?php echo json_encode(\SimpleGallery\Kernel\Auth\AuthManager::getCurrentUser(), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
     window.SG_MOUNTED_VOLUMES = <?php echo json_encode(\SimpleGallery\Kernel\Auth\ShareManager::getMountedVolumesForCurrentUser($real_base_dir), JSON_HEX_TAG | JSON_HEX_AMP); ?>;

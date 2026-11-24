@@ -343,6 +343,7 @@ function generate_imagemagick_frame_thumbnail(string $file_path, string $output_
 }
 
 ensure_session_started();
+\SimpleGallery\Kernel\Auth\AuthManager::revalidateActiveUser($project_root);
 
 
 $requested_file = $_GET['file'] ?? '';

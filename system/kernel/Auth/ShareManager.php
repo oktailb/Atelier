@@ -15,8 +15,9 @@ class ShareManager {
     public const PERMISSION_LEVELS = [
         'none'  => 0,
         'read'  => 1,
-        'write' => 2,
-        'admin' => 3
+        'drop'  => 2,
+        'write' => 3,
+        'admin' => 4
     ];
 
     public const CLASSIFICATIONS = ['public', 'internal', 'confidential', 'secret'];
@@ -33,11 +34,16 @@ class ShareManager {
 
     /**
      * Checks whether $targetRel is equal to or a descendant of $ancestorRel.
+     * Case-insensitive on Windows/macOS to prevent NTFS/APFS case-bypass tricks.
      */
     public static function isPathWithin(string $targetRel, string $ancestorRel): bool {
         $t = self::normalizeRelPath($targetRel);
         $a = self::normalizeRelPath($ancestorRel);
         if ($a === '') return true;
+        if (PHP_OS_FAMILY === 'Windows' || PHP_OS_FAMILY === 'Darwin') {
+            $t = strtolower($t);
+            $a = strtolower($a);
+        }
         return ($t === $a) || (strpos($t, $a . '/') === 0);
     }
 
@@ -116,7 +122,8 @@ class ShareManager {
                 if (!$link || !empty($link['revoked_at'])) continue;
                 if (!empty($link['expires_at']) && (int)$link['expires_at'] < $now) continue;
                 if (self::isPathWithin($rel, (string)$link['target_path'])) {
-                    $linkPerm = ($link['mode'] === 'drop') ? 'write' : 'read';
+                    // File-drop links grant upload-only ('drop'), NEVER delete/move ('write')
+                    $linkPerm = ($link['mode'] === 'drop') ? 'drop' : 'read';
                     $promote($linkPerm);
                 }
             }
@@ -128,6 +135,11 @@ class ShareManager {
     public static function canReadPath(string $relPath, string $baseDir): bool {
         $perm = self::resolveEffectivePathPermission($relPath, $baseDir);
         return (self::PERMISSION_LEVELS[$perm] ?? 0) >= self::PERMISSION_LEVELS['read'];
+    }
+
+    public static function canUploadPath(string $relPath, string $baseDir): bool {
+        $perm = self::resolveEffectivePathPermission($relPath, $baseDir);
+        return (self::PERMISSION_LEVELS[$perm] ?? 0) >= self::PERMISSION_LEVELS['drop'];
     }
 
     public static function canWritePath(string $relPath, string $baseDir): bool {

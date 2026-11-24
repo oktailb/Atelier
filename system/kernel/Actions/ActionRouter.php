@@ -175,6 +175,9 @@ class ActionRouter {
             ? rtrim(str_replace('\\', '/', $project_root), '/')
             : ConfigStore::resolveRoot($base_dir);
 
+        // Immediately revoke disabled/deleted user sessions & sync role changes on every API request
+        \SimpleGallery\Kernel\Auth\AuthManager::revalidateActiveUser($resolved_project_root);
+
         $params = array_merge($_GET, $_POST, $raw_body);
         $context = [
             'project_root'  => $resolved_project_root,
