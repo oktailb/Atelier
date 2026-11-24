@@ -43,11 +43,12 @@ class UserManager {
             'home_dir'          => (string)($user['home_dir'] ?? ('users/' . $user['username'])),
             'quota_bytes'       => (int)($user['quota_bytes'] ?? 0),
             'is_active'         => !empty($user['is_active']),
-            'has_2fa'           => $hasConfirmed2fa,
-            'totp_pending'      => !empty($user['totp_secret']) && empty($user['totp_confirmed_at']),
-            'has_e2ee_key'      => !empty($user['public_key']),
-            'created_at'        => (int)($user['created_at'] ?? 0),
-            'last_login_at'     => isset($user['last_login_at']) ? (int)$user['last_login_at'] : null
+            'has_2fa'              => $hasConfirmed2fa,
+            'totp_pending'         => !empty($user['totp_secret']) && empty($user['totp_confirmed_at']),
+            'has_e2ee_key'         => !empty($user['public_key']),
+            'permission_overrides' => \SimpleGallery\Kernel\FS\PermissionsManager::decodeOverrides($user['permissions_json'] ?? null),
+            'created_at'           => (int)($user['created_at'] ?? 0),
+            'last_login_at'        => isset($user['last_login_at']) ? (int)$user['last_login_at'] : null
         ];
     }
 
@@ -234,6 +235,7 @@ class UserManager {
             'public_key'               => null,
             'key_salt'                 => null,
             'preferences_json'         => '{}',
+            'permissions_json'         => '{}',
             'created_at'               => $now,
             'updated_at'               => $now,
             'last_login_at'            => null
@@ -275,6 +277,10 @@ class UserManager {
         }
         if (isset($input['is_active'])) {
             $patch['is_active'] = !empty($input['is_active']) ? 1 : 0;
+        }
+        if (array_key_exists('permission_overrides', $input)) {
+            $cleanOv = \SimpleGallery\Kernel\FS\PermissionsManager::sanitizeOverrides($input['permission_overrides']);
+            $patch['permissions_json'] = json_encode($cleanOv, JSON_UNESCAPED_SLASHES);
         }
         if (!empty($input['password'])) {
             $pwd = (string)$input['password'];
@@ -381,6 +387,7 @@ class UserManager {
             $gid = (int)$g['id'];
             $g['id'] = $gid;
             $g['member_ids'] = $byGroup[$gid] ?? [];
+            $g['permission_overrides'] = \SimpleGallery\Kernel\FS\PermissionsManager::decodeOverrides($g['permissions_json'] ?? null);
         }
         return $groups;
     }
@@ -410,10 +417,11 @@ class UserManager {
         }
 
         $id = $store->insert('groups', [
-            'name'         => $name,
-            'display_name' => $displayName !== '' ? $displayName : $name,
-            'description'  => $description,
-            'created_at'   => time()
+            'name'             => $name,
+            'display_name'     => $displayName !== '' ? $displayName : $name,
+            'description'      => $description,
+            'permissions_json' => '{}',
+            'created_at'       => time()
         ]);
 
         AuditLogger::log($projectRoot, 'group_create', 'group:' . $name, 'ok', ['group_id' => $id]);
@@ -421,12 +429,52 @@ class UserManager {
             'success' => true,
             'status'  => 200,
             'group'   => [
-                'id'           => (int)$id,
-                'name'         => $name,
-                'display_name' => $displayName !== '' ? $displayName : $name,
-                'description'  => $description,
-                'member_ids'   => []
+                'id'                   => (int)$id,
+                'name'                 => $name,
+                'display_name'         => $displayName !== '' ? $displayName : $name,
+                'description'          => $description,
+                'member_ids'           => [],
+                'permission_overrides' => []
             ]
+        ];
+    }
+
+    public static function setGroupPermissions(string $projectRoot, int $groupId, $overrides): array {
+        $store = AtelierStore::forRoot($projectRoot);
+        $group = $store->selectOne('groups', ['id' => $groupId]);
+        if (!$group) {
+            return ['success' => false, 'status' => 404, 'error' => 'Group not found.'];
+        }
+        $clean = \SimpleGallery\Kernel\FS\PermissionsManager::sanitizeOverrides($overrides);
+        $store->update('groups', [
+            'permissions_json' => json_encode($clean, JSON_UNESCAPED_SLASHES)
+        ], ['id' => $groupId]);
+        AuditLogger::log($projectRoot, 'group_permissions_update', 'group:' . $group['name'], 'ok', ['overrides' => $clean]);
+        return [
+            'success'              => true,
+            'status'               => 200,
+            'group_id'             => $groupId,
+            'permission_overrides' => $clean
+        ];
+    }
+
+    public static function setUserPermissions(string $projectRoot, int $userId, $overrides): array {
+        $store = AtelierStore::forRoot($projectRoot);
+        $user = $store->selectOne('users', ['id' => $userId]);
+        if (!$user) {
+            return ['success' => false, 'status' => 404, 'error' => 'User not found.'];
+        }
+        $clean = \SimpleGallery\Kernel\FS\PermissionsManager::sanitizeOverrides($overrides);
+        $store->update('users', [
+            'permissions_json' => json_encode($clean, JSON_UNESCAPED_SLASHES),
+            'updated_at'       => time()
+        ], ['id' => $userId]);
+        AuditLogger::log($projectRoot, 'user_permissions_update', (string)($user['home_dir'] ?? $user['username']), 'ok', ['user_id' => $userId, 'overrides' => $clean]);
+        return [
+            'success'              => true,
+            'status'               => 200,
+            'user_id'              => $userId,
+            'permission_overrides' => $clean
         ];
     }
 
@@ -575,19 +623,10 @@ class UserManager {
     }
 
     /**
-     * Returns the effective desktop shortcuts config for the given user (personal desktop if customized,
-     * otherwise the instance default template from `storage/desktop.json`).
+     * Returns the instance-wide default desktop template (`storage/desktop.json`) used by guests
+     * and as the initial layout for new accounts.
      */
-    public static function getEffectiveDesktopConfig(string $projectRoot, ?array $user = null): array {
-        if ($user && !empty($user['id'])) {
-            $prefs = self::getUserPreferences($projectRoot, (int)$user['id']);
-            if (isset($prefs['desktop']['shortcuts']) && is_array($prefs['desktop']['shortcuts'])) {
-                return [
-                    'shortcuts' => $prefs['desktop']['shortcuts'],
-                    'scope'     => 'user'
-                ];
-            }
-        }
+    public static function getGlobalDesktopTemplate(string $projectRoot): array {
         $global = ConfigStore::get('desktop', ['shortcuts' => []], $projectRoot);
         $shortcuts = (is_array($global) && isset($global['shortcuts']) && is_array($global['shortcuts']))
             ? $global['shortcuts']
@@ -596,5 +635,37 @@ class UserManager {
             'shortcuts' => $shortcuts,
             'scope'     => 'global'
         ];
+    }
+
+    /**
+     * Returns the effective desktop shortcuts config for the current session:
+     *  - Multi-user account (`$user['id']`): personal desktop (`users.preferences_json`) or global template fallback
+     *  - Legacy root admin (`!$user && $isAdmin`): isolated `storage/desktop_admin.json` or global template fallback
+     *  - Anonymous guest: strictly `storage/desktop.json` (never sees admin or user shortcuts)
+     */
+    public static function getEffectiveDesktopConfig(string $projectRoot, ?array $user = null, ?bool $isAdmin = null): array {
+        if ($user && !empty($user['id'])) {
+            $prefs = self::getUserPreferences($projectRoot, (int)$user['id']);
+            if (isset($prefs['desktop']['shortcuts']) && is_array($prefs['desktop']['shortcuts'])) {
+                return [
+                    'shortcuts' => $prefs['desktop']['shortcuts'],
+                    'scope'     => 'user'
+                ];
+            }
+            return self::getGlobalDesktopTemplate($projectRoot);
+        }
+
+        $resolvedAdmin = ($isAdmin !== null) ? $isAdmin : AuthManager::isAdminLoggedIn();
+        if ($resolvedAdmin) {
+            $adminDesk = ConfigStore::get('desktop_admin', null, $projectRoot);
+            if (is_array($adminDesk) && isset($adminDesk['shortcuts']) && is_array($adminDesk['shortcuts'])) {
+                return [
+                    'shortcuts' => $adminDesk['shortcuts'],
+                    'scope'     => 'admin'
+                ];
+            }
+        }
+
+        return self::getGlobalDesktopTemplate($projectRoot);
     }
 }

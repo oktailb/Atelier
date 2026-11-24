@@ -1652,6 +1652,137 @@ HTACCESS;
             empty($bob_me['data']['preferences']['wallpaper'] ?? '')
         );
 
+        // 10.8 Legacy Admin Desktop Isolation & Global Desktop Template
+        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        $_SESSION['is_admin'] = true;
+        $_SESSION['sg_admin_logged'] = true;
+        $legacy_admin_save = \SimpleGallery\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => [
+                'shortcuts' => [
+                    ['id' => 'sc_admin_private', 'type' => 'app', 'appId' => 'sysmon', 'name' => 'Admin Monitor', 'enabled' => true]
+                ]
+            ]
+        ]);
+        $legacy_admin_get = \SimpleGallery\Kernel\Actions\SystemActions::handle('get_desktop_shortcuts', [], ['base_dir' => $p1_root]);
+        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        $guest_after_admin_get = \SimpleGallery\Kernel\Actions\SystemActions::handle('get_desktop_shortcuts', [], ['base_dir' => $p1_root]);
+        $this->assert("Multi-User Desktop: Le bureau admin legacy (desktop_admin.json) est isolé du bureau invité (desktop.json)",
+            ($legacy_admin_save['status'] ?? 0) === 200 &&
+            ($legacy_admin_save['data']['scope'] ?? '') === 'admin' &&
+            ($legacy_admin_get['data']['scope'] ?? '') === 'admin' &&
+            ($legacy_admin_get['data']['shortcuts'][0]['id'] ?? '') === 'sc_admin_private' &&
+            ($guest_after_admin_get['data']['scope'] ?? '') === 'global' &&
+            ($guest_after_admin_get['data']['shortcuts'][0]['id'] ?? '') === 'sc_global_tpl'
+        );
+
+        // Explicit scope=global updates guest template
+        $_SESSION['is_admin'] = true;
+        $_SESSION['sg_admin_logged'] = true;
+        $pub_global_save = \SimpleGallery\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => [
+                'scope' => 'global',
+                'shortcuts' => [
+                    ['id' => 'sc_public_new', 'type' => 'app', 'appId' => 'explorer', 'name' => 'Galerie Publique', 'enabled' => true]
+                ]
+            ]
+        ]);
+        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        $guest_updated_get = \SimpleGallery\Kernel\Actions\SystemActions::handle('get_desktop_shortcuts', [], ['base_dir' => $p1_root]);
+        $this->assert("Multi-User Desktop: Un admin peut publier le modèle global (scope=global) servi aux invités",
+            ($pub_global_save['status'] ?? 0) === 200 &&
+            ($pub_global_save['data']['scope'] ?? '') === 'global' &&
+            ($guest_updated_get['data']['shortcuts'][0]['id'] ?? '') === 'sc_public_new'
+        );
+
+        // 10.9 3-Tier Cascading Permissions Matrix (Role -> Group [deny beats allow] -> User override)
+        $_SESSION['is_admin'] = true;
+        $_SESSION['sg_admin_logged'] = true;
+        $save_roles_res = \SimpleGallery\Kernel\Actions\AuthActions::handle('save_permissions', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => [
+                'roles' => [
+                    'anonymous' => ['can_upload' => false, 'can_comment' => false, 'can_download_item' => false, 'can_use_browser_proxy' => false],
+                    'guest'     => ['can_upload' => false, 'can_comment' => false, 'can_download_item' => true,  'can_use_browser_proxy' => false],
+                    'user'      => ['can_upload' => false, 'can_comment' => true,  'can_download_item' => true,  'can_use_browser_proxy' => false]
+                ]
+            ]
+        ]);
+
+        $guest_acct = \SimpleGallery\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
+            'username' => 'guest_demo',
+            'password' => 'GuestPass123!',
+            'role' => 'guest'
+        ]);
+        $grp_editors = \SimpleGallery\Kernel\Auth\UserManager::createGroup($p1_root, ['name' => 'editors', 'display_name' => 'Editors']);
+        $grp_restricted = \SimpleGallery\Kernel\Auth\UserManager::createGroup($p1_root, ['name' => 'restricted', 'display_name' => 'Restricted']);
+
+        \SimpleGallery\Kernel\Actions\UserActions::handle('set_group_permissions', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['group_id' => $grp_editors['group']['id'], 'permission_overrides' => ['can_upload' => 'allow', 'can_use_browser_proxy' => 'allow']]
+        ]);
+        \SimpleGallery\Kernel\Actions\UserActions::handle('set_group_permissions', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['group_id' => $grp_restricted['group']['id'], 'permission_overrides' => ['can_upload' => 'deny']]
+        ]);
+
+        // Level 1: Anonymous vs Guest account vs User role
+        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        $anon_dl = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_download_item', $p1_root);
+        $anon_cm = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_comment', $p1_root);
+
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($guest_acct['user'], $p1_root);
+        $guest_dl = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_download_item', $p1_root);
+        $guest_cm = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_comment', $p1_root);
+
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
+        $user_cm = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_comment', $p1_root);
+        $user_up_before = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root);
+
+        $this->assert("Permissions 3-Niveaux (Niveau 1 Rôles): anonymous / guest / user ont des matrices distinctes",
+            ($save_roles_res['status'] ?? 0) === 200 &&
+            $anon_dl === false && $anon_cm === false &&
+            $guest_dl === true && $guest_cm === false &&
+            $user_cm === true && $user_up_before === false
+        );
+
+        // Level 2: Group allow, then conflicting group deny beats allow
+        \SimpleGallery\Kernel\Auth\UserManager::setGroupMembers($p1_root, (int)$grp_editors['group']['id'], [(int)$desk_a['user']['id']]);
+        $user_up_grp_allow = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root);
+        $user_proxy_grp_allow = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_use_browser_proxy', $p1_root);
+
+        \SimpleGallery\Kernel\Auth\UserManager::setGroupMembers($p1_root, (int)$grp_restricted['group']['id'], [(int)$desk_a['user']['id']]);
+        $user_up_grp_deny = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root);
+
+        $this->assert("Permissions 3-Niveaux (Niveau 2 Groupes): Surcharge groupe autorise puis deny l'emporte sur allow",
+            $user_up_grp_allow === true &&
+            $user_proxy_grp_allow === true &&
+            $user_up_grp_deny === false
+        );
+
+        // Level 3: Explicit User override beats Group & Role, while users/<other> ACL remains hermetically isolated!
+        $_SESSION['is_admin'] = true;
+        $_SESSION['sg_admin_logged'] = true;
+        $user_ov_res = \SimpleGallery\Kernel\Actions\UserActions::handle('set_user_permissions', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => [
+                'user_id' => $desk_a['user']['id'],
+                'permission_overrides' => ['can_upload' => 'allow', 'can_comment' => 'deny']
+            ]
+        ]);
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
+        $user_up_override = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root);
+        $user_cm_override = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_comment', $p1_root);
+        $user_up_other_home = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root, 'users/desk_bob');
+
+        $this->assert("Permissions 3-Niveaux (Niveau 3 Utilisateur): Surcharge utilisateur prioritaire sans jamais ouvrir le home d'un autre",
+            ($user_ov_res['status'] ?? 0) === 200 &&
+            $user_up_override === true &&
+            $user_cm_override === false &&
+            $user_up_other_home === false
+        );
+
         $_SESSION = $saved_sess;
         \SimpleGallery\Kernel\Security\RateLimiter::reset('register_' . $cli_ip);
         \SimpleGallery\Kernel\Security\RateLimiter::reset('login_' . $cli_ip);

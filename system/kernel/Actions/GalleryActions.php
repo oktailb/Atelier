@@ -333,7 +333,7 @@ class GalleryActions {
             'files'             => $files,
             'is_admin'          => AuthManager::isAdminLoggedIn(),
             'admin_enabled'     => !empty(AuthManager::getPasswordHash('', $base_dir)),
-            'user_permissions'  => PermissionsManager::loadPermissions($base_dir),
+            'user_permissions'  => PermissionsManager::resolveEffectivePermissions($base_dir),
             'user_rights'        => [
                 'is_admin'             => AuthManager::isAdminLoggedIn(),
                 'can_upload'           => PermissionsManager::hasPermission('can_upload', $base_dir, $current_relative),

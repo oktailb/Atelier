@@ -173,9 +173,25 @@ class SystemActions {
             $curUser = AuthManager::getCurrentUser();
             $reqScope = strtolower(trim((string)($raw_body['scope'] ?? $_POST['scope'] ?? '')));
 
+            // Explicit global template edit (admin only -> `storage/desktop.json` served to guests & new users)
+            if ($reqScope === 'global') {
+                if (!AuthManager::isAdminLoggedIn()) {
+                    return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
+                }
+                $saved = \SimpleGallery\Kernel\Config\ConfigStore::set('desktop', ['shortcuts' => $sanitized_shortcuts], $project_root);
+                if ($saved) {
+                    return ['status' => 200, 'data' => [
+                        'success'   => true,
+                        'scope'     => 'global',
+                        'shortcuts' => $sanitized_shortcuts,
+                        'message'   => 'Global desktop template saved'
+                    ]];
+                }
+                return ['status' => 500, 'data' => ['success' => false, 'error' => 'Failed to save global desktop template']];
+            }
+
             // Multi-user accounts persist their OWN isolated desktop in `users.preferences_json`
-            // (unless an admin explicitly requests `scope=global` to edit the default template).
-            if ($curUser && !($reqScope === 'global' && AuthManager::isAdminLoggedIn())) {
+            if ($curUser) {
                 $res = \SimpleGallery\Kernel\Auth\UserManager::saveUserPreferences($project_root, (int)$curUser['id'], [
                     'desktop' => ['shortcuts' => $sanitized_shortcuts]
                 ]);
@@ -190,24 +206,35 @@ class SystemActions {
                 return ['status' => $res['status'] ?? 500, 'data' => $res];
             }
 
+            // Legacy root admin (no `users` row) persists its OWN isolated desktop in `storage/desktop_admin.json`
+            // so admin shortcuts never leak onto the anonymous guest desktop (`storage/desktop.json`).
             if (!AuthManager::isAdminLoggedIn()) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
             }
 
-            $saved = \SimpleGallery\Kernel\Config\ConfigStore::set('desktop', ['shortcuts' => $sanitized_shortcuts], $project_root);
+            $saved = \SimpleGallery\Kernel\Config\ConfigStore::set('desktop_admin', ['shortcuts' => $sanitized_shortcuts], $project_root);
             if ($saved) {
                 return ['status' => 200, 'data' => [
                     'success'   => true,
-                    'scope'     => 'global',
+                    'scope'     => 'admin',
                     'shortcuts' => $sanitized_shortcuts,
-                    'message'   => 'Shortcuts saved'
+                    'message'   => 'Admin desktop shortcuts saved'
                 ]];
             }
             return ['status' => 500, 'data' => ['success' => false, 'error' => 'Failed to save shortcuts']];
         }
 
         if ($action === 'get_desktop_shortcuts') {
-            $effective = \SimpleGallery\Kernel\Auth\UserManager::getEffectiveDesktopConfig($project_root, AuthManager::getCurrentUser());
+            $reqScope = strtolower(trim((string)($_GET['scope'] ?? $raw_body['scope'] ?? '')));
+            if ($reqScope === 'global') {
+                $effective = \SimpleGallery\Kernel\Auth\UserManager::getGlobalDesktopTemplate($project_root);
+            } else {
+                $effective = \SimpleGallery\Kernel\Auth\UserManager::getEffectiveDesktopConfig(
+                    $project_root,
+                    AuthManager::getCurrentUser(),
+                    AuthManager::isAdminLoggedIn()
+                );
+            }
             return ['status' => 200, 'data' => [
                 'success'   => true,
                 'scope'     => $effective['scope'],

@@ -47,6 +47,52 @@
   const inputStyle = 'padding:7px 10px;border-radius:7px;border:1px solid var(--border-color);background:var(--bg-main);color:var(--text-main);font-size:0.84rem;';
   const labelStyle = 'display:flex;flex-direction:column;gap:4px;font-size:0.78rem;color:var(--text-muted);';
 
+  const PERM_OVERRIDE_KEYS = [
+    { key: 'can_upload', labelKey: 'admin.perm_upload' },
+    { key: 'can_delete', labelKey: 'admin.perm_delete' },
+    { key: 'can_move', labelKey: 'admin.perm_move' },
+    { key: 'can_comment', labelKey: 'admin.perm_comment' },
+    { key: 'can_create_folder', labelKey: 'admin.perm_create_folder' },
+    { key: 'can_download_archive', labelKey: 'admin.perm_download_archive' },
+    { key: 'can_download_item', labelKey: 'admin.perm_download_item' },
+    { key: 'can_use_browser_proxy', labelKey: 'settings.perm_browser_proxy' }
+  ];
+
+  function renderOverridesEditor(targetType, targetId, overrides, t) {
+    const ov = (overrides && typeof overrides === 'object') ? overrides : {};
+    const count = Object.keys(ov).length;
+    const badge = count > 0
+      ? `<span style="margin-left:6px;padding:1px 7px;border-radius:99px;font-size:0.68rem;background:rgba(99,102,241,0.18);color:var(--accent-primary,#6366f1);font-weight:700;">${esc(t('users.perm_overrides_count', { count }))}</span>`
+      : '';
+    return `
+      <details class="perm-overrides-details" style="width:100%;margin-top:6px;border-top:1px dashed var(--border-color);padding-top:6px;">
+        <summary style="cursor:pointer;font-size:0.76rem;color:var(--text-muted);user-select:none;">
+          🔑 ${esc(t('users.perm_overrides_btn'))}${badge}
+        </summary>
+        <div class="perm-overrides-grid" data-ov-type="${targetType}" data-ov-id="${targetId}" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px;margin-top:8px;">
+          ${PERM_OVERRIDE_KEYS.map(p => {
+            const cur = ov[p.key] === 'allow' || ov[p.key] === 'deny' ? ov[p.key] : 'inherit';
+            return `
+              <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:0.76rem;padding:4px 8px;border-radius:6px;background:var(--bg-main);border:1px solid var(--border-color);">
+                <span style="color:var(--text-main);">${esc(t(p.labelKey))}</span>
+                <select class="perm-ov-select" data-perm-key="${p.key}" style="padding:3px 6px;border-radius:5px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-main);font-size:0.74rem;">
+                  <option value="inherit" ${cur === 'inherit' ? 'selected' : ''}>${esc(t('settings.perm_inherit'))}</option>
+                  <option value="allow" ${cur === 'allow' ? 'selected' : ''}>${esc(t('settings.perm_allow'))}</option>
+                  <option value="deny" ${cur === 'deny' ? 'selected' : ''}>${esc(t('settings.perm_deny'))}</option>
+                </select>
+              </label>
+            `;
+          }).join('')}
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+          <button type="button" class="perm-ov-save-btn" data-ov-type="${targetType}" data-ov-id="${targetId}" style="padding:4px 12px;border-radius:6px;border:none;background:var(--accent-primary,#6366f1);color:#fff;cursor:pointer;font-size:0.75rem;font-weight:600;">
+            💾 ${esc(t('users.save_perms_btn'))}
+          </button>
+        </div>
+      </details>
+    `;
+  }
+
   function renderAdminRequired(container, settingsApp, titleKey, icon) {
     container.innerHTML = window.sys.ui.card({
       title: titleKey,
@@ -211,6 +257,7 @@
                     🗑️ ${esc(t('common.delete'))}
                   </button>
                 </div>
+                ${(u.role !== 'admin' && u.role !== 'superadmin') ? renderOverridesEditor('user', u.id, u.permission_overrides, t) : ''}
               </div>
             `;
           }).join('')}
@@ -233,6 +280,7 @@
         <input type="number" id="newUserQuotaMb" min="0" placeholder="${esc(t('users.quota_mb_placeholder'))}" style="${inputStyle}" />
         <select id="newUserRole" style="${inputStyle}">
           <option value="user">${esc(t('users.role_user'))}</option>
+          <option value="guest">${esc(t('users.role_guest'))}</option>
           <option value="admin">${esc(t('users.role_admin'))}</option>
         </select>
         <button type="submit" class="sysmon-action-btn" style="padding:7px 14px;background:var(--accent-primary, #6366f1);color:#fff;font-weight:600;justify-content:center;">
@@ -272,6 +320,7 @@
                     `).join('')}
                   </div>
                 ` : ''}
+                ${renderOverridesEditor('group', g.id, g.permission_overrides, t)}
               </div>
             `;
           }).join('')}
@@ -411,6 +460,32 @@
         const res = await settingsApp.api.post('delete_group', { group_id: parseInt(btn.dataset.id, 10) });
         if (res && res.success) { settingsApp.toast.info(t('users.group_deleted_toast')); rerender(); }
         else { settingsApp.toast.error((res && res.error) || t('users.action_error')); }
+      });
+    });
+
+    container.querySelectorAll('.perm-ov-save-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const targetType = btn.dataset.ovType;
+        const targetId = parseInt(btn.dataset.ovId, 10);
+        const grid = container.querySelector(`.perm-overrides-grid[data-ov-type="${targetType}"][data-ov-id="${targetId}"]`);
+        if (!grid) return;
+        const overrides = {};
+        grid.querySelectorAll('.perm-ov-select').forEach(sel => {
+          if (sel.value === 'allow' || sel.value === 'deny') {
+            overrides[sel.dataset.permKey] = sel.value;
+          }
+        });
+        const action = targetType === 'group' ? 'set_group_permissions' : 'set_user_permissions';
+        const payload = targetType === 'group'
+          ? { group_id: targetId, permission_overrides: overrides }
+          : { user_id: targetId, permission_overrides: overrides };
+        const res = await settingsApp.api.post(action, payload);
+        if (res && res.success) {
+          settingsApp.toast.success(t('users.perms_saved_toast'));
+          rerender();
+        } else {
+          settingsApp.toast.error((res && res.error) || t('users.action_error'));
+        }
       });
     });
   }

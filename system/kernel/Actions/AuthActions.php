@@ -544,9 +544,14 @@ class AuthActions {
 
         if ($action === 'get_permissions') {
             $perms = PermissionsManager::loadPermissions($project_root);
+            $roles = PermissionsManager::loadRoleMatrices($project_root);
+            $effective = PermissionsManager::resolveEffectivePermissions($project_root);
             return ['status' => 200, 'data' => [
                 'success'     => true,
                 'permissions' => $perms,
+                'roles'       => $roles,
+                'effective'   => $effective,
+                'keys'        => array_keys(PermissionsManager::DEFAULT_PERMISSIONS),
                 'is_admin'    => AuthManager::isAdminLoggedIn()
             ]];
         }
@@ -556,9 +561,17 @@ class AuthActions {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
             }
 
-            $new_perms = $raw_body['permissions'] ?? $_POST['permissions'] ?? [];
-            if (is_string($new_perms)) {
-                $new_perms = json_decode($new_perms, true);
+            $roles_in = $raw_body['roles'] ?? $_POST['roles'] ?? null;
+            if (is_string($roles_in)) {
+                $roles_in = json_decode($roles_in, true);
+            }
+            if (is_array($roles_in)) {
+                $new_perms = ['roles' => $roles_in];
+            } else {
+                $new_perms = $raw_body['permissions'] ?? $_POST['permissions'] ?? [];
+                if (is_string($new_perms)) {
+                    $new_perms = json_decode($new_perms, true);
+                }
             }
             if (!is_array($new_perms)) {
                 return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_invalid_data')]];
@@ -568,7 +581,8 @@ class AuthActions {
                 return ['status' => 200, 'data' => [
                     'success'     => true,
                     'message'     => __t('api.msg_permissions_saved'),
-                    'permissions' => PermissionsManager::loadPermissions($project_root)
+                    'permissions' => PermissionsManager::loadPermissions($project_root),
+                    'roles'       => PermissionsManager::loadRoleMatrices($project_root)
                 ]];
             }
 

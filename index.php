@@ -181,7 +181,7 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
   $sg_boot_user = \SimpleGallery\Kernel\Auth\AuthManager::getCurrentUser();
   $sg_boot_quota = $sg_boot_user ? \SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo(__DIR__, $real_base_dir, $sg_boot_user) : null;
   $sg_boot_prefs = $sg_boot_user ? \SimpleGallery\Kernel\Auth\UserManager::getUserPreferences(__DIR__, (int)$sg_boot_user['id']) : [];
-  $desktop_config = \SimpleGallery\Kernel\Auth\UserManager::getEffectiveDesktopConfig(__DIR__, $sg_boot_user);
+  $desktop_config = \SimpleGallery\Kernel\Auth\UserManager::getEffectiveDesktopConfig(__DIR__, $sg_boot_user, is_admin_logged_in());
   ?>
   <script>
     window.SG_DISCOVERED_APPS = <?php echo json_encode($discovered_apps, JSON_HEX_TAG | JSON_HEX_AMP); ?>;

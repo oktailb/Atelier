@@ -34,10 +34,11 @@ class UserActions {
                 'is_admin'        => $isAdmin,
                 'is_logged_in'    => AuthManager::isLoggedIn(),
                 'store_driver'    => $store->getDriverName(),
-                'quota'           => $user ? UserManager::getUserQuotaInfo($project_root, $base_dir, $user) : null,
-                'preferences'     => $user ? UserManager::getUserPreferences($project_root, (int)$user['id']) : [],
-                'desktop_config'  => UserManager::getEffectiveDesktopConfig($project_root, $user),
-                'mounted_volumes' => ShareManager::getMountedVolumesForCurrentUser($base_dir)
+                'quota'                 => $user ? UserManager::getUserQuotaInfo($project_root, $base_dir, $user) : null,
+                'preferences'           => $user ? UserManager::getUserPreferences($project_root, (int)$user['id']) : [],
+                'desktop_config'        => UserManager::getEffectiveDesktopConfig($project_root, $user, $isAdmin),
+                'effective_permissions' => \SimpleGallery\Kernel\FS\PermissionsManager::resolveEffectivePermissions($project_root, $user, $isAdmin),
+                'mounted_volumes'       => ShareManager::getMountedVolumesForCurrentUser($base_dir)
             ]];
         }
 
@@ -162,6 +163,26 @@ class UserActions {
             }
             $gid = (int)($in['group_id'] ?? $in['id'] ?? 0);
             $res = UserManager::deleteGroup($project_root, $gid);
+            return ['status' => $res['status'], 'data' => $res];
+        }
+
+        if ($action === 'set_group_permissions') {
+            if (!AuthManager::isAdminLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
+            }
+            $gid = (int)($in['group_id'] ?? $in['id'] ?? 0);
+            $overrides = $in['permission_overrides'] ?? $in['permissions'] ?? [];
+            $res = UserManager::setGroupPermissions($project_root, $gid, $overrides);
+            return ['status' => $res['status'], 'data' => $res];
+        }
+
+        if ($action === 'set_user_permissions') {
+            if (!AuthManager::isAdminLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
+            }
+            $uid = (int)($in['user_id'] ?? $in['id'] ?? 0);
+            $overrides = $in['permission_overrides'] ?? $in['permissions'] ?? [];
+            $res = UserManager::setUserPermissions($project_root, $uid, $overrides);
             return ['status' => $res['status'], 'data' => $res];
         }
 

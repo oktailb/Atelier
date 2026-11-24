@@ -1359,6 +1359,24 @@ try {
     !tribuneJsCode.includes("localStorage.setItem('tribune_board_auth'")
   );
 
+  // Verify 3-tier Role/Group/User Permissions UI, Global Desktop Template UI & Admin Guide
+  const settingsUiCode = fs.readFileSync(path.join(appsDir, 'settings', 'settings.js'), 'utf8');
+  const usersPanelUiCode = fs.readFileSync(usersPanelPath, 'utf8');
+  const adminGuidePath = path.join(rootDir, 'docs', 'admin-guide.md');
+  const adminGuideExists = fs.existsSync(adminGuidePath);
+  const adminGuideText = adminGuideExists ? fs.readFileSync(adminGuidePath, 'utf8') : '';
+  assert("Admin & RBAC UI: Control Panel expose matrice 3 rôles, surcharges groupe/utilisateur, modèle bureau global et docs/admin-guide.md",
+    settingsUiCode.includes('MATRIX_ROLES') &&
+    settingsUiCode.includes('can_use_browser_proxy') &&
+    settingsUiCode.includes('settingsPublishGlobalDesktopBtn') &&
+    usersPanelUiCode.includes('set_user_permissions') &&
+    usersPanelUiCode.includes('set_group_permissions') &&
+    usersPanelUiCode.includes('perm-overrides-grid') &&
+    adminGuideExists &&
+    adminGuideText.includes('storage/desktop_admin.json') &&
+    adminGuideText.includes('PermissionsManager')
+  );
+
   // Verify users-panel.js registers custom section cleanly without syntax errors
   const usersPanelCode = fs.readFileSync(usersPanelPath, 'utf8');
   const registeredSections = [];

@@ -323,6 +323,30 @@ class SqliteStoreDriver implements AtelierStoreInterface {
                 throw $e;
             }
         }
+
+        if (empty($applied[4])) {
+            $this->pdo->beginTransaction();
+            try {
+                foreach (['users', 'groups'] as $tbl) {
+                    $existingCols = [];
+                    $colStmt = $this->pdo->query("PRAGMA table_info({$tbl})");
+                    if ($colStmt) {
+                        foreach ($colStmt->fetchAll(PDO::FETCH_ASSOC) as $c) {
+                            $existingCols[(string)$c['name']] = true;
+                        }
+                    }
+                    if (empty($existingCols['permissions_json'])) {
+                        $this->pdo->exec("ALTER TABLE {$tbl} ADD COLUMN permissions_json TEXT DEFAULT '{}'");
+                    }
+                }
+                $ins = $this->pdo->prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)");
+                $ins->execute([4, 'atelier_role_group_user_permissions', time()]);
+                $this->pdo->commit();
+            } catch (\Throwable $e) {
+                $this->pdo->rollBack();
+                throw $e;
+            }
+        }
     }
 
     private function buildWhere(array $where): array {

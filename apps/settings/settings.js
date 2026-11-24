@@ -2,7 +2,7 @@
  * SimpleGallery 2026 - Settings & Control Panel Application (apps/settings/settings.js)
  * Modernized Control Panel inheriting from WebOSApp (window.sys.App)
  */
-(function(window) {
+(function (window) {
   const PERMISSION_KEYS = [
     { key: 'can_upload', labelKey: 'admin.perm_upload' },
     { key: 'can_delete', labelKey: 'admin.perm_delete' },
@@ -10,7 +10,14 @@
     { key: 'can_comment', labelKey: 'admin.perm_comment' },
     { key: 'can_create_folder', labelKey: 'admin.perm_create_folder' },
     { key: 'can_download_archive', labelKey: 'admin.perm_download_archive' },
-    { key: 'can_download_item', labelKey: 'admin.perm_download_item' }
+    { key: 'can_download_item', labelKey: 'admin.perm_download_item' },
+    { key: 'can_use_browser_proxy', labelKey: 'settings.perm_browser_proxy' }
+  ];
+
+  const MATRIX_ROLES = [
+    { id: 'anonymous', labelKey: 'settings.role_anonymous' },
+    { id: 'guest', labelKey: 'settings.role_guest' },
+    { id: 'user', labelKey: 'settings.role_user' }
   ];
 
   class SettingsApp extends window.sys.App {
@@ -26,19 +33,21 @@
         resizable: true,
         tabLayout: 'sidebar',
         tabs: [
-          { id: 'security',     label: 'settings.tab_security',       icon: '🛡️', group: 'settings.group_access' },
-          { id: 'users',        label: 'settings.tab_users_accounts', icon: '👤', group: 'settings.group_access' },
-          { id: 'registration', label: 'settings.tab_registration',   icon: '🔐', group: 'settings.group_access' },
-          { id: 'mail',         label: 'settings.tab_mail',           icon: '✉️', group: 'settings.group_access' },
-          { id: 'shares',       label: 'settings.tab_shares_audit',   icon: '💽', group: 'settings.group_access' },
-          { id: 'appearance',   label: 'settings.tab_appearance',     icon: '🎨', group: 'settings.group_interface' },
-          { id: 'autostart',    label: 'settings.tab_autostart',      icon: '🚀', group: 'settings.group_interface' },
-          { id: 'plugins',      label: 'settings.tab_plugins',        icon: '🧩', group: 'settings.group_system' },
-          { id: 'system',       label: 'settings.tab_system',         icon: '⚙️', group: 'settings.group_system' },
-          { id: 'privacy',      label: 'settings.tab_privacy',        icon: '🍪', group: 'settings.group_system' }
+          { id: 'security', label: 'settings.tab_security', icon: '🛡️', group: 'settings.group_access' },
+          { id: 'users', label: 'settings.tab_users_accounts', icon: '👤', group: 'settings.group_access' },
+          { id: 'registration', label: 'settings.tab_registration', icon: '🔐', group: 'settings.group_access' },
+          { id: 'mail', label: 'settings.tab_mail', icon: '✉️', group: 'settings.group_access' },
+          { id: 'shares', label: 'settings.tab_shares_audit', icon: '💽', group: 'settings.group_access' },
+          { id: 'appearance', label: 'settings.tab_appearance', icon: '🎨', group: 'settings.group_interface' },
+          { id: 'autostart', label: 'settings.tab_autostart', icon: '🚀', group: 'settings.group_interface' },
+          { id: 'plugins', label: 'settings.tab_plugins', icon: '🧩', group: 'settings.group_system' },
+          { id: 'system', label: 'settings.tab_system', icon: '⚙️', group: 'settings.group_system' },
+          { id: 'privacy', label: 'settings.tab_privacy', icon: '🍪', group: 'settings.group_system' }
         ],
         state: {
           permissions: {},
+          rolePermissions: { anonymous: {}, guest: {}, user: {} },
+          globalDesktopShortcuts: null,
           systemInfo: null,
           testResults: null,
           isTesting: false,
@@ -75,7 +84,7 @@
       }
       try {
         if (legacyKey) localStorage.setItem(legacyKey, value);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     onInit() {
@@ -113,6 +122,7 @@
       this.loadAutostartConfig();
       this.loadDisabledApps();
       this.loadWindowStyles();
+      if (this.isAdmin) this.loadGlobalDesktopTemplate();
     }
 
     registerSection(section) {
@@ -171,6 +181,8 @@
         'click #settingsAuthLogoutBtn': () => this.logoutAdmin(),
         'submit #settingsLoginForm': (form, e) => { e.preventDefault(); this.loginAdmin(container); },
         'click #settingsSavePermsBtn': () => this.savePermissions(container),
+        'click #settingsPublishGlobalDesktopBtn': () => this.publishCurrentDesktopAsGlobal(),
+        'click [data-remove-global-sc]': (btn) => this.removeGlobalDesktopShortcut(btn.dataset.removeGlobalSc),
         'submit #settingsChangePassForm': (form, e) => { e.preventDefault(); this.changePassword(container); },
         'click [data-wallpaper-id]': (tile) => {
           const wId = tile.dataset.wallpaperId;
@@ -293,18 +305,40 @@
         </div>
       `;
 
+      const rolesMatrix = this.state.rolePermissions || {
+        anonymous: this.state.permissions || {},
+        guest: this.state.permissions || {},
+        user: this.state.permissions || {}
+      };
+
       const permsContent = `
         <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:12px;">
-          ${this.t('admin.manage_settings_hint')}
+          ${this.escapeHtml(this.t('settings.perms_cascade_hint'))}
         </p>
-        <div class="permissions-grid-container" id="settingsPermsGrid">
-          ${PERMISSION_KEYS.map(p => window.sys.ui.toggleRow({
-            id: `set_perm_${p.key}`,
-            label: p.labelKey,
-            checked: !!this.state.permissions[p.key],
-            disabled: !this.isAdmin,
-            statusLabel: ''
-          })).join('')}
+        <div class="permissions-matrix-wrap" id="settingsPermsGrid" style="overflow-x:auto;">
+          <table style="width:100%; border-collapse:collapse; font-size:0.83rem;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border-color);">
+                <th style="text-align:left; padding:8px 6px; color:var(--text-muted); font-weight:600;">${this.escapeHtml(this.t('settings.perm_action_col'))}</th>
+                ${MATRIX_ROLES.map(r => `<th style="text-align:center; padding:8px 6px; color:var(--text-main); font-weight:600; white-space:nowrap;">${this.escapeHtml(this.t(r.labelKey))}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${PERMISSION_KEYS.map(p => `
+                <tr style="border-bottom:1px solid var(--border-color);">
+                  <td style="padding:8px 6px; color:var(--text-main);">${this.escapeHtml(this.t(p.labelKey))}</td>
+                  ${MATRIX_ROLES.map(r => {
+        const checked = !!(rolesMatrix[r.id] && rolesMatrix[r.id][p.key]);
+        return `
+                      <td style="text-align:center; padding:8px 6px;">
+                        <input type="checkbox" id="set_perm_${r.id}_${p.key}" data-perm-role="${r.id}" data-perm-key="${p.key}" ${checked ? 'checked' : ''} ${this.isAdmin ? '' : 'disabled'} style="width:16px; height:16px; cursor:${this.isAdmin ? 'pointer' : 'not-allowed'};" />
+                      </td>
+                    `;
+      }).join('')}
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
         </div>
 
         <div style="display:flex; gap:10px; margin-top:14px; align-items:center;">
@@ -327,22 +361,22 @@
 
       return `
         ${window.sys.ui.card({
-          title: 'auth.account_session_title',
-          icon: currentUser ? (this.isAdmin ? '🛡️' : '👤') : '🔐',
-          content: authContent
-        })}
+        title: 'auth.account_session_title',
+        icon: currentUser ? (this.isAdmin ? '🛡️' : '👤') : '🔐',
+        content: authContent
+      })}
 
         ${(!currentUser || this.isAdmin) ? window.sys.ui.card({
-          title: 'admin.perms_title',
-          icon: '🛡️',
-          content: permsContent
-        }) : ''}
+        title: 'admin.perms_title',
+        icon: '🛡️',
+        content: permsContent
+      }) : ''}
 
         ${this.isAdmin ? window.sys.ui.card({
-          title: 'admin.change_password',
-          icon: '🔑',
-          content: changePassContent
-        }) : ''}
+        title: 'admin.change_password',
+        icon: '🔑',
+        content: changePassContent
+      }) : ''}
 
         ${isLoggedIn ? `<div id="settingsActiveSessionsHost"></div>` : ''}
       `;
@@ -426,7 +460,7 @@
         }
         this.toast.info(this.t('auth.logout_success'));
         this.render();
-      } catch (e) {}
+      } catch (e) { }
     }
 
     handleAuthAction() {
@@ -436,19 +470,22 @@
     }
 
     async savePermissions(container) {
-      const updatedPerms = {};
+      const roles = { anonymous: {}, guest: {}, user: {} };
 
-      PERMISSION_KEYS.forEach(p => {
-        const chk = container.querySelector(`#set_perm_${p.key}`);
-        if (chk) updatedPerms[p.key] = chk.checked;
+      MATRIX_ROLES.forEach(r => {
+        PERMISSION_KEYS.forEach(p => {
+          const chk = container.querySelector(`#set_perm_${r.id}_${p.key}`);
+          if (chk) roles[r.id][p.key] = chk.checked;
+        });
       });
 
       try {
-        const json = await this.api.post('save_permissions', { permissions: JSON.stringify(updatedPerms) });
+        const json = await this.api.post('save_permissions', { roles });
 
         const msgEl = container.querySelector('#settingsPermsMsg');
         if (json.success) {
-          this.state.permissions = updatedPerms;
+          this.state.permissions = json.permissions || roles.anonymous;
+          this.state.rolePermissions = json.roles || roles;
           if (msgEl) {
             msgEl.textContent = '✅ ' + this.t('admin.perm_save_success');
             msgEl.style.display = 'block';
@@ -523,8 +560,8 @@
       const windowStyles = (this.state.windowStyles && this.state.windowStyles.length > 0)
         ? this.state.windowStyles
         : ((window.WindowManager && typeof window.WindowManager.getWindowStyles === 'function')
-            ? window.WindowManager.getWindowStyles()
-            : (window.SG_DISCOVERED_WM_STYLES || []));
+          ? window.WindowManager.getWindowStyles()
+          : (window.SG_DISCOVERED_WM_STYLES || []));
 
       const windowStyleContent = `
         <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:12px;">
@@ -533,24 +570,50 @@
         ${window.sys.ui.windowStyleGrid({ styles: windowStyles, activeStyleId: this.state.activeWmStyle })}
       `;
 
+      const globalShortcuts = Array.isArray(this.state.globalDesktopShortcuts) ? this.state.globalDesktopShortcuts : [];
+      const desktopTemplateCard = this.isAdmin ? window.sys.ui.card({
+        title: 'settings.desktop_template_title',
+        icon: '🖥️',
+        content: `
+          <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:12px;">
+            ${this.escapeHtml(this.t('settings.desktop_template_desc'))}
+          </p>
+          <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+            ${globalShortcuts.length === 0
+            ? `<div style="font-size:0.82rem; color:var(--text-muted);">${this.escapeHtml(this.t('settings.desktop_template_empty'))}</div>`
+            : globalShortcuts.map(sc => `
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 10px; border-radius:7px; border:1px solid var(--border-color); background:var(--bg-card); font-size:0.82rem;">
+                  <span>${this.escapeHtml(sc.icon || '🗔')} <strong>${this.escapeHtml(sc.name || sc.defaultName || sc.appId || sc.id)}</strong> <span style="color:var(--text-muted); font-size:0.74rem;">(${this.escapeHtml(sc.type || 'app')})</span></span>
+                  <button type="button" data-remove-global-sc="${this.escapeHtml(sc.id)}" style="padding:3px 8px; border-radius:5px; border:1px solid rgba(239,68,68,0.4); background:rgba(239,68,68,0.12); color:#ef4444; cursor:pointer; font-size:0.74rem;">🗑️</button>
+                </div>
+              `).join('')}
+          </div>
+          <button type="button" id="settingsPublishGlobalDesktopBtn" class="sysmon-action-btn" style="padding:7px 14px; background:var(--accent-primary, #6366f1); color:#fff; font-weight:600;">
+            🌐 ${this.escapeHtml(this.t('settings.desktop_template_publish_btn'))}
+          </button>
+        `
+      }) : '';
+
       return `
         ${window.sys.ui.card({
-          title: 'settings.wallpaper_title',
-          icon: '🖼️',
-          content: wallpaperContent
-        })}
+        title: 'settings.wallpaper_title',
+        icon: '🖼️',
+        content: wallpaperContent
+      })}
 
         ${window.sys.ui.card({
-          title: 'settings.theme_title',
-          icon: '🎭',
-          content: themeContent
-        })}
+        title: 'settings.theme_title',
+        icon: '🎭',
+        content: themeContent
+      })}
 
         ${window.sys.ui.card({
-          title: 'settings.wm_style_title',
-          icon: '🪟',
-          content: windowStyleContent
-        })}
+        title: 'settings.wm_style_title',
+        icon: '🪟',
+        content: windowStyleContent
+      })}
+
+        ${desktopTemplateCard}
       `;
     }
 
@@ -564,7 +627,7 @@
           this.state.autostartConfig = json.config;
           window.SG_AUTOSTART_CONFIG = json.config;
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     renderAutostartTab() {
@@ -602,8 +665,8 @@
       const appsContent = `
         <div class="autostart-apps-table-container">
           ${sortedApps.map(app => {
-            const cfg = getAppCfg(app.id);
-            return `
+        const cfg = getAppCfg(app.id);
+        return `
               <div class="autostart-app-row" data-app-id="${app.id}" style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid var(--border-color, rgba(255,255,255,0.06)); gap:12px;">
                 <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
                   <button type="button" class="sysmon-action-btn autostart-move-up" data-app-id="${app.id}" title="${this.t('autostart.move_up')}" ${this.isAdmin ? '' : 'disabled'} style="padding:4px 8px; font-size:0.75rem;">▲</button>
@@ -631,7 +694,7 @@
                 </div>
               </div>
             `;
-          }).join('')}
+      }).join('')}
         </div>
 
         <div style="display:flex; gap:10px; margin-top:14px; align-items:center;">
@@ -644,16 +707,16 @@
 
       return `
         ${window.sys.ui.card({
-          title: 'autostart.global_title',
-          icon: '⚡',
-          content: masterContent
-        })}
+        title: 'autostart.global_title',
+        icon: '⚡',
+        content: masterContent
+      })}
 
         ${window.sys.ui.card({
-          title: 'autostart.apps_title',
-          icon: '🗔',
-          content: appsContent
-        })}
+        title: 'autostart.apps_title',
+        icon: '🗔',
+        content: appsContent
+      })}
       `;
     }
 
@@ -811,28 +874,28 @@
 
       return `
         ${window.sys.ui.card({
-          title: 'settings.lang_selector_title',
-          icon: '🌐',
-          content: langContent
-        })}
+        title: 'settings.lang_selector_title',
+        icon: '🌐',
+        content: langContent
+      })}
 
         ${window.sys.ui.card({
-          title: 'settings.system_diagnostics',
-          icon: '📊',
-          content: serverDiagGrid
-        })}
+        title: 'settings.system_diagnostics',
+        icon: '📊',
+        content: serverDiagGrid
+      })}
 
         ${window.sys.ui.card({
-          title: 'settings.browser_info_title',
-          icon: '💻',
-          content: clientDiagGrid
-        })}
+        title: 'settings.browser_info_title',
+        icon: '💻',
+        content: clientDiagGrid
+      })}
 
         ${window.sys.ui.card({
-          title: 'settings.tests_title',
-          icon: '🧪',
-          content: testsContent
-        })}
+        title: 'settings.tests_title',
+        icon: '🧪',
+        content: testsContent
+      })}
       `;
     }
 
@@ -925,7 +988,7 @@
       try {
         const stored = localStorage.getItem('sg_cookie_consent');
         if (stored) cookieConsent = { ...cookieConsent, ...JSON.parse(stored) };
-      } catch (e) {}
+      } catch (e) { }
 
       const cookieOpts = [
         { id: 'setCookieOptNecessary', titleKey: 'cookie.opt_necessary_title', descKey: 'cookie.opt_necessary_desc', badgeKey: 'cookie.opt_necessary_badge', badgeClass: 'cookie-badge-req', checked: true, disabled: true },
@@ -936,14 +999,14 @@
       const privacyContent = `
         <div class="cookie-options-embedded-list">
           ${cookieOpts.map(opt => window.sys.ui.toggleRow({
-            id: opt.id,
-            label: `${this.t(opt.titleKey)} <span class="cookie-option-badge ${opt.badgeClass}">${this.t(opt.badgeKey)}</span>`,
-            desc: opt.descKey,
-            checked: opt.checked,
-            disabled: opt.disabled,
-            allowHtml: true,
-            statusLabel: ''
-          })).join('')}
+        id: opt.id,
+        label: `${this.t(opt.titleKey)} <span class="cookie-option-badge ${opt.badgeClass}">${this.t(opt.badgeKey)}</span>`,
+        desc: opt.descKey,
+        checked: opt.checked,
+        disabled: opt.disabled,
+        allowHtml: true,
+        statusLabel: ''
+      })).join('')}
         </div>
 
         <div style="display:flex; gap:10px; margin-top:14px;">
@@ -967,16 +1030,16 @@
       return `
         <div id="cookieConsentBanner" style="display:none;"></div>
         ${window.sys.ui.card({
-          title: 'cookie.modal_title',
-          icon: '🛡️',
-          content: privacyContent
-        })}
+        title: 'cookie.modal_title',
+        icon: '🛡️',
+        content: privacyContent
+      })}
 
         ${window.sys.ui.card({
-          title: 'settings.reset_defaults',
-          icon: '🗑️',
-          content: resetContent
-        })}
+        title: 'settings.reset_defaults',
+        icon: '🗑️',
+        content: resetContent
+      })}
       `;
     }
 
@@ -1029,7 +1092,7 @@
       const appsContent = `
         <div class="settings-apps-list">
           ${apps.map(app => {
-            const controlsHtml = `
+        const controlsHtml = `
               <div style="display:flex; align-items:center; gap:14px;">
                 <label class="permission-toggle-row" style="margin:0; padding:0; border:none; display:flex; align-items:center; gap:6px;">
                   <span style="font-size:0.8rem; color:${app.enabled ? 'var(--accent-primary, #6366f1)' : 'var(--text-muted)'}; font-weight:600;">
@@ -1043,14 +1106,14 @@
               </div>
             `;
 
-            return window.sys.ui.settingRow({
-              icon: app.icon || '🗔',
-              label: app.name,
-              subLabel: `(${app.id})`,
-              desc: app.description || this.t('settings.extensible_desc'),
-              controlHtml: controlsHtml
-            });
-          }).join('')}
+        return window.sys.ui.settingRow({
+          icon: app.icon || '🗔',
+          label: app.name,
+          subLabel: `(${app.id})`,
+          desc: app.description || this.t('settings.extensible_desc'),
+          controlHtml: controlsHtml
+        });
+      }).join('')}
         </div>
       `;
 
@@ -1069,10 +1132,49 @@
         const json = await this.api.get('get_permissions');
         if (json.success && json.permissions) {
           this.state.permissions = json.permissions;
+          this.state.rolePermissions = json.roles || {
+            anonymous: json.permissions,
+            guest: json.permissions,
+            user: json.permissions
+          };
           if (this.currentTab === 'security') this.render();
         }
       } catch (err) {
         console.error('[SettingsApp] Error loading permissions:', err);
+      }
+    }
+
+    async loadGlobalDesktopTemplate() {
+      try {
+        const json = await this.api.get('get_desktop_shortcuts', { scope: 'global' });
+        if (json && json.success && Array.isArray(json.shortcuts)) {
+          this.state.globalDesktopShortcuts = json.shortcuts;
+          if (this.currentTab === 'appearance') this.render();
+        }
+      } catch (e) { }
+    }
+
+    async publishCurrentDesktopAsGlobal() {
+      if (!this.isAdmin) return;
+      const currentShortcuts = (window.SG_DESKTOP_CONFIG && Array.isArray(window.SG_DESKTOP_CONFIG.shortcuts))
+        ? window.SG_DESKTOP_CONFIG.shortcuts
+        : [];
+      const res = await this.api.post('save_desktop_shortcuts', { scope: 'global', shortcuts: currentShortcuts });
+      if (res && res.success) {
+        this.state.globalDesktopShortcuts = res.shortcuts || currentShortcuts;
+        this.toast.success(this.t('settings.desktop_template_saved_toast'));
+        if (this.currentTab === 'appearance') this.render();
+      }
+    }
+
+    async removeGlobalDesktopShortcut(shortcutId) {
+      if (!this.isAdmin || !shortcutId) return;
+      const next = (this.state.globalDesktopShortcuts || []).filter(s => s.id !== shortcutId);
+      const res = await this.api.post('save_desktop_shortcuts', { scope: 'global', shortcuts: next });
+      if (res && res.success) {
+        this.state.globalDesktopShortcuts = res.shortcuts || next;
+        this.toast.success(this.t('settings.desktop_template_saved_toast'));
+        if (this.currentTab === 'appearance') this.render();
       }
     }
 
@@ -1095,7 +1197,7 @@
           window.SG_DISABLED_APPS = json.disabled_apps;
           try {
             localStorage.setItem('sg_disabled_apps', JSON.stringify(json.disabled_apps));
-          } catch (e) {}
+          } catch (e) { }
           if (this.currentTab === 'plugins') this.render();
         }
       } catch (err) {
@@ -1255,7 +1357,7 @@
           if (window.WindowManager) window.WindowManager.stylesCache = json.styles;
           this.render();
         }
-      } catch (e) {}
+      } catch (e) { }
     }
   }
 
