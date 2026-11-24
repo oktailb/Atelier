@@ -54,6 +54,9 @@ require_once $project_root . '/config/security.php';
 require_once $project_root . '/config/mime_types.php';
 require_once $project_root . '/config/themes.php';
 
+// 5.1 Dynamically merge formats registered by active native & external/WASM apps
+$media_types = \SimpleGallery\Kernel\Media\FormatRegistry::getMediaTypes($project_root, $media_types ?? []);
+
 // 6. Theme Initialization (supports user cookie override)
 if (!empty($_COOKIE['sg_theme']) && isset($theme_colors[$_COOKIE['sg_theme']])) {
     $theme_preset = $_COOKIE['sg_theme'];

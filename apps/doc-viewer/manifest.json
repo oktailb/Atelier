@@ -6,6 +6,7 @@
   "icon": "📄",
   "author": "GallusTech",
   "category": "viewer",
+  "mediaCategory": "doc",
   "locales": {
     "fr": {
       "title": "Visionneuse de Documents & PDF",
@@ -56,7 +57,12 @@
     "ppt",
     "pptx",
     "rtf",
-    "odt"
+    "odt",
+    "ods",
+    "odp",
+    "odg",
+    "epub",
+    "tsv"
   ],
   "entry": {
     "js": "viewer.js",

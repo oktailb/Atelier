@@ -6,6 +6,7 @@
   "icon": "📦",
   "author": "GallusTech",
   "category": "productivity",
+  "mediaCategory": "archive",
   "locales": {
     "fr": {
       "title": "Gestionnaire d'Archives",

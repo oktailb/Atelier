@@ -923,6 +923,10 @@ try {
   // Test FilePickerService accept matcher
   const pickerWin = {
     sys: {},
+    SG_MIME_MAP: {
+      'application/x-wordcraft': ['wcraft'],
+      'application/vnd.oasis.opendocument.text': ['odt']
+    },
     document: { addEventListener: () => {}, removeEventListener: () => {}, body: { appendChild: () => {}, getAttribute: () => 'dark' }, documentElement: { getAttribute: () => 'dark' } }
   };
   new Function('window', 'document', pickerCode)(pickerWin, pickerWin.document);
@@ -932,9 +936,11 @@ try {
     typeof pickerWin.sys.pickFolder === 'function' &&
     typeof pickerWin.sys.pickSaveLocation === 'function'
   );
-  assert("FEAT-06: FilePickerService.matchesAccept gère extensions, wildcards et MIME exacts",
+  assert("FEAT-06: FilePickerService.matchesAccept gère extensions, wildcards et MIME dynamiques SG_MIME_MAP",
     fp.matchesAccept({ name: 'art.psd', extension: 'psd', category: 'image' }, '.psd,.png') &&
     fp.matchesAccept({ name: 'doc.pdf', extension: 'pdf', category: 'doc' }, 'application/pdf') &&
+    fp.matchesAccept({ name: 'note.odt', extension: 'odt', category: 'doc' }, 'application/vnd.oasis.opendocument.text') &&
+    fp.matchesAccept({ name: 'draft.wcraft', extension: 'wcraft', category: 'doc' }, 'application/x-wordcraft') &&
     fp.matchesAccept({ name: 'pic.jpg', extension: 'jpg', category: 'image' }, 'image/*') &&
     !fp.matchesAccept({ name: 'song.mp3', extension: 'mp3', category: 'audio' }, 'image/*,application/pdf')
   );
@@ -1009,9 +1015,11 @@ try {
     click() { this._nativeClicked = true; }
   }
   let createdBlobSeq = 0;
+  class IframeRealmPromise extends Promise {}
   const fakeIframeWin = {
     location: { origin: 'https://gallery.local' },
     document: { addEventListener: () => {} },
+    Promise: IframeRealmPromise,
     Blob: globalThis.Blob,
     File: bridgeWin.File,
     DOMException: globalThis.DOMException,
@@ -1029,8 +1037,14 @@ try {
     attached === true && typeof fakeIframeWin.showOpenFilePicker === 'function' && typeof fakeIframeWin.showSaveFilePicker === 'function'
   );
 
-  // Verify W3C showOpenFilePicker -> virtual handle -> createWritable() -> upload_file
-  const handles = await fakeIframeWin.showOpenFilePicker({ types: [{ accept: { 'application/pdf': ['.pdf'] } }] });
+  // Verify W3C showOpenFilePicker & showSaveFilePicker return iframe's OWN Promise realm (wasm-bindgen JsFuture compatible!)
+  const openPromise = fakeIframeWin.showOpenFilePicker({ types: [{ accept: { 'application/pdf': ['.pdf'] } }] });
+  const savePromise = fakeIframeWin.showSaveFilePicker({ suggestedName: 'rapport.odt' });
+  assert("FEAT-06: showOpenFilePicker et showSaveFilePicker retournent des instances de cw.Promise (compatibilité wasm-bindgen)",
+    openPromise instanceof IframeRealmPromise && savePromise instanceof IframeRealmPromise
+  );
+  const handles = await openPromise;
+  await savePromise;
   const openedFile = await handles[0].getFile();
   const writable = await handles[0].createWritable();
   await writable.write('UPDATED_PDF');

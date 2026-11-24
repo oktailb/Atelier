@@ -5,6 +5,7 @@
   "icon": "🎵",
   "author": "GallusTech",
   "category": "player",
+  "mediaCategory": "audio",
   "locales": {
     "fr": {
       "title": "Lecteur Audio Flottant",

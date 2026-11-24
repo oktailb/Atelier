@@ -51,43 +51,9 @@ function send_cached_file(string $file_path, string $content_type, int $max_age 
 }
 
 function get_full_mime_type(string $ext): string {
-    $mimes = [
-        // Images
-        'jpg'  => 'image/jpeg',
-        'jpeg' => 'image/jpeg',
-        'png'  => 'image/png',
-        'gif'  => 'image/gif',
-        'webp' => 'image/webp',
-        'avif' => 'image/avif',
-        'bmp'  => 'image/bmp',
-        'svg'  => 'image/svg+xml',
-        // Videos
-        'mp4'  => 'video/mp4',
-        'webm' => 'video/webm',
-        'ogv'  => 'video/ogg',
-        'mov'  => 'video/quicktime',
-        'mkv'  => 'video/x-matroska',
-        'avi'  => 'video/x-msvideo',
-        // Audio
-        'mp3'  => 'audio/mpeg',
-        'wav'  => 'audio/wav',
-        'ogg'  => 'audio/ogg',
-        'm4a'  => 'audio/mp4',
-        'flac' => 'audio/flac',
-        'aac'  => 'audio/aac',
-        // Documents
-        'pdf'  => 'application/pdf',
-        'txt'  => 'text/plain; charset=utf-8',
-        'md'   => 'text/markdown; charset=utf-8',
-        'json' => 'application/json',
-        // Archives
-        'zip'  => 'application/zip',
-        'tar'  => 'application/x-tar',
-        'gz'   => 'application/gzip',
-        '7z'   => 'application/x-7z-compressed',
-        'rar'  => 'application/vnd.rar'
-    ];
-    return $mimes[strtolower($ext)] ?? 'application/octet-stream';
+    global $project_root, $media_types;
+    $root = is_string($project_root ?? null) ? $project_root : dirname(dirname(__DIR__));
+    return \SimpleGallery\Kernel\Media\FormatRegistry::getHttpContentType($ext, $root, is_array($media_types ?? null) ? $media_types : []);
 }
 
 function serve_raw_file(string $file_path, string $ext, bool $as_attachment = false, bool $is_restricted = false): void {

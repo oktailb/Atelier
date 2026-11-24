@@ -8,34 +8,34 @@
 
   window.sys = window.sys || {};
 
-  const MIME_TO_EXTENSIONS = {
+  // Minimal fallback used only if window.SG_MIME_MAP was not injected (e.g., isolated unit tests).
+  // In production, index.php injects window.SG_MIME_MAP dynamically from Kernel FormatRegistry.
+  const FALLBACK_MIME_TO_EXTENSIONS = {
     'image/png': ['png'],
     'image/jpeg': ['jpg', 'jpeg'],
     'image/webp': ['webp'],
     'image/gif': ['gif'],
-    'image/bmp': ['bmp'],
     'image/svg+xml': ['svg'],
-    'image/tiff': ['tif', 'tiff'],
-    'image/x-icon': ['ico'],
-    'image/avif': ['avif'],
-    'image/heic': ['heic'],
-    'image/heif': ['heif'],
     'image/vnd.adobe.photoshop': ['psd', 'psb'],
-    'image/x-xcf': ['xcf'],
-    'image/openraster': ['ora'],
     'application/pdf': ['pdf'],
     'application/json': ['json'],
     'application/zip': ['zip'],
+    'application/vnd.oasis.opendocument.text': ['odt'],
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['docx'],
     'text/plain': ['txt', 'log', 'ini', 'cfg'],
     'text/markdown': ['md', 'markdown'],
     'text/csv': ['csv'],
-    'text/html': ['html', 'htm'],
     'video/mp4': ['mp4', 'm4v'],
-    'video/webm': ['webm'],
-    'audio/mpeg': ['mp3'],
-    'audio/wav': ['wav'],
-    'audio/ogg': ['ogg']
+    'audio/mpeg': ['mp3']
   };
+
+  function getExtensionsForMime(mime) {
+    if (!mime) return null;
+    if (window.SG_MIME_MAP && Array.isArray(window.SG_MIME_MAP[mime])) {
+      return window.SG_MIME_MAP[mime];
+    }
+    return FALLBACK_MIME_TO_EXTENSIONS[mime] || null;
+  }
 
   function escapeHtml(str) {
     if (str == null) return '';
@@ -81,7 +81,10 @@
       if (f === 'audio/*' && (category === 'audio' || fileMime.startsWith('audio/'))) return true;
       if (f === 'text/*' && (category === 'doc' || fileMime.startsWith('text/'))) return true;
       if (fileMime && f === fileMime) return true;
-      if (f.includes('/') && MIME_TO_EXTENSIONS[f] && MIME_TO_EXTENSIONS[f].includes(extRaw)) return true;
+      if (f.includes('/')) {
+        const mapped = getExtensionsForMime(f);
+        if (mapped && mapped.includes(extRaw)) return true;
+      }
       if (f === category) return true;
       return false;
     });

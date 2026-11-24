@@ -6,6 +6,7 @@ use SimpleGallery\Kernel\FS\CacheManager;
 use SimpleGallery\Kernel\FS\DotfileManager;
 use SimpleGallery\Kernel\FS\PermissionsManager;
 use SimpleGallery\Kernel\Media\ExifParser;
+use SimpleGallery\Kernel\Media\FormatRegistry;
 use SimpleGallery\Kernel\Security\PathValidator;
 use SimpleGallery\Kernel\Security\RateLimiter;
 use SimpleGallery\Kernel\Security\SecurityManager;
@@ -17,6 +18,7 @@ class FileActions {
         $ignore_list    = $context['ignore_list'] ?? [];
         $media_types    = $context['media_types'] ?? [];
         $thumbnail_dir  = $context['thumbnail_dir'] ?? '.thumbnails';
+        $project_root   = $context['project_root'] ?? dirname(dirname(dirname(__DIR__)));
         $raw_body       = $context['raw_body'] ?? $params;
         $thumb_dir_name = $thumbnail_dir;
 
@@ -249,19 +251,8 @@ class FileActions {
 
             $overwrite = isset($_POST['overwrite']) && ($_POST['overwrite'] === '1' || $_POST['overwrite'] === 'true');
 
-            $allowed_exts = [
-                'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'heic', 'heif', 'tiff',
-                'mp4', 'webm', 'ogv', 'mov', 'm4v', 'mkv', 'avi',
-                'mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac',
-                'pdf', 'txt', 'md', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
-                'zip', 'rar', 'tar', 'gz', '7z'
-            ];
-
-            $forbidden_exts = [
-                'php', 'phtml', 'php3', 'php4', 'php5', 'phps', 'phar', 'inc',
-                'js', 'mjs', 'css', 'html', 'htm', 'htaccess', 'htpasswd',
-                'sh', 'bat', 'cmd', 'exe', 'dll', 'py', 'pl', 'cgi'
-            ];
+            // Dynamically resolved from core baseline + active native & external/WASM apps (always filtered by immutable security blacklist)
+            $allowed_exts = FormatRegistry::getAllowedUploadExtensions($project_root, $media_types);
 
             $files_input = $_FILES['file'] ?? $_FILES['files'] ?? null;
             if (!$files_input && !empty($_FILES)) {
@@ -294,13 +285,13 @@ class FileActions {
                     continue;
                 }
 
-                if (preg_match('/\.(php|phtml|php3|php4|php5|phps|phar|inc|pl|py|cgi|sh|exe|bat|cmd)\./i', $safe_filename)) {
+                if (FormatRegistry::hasForbiddenDoubleExtension($safe_filename)) {
                     $errors[] = "Sécurité : Double extension d'exécution suspecte détectée sur '{$raw_name}'.";
                     continue;
                 }
 
                 $ext = strtolower(pathinfo($safe_filename, PATHINFO_EXTENSION));
-                if ($ext === '' || in_array($ext, $forbidden_exts, true) || !in_array($ext, $allowed_exts, true)) {
+                if ($ext === '' || FormatRegistry::isForbiddenExtension($ext) || !in_array($ext, $allowed_exts, true)) {
                     $errors[] = "Sécurité : L'extension '.{$ext}' du fichier '{$raw_name}' n'est pas autorisée.";
                     continue;
                 }
@@ -339,13 +330,15 @@ class FileActions {
             }
 
             $has_success = !empty($uploaded_results);
+            $error_summary = !$has_success ? (!empty($errors) ? implode(' ', $errors) : 'Échec du téléversement.') : null;
             return [
                 'status' => $has_success ? 200 : 400,
                 'data'   => [
                     'success'  => $has_success,
                     'uploaded' => $uploaded_results,
                     'errors'   => $errors,
-                    'message'  => $has_success ? count($uploaded_results) . ' fichier(s) téléversé(s) avec succès.' : 'Échec du téléversement.'
+                    'error'    => $error_summary,
+                    'message'  => $has_success ? count($uploaded_results) . ' fichier(s) téléversé(s) avec succès.' : $error_summary
                 ]
             ];
         }
@@ -767,13 +760,7 @@ class FileActions {
             }
 
             $ext = strtolower(pathinfo($file_full, PATHINFO_EXTENSION));
-            $forbidden_exts = [
-                'php', 'phtml', 'php3', 'php4', 'php5', 'phps', 'phar', 'inc',
-                'html', 'htm', 'xhtml', 'js', 'mjs',
-                'sh', 'bash', 'bat', 'cmd', 'exe', 'dll', 'cgi', 'pl', 'py',
-                'htaccess', 'htpasswd', 'user.ini', 'admin_password_hash'
-            ];
-            if (in_array($ext, $forbidden_exts, true)) {
+            if (FormatRegistry::isForbiddenExtension($ext) || in_array($ext, ['user.ini', 'admin_password_hash'], true)) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_forbidden_file_type')]];
             }
 

@@ -1,94 +1,14 @@
 <?php
 namespace SimpleGallery\Kernel;
 
+use SimpleGallery\Kernel\Media\FormatRegistry;
+
 /**
  * Synthesizes a full SimpleGallery WebOS manifest for third-party standalone
  * web application distributions (static HTML/JS/WASM/PWA folders dropped into
  * `apps/` without a native SimpleGallery `manifest.json` or `app.js`).
  */
 class StandaloneWebAppManifestSynthesizer {
-
-    /**
-     * Curated map of known document/media/creative formats to MIME types.
-     * Excludes OS installer/package formats (.deb, .rpm, .msi, .dmg, .exe, etc.).
-     */
-    private const KNOWN_FORMAT_MIMES = [
-        // Raster, layered & vector graphics
-        'psd'      => 'image/vnd.adobe.photoshop',
-        'psb'      => 'image/vnd.adobe.photoshop',
-        'xcf'      => 'image/x-xcf',
-        'kra'      => 'application/x-krita',
-        'ora'      => 'image/openraster',
-        'pdn'      => 'image/x-paintnet',
-        'pcraft'   => 'application/x-photocraft',
-        'af'       => 'application/x-affinity',
-        'afphoto'  => 'application/x-affinity-photo',
-        'afdesign' => 'application/x-affinity-designer',
-        'afpub'    => 'application/x-affinity-publisher',
-        'png'      => 'image/png',
-        'jpg'      => 'image/jpeg',
-        'jpeg'     => 'image/jpeg',
-        'webp'     => 'image/webp',
-        'gif'      => 'image/gif',
-        'bmp'      => 'image/bmp',
-        'svg'      => 'image/svg+xml',
-        'tiff'     => 'image/tiff',
-        'tif'      => 'image/tiff',
-        'tga'      => 'image/x-tga',
-        'ico'      => 'image/x-icon',
-        'qoi'      => 'image/qoi',
-        'pnm'      => 'image/x-portable-anymap',
-        'exr'      => 'image/x-exr',
-        'hdr'      => 'image/vnd.radiance',
-        'fits'     => 'image/fits',
-        'heic'     => 'image/heic',
-        'heif'     => 'image/heif',
-        'avif'     => 'image/avif',
-        'dng'      => 'image/x-adobe-dng',
-        'eps'      => 'application/postscript',
-        // Video
-        'mp4'      => 'video/mp4',
-        'webm'     => 'video/webm',
-        'mkv'      => 'video/x-matroska',
-        'mov'      => 'video/quicktime',
-        'avi'      => 'video/x-msvideo',
-        'ogv'      => 'video/ogg',
-        // Audio
-        'mp3'      => 'audio/mpeg',
-        'wav'      => 'audio/wav',
-        'ogg'      => 'audio/ogg',
-        'flac'     => 'audio/flac',
-        'aac'      => 'audio/aac',
-        'm4a'      => 'audio/mp4',
-        'mid'      => 'audio/midi',
-        'midi'     => 'audio/midi',
-        // Documents & Office
-        'pdf'      => 'application/pdf',
-        'epub'     => 'application/epub+zip',
-        'md'       => 'text/markdown',
-        'txt'      => 'text/plain',
-        'rtf'      => 'application/rtf',
-        'odt'      => 'application/vnd.oasis.opendocument.text',
-        'ods'      => 'application/vnd.oasis.opendocument.spreadsheet',
-        'odp'      => 'application/vnd.oasis.opendocument.presentation',
-        'docx'     => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'xlsx'     => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'pptx'     => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        'csv'      => 'text/csv',
-        'tsv'      => 'text/tab-separated-values',
-        // 3D & CAD
-        'obj'      => 'model/obj',
-        'stl'      => 'model/stl',
-        'gltf'     => 'model/gltf+json',
-        'glb'      => 'model/gltf-binary',
-        'dxf'      => 'image/vnd.dxf',
-        // Retro ROMs
-        'nes'      => 'application/x-nes-rom',
-        'gb'       => 'application/x-gameboy-rom',
-        'gbc'      => 'application/x-gameboy-color-rom',
-        'gba'      => 'application/x-gba-rom',
-        'wad'      => 'application/x-doom'
-    ];
 
     /**
      * Format keyword aliases commonly written in prose (e.g. README Formats sections).
@@ -386,6 +306,7 @@ class StandaloneWebAppManifestSynthesizer {
     ): array {
         $ext_set = [];
         $mime_set = [];
+        $known_mimes = FormatRegistry::getStandardMimeMap();
 
         // Layer 1: W3C Web App Manifest file_handlers
         if (!empty($w3c['file_handlers']) && is_array($w3c['file_handlers'])) {
@@ -416,9 +337,9 @@ class StandaloneWebAppManifestSynthesizer {
                         $mime_set[$token] = true;
                     } elseif (strpos($token, '.') === 0) {
                         $clean = ltrim($token, '.');
-                        if (isset(self::KNOWN_FORMAT_MIMES[$clean])) {
+                        if (isset($known_mimes[$clean])) {
                             $ext_set[$clean] = true;
-                            $mime_set[self::KNOWN_FORMAT_MIMES[$clean]] = true;
+                            $mime_set[$known_mimes[$clean]] = true;
                         }
                     }
                 }
@@ -435,9 +356,9 @@ class StandaloneWebAppManifestSynthesizer {
                 if (preg_match_all('/(?<![a-zA-Z0-9])\.([a-zA-Z0-9]{2,10})\b/', $plain_block, $dot_matches)) {
                     foreach ($dot_matches[1] as $raw_ext) {
                         $e = strtolower($raw_ext);
-                        if (isset(self::KNOWN_FORMAT_MIMES[$e])) {
+                        if (isset($known_mimes[$e])) {
                             $ext_set[$e] = true;
-                            $mime_set[self::KNOWN_FORMAT_MIMES[$e]] = true;
+                            $mime_set[$known_mimes[$e]] = true;
                         }
                     }
                 }
@@ -449,16 +370,16 @@ class StandaloneWebAppManifestSynthesizer {
                         if (isset(self::FORMAT_PROSE_ALIASES[$w])) {
                             foreach (self::FORMAT_PROSE_ALIASES[$w] as $mapped_ext) {
                                 $ext_set[$mapped_ext] = true;
-                                if (isset(self::KNOWN_FORMAT_MIMES[$mapped_ext])) {
-                                    $mime_set[self::KNOWN_FORMAT_MIMES[$mapped_ext]] = true;
+                                if (isset($known_mimes[$mapped_ext])) {
+                                    $mime_set[$known_mimes[$mapped_ext]] = true;
                                 }
                             }
-                        } elseif (isset(self::KNOWN_FORMAT_MIMES[$w])) {
+                        } elseif (isset($known_mimes[$w])) {
                             // Avoid false positives on short ambiguous common English words ("af", "or", "raw", etc.)
                             // unless written uppercase or with leading dot (handled above)
                             if (strlen($w) >= 3 || strtoupper($word) === $word) {
                                 $ext_set[$w] = true;
-                                $mime_set[self::KNOWN_FORMAT_MIMES[$w]] = true;
+                                $mime_set[$known_mimes[$w]] = true;
                             }
                         }
                     }
@@ -474,8 +395,8 @@ class StandaloneWebAppManifestSynthesizer {
                 '/\b(svg|vector\s+illustration)\b/i'    => ['svg'],
                 '/\bmarkdown\b/i'                       => ['md'],
                 '/\b(spreadsheet|csv|tableur)\b/i'      => ['csv', 'ods', 'xlsx'],
-                '/\b(word\s+processing|word\s+processor)\b/i' => ['docx', 'odt', 'rtf'],
-                '/\b(video\s+edit|film\s+edit)\b/i'     => ['mp4', 'webm', 'mov', 'mkv'],
+                '/\b(word\s+processing|word\s+processor)\b/i' => ['docx', 'odt', 'rtf', 'epub', 'wcraft'],
+                '/\b(video\s+edit|film\s+edit)\b/i'     => ['mp4', 'webm', 'mov', 'mkv', 'fcraft'],
                 '/\b(audio\s+edit|audio\s+record|daw)\b/i' => ['mp3', 'wav', 'ogg', 'flac'],
                 '/\b(3d\s+cad|parametric\s+3d|stl)\b/i' => ['obj', 'stl', 'gltf', 'glb', 'dxf']
             ];
@@ -483,8 +404,8 @@ class StandaloneWebAppManifestSynthesizer {
                 if (preg_match($pattern, $summary)) {
                     foreach ($exts as $e) {
                         $ext_set[$e] = true;
-                        if (isset(self::KNOWN_FORMAT_MIMES[$e])) {
-                            $mime_set[self::KNOWN_FORMAT_MIMES[$e]] = true;
+                        if (isset($known_mimes[$e])) {
+                            $mime_set[$known_mimes[$e]] = true;
                         }
                     }
                 }

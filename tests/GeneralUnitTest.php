@@ -1098,6 +1098,41 @@ class GeneralUnitTestSuite {
         $tmp_overridden = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($tmp_root, true);
         $this->assert("config/external_apps.json permet de surcharger icône et catégorie sans modifier l'app tierce", ($tmp_overridden['pixelcraft']['icon'] ?? '') === '🖌️' && ($tmp_overridden['pixelcraft']['category'] ?? '') === 'productivity');
 
+        // Verify FormatRegistry dynamic auto-registration (native apps + standalone WASM apps + immutable blacklist)
+        \SimpleGallery\Kernel\Media\FormatRegistry::clearCache();
+        $real_reg = \SimpleGallery\Kernel\Media\FormatRegistry::resolve($this->base_dir);
+        $this->assert("FormatRegistry: les apps natives enregistrent automatiquement .odt et .epub pour l'upload",
+            in_array('odt', $real_reg['allowed_upload_extensions'], true) &&
+            in_array('epub', $real_reg['allowed_upload_extensions'], true) &&
+            \SimpleGallery\Kernel\Media\FormatRegistry::getMimeType('odt', $this->base_dir) === 'application/vnd.oasis.opendocument.text'
+        );
+        $this->assert("FormatRegistry: la blacklist sécurité bloque TOUJOURS .php/.js/.html/.sh même si déclarés par doc-viewer en lecture",
+            !\SimpleGallery\Kernel\Media\FormatRegistry::isUploadExtensionAllowed('php', $this->base_dir) &&
+            !\SimpleGallery\Kernel\Media\FormatRegistry::isUploadExtensionAllowed('js', $this->base_dir) &&
+            !\SimpleGallery\Kernel\Media\FormatRegistry::isUploadExtensionAllowed('html', $this->base_dir) &&
+            !\SimpleGallery\Kernel\Media\FormatRegistry::isUploadExtensionAllowed('sh', $this->base_dir) &&
+            \SimpleGallery\Kernel\Media\FormatRegistry::hasForbiddenDoubleExtension('exploit.php.jpg') === true
+        );
+        $tmp_reg = \SimpleGallery\Kernel\Media\FormatRegistry::resolve($tmp_root);
+        $this->assert("FormatRegistry: une app externe WASM (PixelCraft) auto-enregistre ses formats (.pcraft, .kra, .psd) sans liste en dur",
+            in_array('pcraft', $tmp_reg['allowed_upload_extensions'], true) &&
+            in_array('kra', $tmp_reg['allowed_upload_extensions'], true) &&
+            in_array('pcraft', $tmp_reg['media_types']['image'] ?? [], true)
+        );
+        // Verify custom native app mimeMap + config/formats.json override (still enforcing immutable blacklist)
+        file_put_contents($tmp_root . '/config/formats.json', json_encode([
+            'allow_extensions' => ['mycustom', 'php'],
+            'mime_map' => ['mycustom' => 'application/x-mycustom']
+        ]));
+        \SimpleGallery\Kernel\Media\FormatRegistry::clearCache();
+        $this->assert("FormatRegistry: config/formats.json étend les formats custom mais ne peut JAMAIS autoriser .php",
+            \SimpleGallery\Kernel\Media\FormatRegistry::isUploadExtensionAllowed('mycustom', $tmp_root) &&
+            !\SimpleGallery\Kernel\Media\FormatRegistry::isUploadExtensionAllowed('php', $tmp_root) &&
+            \SimpleGallery\Kernel\Media\FormatRegistry::getMimeType('mycustom', $tmp_root) === 'application/x-mycustom'
+        );
+        @unlink($tmp_root . '/config/formats.json');
+        \SimpleGallery\Kernel\Media\FormatRegistry::clearCache();
+
         // Verify .htaccess supports WASM MIME type & split-bundle snippets fallback
         $root_htaccess = @file_get_contents($this->base_dir . '/.htaccess') ?: '';
         $this->assert(".htaccess déclare le type MIME application/wasm", strpos($root_htaccess, 'AddType application/wasm .wasm') !== false);

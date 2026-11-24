@@ -131,13 +131,17 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
 
   <?php
   use SimpleGallery\Kernel\PluginDiscovery;
+  use SimpleGallery\Kernel\Media\FormatRegistry;
   $discovered_apps = PluginDiscovery::getDiscoveredApps(__DIR__, false);
   $all_apps_manifests = PluginDiscovery::getDiscoveredApps(__DIR__, true);
   $discovered_views = PluginDiscovery::getDiscoveredViews(__DIR__);
   $discovered_wm_styles = PluginDiscovery::getDiscoveredWindowStyles(__DIR__);
+  $sg_format_registry = FormatRegistry::resolve(__DIR__, $media_types ?? [], $discovered_apps);
   ?>
   <script>
     window.SG_DISCOVERED_WM_STYLES = <?php echo json_encode($discovered_wm_styles); ?>;
+    window.SG_MIME_MAP = <?php echo json_encode($sg_format_registry['mime_to_extensions'], JSON_UNESCAPED_SLASHES); ?>;
+    window.SG_ALLOWED_UPLOAD_EXTENSIONS = <?php echo json_encode($sg_format_registry['allowed_upload_extensions']); ?>;
   </script>
 
   <!-- Auto-Discovered Explorer Views (apps/explorer/views/<name>/manifest.json) -->

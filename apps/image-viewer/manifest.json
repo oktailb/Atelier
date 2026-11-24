@@ -5,6 +5,7 @@
   "icon": "🖼️",
   "author": "GallusTech",
   "category": "viewer",
+  "mediaCategory": "image",
   "locales": {
     "fr": {
       "title": "Visionneuse d'Images & Retouche",
@@ -33,6 +34,8 @@
     "bmp",
     "ico",
     "heic",
+    "heif",
+    "tif",
     "tiff"
   ],
   "entry": {

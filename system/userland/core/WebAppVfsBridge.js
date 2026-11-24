@@ -162,12 +162,30 @@
       refreshExplorerIfVisible(dir || '');
       return { success: true, path: dir ? `${dir}/${filename}` : filename, data: res };
     }
-    return { success: false, error: (res && res.error) || translate('vfs.save_denied') };
+    const serverErr = (res && res.error)
+      || (res && Array.isArray(res.errors) && res.errors.length > 0 ? res.errors.join(' ') : '')
+      || (res && res.message)
+      || '';
+    return { success: false, error: serverErr || translate('vfs.save_denied') };
+  }
+
+  /**
+   * Wraps an async operation in the iframe's OWN `cw.Promise` constructor so Rust/wasm-bindgen
+   * (`JsFuture::from`, which checks `val instanceof iframe.Promise`) accepts it natively.
+   */
+  function toIframePromise(cw, fnOrPromise) {
+    const PromiseCtor = (cw && typeof cw.Promise === 'function') ? cw.Promise : Promise;
+    return new PromiseCtor((resolve, reject) => {
+      Promise.resolve()
+        .then(() => (typeof fnOrPromise === 'function' ? fnOrPromise() : fnOrPromise))
+        .then(resolve, reject);
+    });
   }
 
   /**
    * Builds a W3C-compatible FileSystemFileHandle backed by the SimpleGallery VFS.
    * Supports both reading (`getFile()`) and saving back to the gallery (`createWritable()`).
+   * All Promise-returning methods return `cw.Promise` instances for cross-realm WASM compatibility.
    */
   function createVirtualFileHandle(cw, appInstance, meta) {
     const dir = meta.dir !== undefined
@@ -180,50 +198,58 @@
     return {
       kind: 'file',
       name: fileName,
-      async queryPermission() { return 'granted'; },
-      async requestPermission() { return 'granted'; },
-      async isSameEntry(other) { return Boolean(other && other.name === fileName); },
-      async getFile() {
-        if (cachedFileObj) return cachedFileObj;
-        const { blob, mime } = await fetchVfsFileAsBlob(appInstance, meta);
-        const FileCtor = (cw && cw.File) || window.File;
-        cachedFileObj = new FileCtor([blob], fileName, { type: mime });
-        return cachedFileObj;
+      queryPermission() { return toIframePromise(cw, 'granted'); },
+      requestPermission() { return toIframePromise(cw, 'granted'); },
+      isSameEntry(other) { return toIframePromise(cw, Boolean(other && other.name === fileName)); },
+      getFile() {
+        return toIframePromise(cw, async () => {
+          if (cachedFileObj) return cachedFileObj;
+          const { blob, mime } = await fetchVfsFileAsBlob(appInstance, meta);
+          const FileCtor = (cw && cw.File) || window.File;
+          cachedFileObj = new FileCtor([blob], fileName, { type: mime });
+          return cachedFileObj;
+        });
       },
-      async createWritable() {
-        const chunks = [];
-        let closed = false;
-        return {
-          async write(data) {
-            if (closed) return;
-            if (data && typeof data === 'object' && data.type === 'write' && data.data !== undefined) {
-              chunks.push(data.data);
-            } else if (data && typeof data === 'object' && data.type === 'truncate') {
-              chunks.length = 0;
-            } else if (data !== undefined && data !== null) {
-              chunks.push(data);
+      createWritable() {
+        return toIframePromise(cw, () => {
+          const chunks = [];
+          let closed = false;
+          return {
+            write(data) {
+              return toIframePromise(cw, () => {
+                if (closed) return;
+                if (data && typeof data === 'object' && data.type === 'write' && data.data !== undefined) {
+                  chunks.push(data.data);
+                } else if (data && typeof data === 'object' && data.type === 'truncate') {
+                  chunks.length = 0;
+                } else if (data !== undefined && data !== null) {
+                  chunks.push(data);
+                }
+              });
+            },
+            seek() { return toIframePromise(cw, undefined); },
+            truncate() { return toIframePromise(cw, () => { chunks.length = 0; }); },
+            abort() { return toIframePromise(cw, () => { closed = true; chunks.length = 0; }); },
+            close() {
+              return toIframePromise(cw, async () => {
+                if (closed) return;
+                closed = true;
+                const BlobCtor = (cw && cw.Blob) || window.Blob;
+                const mime = (meta && meta.mime) || 'application/octet-stream';
+                const finalBlob = new BlobCtor(chunks, { type: mime });
+                const res = await uploadBlobToVfs(finalBlob, dir, fileName, overwrite);
+                if (res.success) {
+                  const FileCtor = (cw && cw.File) || window.File;
+                  cachedFileObj = new FileCtor([finalBlob], fileName, { type: mime });
+                  showToast('success', translate('vfs.saved_to_gallery', { name: fileName }));
+                } else {
+                  showToast('error', res.error || translate('vfs.save_denied'));
+                  throw new Error(res.error || 'VFS save failed');
+                }
+              });
             }
-          },
-          async seek() {},
-          async truncate() { chunks.length = 0; },
-          async abort() { closed = true; chunks.length = 0; },
-          async close() {
-            if (closed) return;
-            closed = true;
-            const BlobCtor = (cw && cw.Blob) || window.Blob;
-            const mime = (meta && meta.mime) || 'application/octet-stream';
-            const finalBlob = new BlobCtor(chunks, { type: mime });
-            const res = await uploadBlobToVfs(finalBlob, dir, fileName, overwrite);
-            if (res.success) {
-              const FileCtor = (cw && cw.File) || window.File;
-              cachedFileObj = new FileCtor([finalBlob], fileName, { type: mime });
-              showToast('success', translate('vfs.saved_to_gallery', { name: fileName }));
-            } else {
-              showToast('error', res.error || translate('vfs.save_denied'));
-              throw new Error(res.error || 'VFS save failed');
-            }
-          }
-        };
+          };
+        });
       }
     };
   }
@@ -379,68 +405,74 @@
       }
 
       // 3. OPEN HOOK B: Intercept window.showOpenFilePicker() (File System Access API)
+      // Returns `cw.Promise` so cross-realm Rust/wasm-bindgen `JsFuture` accepts it natively.
       const origShowOpenFilePicker = typeof cw.showOpenFilePicker === 'function' ? cw.showOpenFilePicker.bind(cw) : null;
-      cw.showOpenFilePicker = async function (pickerOpts = {}) {
-        const cfg = getBridgeConfig(appInstance);
-        if (!cfg.enabled || !cfg.hookOpen || !window.sys || typeof window.sys.pickFile !== 'function') {
-          if (origShowOpenFilePicker) return origShowOpenFilePicker(pickerOpts);
-          throw new (cw.DOMException || DOMException)('File picker unavailable', 'NotSupportedError');
-        }
+      cw.showOpenFilePicker = function (pickerOpts = {}) {
+        return toIframePromise(cw, async () => {
+          const cfg = getBridgeConfig(appInstance);
+          if (!cfg.enabled || !cfg.hookOpen || !window.sys || typeof window.sys.pickFile !== 'function') {
+            if (origShowOpenFilePicker) return origShowOpenFilePicker(pickerOpts);
+            throw new (cw.DOMException || DOMException)('File picker unavailable', 'NotSupportedError');
+          }
 
-        const picked = await window.sys.pickFile({
-          title: translate('vfs.open_for_app', { app: appTitle }),
-          initialPath: getCurrentExplorerDir(),
-          accept: pickerTypesToAccept(pickerOpts),
-          multiple: Boolean(pickerOpts && pickerOpts.multiple),
-          allowLocalFallback: Boolean(origShowOpenFilePicker)
+          const picked = await window.sys.pickFile({
+            title: translate('vfs.open_for_app', { app: appTitle }),
+            initialPath: getCurrentExplorerDir(),
+            accept: pickerTypesToAccept(pickerOpts),
+            multiple: Boolean(pickerOpts && pickerOpts.multiple),
+            allowLocalFallback: Boolean(origShowOpenFilePicker)
+          });
+
+          if (!picked) {
+            throw new (cw.DOMException || DOMException)('The user aborted a request.', 'AbortError');
+          }
+          if (picked.__localFallback && origShowOpenFilePicker) {
+            return origShowOpenFilePicker(pickerOpts);
+          }
+
+          const list = Array.isArray(picked) ? picked : [picked];
+          if (list[0]) {
+            appInstance.activeFile = list[0];
+            if (typeof appInstance.refreshMenus === 'function') appInstance.refreshMenus();
+          }
+          return list.map((f) => createVirtualFileHandle(cw, appInstance, f));
         });
-
-        if (!picked) {
-          throw new (cw.DOMException || DOMException)('The user aborted a request.', 'AbortError');
-        }
-        if (picked.__localFallback && origShowOpenFilePicker) {
-          return origShowOpenFilePicker(pickerOpts);
-        }
-
-        const list = Array.isArray(picked) ? picked : [picked];
-        if (list[0]) {
-          appInstance.activeFile = list[0];
-          if (typeof appInstance.refreshMenus === 'function') appInstance.refreshMenus();
-        }
-        return list.map((f) => createVirtualFileHandle(cw, appInstance, f));
       };
 
       // 4. SAVE HOOK A: Intercept window.showSaveFilePicker() (File System Access API)
+      // Returns `cw.Promise` so cross-realm Rust/wasm-bindgen `JsFuture` accepts it natively.
       const origShowSaveFilePicker = typeof cw.showSaveFilePicker === 'function' ? cw.showSaveFilePicker.bind(cw) : null;
-      cw.showSaveFilePicker = async function (pickerOpts = {}) {
-        const cfg = getBridgeConfig(appInstance);
-        if (!cfg.enabled || !cfg.hookSave || !window.sys || typeof window.sys.pickSaveLocation !== 'function') {
-          if (origShowSaveFilePicker) return origShowSaveFilePicker(pickerOpts);
-          throw new (cw.DOMException || DOMException)('Save picker unavailable', 'NotSupportedError');
-        }
+      cw.showSaveFilePicker = function (pickerOpts = {}) {
+        return toIframePromise(cw, async () => {
+          const cfg = getBridgeConfig(appInstance);
+          if (!cfg.enabled || !cfg.hookSave || !window.sys || typeof window.sys.pickSaveLocation !== 'function') {
+            if (origShowSaveFilePicker) return origShowSaveFilePicker(pickerOpts);
+            throw new (cw.DOMException || DOMException)('Save picker unavailable', 'NotSupportedError');
+          }
 
-        const suggestedName = (pickerOpts && pickerOpts.suggestedName)
-          || (appInstance.activeFile && appInstance.activeFile.name)
-          || 'export.png';
+          const suggestedName = (pickerOpts && pickerOpts.suggestedName)
+            || (appInstance.activeFile && appInstance.activeFile.name)
+            || 'export.png';
 
-        const dest = await window.sys.pickSaveLocation({
-          title: translate('vfs.save_for_app', { app: appTitle }),
-          initialPath: getCurrentExplorerDir(),
-          suggestedName,
-          allowLocalFallback: Boolean(origShowSaveFilePicker)
-        });
+          const dest = await window.sys.pickSaveLocation({
+            title: translate('vfs.save_for_app', { app: appTitle }),
+            initialPath: getCurrentExplorerDir(),
+            suggestedName,
+            allowLocalFallback: Boolean(origShowSaveFilePicker)
+          });
 
-        if (!dest) {
-          throw new (cw.DOMException || DOMException)('The user aborted a request.', 'AbortError');
-        }
-        if (dest.__localFallback && origShowSaveFilePicker) {
-          return origShowSaveFilePicker(pickerOpts);
-        }
+          if (!dest) {
+            throw new (cw.DOMException || DOMException)('The user aborted a request.', 'AbortError');
+          }
+          if (dest.__localFallback && origShowSaveFilePicker) {
+            return origShowSaveFilePicker(pickerOpts);
+          }
 
-        return createVirtualFileHandle(cw, appInstance, {
-          dir: dest.dir,
-          filename: dest.filename,
-          overwrite: dest.overwrite
+          return createVirtualFileHandle(cw, appInstance, {
+            dir: dest.dir,
+            filename: dest.filename,
+            overwrite: dest.overwrite
+          });
         });
       };
 

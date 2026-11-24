@@ -5,6 +5,7 @@
   "icon": "🎬",
   "author": "GallusTech",
   "category": "player",
+  "mediaCategory": "video",
   "locales": {
     "fr": {
       "title": "Lecteur Vidéo & Mur Vidéo",
