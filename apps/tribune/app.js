@@ -12,7 +12,7 @@
       this.api = (window.sys && window.sys.api && window.sys.api.forApp) ? window.sys.api.forApp('tribune') : window.sys.api;
       this.boards = this.loadBoards();
 
-      this.currentBoard = localStorage.getItem('tribune_current_board') || 'local';
+      this.currentBoard = this.lsGet('current_board') || 'local';
       if (!this.boards[this.currentBoard]) {
         this.currentBoard = Object.keys(this.boards)[0] || 'local';
       }
@@ -20,8 +20,8 @@
       this.posts = [];
       this.boardPosts = {};
       this.bakLogins = new Set(this.loadBAKLogins());
-      this.bakEnabled = localStorage.getItem('tribune_bak_enabled') !== 'false';
-      this.nsfwEnabled = localStorage.getItem('tribune_nsfw_enabled') === 'true';
+      this.bakEnabled = this.lsGet('bak_enabled') !== 'false';
+      this.nsfwEnabled = this.lsGet('nsfw_enabled') === 'true';
       this.soundEnabled = true;
       this.pollInterval = null;
       this.commonTotoz = ['totoz', 'pan', 'deja-vu', 'mouais', 'lol', 'gnan', 'tagada', 'duck', 'paf', 'hop'];
@@ -35,18 +35,19 @@
       this.activeTelemetryMetric = 'posts';
       this.triggeredDucks = new Set();
       this.duckRegex = /(\\_o<~|~>o_\/|\\_x<~|~>x_\/|\\_o<|>o_\/|\\_o<|>o_|\\_O<|>O_\/|\\_o<=|=>o_\/|\\_ô<|>ô_\/|\\_@<|>@_\/|\\_°<|>°_\/|\\_°<~|~>°_\/|coin\s*coin|couac)/i;
-      // Detect initial pseudo from WebOS environment or localStorage
+      // Detect initial pseudo from WebOS environment or user-scoped localStorage
       this.userLogin = this.detectUserIdentity();
 
-      // Side panel visibility: default to hidden on mobile (<=768px), or read from localStorage
+      // Side panel visibility: default to hidden on mobile (<=768px), or read from user-scoped localStorage
       const isMobile = (typeof window !== 'undefined' && window.innerWidth <= 768);
-      const savedSidePanel = localStorage.getItem('tribune_side_panel_open');
+      const savedSidePanel = this.lsGet('side_panel_open');
       this.sidePanelOpen = savedSidePanel !== null ? (savedSidePanel === 'true') : !isMobile;
 
-      // EventBus listeners for i18n & theme propagation
+      // EventBus listeners for i18n, theme & multi-user auth switch isolation
       if (window.EventBus) {
         window.EventBus.on('locale:changed', () => this.onLocaleChanged());
         window.EventBus.on('theme:changed', (data) => this.onThemeChanged(data?.themeId || data?.theme || data));
+        window.EventBus.on('auth:changed', () => this.reloadUserScopedState());
       }
 
       // Track in-flight OAuth2 renewal promises keyed by board_id
@@ -95,7 +96,7 @@
             }
             if (data.login) {
               this.userLogin = data.login;
-              try { localStorage.setItem('tribune_user_login', data.login); } catch (e) {}
+              this.lsSet('user_login', data.login);
             }
             this.saveBoardAuth();
 
@@ -138,12 +139,64 @@
       return key;
     }
 
+    getStorageScope() {
+      if (window.sys && window.sys.storage && typeof window.sys.storage.getUserScope === 'function') {
+        return window.sys.storage.getUserScope();
+      }
+      const u = window.SG_CURRENT_USER;
+      if (u && u.id) return `u_${u.id}`;
+      if (u && u.username) return `u_${String(u.username).toLowerCase()}`;
+      return window.IS_ADMIN ? 'admin' : 'guest';
+    }
+
+    lsGet(key) {
+      try {
+        const scope = this.getStorageScope();
+        let val = localStorage.getItem(`tribune_${scope}_${key}`);
+        if (val === null && !scope.startsWith('u_')) {
+          val = localStorage.getItem(`tribune_${key}`);
+        }
+        return val;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    lsSet(key, value) {
+      try {
+        const scope = this.getStorageScope();
+        localStorage.setItem(`tribune_${scope}_${key}`, String(value));
+      } catch (e) {}
+    }
+
+    reloadUserScopedState() {
+      this.boards = this.loadBoards();
+      this.currentBoard = this.lsGet('current_board') || 'local';
+      if (!this.boards[this.currentBoard]) {
+        this.currentBoard = Object.keys(this.boards)[0] || 'local';
+      }
+      this.boardAuth = this.loadBoardAuth();
+      this.bakLogins = new Set(this.loadBAKLogins());
+      this.bakEnabled = this.lsGet('bak_enabled') !== 'false';
+      this.nsfwEnabled = this.lsGet('nsfw_enabled') === 'true';
+      this.totozCache = this.loadTotozCache();
+      this.readCalls = this.loadReadCalls();
+      this.userLogin = this.detectUserIdentity();
+      this.lastPostedMessage = '';
+      if (this.container) {
+        this.renderUI();
+        this.bindEvents();
+        this.renderPosts(false);
+      }
+    }
+
     detectUserIdentity() {
-      const saved = localStorage.getItem('tribune_user_login');
+      const saved = this.lsGet('user_login');
       if (saved && saved.trim() !== '') return saved.trim();
 
-      if (window.SG_CURRENT_USER && window.SG_CURRENT_USER.login) {
-        return window.SG_CURRENT_USER.login;
+      if (window.SG_CURRENT_USER) {
+        const uName = window.SG_CURRENT_USER.display_name || window.SG_CURRENT_USER.username || window.SG_CURRENT_USER.login;
+        if (uName && String(uName).trim() !== '') return String(uName).trim();
       }
 
       const metaUser = document.querySelector('meta[name="user-login"]')?.content;
@@ -156,7 +209,7 @@
 
     loadTotozCache() {
       try {
-        const raw = localStorage.getItem('tribune_totoz_cache');
+        const raw = this.lsGet('totoz_cache');
         return raw ? JSON.parse(raw) : {};
       } catch (e) {
         return {};
@@ -164,14 +217,12 @@
     }
 
     saveTotozCache() {
-      try {
-        localStorage.setItem('tribune_totoz_cache', JSON.stringify(this.totozCache));
-      } catch (e) { }
+      this.lsSet('totoz_cache', JSON.stringify(this.totozCache));
     }
 
     loadReadCalls() {
       try {
-        const raw = localStorage.getItem('tribune_read_calls');
+        const raw = this.lsGet('read_calls');
         return new Set(raw ? JSON.parse(raw) : []);
       } catch (e) {
         return new Set();
@@ -179,9 +230,7 @@
     }
 
     saveReadCalls() {
-      try {
-        localStorage.setItem('tribune_read_calls', JSON.stringify(Array.from(this.readCalls)));
-      } catch (e) { }
+      this.lsSet('read_calls', JSON.stringify(Array.from(this.readCalls)));
     }
 
     updateWindowTitle(unreadCount = 0) {
@@ -197,9 +246,7 @@
 
     toggleSidePanel(forceState) {
       this.sidePanelOpen = (typeof forceState === 'boolean') ? forceState : !this.sidePanelOpen;
-      try {
-        localStorage.setItem('tribune_side_panel_open', this.sidePanelOpen ? 'true' : 'false');
-      } catch (e) {}
+      this.lsSet('side_panel_open', this.sidePanelOpen ? 'true' : 'false');
       if (this.container) {
         const sidePanel = this.container.querySelector('.tribune-side-panel');
         const toggleBtn = this.container.querySelector('#tribuneSidePanelToggle');
@@ -443,7 +490,7 @@
 
     loadBAKLogins() {
       try {
-        const raw = localStorage.getItem('tribune_bak_logins');
+        const raw = this.lsGet('bak_logins');
         return raw ? JSON.parse(raw) : [];
       } catch (e) {
         return [];
@@ -451,9 +498,7 @@
     }
 
     saveBAKLogins() {
-      try {
-        localStorage.setItem('tribune_bak_logins', JSON.stringify(Array.from(this.bakLogins)));
-      } catch (e) { }
+      this.lsSet('bak_logins', JSON.stringify(Array.from(this.bakLogins)));
     }
 
     toggleBAKLogin(login) {
@@ -533,7 +578,7 @@
       } catch (e) { }
 
       try {
-        const raw = localStorage.getItem('tribune_boards');
+        const raw = this.lsGet('boards');
         if (raw) {
           const parsed = JSON.parse(raw);
           if (typeof parsed === 'object' && parsed !== null) {
@@ -581,7 +626,7 @@
       };
 
       try {
-        const raw = localStorage.getItem('tribune_boards');
+        const raw = this.lsGet('boards');
         if (raw) {
           const parsed = JSON.parse(raw);
           if (typeof parsed === 'object' && parsed !== null) {
@@ -594,9 +639,7 @@
     }
 
     async saveBoards() {
-      try {
-        localStorage.setItem('tribune_boards', JSON.stringify(this.boards));
-      } catch (e) { }
+      this.lsSet('boards', JSON.stringify(this.boards));
 
       try {
         await this.api.post('tribune_boards_save', { boards: this.boards });
@@ -605,16 +648,14 @@
 
     loadBoardAuth() {
       try {
-        return JSON.parse(localStorage.getItem('tribune_board_auth')) || {};
+        return JSON.parse(this.lsGet('board_auth')) || {};
       } catch (e) {
         return {};
       }
     }
 
     saveBoardAuth() {
-      try {
-        localStorage.setItem('tribune_board_auth', JSON.stringify(this.boardAuth));
-      } catch (e) { }
+      this.lsSet('board_auth', JSON.stringify(this.boardAuth));
     }
 
     renderUI() {
@@ -854,7 +895,7 @@
       const updatePseudo = (val) => {
         val = val.trim() || 'Coincoin';
         this.userLogin = val;
-        localStorage.setItem('tribune_user_login', val);
+        this.lsSet('user_login', val);
         if (loginInput && loginInput.value !== val) loginInput.value = val;
         if (pseudoInput && pseudoInput.value !== val) pseudoInput.value = val;
         this.renderPosts();
@@ -920,7 +961,7 @@
       if (nsfwBtn) {
         nsfwBtn.addEventListener('click', () => {
           this.nsfwEnabled = !this.nsfwEnabled;
-          localStorage.setItem('tribune_nsfw_enabled', this.nsfwEnabled ? 'true' : 'false');
+          this.lsSet('nsfw_enabled', this.nsfwEnabled ? 'true' : 'false');
           nsfwBtn.classList.toggle('active', this.nsfwEnabled);
           this.renderPosts(false); // Re-render posts immediately to reload/unblur NSFW totoz
         });
@@ -937,7 +978,7 @@
       if (bakToggleBtn) {
         bakToggleBtn.addEventListener('click', () => {
           this.bakEnabled = !this.bakEnabled;
-          localStorage.setItem('tribune_bak_enabled', this.bakEnabled ? 'true' : 'false');
+          this.lsSet('bak_enabled', this.bakEnabled ? 'true' : 'false');
           bakToggleBtn.classList.toggle('active', this.bakEnabled);
           bakToggleBtn.innerHTML = `🚫 BAK ${this.bakEnabled ? 'ON' : 'OFF'}`;
           bakToggleBtn.title = `Filtrage BAK (Boîte à Con) : ${this.bakEnabled ? 'Activé (posts masqués)' : 'Désactivé (posts visibles)'}`;
@@ -1513,7 +1554,7 @@
     switchBoard(boardKey) {
       if (!this.boards[boardKey]) return;
       this.currentBoard = boardKey;
-      localStorage.setItem('tribune_current_board', boardKey);
+      this.lsSet('current_board', boardKey);
       this.lastPostsSig = null;
 
       // Preserve posts per board in memory
@@ -1987,7 +2028,7 @@
           this.insertTextInMsgInput(input, 'φ');
           return true;
         case 'z': // Last posted message
-          const lastMsg = this.lastPostedMessage || (localStorage && localStorage.getItem('tribune_last_posted_message')) || '';
+          const lastMsg = this.lastPostedMessage || this.lsGet('last_posted_message') || '';
           if (lastMsg) {
             input.value = lastMsg;
             input.focus();
@@ -2034,7 +2075,7 @@
             };
             if (res.login) {
               this.userLogin = res.login;
-              try { localStorage.setItem('tribune_user_login', res.login); } catch (e) {}
+              this.lsSet('user_login', res.login);
             }
             this.saveBoardAuth();
             if (this.currentBoard === boardId && this.container) {
@@ -2155,7 +2196,7 @@
 
         if (data && data.success) {
           this.lastPostedMessage = message;
-          try { localStorage.setItem('tribune_last_posted_message', message); } catch (e) { }
+          this.lsSet('last_posted_message', message);
           if (this.soundEnabled) this.playCoincoinSound();
           return true;
         }

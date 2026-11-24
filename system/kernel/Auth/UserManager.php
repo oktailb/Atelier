@@ -106,13 +106,15 @@ class UserManager {
             return 0;
         }
         $total = 0;
+        $normBase = rtrim(str_replace('\\', '/', realpath($absDir) ?: $absDir), '/');
         try {
             $iter = new \RecursiveIteratorIterator(
                 new \RecursiveDirectoryIterator($absDir, \FilesystemIterator::SKIP_DOTS)
             );
             foreach ($iter as $file) {
                 $p = str_replace('\\', '/', $file->getPathname());
-                if (strpos($p, '/.thumbnails/') !== false) {
+                $rel = (strpos($p, $normBase) === 0) ? substr($p, strlen($normBase)) : $p;
+                if (strpos($rel, '/.thumbnails/') !== false) {
                     continue;
                 }
                 if ($file->isFile()) {
@@ -465,5 +467,134 @@ class UserManager {
 
         AuditLogger::log($projectRoot, 'group_delete', 'group:' . $group['name'], 'ok');
         return ['success' => true, 'status' => 200];
+    }
+
+    // -------------------------------------------------------------------------
+    // Per-User Preferences & Isolated Personal Desktop (`users.preferences_json`)
+    // -------------------------------------------------------------------------
+
+    public static function sanitizeDesktopShortcuts(array $shortcuts): ?array {
+        if (count($shortcuts) > 100) {
+            return null;
+        }
+        $sanitized = [];
+        foreach ($shortcuts as $item) {
+            if (!is_array($item)) {
+                return null;
+            }
+            foreach (['url', 'icon', 'icon_url', 'target', 'path'] as $field) {
+                if (isset($item[$field]) && is_string($item[$field])) {
+                    $val = trim($item[$field]);
+                    if (preg_match('/^\s*(javascript|vbscript|data\s*:\s*text\/html)\s*:/i', $val) || strpos($val, '..') !== false) {
+                        return null;
+                    }
+                }
+            }
+            $sanitized[] = $item;
+        }
+        return $sanitized;
+    }
+
+    public static function getUserPreferences(string $projectRoot, int $userId): array {
+        $row = self::findById($projectRoot, $userId);
+        if (!$row || empty($row['preferences_json'])) {
+            return [];
+        }
+        $decoded = @json_decode((string)$row['preferences_json'], true);
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    public static function saveUserPreferences(string $projectRoot, int $userId, array $patch): array {
+        $store = AtelierStore::forRoot($projectRoot);
+        $row = $store->selectOne('users', ['id' => $userId]);
+        if (!$row) {
+            return ['success' => false, 'status' => 404, 'error' => 'User not found.'];
+        }
+
+        $current = [];
+        if (!empty($row['preferences_json'])) {
+            $decoded = @json_decode((string)$row['preferences_json'], true);
+            if (is_array($decoded)) {
+                $current = $decoded;
+            }
+        }
+
+        $allowedScalarKeys = ['theme', 'wallpaper', 'window_style', 'locale', 'explorer_view_mode'];
+        foreach ($allowedScalarKeys as $k) {
+            if (array_key_exists($k, $patch)) {
+                if ($patch[$k] === null || $patch[$k] === '') {
+                    unset($current[$k]);
+                } elseif (is_string($patch[$k])) {
+                    $val = trim($patch[$k]);
+                    if (strlen($val) <= 512 && !preg_match('/^\s*javascript\s*:/i', $val)) {
+                        $current[$k] = $val;
+                    }
+                }
+            }
+        }
+
+        if (isset($patch['desktop']) && is_array($patch['desktop'])) {
+            if (isset($patch['desktop']['shortcuts']) && is_array($patch['desktop']['shortcuts'])) {
+                $clean = self::sanitizeDesktopShortcuts($patch['desktop']['shortcuts']);
+                if ($clean === null) {
+                    return ['success' => false, 'status' => 400, 'error' => 'Invalid desktop shortcuts payload.'];
+                }
+                $current['desktop'] = ['shortcuts' => $clean];
+            }
+        }
+
+        if (isset($patch['app_data']) && is_array($patch['app_data'])) {
+            $appData = is_array($current['app_data'] ?? null) ? $current['app_data'] : [];
+            foreach ($patch['app_data'] as $appKey => $val) {
+                $cleanKey = preg_replace('/[^a-zA-Z0-9._-]/', '', (string)$appKey);
+                if ($cleanKey === '' || strlen($cleanKey) > 64) continue;
+                if ($val === null) {
+                    unset($appData[$cleanKey]);
+                } else {
+                    $appData[$cleanKey] = $val;
+                }
+            }
+            $current['app_data'] = $appData;
+        }
+
+        $encoded = json_encode($current, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if ($encoded === false || strlen($encoded) > 131072) {
+            return ['success' => false, 'status' => 413, 'error' => 'User preferences exceed 128 KB limit.'];
+        }
+
+        $store->update('users', [
+            'preferences_json' => $encoded,
+            'updated_at'       => time()
+        ], ['id' => $userId]);
+
+        return [
+            'success'     => true,
+            'status'      => 200,
+            'preferences' => $current
+        ];
+    }
+
+    /**
+     * Returns the effective desktop shortcuts config for the given user (personal desktop if customized,
+     * otherwise the instance default template from `storage/desktop.json`).
+     */
+    public static function getEffectiveDesktopConfig(string $projectRoot, ?array $user = null): array {
+        if ($user && !empty($user['id'])) {
+            $prefs = self::getUserPreferences($projectRoot, (int)$user['id']);
+            if (isset($prefs['desktop']['shortcuts']) && is_array($prefs['desktop']['shortcuts'])) {
+                return [
+                    'shortcuts' => $prefs['desktop']['shortcuts'],
+                    'scope'     => 'user'
+                ];
+            }
+        }
+        $global = ConfigStore::get('desktop', ['shortcuts' => []], $projectRoot);
+        $shortcuts = (is_array($global) && isset($global['shortcuts']) && is_array($global['shortcuts']))
+            ? $global['shortcuts']
+            : (is_array($global) ? $global : []);
+        return [
+            'shortcuts' => $shortcuts,
+            'scope'     => 'global'
+        ];
     }
 }

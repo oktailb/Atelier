@@ -13,7 +13,11 @@
     }
 
     canEditShortcuts() {
-      return Boolean(window.IS_ADMIN || (window.desktop && window.desktop.state && window.desktop.state.isAdmin));
+      return Boolean(
+        window.IS_ADMIN ||
+        (window.SG_CURRENT_USER && (window.SG_CURRENT_USER.id || window.SG_CURRENT_USER.username)) ||
+        (window.desktop && window.desktop.state && window.desktop.state.isAdmin)
+      );
     }
 
     init() {

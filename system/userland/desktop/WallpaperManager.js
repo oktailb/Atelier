@@ -18,12 +18,17 @@
         window.EventBus.on('wallpaper:change', (data) => {
           this.setWallpaper(data.wallpaper || data);
         });
+        window.EventBus.on('auth:changed', () => {
+          this.restoreSavedWallpaper();
+        });
       }
     }
 
     restoreSavedWallpaper() {
       try {
-        const saved = localStorage.getItem('sg_desktop_wallpaper');
+        const saved = (window.sys && window.sys.storage && typeof window.sys.storage.getPref === 'function')
+          ? window.sys.storage.getPref('wallpaper', null, 'sg_desktop_wallpaper')
+          : localStorage.getItem('sg_desktop_wallpaper');
         if (saved) {
           this.apply(saved);
         }
@@ -35,7 +40,11 @@
       this.apply(val);
       if (save) {
         try {
-          localStorage.setItem('sg_desktop_wallpaper', val);
+          if (window.sys && window.sys.storage && typeof window.sys.storage.setPref === 'function') {
+            window.sys.storage.setPref('wallpaper', val, { legacyLocalKey: 'sg_desktop_wallpaper' });
+          } else {
+            localStorage.setItem('sg_desktop_wallpaper', val);
+          }
         } catch (e) {}
       }
     }

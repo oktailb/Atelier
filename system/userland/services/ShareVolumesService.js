@@ -92,9 +92,16 @@
         window.SG_CURRENT_USER = this.currentUser;
         window.SG_MOUNTED_VOLUMES = this.volumes;
         window.SG_USER_QUOTA = this.quota;
+        window.SG_USER_PREFERENCES = (res.preferences && typeof res.preferences === 'object') ? res.preferences : {};
+        if (res.desktop_config && typeof res.desktop_config === 'object') {
+          window.SG_DESKTOP_CONFIG = res.desktop_config;
+        }
         window.IS_ADMIN = Boolean(res.is_admin);
         this.updateHeaderUserBadge();
         this.emitChange();
+        if (window.sys && window.sys.desktopShortcuts && typeof window.sys.desktopShortcuts.render === 'function') {
+          window.sys.desktopShortcuts.render();
+        }
       }
       return res;
     }

@@ -80,21 +80,36 @@
         return window.sys.storage.forApp(this.id);
       }
       const self = this;
+      const getScope = () => {
+        const u = window.SG_CURRENT_USER;
+        if (u && u.id) return `u_${u.id}`;
+        if (u && u.username) return `u_${String(u.username).toLowerCase()}`;
+        return window.IS_ADMIN ? 'admin' : 'guest';
+      };
       return {
         get: (k, d = null) => {
           try {
-            const raw = localStorage.getItem(`webos_app_${self.id}_${k}`);
+            const scope = getScope();
+            let raw = localStorage.getItem(`webos_${scope}_app_${self.id}_${k}`);
+            if (raw === null && !scope.startsWith('u_')) {
+              raw = localStorage.getItem(`webos_app_${self.id}_${k}`);
+            }
             return raw !== null ? JSON.parse(raw) : d;
           } catch(e) { return d; }
         },
         set: (k, v) => {
           try {
-            localStorage.setItem(`webos_app_${self.id}_${k}`, JSON.stringify(v));
+            const scope = getScope();
+            localStorage.setItem(`webos_${scope}_app_${self.id}_${k}`, JSON.stringify(v));
             return true;
           } catch(e) { return false; }
         },
         remove: (k) => {
-          try { localStorage.removeItem(`webos_app_${self.id}_${k}`); } catch(e) {}
+          try {
+            const scope = getScope();
+            localStorage.removeItem(`webos_${scope}_app_${self.id}_${k}`);
+            if (!scope.startsWith('u_')) localStorage.removeItem(`webos_app_${self.id}_${k}`);
+          } catch(e) {}
         }
       };
     }

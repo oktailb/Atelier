@@ -157,47 +157,62 @@ class SystemActions {
         }
 
         if ($action === 'save_desktop_shortcuts') {
-            if (!AuthManager::isAdminLoggedIn()) {
+            if (!AuthManager::isLoggedIn()) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
             }
 
             $shortcuts = $raw_body['shortcuts'] ?? $_POST['shortcuts'] ?? null;
-            if (!is_array($shortcuts) || count($shortcuts) > 100) {
+            if (!is_array($shortcuts)) {
+                return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_invalid_data')]];
+            }
+            $sanitized_shortcuts = \SimpleGallery\Kernel\Auth\UserManager::sanitizeDesktopShortcuts($shortcuts);
+            if ($sanitized_shortcuts === null) {
                 return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_invalid_data')]];
             }
 
-            $sanitized_shortcuts = [];
-            foreach ($shortcuts as $item) {
-                if (!is_array($item)) {
-                    return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_invalid_data')]];
+            $curUser = AuthManager::getCurrentUser();
+            $reqScope = strtolower(trim((string)($raw_body['scope'] ?? $_POST['scope'] ?? '')));
+
+            // Multi-user accounts persist their OWN isolated desktop in `users.preferences_json`
+            // (unless an admin explicitly requests `scope=global` to edit the default template).
+            if ($curUser && !($reqScope === 'global' && AuthManager::isAdminLoggedIn())) {
+                $res = \SimpleGallery\Kernel\Auth\UserManager::saveUserPreferences($project_root, (int)$curUser['id'], [
+                    'desktop' => ['shortcuts' => $sanitized_shortcuts]
+                ]);
+                if (!empty($res['success'])) {
+                    return ['status' => 200, 'data' => [
+                        'success'   => true,
+                        'scope'     => 'user',
+                        'shortcuts' => $sanitized_shortcuts,
+                        'message'   => 'Personal desktop shortcuts saved'
+                    ]];
                 }
-                foreach (['url', 'icon', 'icon_url', 'target', 'path'] as $field) {
-                    if (isset($item[$field]) && is_string($item[$field])) {
-                        $val = trim($item[$field]);
-                        if (preg_match('/^\s*(javascript|vbscript|data\s*:\s*text\/html)\s*:/i', $val) || strpos($val, '..') !== false) {
-                            return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_invalid_data')]];
-                        }
-                    }
-                }
-                $sanitized_shortcuts[] = $item;
+                return ['status' => $res['status'] ?? 500, 'data' => $res];
+            }
+
+            if (!AuthManager::isAdminLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
             }
 
             $saved = \SimpleGallery\Kernel\Config\ConfigStore::set('desktop', ['shortcuts' => $sanitized_shortcuts], $project_root);
             if ($saved) {
-                return ['status' => 200, 'data' => ['success' => true, 'shortcuts' => $sanitized_shortcuts, 'message' => 'Shortcuts saved']];
+                return ['status' => 200, 'data' => [
+                    'success'   => true,
+                    'scope'     => 'global',
+                    'shortcuts' => $sanitized_shortcuts,
+                    'message'   => 'Shortcuts saved'
+                ]];
             }
             return ['status' => 500, 'data' => ['success' => false, 'error' => 'Failed to save shortcuts']];
         }
 
         if ($action === 'get_desktop_shortcuts') {
-            $data = \SimpleGallery\Kernel\Config\ConfigStore::get('desktop', ['shortcuts' => []], $project_root);
-            $shortcuts = [];
-            if (is_array($data) && isset($data['shortcuts'])) {
-                $shortcuts = $data['shortcuts'];
-            } elseif (is_array($data)) {
-                $shortcuts = $data;
-            }
-            return ['status' => 200, 'data' => ['success' => true, 'shortcuts' => $shortcuts]];
+            $effective = \SimpleGallery\Kernel\Auth\UserManager::getEffectiveDesktopConfig($project_root, AuthManager::getCurrentUser());
+            return ['status' => 200, 'data' => [
+                'success'   => true,
+                'scope'     => $effective['scope'],
+                'shortcuts' => $effective['shortcuts']
+            ]];
         }
 
         if ($action === 'get_disabled_apps') {

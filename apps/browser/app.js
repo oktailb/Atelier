@@ -36,11 +36,20 @@
 
       let storedProxy = false;
       try {
-        if (typeof window.localStorage !== 'undefined') {
-          storedProxy = (window.localStorage.getItem('webos_browser_proxy') === 'true');
-        }
+        storedProxy = Boolean(this.storage && this.storage.get('use_proxy', false));
       } catch (e) {}
       this.useProxy = storedProxy;
+
+      if (window.EventBus && typeof window.EventBus.on === 'function') {
+        window.EventBus.on('auth:changed', () => {
+          try {
+            this.useProxy = Boolean(this.storage && this.storage.get('use_proxy', false));
+          } catch (e) {
+            this.useProxy = false;
+          }
+          if (this.window) this.render();
+        });
+      }
 
       if (typeof window.addEventListener === 'function') {
         window.addEventListener('message', (e) => {
@@ -79,8 +88,8 @@
     toggleProxy() {
       this.useProxy = !this.useProxy;
       try {
-        if (typeof window.localStorage !== 'undefined') {
-          window.localStorage.setItem('webos_browser_proxy', this.useProxy ? 'true' : 'false');
+        if (this.storage && typeof this.storage.set === 'function') {
+          this.storage.set('use_proxy', this.useProxy);
         }
       } catch (e) {}
 

@@ -110,10 +110,16 @@
       if (decl.hookSave === false) cfg.hookSave = false;
     }
 
-    // User per-app toggle persisted in localStorage
+    // User per-app toggle persisted in user-scoped localStorage
     try {
       if (appInstance && appInstance.id && window.localStorage) {
-        const stored = window.localStorage.getItem(STORAGE_PREFIX + appInstance.id);
+        const scope = (window.sys && window.sys.storage && typeof window.sys.storage.getUserScope === 'function')
+          ? window.sys.storage.getUserScope()
+          : (window.SG_CURRENT_USER && window.SG_CURRENT_USER.id ? `u_${window.SG_CURRENT_USER.id}` : (window.IS_ADMIN ? 'admin' : 'guest'));
+        let stored = window.localStorage.getItem(`sg_vfs_bridge_${scope}_${appInstance.id}`);
+        if (stored === null && !scope.startsWith('u_')) {
+          stored = window.localStorage.getItem(STORAGE_PREFIX + appInstance.id);
+        }
         if (stored === '0') cfg.enabled = false;
         else if (stored === '1') cfg.enabled = true;
       }
@@ -125,7 +131,10 @@
   function setUserBridgeEnabled(appId, enabled) {
     try {
       if (appId && window.localStorage) {
-        window.localStorage.setItem(STORAGE_PREFIX + appId, enabled ? '1' : '0');
+        const scope = (window.sys && window.sys.storage && typeof window.sys.storage.getUserScope === 'function')
+          ? window.sys.storage.getUserScope()
+          : (window.SG_CURRENT_USER && window.SG_CURRENT_USER.id ? `u_${window.SG_CURRENT_USER.id}` : (window.IS_ADMIN ? 'admin' : 'guest'));
+        window.localStorage.setItem(`sg_vfs_bridge_${scope}_${appId}`, enabled ? '1' : '0');
       }
     } catch (e) {}
   }

@@ -971,6 +971,11 @@ HTACCESS;
         $saved_sess = $_SESSION ?? [];
         $_SESSION = [];
         \SimpleGallery\Kernel\Data\AtelierStore::resetCache();
+        $cli_ip = \SimpleGallery\Kernel\Security\RateLimiter::getClientIp();
+        \SimpleGallery\Kernel\Security\RateLimiter::reset('register_' . $cli_ip);
+        \SimpleGallery\Kernel\Security\RateLimiter::reset('login_' . $cli_ip);
+        \SimpleGallery\Kernel\Security\RateLimiter::reset('2fa_' . $cli_ip);
+        \SimpleGallery\Kernel\Security\RateLimiter::reset('pwd_reset_' . md5('charlie@studio.fr|' . $cli_ip));
 
         // 1. CSRF protection on all Phase 1 mutating actions
         $mut = \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS;
@@ -1539,6 +1544,9 @@ HTACCESS;
 
         // Disk quota computation check
         \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, (int)$charlie_auth2['id'], ['quota_bytes' => 10240]);
+        if (!is_dir($users_root . '/charlie')) {
+            @mkdir($users_root . '/charlie', 0755, true);
+        }
         file_put_contents($users_root . '/charlie/sample.bin', str_repeat('A', 2048));
         $charlie_fresh = \SimpleGallery\Kernel\Auth\UserManager::findById($p1_root, (int)$charlie_auth2['id']);
         $qinfo = \SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo($p1_root, $p1_root, $charlie_fresh);
@@ -1560,7 +1568,95 @@ HTACCESS;
             ($jwt_claims['email'] ?? '') === 'sso@studio.fr'
         );
 
+        // 10.7 Multi-User Per-User Desktop Shortcuts & Preferences Isolation
+        $desk_a = \SimpleGallery\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
+            'username' => 'desk_alice',
+            'password' => 'DeskPass123!',
+            'role' => 'user',
+            'display_name' => 'Desk Alice'
+        ]);
+        $desk_b = \SimpleGallery\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
+            'username' => 'desk_bob',
+            'password' => 'DeskPass123!',
+            'role' => 'user',
+            'display_name' => 'Desk Bob'
+        ]);
+        \SimpleGallery\Kernel\Config\ConfigStore::set('desktop', [
+            'shortcuts' => [
+                ['id' => 'sc_global_tpl', 'type' => 'app', 'appId' => 'explorer', 'name' => 'Explorer Global', 'enabled' => true]
+            ]
+        ], $p1_root);
+
+        // Guest denied from saving desktop shortcuts
+        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        $guest_desk_save = \SimpleGallery\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['shortcuts' => [['id' => 'sc_hack', 'type' => 'app', 'appId' => 'explorer']]]
+        ]);
+        $this->assert("Multi-User Desktop: Un invité ne peut pas sauvegarder de raccourcis bureau (403)",
+            ($guest_desk_save['status'] ?? 0) === 403
+        );
+
+        // Alice: malicious javascript: shortcut payload is rejected (400), valid personal desktop is saved (200)
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
+        $alice_desk_xss = \SimpleGallery\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => [
+                'shortcuts' => [
+                    ['id' => 'sc_xss', 'type' => 'file', 'path' => 'javascript:alert(1)', 'name' => 'XSS']
+                ]
+            ]
+        ]);
+        $alice_desk_save = \SimpleGallery\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => [
+                'shortcuts' => [
+                    ['id' => 'sc_alice_notes', 'type' => 'app', 'appId' => 'doc-viewer', 'name' => 'Alice Notes', 'enabled' => true]
+                ]
+            ]
+        ]);
+        $alice_desk_get = \SimpleGallery\Kernel\Actions\SystemActions::handle('get_desktop_shortcuts', [], ['base_dir' => $p1_root]);
+        $alice_pref_save = \SimpleGallery\Kernel\Actions\UserActions::handle('save_user_preferences', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => [
+                'preferences' => [
+                    'theme' => 'light-studio',
+                    'wallpaper' => 'ocean',
+                    'window_style' => 'win11',
+                    'explorer_view_mode' => 'grid'
+                ]
+            ]
+        ]);
+        $alice_me = \SimpleGallery\Kernel\Actions\UserActions::handle('get_current_user', [], ['base_dir' => $p1_root]);
+
+        $this->assert("Multi-User Desktop: Alice sauvegarde son bureau personnel (XSS rejeté 400) et ses préférences UI",
+            ($alice_desk_xss['status'] ?? 0) === 400 &&
+            ($alice_desk_save['status'] ?? 0) === 200 &&
+            ($alice_desk_save['data']['scope'] ?? '') === 'user' &&
+            count($alice_desk_get['data']['shortcuts'] ?? []) === 1 &&
+            ($alice_desk_get['data']['shortcuts'][0]['id'] ?? '') === 'sc_alice_notes' &&
+            ($alice_pref_save['status'] ?? 0) === 200 &&
+            ($alice_me['data']['preferences']['theme'] ?? '') === 'light-studio' &&
+            ($alice_me['data']['preferences']['wallpaper'] ?? '') === 'ocean'
+        );
+
+        // Bob must see the untouched global template and empty preferences (zero leak from Alice!)
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
+        $bob_desk_get = \SimpleGallery\Kernel\Actions\SystemActions::handle('get_desktop_shortcuts', [], ['base_dir' => $p1_root]);
+        $bob_me = \SimpleGallery\Kernel\Actions\UserActions::handle('get_current_user', [], ['base_dir' => $p1_root]);
+        $this->assert("Multi-User Desktop: Bob hérite du modèle global sans aucune fuite du bureau ni des préférences d'Alice",
+            ($bob_desk_get['data']['scope'] ?? '') === 'global' &&
+            count($bob_desk_get['data']['shortcuts'] ?? []) === 1 &&
+            ($bob_desk_get['data']['shortcuts'][0]['id'] ?? '') === 'sc_global_tpl' &&
+            empty($bob_me['data']['preferences']['theme'] ?? '') &&
+            empty($bob_me['data']['preferences']['wallpaper'] ?? '')
+        );
+
         $_SESSION = $saved_sess;
+        \SimpleGallery\Kernel\Security\RateLimiter::reset('register_' . $cli_ip);
+        \SimpleGallery\Kernel\Security\RateLimiter::reset('login_' . $cli_ip);
+        \SimpleGallery\Kernel\Security\RateLimiter::reset('2fa_' . $cli_ip);
+        \SimpleGallery\Kernel\Security\RateLimiter::reset('pwd_reset_' . md5('charlie@studio.fr|' . $cli_ip));
         \SimpleGallery\Kernel\Data\AtelierStore::resetCache();
     }
 }

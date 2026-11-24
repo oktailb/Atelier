@@ -9,13 +9,52 @@
   window.sys = window.sys || {};
 
   // =========================================================================
-  // 1. Storage Service (`sys.storage`)
+  // 1. Storage Service (`sys.storage`) — User-Scoped Multi-User Isolation
   // =========================================================================
+  const SYNCABLE_PREFS = ['theme', 'wallpaper', 'window_style', 'locale', 'explorer_view_mode'];
+  let _prefSyncTimer = null;
+  let _prefSyncQueue = {};
+
+  function flushUserPrefsSync() {
+    _prefSyncTimer = null;
+    const patch = Object.assign({}, _prefSyncQueue);
+    _prefSyncQueue = {};
+    if (Object.keys(patch).length === 0) return;
+
+    const u = (window.sys && window.sys.shares && typeof window.sys.shares.getCurrentUser === 'function')
+      ? window.sys.shares.getCurrentUser()
+      : window.SG_CURRENT_USER;
+    if (!u || !u.id) return;
+
+    const api = (window.sys && window.sys.api) || window.SyscallClient;
+    if (api && typeof api.post === 'function') {
+      api.post('save_user_preferences', { preferences: patch }).catch(() => {});
+    }
+  }
+
   const StorageService = {
+    getUserScope() {
+      const u = (window.sys && window.sys.shares && typeof window.sys.shares.getCurrentUser === 'function')
+        ? window.sys.shares.getCurrentUser()
+        : window.SG_CURRENT_USER;
+      if (u && u.id) return `u_${u.id}`;
+      if (u && u.username) return `u_${String(u.username).toLowerCase()}`;
+      if (window.IS_ADMIN || (window.desktop && window.desktop.state && window.desktop.state.isAdmin)) {
+        return 'admin';
+      }
+      return 'guest';
+    },
+    isNamedUserScope(scope) {
+      return typeof scope === 'string' && scope.startsWith('u_');
+    },
     get(appId, key, defaultValue = null) {
       try {
-        const fullKey = `webos_app_${appId}_${key}`;
-        const raw = localStorage.getItem(fullKey);
+        const scope = this.getUserScope();
+        const scopedKey = `webos_${scope}_app_${appId}_${key}`;
+        let raw = localStorage.getItem(scopedKey);
+        if (raw === null && !this.isNamedUserScope(scope)) {
+          raw = localStorage.getItem(`webos_app_${appId}_${key}`);
+        }
         if (raw === null) return defaultValue;
         return JSON.parse(raw);
       } catch (e) {
@@ -25,8 +64,9 @@
     },
     set(appId, key, value) {
       try {
-        const fullKey = `webos_app_${appId}_${key}`;
-        localStorage.setItem(fullKey, JSON.stringify(value));
+        const scope = this.getUserScope();
+        const scopedKey = `webos_${scope}_app_${appId}_${key}`;
+        localStorage.setItem(scopedKey, JSON.stringify(value));
         return true;
       } catch (e) {
         console.warn(`[WebOS Storage] Failed to set '${key}' for '${appId}':`, e);
@@ -35,9 +75,113 @@
     },
     remove(appId, key) {
       try {
-        const fullKey = `webos_app_${appId}_${key}`;
-        localStorage.removeItem(fullKey);
+        const scope = this.getUserScope();
+        localStorage.removeItem(`webos_${scope}_app_${appId}_${key}`);
+        if (!this.isNamedUserScope(scope)) {
+          localStorage.removeItem(`webos_app_${appId}_${key}`);
+        }
       } catch (e) {}
+    },
+    getPref(key, defaultValue = null, legacyLocalKey = null) {
+      try {
+        const scope = this.getUserScope();
+        if (this.isNamedUserScope(scope) && window.SG_USER_PREFERENCES && typeof window.SG_USER_PREFERENCES === 'object') {
+          const serverVal = window.SG_USER_PREFERENCES[key];
+          if (serverVal !== undefined && serverVal !== null && serverVal !== '') {
+            return serverVal;
+          }
+        }
+        const scopedVal = localStorage.getItem(`sg_pref_${scope}_${key}`);
+        if (scopedVal !== null) return scopedVal;
+        if (!this.isNamedUserScope(scope) && legacyLocalKey) {
+          const legacyVal = localStorage.getItem(legacyLocalKey);
+          if (legacyVal !== null) return legacyVal;
+        }
+        return defaultValue;
+      } catch (e) {
+        return defaultValue;
+      }
+    },
+    setPref(key, value, opts = {}) {
+      try {
+        const scope = this.getUserScope();
+        const strVal = (value === null || value === undefined) ? '' : String(value);
+        localStorage.setItem(`sg_pref_${scope}_${key}`, strVal);
+        if (!this.isNamedUserScope(scope) && opts.legacyLocalKey) {
+          localStorage.setItem(opts.legacyLocalKey, strVal);
+        }
+        if (this.isNamedUserScope(scope)) {
+          window.SG_USER_PREFERENCES = window.SG_USER_PREFERENCES || {};
+          window.SG_USER_PREFERENCES[key] = strVal;
+          if (opts.sync !== false && SYNCABLE_PREFS.includes(key)) {
+            _prefSyncQueue[key] = strVal;
+            if (_prefSyncTimer) clearTimeout(_prefSyncTimer);
+            _prefSyncTimer = setTimeout(flushUserPrefsSync, 250);
+          }
+        }
+        return true;
+      } catch (e) {
+        return false;
+      }
+    },
+    removePref(key, legacyLocalKey = null) {
+      try {
+        const scope = this.getUserScope();
+        localStorage.removeItem(`sg_pref_${scope}_${key}`);
+        if (!this.isNamedUserScope(scope) && legacyLocalKey) {
+          localStorage.removeItem(legacyLocalKey);
+        }
+        if (this.isNamedUserScope(scope) && window.SG_USER_PREFERENCES && typeof window.SG_USER_PREFERENCES === 'object') {
+          delete window.SG_USER_PREFERENCES[key];
+        }
+      } catch (e) {}
+    },
+    clearUserScope() {
+      try {
+        const scope = this.getUserScope();
+        const u = (window.sys && window.sys.shares && typeof window.sys.shares.getCurrentUser === 'function')
+          ? window.sys.shares.getCurrentUser()
+          : window.SG_CURRENT_USER;
+        const username = u && u.username ? String(u.username) : '';
+
+        const prefixes = [
+          `webos_${scope}_`,
+          `sg_pref_${scope}_`,
+          `tribune_${scope}_`,
+          `sg_vfs_bridge_${scope}_`,
+          `sg_favorites_${scope}`,
+          `sg_folder_sorts_${scope}`
+        ];
+        if (username) {
+          prefixes.push(`sg_favorites_user_${username}`, `sg_folder_sorts_user_${username}`);
+        }
+
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (!k) continue;
+          if (prefixes.some(p => k.startsWith(p))) {
+            keysToRemove.push(k);
+          }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+
+        if (!this.isNamedUserScope(scope)) {
+          [
+            'sg_desktop_wallpaper',
+            'sg_active_theme',
+            'sg_window_style',
+            'sg_favorites',
+            'sg_view_mode',
+            'sg_explorer_view_mode',
+            'gallery_view_mode',
+            'sg_cookie_consent'
+          ].forEach(k => localStorage.removeItem(k));
+        }
+        return keysToRemove.length;
+      } catch (e) {
+        return 0;
+      }
     },
     forApp(appId) {
       return {

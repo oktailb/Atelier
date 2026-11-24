@@ -298,7 +298,7 @@ console.log('\n🎮 [7/7] Vérification des Nouveaux Contrôles Multimodaux & Ca
 // 1. Doc-Viewer
 const docViewerManifest = JSON.parse(fs.readFileSync(path.join(rootDir, 'apps', 'doc-viewer', 'manifest.json'), 'utf8'));
 const docViewerJs = fs.readFileSync(path.join(rootDir, 'apps', 'doc-viewer', 'viewer.js'), 'utf8');
-assert("doc-viewer manifest déclare scrollTo, searchText, nextPage, prevPage", 
+assert("doc-viewer manifest déclare scrollTo, searchText, nextPage, prevPage",
   !!docViewerManifest.commands.scrollTo && !!docViewerManifest.commands.searchText && !!docViewerManifest.commands.nextPage && !!docViewerManifest.commands.prevPage);
 assert("doc-viewer viewer.js déclare isPdf = ext === 'pdf'", docViewerJs.includes("const isPdf = ext === 'pdf';"));
 assert("doc-viewer viewer.js implémente scrollTo(params, winId)", docViewerJs.includes('scrollTo(params = {}, winId = null)'));
@@ -314,14 +314,14 @@ try {
   global.document = {
     getElementById: () => null,
     createElement: () => ({ style: {} }),
-    head: { appendChild: () => {} },
+    head: { appendChild: () => { } },
     createTreeWalker: () => ({ nextNode: () => null })
   };
   const fakeWindow = {
     sys: {
-      appManager: { 
+      appManager: {
         getAppTitle: () => 'Doc Viewer',
-        registerInstance: () => {}
+        registerInstance: () => { }
       },
       api: { fs: { saveTextFile: async () => ({ success: true }) } }
     },
@@ -329,10 +329,10 @@ try {
       createWindow: (opts) => ({ id: opts.id, element: {} }),
       windows: new Map()
     },
-    MenuBarManager: { registerAppMenu: () => {}, setActiveApp: () => {} },
-    MediaViewerRegistry: { register: () => {} },
-    addEventListener: () => {},
-    removeEventListener: () => {}
+    MenuBarManager: { registerAppMenu: () => { }, setActiveApp: () => { } },
+    MediaViewerRegistry: { register: () => { } },
+    addEventListener: () => { },
+    removeEventListener: () => { }
   };
   const docFunc = new Function('window', docViewerJs + '\nreturn window.DocViewerApp;');
   const docPlugin = docFunc(fakeWindow);
@@ -363,18 +363,18 @@ try {
   let createdMapCenter = null;
   let createdMapZoom = null;
   const fakeL = {
-    tileLayer: () => ({ addTo: () => {} }),
+    tileLayer: () => ({ addTo: () => { } }),
     map: (container, opts) => {
       createdMapCenter = opts.center;
       createdMapZoom = opts.zoom;
       return {
-        addLayer: () => {},
+        addLayer: () => { },
         setView: (c, z) => { createdMapCenter = c; createdMapZoom = z; },
-        remove: () => {},
-        invalidateSize: () => {}
+        remove: () => { },
+        invalidateSize: () => { }
       };
     },
-    markerClusterGroup: () => ({ addLayer: () => {}, clearLayers: () => {}, getBounds: () => null })
+    markerClusterGroup: () => ({ addLayer: () => { }, clearLayers: () => { }, getBounds: () => null })
   };
   const fakeWinMaps = {
     document: {
@@ -388,9 +388,9 @@ try {
       t(k) { return k; }
       escapeHtml(s) { return String(s || ''); }
     },
-    WindowManager: { createWindow: (w) => w, focusWindow: () => {}, setTitle: () => {} },
+    WindowManager: { createWindow: (w) => w, focusWindow: () => { }, setTitle: () => { } },
     sys: {
-      appManager: { getAppTitle: () => 'Maps', registerInstance: () => {} },
+      appManager: { getAppTitle: () => 'Maps', registerInstance: () => { } },
       api: { get: async () => ({ success: true, files: [] }) }
     }
   };
@@ -481,8 +481,8 @@ try {
           children: [],
           dataset: {},
           appendChild: (c) => { el.children.push(c); return c; },
-          addEventListener: () => {},
-          remove: () => {},
+          addEventListener: () => { },
+          remove: () => { },
           querySelector: () => null,
           querySelectorAll: () => []
         };
@@ -497,10 +497,10 @@ try {
       t(k) { return k; }
       escapeHtml(s) { return String(s || ''); }
     },
-    WindowManager: { createWindow: (w) => w, focusWindow: () => {}, setTitle: () => {} },
+    WindowManager: { createWindow: (w) => w, focusWindow: () => { }, setTitle: () => { } },
     sys: {
-      appManager: { getAppTitle: () => 'Browser', registerInstance: () => {} },
-      storage: { get: () => null, set: () => {} }
+      appManager: { getAppTitle: () => 'Browser', registerInstance: () => { } },
+      storage: { get: () => null, set: () => { } }
     }
   };
   const browserFunc = new Function('window', browserJs + '\nreturn window.BrowserApp;');
@@ -513,7 +513,7 @@ try {
   assert("browser normalizeUrl préfixe https://", norm1 === 'https://google.com');
   const normSearch = browserInst.normalizeUrl('recherche simple');
   assert("browser normalizeUrl transforme requête en recherche DuckDuckGo", normSearch.includes('duckduckgo.com/?q=recherche'));
-  
+
   // Test proxy mode routing & sandbox isolation
   browserInst.useProxy = false;
   assert("browser getEffectiveIframeUrl en mode direct renvoie l'URL directe", browserInst.getEffectiveIframeUrl('https://example.com') === 'https://example.com');
@@ -605,7 +605,7 @@ const fakeLocalStorage = {
 global.localStorage = fakeLocalStorage;
 
 const fakeDoc = {
-  addEventListener: () => {},
+  addEventListener: () => { },
   getElementById: () => null,
   querySelector: () => null,
   querySelectorAll: () => []
@@ -616,7 +616,7 @@ const fakeWinTribune = {
   navigator: { userAgent: 'NodeTest' },
   localStorage: fakeLocalStorage,
   document: fakeDoc,
-  addEventListener: () => {},
+  addEventListener: () => { },
   sys: {
     api: {
       forApp: () => ({ get: async () => ({}), post: async () => ({}), url: () => '' })
@@ -674,18 +674,18 @@ try {
   const fakeDom = {
     readyState: 'complete',
     documentElement: { lang: 'fr' },
-    head: { appendChild: () => {} },
+    head: { appendChild: () => { } },
     body: { contains: () => false },
     getElementById: () => null,
-    createElement: () => ({ style: {}, addEventListener: () => {} }),
-    addEventListener: () => {}
+    createElement: () => ({ style: {}, addEventListener: () => { } }),
+    addEventListener: () => { }
   };
 
   const sandboxWin = {
     innerWidth: 1440,
     innerHeight: 900,
     document: fakeDom,
-    localStorage: { getItem: () => null, setItem: () => {} },
+    localStorage: { getItem: () => null, setItem: () => { } },
     SG_DISABLED_APPS: [],
     SG_DISCOVERED_APPS: {
       'image-viewer': {
@@ -735,12 +735,12 @@ try {
         createdWindows.push(cfg);
         return { id: cfg.id, element: {} };
       },
-      focusWindow: () => {},
-      setTitle: () => {}
+      focusWindow: () => { },
+      setTitle: () => { }
     },
     MenuBarManager: {
       registerAppMenu: (id, def) => registeredMenus.set(id, def),
-      setActiveApp: () => {}
+      setActiveApp: () => { }
     },
     I18nEngine: { t: (k) => k }
   };
@@ -811,7 +811,7 @@ try {
   );
 
   const calcWin = {
-    localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+    localStorage: { getItem: () => null, setItem: () => { }, removeItem: () => { } },
     devicePixelRatio: 1
   };
   new Function('window', engineSrc)(calcWin);
@@ -879,11 +879,11 @@ try {
   const webosAppCode = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'core', 'WebOSApp.js'), 'utf8');
   const appDoc = {
     getElementById: () => null,
-    addEventListener: () => {},
-    removeEventListener: () => {}
+    addEventListener: () => { },
+    removeEventListener: () => { }
   };
   const appWin = {
-    localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+    localStorage: { getItem: () => null, setItem: () => { }, removeItem: () => { } },
     GraphingCalcEngine: E,
     GraphingCalcPlotter: calcWin.GraphingCalcPlotter,
     sys: { i18n: { t: (k, p) => p ? Object.entries(p).reduce((s, [a, b]) => s + ':' + b, k) : k } }
@@ -927,7 +927,7 @@ try {
       'application/x-wordcraft': ['wcraft'],
       'application/vnd.oasis.opendocument.text': ['odt']
     },
-    document: { addEventListener: () => {}, removeEventListener: () => {}, body: { appendChild: () => {}, getAttribute: () => 'dark' }, documentElement: { getAttribute: () => 'dark' } }
+    document: { addEventListener: () => { }, removeEventListener: () => { }, body: { appendChild: () => { }, getAttribute: () => 'dark' }, documentElement: { getAttribute: () => 'dark' } }
   };
   new Function('window', 'document', pickerCode)(pickerWin, pickerWin.document);
   const fp = pickerWin.sys.filePicker;
@@ -965,10 +965,10 @@ try {
     FormData: globalThis.FormData || class MockFD { constructor() { this.entries = {}; } append(k, v, n) { this.entries[k] = { v, n }; } },
     DOMException: globalThis.DOMException,
     fetch: async () => ({ ok: true, blob: async () => new Blob(['PDFDATA'], { type: 'application/pdf' }) }),
-    addEventListener: () => {},
+    addEventListener: () => { },
     sys: {
       i18n: { t: (k) => k },
-      toast: { success: () => {}, error: () => {}, info: () => {} },
+      toast: { success: () => { }, error: () => { }, info: () => { } },
       api: {
         upload: async (action, fd) => {
           uploadedPayloads.push({ action, fd });
@@ -1015,17 +1015,17 @@ try {
     click() { this._nativeClicked = true; }
   }
   let createdBlobSeq = 0;
-  class IframeRealmPromise extends Promise {}
+  class IframeRealmPromise extends Promise { }
   const fakeIframeWin = {
     location: { origin: 'https://gallery.local' },
-    document: { addEventListener: () => {} },
+    document: { addEventListener: () => { } },
     Promise: IframeRealmPromise,
     Blob: globalThis.Blob,
     File: bridgeWin.File,
     DOMException: globalThis.DOMException,
     URL: {
       createObjectURL: () => `blob:https://gallery.local/${++createdBlobSeq}`,
-      revokeObjectURL: () => {}
+      revokeObjectURL: () => { }
     },
     HTMLInputElement: FakeInput,
     HTMLAnchorElement: FakeAnchor
@@ -1137,8 +1137,8 @@ try {
       remove: (c) => authBlurClasses.delete(c),
       toggle: (c, f) => (f ? authBlurClasses.add(c) : authBlurClasses.delete(c))
     },
-    setAttribute: () => {},
-    addEventListener: () => {},
+    setAttribute: () => { },
+    addEventListener: () => { },
     querySelector: () => null,
     querySelectorAll: () => [],
     remove: function () { this.parentNode = null; }
@@ -1147,7 +1147,7 @@ try {
   const authWin = {
     IS_ADMIN: false,
     SG_CURRENT_USER: null,
-    localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+    localStorage: { getItem: () => null, setItem: () => { }, removeItem: () => { } },
     requestAnimationFrame: (fn) => fn(),
     sys: { i18n: { t: (k, p) => p ? Object.entries(p).reduce((s, [a, b]) => s + ':' + b, k) : k } }
   };
@@ -1156,8 +1156,8 @@ try {
     createElement: () => makeMockEl(),
     getElementById: () => makeMockEl(),
     querySelector: () => null,
-    addEventListener: () => {},
-    removeEventListener: () => {}
+    addEventListener: () => { },
+    removeEventListener: () => { }
   };
   new Function('window', 'document', authModalCode)(authWin, authDoc);
   authWin.sys.authModal.open();
@@ -1240,7 +1240,7 @@ try {
     body: { getAttribute: () => 'dark-glass' },
     documentElement: { getAttribute: () => 'dark-glass' },
     getElementById: () => null,
-    addEventListener: () => {}
+    addEventListener: () => { }
   };
   new Function('window', 'document', shareCode)(mockVolWin, mockDoc);
   const svc = mockVolWin.sys.shares;
@@ -1250,7 +1250,7 @@ try {
     querySelectorAll: () => [],
     querySelector: () => null
   };
-  svc.renderExplorerMountsBar(fakeBar, 'users/bob/photos', () => {});
+  svc.renderExplorerMountsBar(fakeBar, 'users/bob/photos', () => { });
   assert("Phase 1 + A.2: ShareVolumesService rend la barre des volumes montés, le quota disque visuel et le bouton Partager",
     fakeBar.style.display === 'flex' &&
     fakeBar.innerHTML.includes('Studio Drive') &&
@@ -1277,10 +1277,10 @@ try {
   const scWin = {
     SG_MOUNTED_VOLUMES: mockVolWin.SG_MOUNTED_VOLUMES,
     SG_DESKTOP_CONFIG: { shortcuts: [] },
-    localStorage: { getItem: () => null, setItem: () => {} },
-    EventBus: { on: () => {} }
+    localStorage: { getItem: () => null, setItem: () => { } },
+    EventBus: { on: () => { } }
   };
-  const scDoc = { readyState: 'loading', getElementById: () => null, addEventListener: () => {} };
+  const scDoc = { readyState: 'loading', getElementById: () => null, addEventListener: () => { } };
   new Function('window', 'document', shortcutsCode)(scWin, scDoc);
   const scMgr = scWin.sys.desktopShortcuts;
   const effective = scMgr.getEffectiveShortcuts();
@@ -1293,6 +1293,70 @@ try {
   );
   assert("Audit C1: DesktopShortcutsManager interdit l'édition/suppression de raccourcis bureau aux invités et non-admins",
     scMgr.canEditShortcuts() === false && (await scMgr.save()) === false
+  );
+
+  // Authenticated multi-user CAN edit their own personal desktop shortcuts
+  scWin.SG_CURRENT_USER = { id: 2, username: 'bob', role: 'user' };
+  assert("Multi-User Desktop: Un utilisateur connecté peut personnaliser son propre bureau",
+    scMgr.canEditShortcuts() === true
+  );
+
+  // Verify WebOSServices StorageService isolates app data & preferences per user scope
+  const servicesCode = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'services', 'WebOSServices.js'), 'utf8');
+  const lsStore = new Map([
+    ['webos_app_graphing-calc_history', JSON.stringify(['legacy_guest'])],
+    ['sg_active_theme', 'guest-legacy-theme']
+  ]);
+  const mockLocalStorage = {
+    get length() { return lsStore.size; },
+    key: (i) => Array.from(lsStore.keys())[i] ?? null,
+    getItem: (k) => (lsStore.has(k) ? lsStore.get(k) : null),
+    setItem: (k, v) => lsStore.set(k, String(v)),
+    removeItem: (k) => lsStore.delete(k)
+  };
+  const svcWin = {
+    SG_CURRENT_USER: { id: 1, username: 'alice' },
+    SG_USER_PREFERENCES: { theme: 'light-studio' },
+    localStorage: mockLocalStorage,
+    sys: {}
+  };
+  new Function('window', 'document', 'localStorage', servicesCode)(svcWin, {}, mockLocalStorage);
+  const store = svcWin.sys.storage;
+  const aliceCalc = store.forApp('graphing-calc');
+  aliceCalc.set('history', ['2+2']);
+  store.setPref('wallpaper', 'ocean', { sync: false });
+  const aliceTheme = store.getPref('theme', 'dark-glass', 'sg_active_theme');
+
+  // Switch to Bob: must NOT see Alice's data nor Guest's legacy data
+  svcWin.SG_CURRENT_USER = { id: 2, username: 'bob' };
+  svcWin.SG_USER_PREFERENCES = {};
+  const bobCalc = store.forApp('graphing-calc');
+  const bobSeesAlice = bobCalc.get('history', null);
+  const bobTheme = store.getPref('theme', 'dark-glass', 'sg_active_theme');
+  bobCalc.set('history', ['9*9']);
+
+  // Switch back to Alice and clear ONLY Alice's scope: Bob's data must survive!
+  svcWin.SG_CURRENT_USER = { id: 1, username: 'alice' };
+  store.clearUserScope();
+  const aliceAfterClear = aliceCalc.get('history', null);
+  svcWin.SG_CURRENT_USER = { id: 2, username: 'bob' };
+  const bobAfterAliceClear = bobCalc.get('history', null);
+
+  assert("Multi-User Storage: sys.storage cloisonne données apps, préférences et clearUserScope() par utilisateur",
+    aliceTheme === 'light-studio' &&
+    bobSeesAlice === null &&
+    bobTheme === 'dark-glass' &&
+    aliceAfterClear === null &&
+    Array.isArray(bobAfterAliceClear) && bobAfterAliceClear[0] === '9*9'
+  );
+
+  // Verify Tribune isolates OAuth board_auth & user_login per user scope
+  const tribuneJsCode = fs.readFileSync(path.join(appsDir, 'tribune', 'app.js'), 'utf8');
+  assert("Multi-User Storage: Tribune cloisonne board_auth, pseudo et BAK par utilisateur et recharge sur auth:changed",
+    tribuneJsCode.includes('tribune_${scope}_${key}') &&
+    tribuneJsCode.includes('reloadUserScopedState') &&
+    !tribuneJsCode.includes("localStorage.getItem('tribune_board_auth')") &&
+    !tribuneJsCode.includes("localStorage.setItem('tribune_board_auth'")
   );
 
   // Verify users-panel.js registers custom section cleanly without syntax errors

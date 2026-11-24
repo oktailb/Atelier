@@ -64,6 +64,7 @@ class ActionRouter {
         'revoke_session',
         'revoke_other_sessions',
         'oidc_complete',
+        'save_user_preferences',
         // Legacy plugin mutating actions (also auto-discovered dynamically from apps/*/manifest.json)
         'tribune_clear_history',
         'tribune_boards_save',
@@ -124,6 +125,8 @@ class ActionRouter {
 
         // Multi-User, Groups, Shares, Mounted Volumes, Tags & Audit (Phase 1)
         'get_current_user'        => UserActions::class,
+        'get_user_preferences'    => UserActions::class,
+        'save_user_preferences'   => UserActions::class,
         'get_mounted_volumes'     => UserActions::class,
         'list_users'              => UserActions::class,
         'create_user'             => UserActions::class,

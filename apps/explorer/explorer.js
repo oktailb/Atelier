@@ -291,9 +291,15 @@
 
     loadSavedPreferences() {
       try {
-        const savedView = localStorage.getItem('gallery_view_mode');
-        if (savedView) this.state.viewMode = savedView;
         const scope = this.getUserStorageScope();
+        let savedView = null;
+        if (window.sys && window.sys.storage && typeof window.sys.storage.getPref === 'function') {
+          savedView = window.sys.storage.getPref('explorer_view_mode', null, 'sg_explorer_view_mode');
+        }
+        if (!savedView && !scope.startsWith('user_')) {
+          savedView = localStorage.getItem('sg_explorer_view_mode') || localStorage.getItem('gallery_view_mode');
+        }
+        if (savedView) this.state.viewMode = savedView;
         const rawFavs = localStorage.getItem(`sg_favorites_${scope}`) || (scope === 'guest' ? localStorage.getItem('sg_favorites') : null) || '[]';
         const savedFavs = JSON.parse(rawFavs);
         this.state.favorites = Array.isArray(savedFavs) ? savedFavs : [];
@@ -883,7 +889,11 @@
       if (!mode) return;
       this.state.viewMode = mode;
       try {
-        localStorage.setItem('sg_explorer_view_mode', mode);
+        if (window.sys && window.sys.storage && typeof window.sys.storage.setPref === 'function') {
+          window.sys.storage.setPref('explorer_view_mode', mode, { legacyLocalKey: 'sg_explorer_view_mode' });
+        } else {
+          localStorage.setItem(`sg_explorer_view_mode_${this.getUserStorageScope()}`, mode);
+        }
       } catch (e) { }
 
       this.renderMedia();

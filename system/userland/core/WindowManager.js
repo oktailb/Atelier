@@ -16,7 +16,22 @@
       this.taskbar = null;
       this.taskbarProvider = null;
       this.stylesCache = [];
-      this.currentWindowStyle = (typeof localStorage !== 'undefined' && localStorage.getItem('sg_window_style')) || 'macos';
+      this.currentWindowStyle = this.readSavedWindowStyle();
+    }
+
+    readSavedWindowStyle() {
+      try {
+        if (window.sys && window.sys.storage && typeof window.sys.storage.getPref === 'function') {
+          return window.sys.storage.getPref('window_style', 'macos', 'sg_window_style') || 'macos';
+        }
+        if (window.SG_USER_PREFERENCES && window.SG_USER_PREFERENCES.window_style) {
+          return window.SG_USER_PREFERENCES.window_style;
+        }
+        if (typeof localStorage !== 'undefined') {
+          return localStorage.getItem('sg_window_style') || 'macos';
+        }
+      } catch (e) {}
+      return 'macos';
     }
 
     getWindowStyles() {
@@ -55,13 +70,19 @@
       document.head.appendChild(link);
     }
 
-    setWindowStyle(styleId) {
+    setWindowStyle(styleId, persist = true) {
       const styles = this.getWindowStyles();
       const match = styles.find(s => s.id === styleId);
       this.currentWindowStyle = match ? match.id : styleId;
-      try {
-        localStorage.setItem('sg_window_style', this.currentWindowStyle);
-      } catch (e) {}
+      if (persist) {
+        try {
+          if (window.sys && window.sys.storage && typeof window.sys.storage.setPref === 'function') {
+            window.sys.storage.setPref('window_style', this.currentWindowStyle, { legacyLocalKey: 'sg_window_style' });
+          } else {
+            localStorage.setItem('sg_window_style', this.currentWindowStyle);
+          }
+        } catch (e) {}
+      }
       this.applyWindowStyle(this.currentWindowStyle);
       if (window.EventBus) {
         window.EventBus.emit('wm:style:changed', { styleId: this.currentWindowStyle });
@@ -120,6 +141,10 @@
       }
       if (window.EventBus) {
         window.EventBus.on('theme:changed', ({ themeId }) => this.onThemeChanged(themeId));
+        window.EventBus.on('auth:changed', () => {
+          const style = this.readSavedWindowStyle();
+          this.setWindowStyle(style, false);
+        });
       }
     }
 

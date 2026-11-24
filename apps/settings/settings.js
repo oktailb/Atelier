@@ -42,13 +42,40 @@
           systemInfo: null,
           testResults: null,
           isTesting: false,
-          activeWallpaper: localStorage.getItem('sg_desktop_wallpaper') || 'nebula',
-          activeTheme: localStorage.getItem('sg_active_theme') || 'dark-glass',
-          activeWmStyle: localStorage.getItem('sg_window_style') || 'macos'
+          activeWallpaper: (window.sys && window.sys.storage && typeof window.sys.storage.getPref === 'function')
+            ? (window.sys.storage.getPref('wallpaper', 'nebula', 'sg_desktop_wallpaper') || 'nebula')
+            : (localStorage.getItem('sg_desktop_wallpaper') || 'nebula'),
+          activeTheme: (window.sys && window.sys.storage && typeof window.sys.storage.getPref === 'function')
+            ? (window.sys.storage.getPref('theme', 'dark-glass', 'sg_active_theme') || 'dark-glass')
+            : (localStorage.getItem('sg_active_theme') || 'dark-glass'),
+          activeWmStyle: (window.sys && window.sys.storage && typeof window.sys.storage.getPref === 'function')
+            ? (window.sys.storage.getPref('window_style', 'macos', 'sg_window_style') || 'macos')
+            : (localStorage.getItem('sg_window_style') || 'macos')
         }
       });
 
       this.customSections = [];
+    }
+
+    _getUserPref(key, fallback, legacyKey) {
+      if (window.sys && window.sys.storage && typeof window.sys.storage.getPref === 'function') {
+        return window.sys.storage.getPref(key, fallback, legacyKey) || fallback;
+      }
+      try {
+        return (legacyKey && localStorage.getItem(legacyKey)) || fallback;
+      } catch (e) {
+        return fallback;
+      }
+    }
+
+    _setUserPref(key, value, legacyKey) {
+      if (window.sys && window.sys.storage && typeof window.sys.storage.setPref === 'function') {
+        window.sys.storage.setPref(key, value, { legacyLocalKey: legacyKey });
+        return;
+      }
+      try {
+        if (legacyKey) localStorage.setItem(legacyKey, value);
+      } catch (e) {}
     }
 
     onInit() {
@@ -63,10 +90,20 @@
           this.state.activeWmStyle = styleId;
           this.render();
         });
+        window.EventBus.on('auth:changed', () => {
+          this.applySavedWallpaper(false);
+          this.applySavedTheme(true);
+          this.applySavedWindowStyle(true);
+          const prefLocale = this._getUserPref('locale', '', null);
+          if (prefLocale && window.I18nEngine && window.I18nEngine.currentLocale !== prefLocale && typeof window.I18nEngine.setLocale === 'function') {
+            window.I18nEngine.setLocale(prefLocale);
+          }
+          if (this.window) this.render();
+        });
       }
-      this.applySavedWallpaper();
-      this.applySavedTheme();
-      this.applySavedWindowStyle();
+      this.applySavedWallpaper(false);
+      this.applySavedTheme(true);
+      this.applySavedWindowStyle(true);
       this.loadWindowStyles();
     }
 
@@ -160,6 +197,7 @@
         'click #settingsSaveAutostartBtn': () => this.saveAutostartConfig(container),
         'change #settingsLangListBox': (select) => {
           const lang = select.value;
+          this._setUserPref('locale', lang, null);
           if (window.desktop && typeof window.desktop.setLocale === 'function') {
             window.desktop.setLocale(lang);
           } else if (window.I18nEngine) {
@@ -371,6 +409,7 @@
         window.IS_ADMIN = false;
         window.SG_CURRENT_USER = null;
         window.SG_MOUNTED_VOLUMES = [];
+        window.SG_USER_PREFERENCES = {};
         if (window.desktop) {
           window.desktop.state.isAdmin = false;
           const adminBtn = document.getElementById('adminBtn');
@@ -968,11 +1007,15 @@
 
     resetLocalStorage() {
       if (confirm(this.t('settings.privacy_reset_prompt'))) {
-        localStorage.removeItem('sg_desktop_wallpaper');
-        localStorage.removeItem('sg_active_theme');
-        localStorage.removeItem('sg_favorites');
-        localStorage.removeItem('sg_view_mode');
-        localStorage.removeItem('sg_cookie_consent');
+        if (window.sys && window.sys.storage && typeof window.sys.storage.clearUserScope === 'function') {
+          window.sys.storage.clearUserScope();
+        } else {
+          localStorage.removeItem('sg_desktop_wallpaper');
+          localStorage.removeItem('sg_active_theme');
+          localStorage.removeItem('sg_favorites');
+          localStorage.removeItem('sg_view_mode');
+          localStorage.removeItem('sg_cookie_consent');
+        }
         window.location.reload();
       }
     }
@@ -1060,13 +1103,15 @@
       }
     }
 
-    setWallpaper(wallpaperId) {
+    setWallpaper(wallpaperId, persist = true) {
       const wallpapers = (window.sys && window.sys.theme) ? window.sys.theme.getWallpapers() : [];
       const preset = wallpapers.find(w => w.id === wallpaperId);
       if (!preset) return;
 
       this.state.activeWallpaper = wallpaperId;
-      localStorage.setItem('sg_desktop_wallpaper', wallpaperId);
+      if (persist) {
+        this._setUserPref('wallpaper', wallpaperId, 'sg_desktop_wallpaper');
+      }
 
       const surface = document.getElementById('desktopSurface') || document.getElementById('webosDesktop');
       if (surface) {
@@ -1079,9 +1124,11 @@
       }
     }
 
-    setCustomWallpaper(customStyle) {
+    setCustomWallpaper(customStyle, persist = true) {
       this.state.activeWallpaper = 'custom';
-      localStorage.setItem('sg_desktop_wallpaper', `custom:${customStyle}`);
+      if (persist) {
+        this._setUserPref('wallpaper', `custom:${customStyle}`, 'sg_desktop_wallpaper');
+      }
 
       const surface = document.getElementById('desktopSurface') || document.getElementById('webosDesktop');
       if (surface) {
@@ -1097,23 +1144,25 @@
       }
     }
 
-    applySavedWallpaper() {
-      const saved = localStorage.getItem('sg_desktop_wallpaper') || 'nebula';
+    applySavedWallpaper(persist = false) {
+      const saved = this._getUserPref('wallpaper', 'nebula', 'sg_desktop_wallpaper') || 'nebula';
       if (saved.startsWith('custom:')) {
         const custom = saved.replace('custom:', '');
-        this.setCustomWallpaper(custom);
+        this.setCustomWallpaper(custom, persist);
       } else {
-        this.setWallpaper(saved);
+        this.setWallpaper(saved, persist);
       }
     }
 
-    setTheme(themeId) {
+    setTheme(themeId, silent = false, persist = true) {
       const theme = (window.sys && window.sys.theme) ? window.sys.theme.getTheme(themeId) : null;
       if (!theme) return;
 
       this.state.activeTheme = themeId;
-      localStorage.setItem('sg_active_theme', themeId);
-      document.cookie = `sg_theme=${encodeURIComponent(themeId)};path=/;max-age=31536000;SameSite=Lax`;
+      if (persist) {
+        this._setUserPref('theme', themeId, 'sg_active_theme');
+        document.cookie = `sg_theme=${encodeURIComponent(themeId)};path=/;max-age=31536000;SameSite=Lax`;
+      }
 
       document.documentElement.setAttribute('data-theme', themeId);
       document.body.setAttribute('data-theme', themeId);
@@ -1161,37 +1210,37 @@
         `;
       }
 
-      this.toast.info(this.t('settings.theme_applied', { name: theme.name }));
+      if (!silent) {
+        this.toast.info(this.t('settings.theme_applied', { name: theme.name }));
+      }
 
       if (window.EventBus) {
         window.EventBus.emit('theme:changed', { themeId });
       }
     }
 
-    applySavedTheme() {
-      const saved = localStorage.getItem('sg_active_theme');
-      if (saved) {
-        this.setTheme(saved);
-      }
+    applySavedTheme(silent = true) {
+      const saved = this._getUserPref('theme', 'dark-glass', 'sg_active_theme') || 'dark-glass';
+      this.setTheme(saved, silent, false);
     }
 
-    setWindowStyle(styleId) {
+    setWindowStyle(styleId, silent = false, persist = true) {
       this.state.activeWmStyle = styleId;
       if (window.WindowManager && typeof window.WindowManager.setWindowStyle === 'function') {
-        window.WindowManager.setWindowStyle(styleId);
+        window.WindowManager.setWindowStyle(styleId, persist);
       } else {
-        localStorage.setItem('sg_window_style', styleId);
+        if (persist) this._setUserPref('window_style', styleId, 'sg_window_style');
         document.documentElement.setAttribute('data-wm-style', styleId);
       }
-      this.toast.info(this.t('settings.wm_style_applied'));
-      this.render();
+      if (!silent) {
+        this.toast.info(this.t('settings.wm_style_applied'));
+      }
+      if (this.window) this.render();
     }
 
-    applySavedWindowStyle() {
-      const saved = localStorage.getItem('sg_window_style');
-      if (saved) {
-        this.setWindowStyle(saved);
-      }
+    applySavedWindowStyle(silent = true) {
+      const saved = this._getUserPref('window_style', 'macos', 'sg_window_style') || 'macos';
+      this.setWindowStyle(saved, silent, false);
     }
 
     async loadWindowStyles() {

@@ -1375,6 +1375,7 @@
       window.IS_ADMIN = false;
       window.SG_CURRENT_USER = null;
       window.SG_MOUNTED_VOLUMES = [];
+      window.SG_USER_PREFERENCES = {};
       if (window.desktop) {
         window.desktop.state.isAdmin = false;
       }

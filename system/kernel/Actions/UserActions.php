@@ -23,7 +23,7 @@ class UserActions {
         $raw_body = is_array($context) ? ($context['raw_body'] ?? $params) : $params;
         $in = array_merge($_GET, $_POST, is_array($raw_body) ? $raw_body : []);
 
-        // 1. Current Identity & Mounted Volumes
+        // 1. Current Identity, Preferences, Isolated Desktop & Mounted Volumes
         if ($action === 'get_current_user') {
             $user = AuthManager::getCurrentUser();
             $isAdmin = AuthManager::isAdminLoggedIn();
@@ -35,8 +35,34 @@ class UserActions {
                 'is_logged_in'    => AuthManager::isLoggedIn(),
                 'store_driver'    => $store->getDriverName(),
                 'quota'           => $user ? UserManager::getUserQuotaInfo($project_root, $base_dir, $user) : null,
+                'preferences'     => $user ? UserManager::getUserPreferences($project_root, (int)$user['id']) : [],
+                'desktop_config'  => UserManager::getEffectiveDesktopConfig($project_root, $user),
                 'mounted_volumes' => ShareManager::getMountedVolumesForCurrentUser($base_dir)
             ]];
+        }
+
+        if ($action === 'get_user_preferences') {
+            $user = AuthManager::getCurrentUser();
+            if (!$user) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
+            return ['status' => 200, 'data' => [
+                'success'     => true,
+                'preferences' => UserManager::getUserPreferences($project_root, (int)$user['id'])
+            ]];
+        }
+
+        if ($action === 'save_user_preferences') {
+            $user = AuthManager::getCurrentUser();
+            if (!$user) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
+            $patch = $in['preferences'] ?? $in;
+            if (is_string($patch)) {
+                $patch = @json_decode($patch, true) ?: [];
+            }
+            $res = UserManager::saveUserPreferences($project_root, (int)$user['id'], is_array($patch) ? $patch : []);
+            return ['status' => $res['status'], 'data' => $res];
         }
 
         if ($action === 'get_mounted_volumes') {
