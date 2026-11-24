@@ -912,3 +912,532 @@
   overflow: hidden;
   height: 100%;
 }
+
+/* ==========================================================================
+   DEDICATED CENTERED AUTHENTICATION & ACCOUNT OVERLAY (FROSTED BACKDROP)
+   ========================================================================== */
+#webosDesktop.atelier-auth-blur-active,
+.app-header.atelier-auth-blur-active {
+  filter: blur(11px) brightness(0.82);
+  transition: filter 0.24s ease;
+  pointer-events: none;
+  user-select: none;
+}
+
+.atelier-auth-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(9, 13, 24, 0.56);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+
+.atelier-auth-overlay.open {
+  opacity: 1;
+}
+
+.atelier-auth-box {
+  position: relative;
+  width: 440px;
+  max-width: 96vw;
+  max-height: 92vh;
+  overflow-y: auto;
+  padding: 26px 26px 22px;
+  border-radius: 20px;
+  background: var(--window-bg, rgba(15, 23, 42, 0.94));
+  color: var(--text-main, #f8fafc);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.14));
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  transform: translateY(10px) scale(0.97);
+  transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.atelier-auth-overlay.open .atelier-auth-box {
+  transform: translateY(0) scale(1);
+}
+
+.atelier-auth-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+  border-radius: 99px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  background: transparent;
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.atelier-auth-close:hover {
+  background: rgba(148, 163, 184, 0.18);
+  color: var(--text-main, #fff);
+}
+
+.atelier-auth-brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-right: 26px;
+}
+
+.atelier-auth-logo {
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #4f46e5, #2563eb);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 24px rgba(79, 70, 229, 0.35);
+  flex-shrink: 0;
+}
+
+.atelier-auth-brand-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.atelier-auth-brand-name {
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+}
+
+.atelier-auth-brand-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.atelier-auth-heading {
+  margin: 2px 0 3px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-main, #f8fafc);
+}
+
+.atelier-auth-subtitle {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted, #94a3b8);
+  line-height: 1.4;
+}
+
+.atelier-auth-mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 11px;
+  background: rgba(148, 163, 184, 0.12);
+  margin-bottom: 14px;
+}
+
+.atelier-auth-mode-tab {
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #94a3b8);
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.atelier-auth-mode-tab.active {
+  background: var(--bg-card, rgba(30, 41, 59, 0.95));
+  color: var(--text-main, #fff);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.atelier-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.atelier-auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.atelier-auth-field label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted, #94a3b8);
+}
+
+.atelier-auth-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.14));
+  background: var(--bg-card, rgba(0, 0, 0, 0.24));
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.atelier-auth-input-wrap:focus-within {
+  border-color: var(--accent-primary, #6366f1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.22);
+}
+
+.atelier-auth-input-wrap input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-main, #f8fafc);
+  padding: 10px 0;
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.atelier-auth-input-icon {
+  font-size: 0.9rem;
+  opacity: 0.78;
+}
+
+.atelier-auth-eye-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+  padding: 4px;
+  font-size: 0.9rem;
+}
+
+.atelier-auth-totp-slot {
+  border: 1px dashed var(--border-color, rgba(255, 255, 255, 0.16));
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.atelier-auth-totp-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.79rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.atelier-auth-soon-pill {
+  font-size: 0.67rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: rgba(99, 102, 241, 0.16);
+  color: var(--accent-primary, #818cf8);
+}
+
+.atelier-auth-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.atelier-auth-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+}
+
+.atelier-auth-error {
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #f87171;
+  font-size: 0.82rem;
+}
+
+.atelier-auth-submit-btn {
+  width: 100%;
+  padding: 11px 16px;
+  border: none;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #4f46e5, #2563eb);
+  color: #ffffff;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 10px 24px rgba(79, 70, 229, 0.32);
+  transition: transform 0.14s ease, opacity 0.14s ease;
+}
+
+.atelier-auth-submit-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.atelier-auth-submit-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.atelier-auth-hint {
+  font-size: 0.74rem;
+  color: var(--text-muted, #94a3b8);
+  text-align: center;
+  line-height: 1.4;
+}
+
+.atelier-auth-qr-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 12px 6px 6px;
+}
+
+.atelier-auth-qr-frame {
+  position: relative;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px dashed var(--border-color, rgba(255, 255, 255, 0.18));
+  background: var(--bg-card, rgba(0, 0, 0, 0.2));
+  color: var(--text-main, #e2e8f0);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.atelier-auth-qr-title {
+  font-weight: 700;
+  font-size: 0.94rem;
+}
+
+.atelier-auth-qr-desc {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted, #94a3b8);
+  line-height: 1.45;
+  max-width: 340px;
+}
+
+.atelier-auth-account-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--bg-card, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+}
+
+.atelier-auth-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: rgba(99, 102, 241, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.atelier-auth-displayname {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--text-main, #f8fafc);
+}
+
+.atelier-auth-rolebadge {
+  font-size: 0.78rem;
+  color: #22c55e;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.atelier-auth-quick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.atelier-auth-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 11px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  background: var(--bg-card, rgba(255, 255, 255, 0.04));
+  color: var(--text-main, #f8fafc);
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.atelier-auth-action-btn:hover {
+  border-color: var(--accent-primary, #6366f1);
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.atelier-auth-action-btn.primary {
+  background: linear-gradient(135deg, #4f46e5, #2563eb);
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.atelier-auth-volumes-section {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.atelier-auth-section-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.atelier-auth-volumes-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.atelier-auth-vol-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 99px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  background: var(--bg-card, rgba(255, 255, 255, 0.04));
+  color: var(--text-main, #f8fafc);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.atelier-auth-vol-chip:hover {
+  border-color: var(--accent-primary, #6366f1);
+}
+
+.atelier-auth-perm-tag {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(99, 102, 241, 0.22);
+}
+
+.atelier-auth-footer-actions {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+}
+
+.atelier-auth-logout-btn {
+  width: 100%;
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.atelier-auth-logout-btn:hover {
+  background: rgba(239, 68, 68, 0.22);
+}
+
+/* Light-theme high-contrast overrides for Auth Overlay */
+body[data-theme*="light"] .atelier-auth-overlay,
+:root[data-theme*="light"] .atelier-auth-overlay {
+  background: rgba(15, 23, 42, 0.32);
+}
+
+body[data-theme*="light"] .atelier-auth-box,
+:root[data-theme*="light"] .atelier-auth-box {
+  background: rgba(255, 255, 255, 0.96);
+  color: #0f172a;
+  border-color: rgba(15, 23, 42, 0.12);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+}
+
+body[data-theme*="light"] .atelier-auth-input-wrap,
+:root[data-theme*="light"] .atelier-auth-input-wrap,
+body[data-theme*="light"] .atelier-auth-account-card,
+:root[data-theme*="light"] .atelier-auth-account-card,
+body[data-theme*="light"] .atelier-auth-action-btn:not(.primary),
+:root[data-theme*="light"] .atelier-auth-action-btn:not(.primary),
+body[data-theme*="light"] .atelier-auth-vol-chip,
+:root[data-theme*="light"] .atelier-auth-vol-chip,
+body[data-theme*="light"] .atelier-auth-qr-frame,
+:root[data-theme*="light"] .atelier-auth-qr-frame {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: rgba(15, 23, 42, 0.14);
+}
+
+body[data-theme*="light"] .atelier-auth-mode-tab.active,
+:root[data-theme*="light"] .atelier-auth-mode-tab.active {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+body[data-theme*="light"] .atelier-auth-input-wrap input,
+:root[data-theme*="light"] .atelier-auth-input-wrap input,
+body[data-theme*="light"] .atelier-auth-heading,
+:root[data-theme*="light"] .atelier-auth-heading,
+body[data-theme*="light"] .atelier-auth-displayname,
+:root[data-theme*="light"] .atelier-auth-displayname {
+  color: #0f172a;
+}

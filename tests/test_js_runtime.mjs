@@ -1100,9 +1100,57 @@ try {
   );
   assert("Phase 1: index.php charge ShareVolumesService.js et injecte SG_CURRENT_USER / SG_MOUNTED_VOLUMES",
     indexPhpSrc.includes('system/userland/services/ShareVolumesService.js') &&
+    indexPhpSrc.includes('system/userland/services/AuthModalService.js') &&
     indexPhpSrc.includes('window.SG_CURRENT_USER') &&
     indexPhpSrc.includes('window.SG_MOUNTED_VOLUMES')
   );
+
+  // Verify dedicated AuthModalService renders centered frosted login & account overlay
+  const authModalPath = path.join(rootDir, 'system', 'userland', 'services', 'AuthModalService.js');
+  assert("Phase 1: AuthModalService.js présent", fs.existsSync(authModalPath));
+  const authModalCode = fs.readFileSync(authModalPath, 'utf8');
+  const authBlurClasses = new Set();
+  const makeMockEl = () => ({
+    id: '', className: '', innerHTML: '', parentNode: null, style: {},
+    classList: {
+      add: (c) => authBlurClasses.add(c),
+      remove: (c) => authBlurClasses.delete(c),
+      toggle: (c, f) => (f ? authBlurClasses.add(c) : authBlurClasses.delete(c))
+    },
+    setAttribute: () => {},
+    addEventListener: () => {},
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    remove: function () { this.parentNode = null; }
+  });
+  const authOverlayHost = { appendChild: (el) => { el.parentNode = authOverlayHost; } };
+  const authWin = {
+    IS_ADMIN: false,
+    SG_CURRENT_USER: null,
+    localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+    requestAnimationFrame: (fn) => fn(),
+    sys: { i18n: { t: (k) => k } }
+  };
+  const authDoc = {
+    body: authOverlayHost,
+    createElement: () => makeMockEl(),
+    getElementById: () => makeMockEl(),
+    querySelector: () => null,
+    addEventListener: () => {},
+    removeEventListener: () => {}
+  };
+  new Function('window', 'document', authModalCode)(authWin, authDoc);
+  authWin.sys.authModal.open();
+  const loginHtml = authWin.sys.authModal.overlayEl.innerHTML;
+  assert("Phase 1: AuthModalService ouvre une box dédiée (login, mdp, 2FA/TOTP, QR, options) avec flou bureau",
+    authBlurClasses.has('atelier-auth-blur-active') &&
+    loginHtml.includes('authModalUsername') &&
+    loginHtml.includes('authModalPassword') &&
+    loginHtml.includes('authModalTotp') &&
+    loginHtml.includes('data-auth-mode="qr"') &&
+    loginHtml.includes('authModalOptOpenHome')
+  );
+  authWin.sys.authModal.close(true);
 
   // Verify ShareVolumesService renders Explorer mounted volumes bar & share button
   const shareCode = fs.readFileSync(shareSvcPath, 'utf8');

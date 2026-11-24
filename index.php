@@ -81,6 +81,7 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
   <script src="system/userland/core/ShortcutManager.js" defer></script>
   <script src="system/userland/services/FilePickerService.js?v=<?php echo filemtime(__DIR__ . '/system/userland/services/FilePickerService.js'); ?>" defer></script>
   <script src="system/userland/services/ShareVolumesService.js?v=<?php echo filemtime(__DIR__ . '/system/userland/services/ShareVolumesService.js'); ?>" defer></script>
+  <script src="system/userland/services/AuthModalService.js?v=<?php echo filemtime(__DIR__ . '/system/userland/services/AuthModalService.js'); ?>" defer></script>
   <script src="system/userland/services/TaskbarService.js?v=<?php echo filemtime(__DIR__ . '/system/userland/services/TaskbarService.js'); ?>" defer></script>
   <script src="system/userland/desktop/WallpaperManager.js?v=<?php echo filemtime(__DIR__ . '/system/userland/desktop/WallpaperManager.js'); ?>" defer></script>
   <script src="system/userland/desktop/TaskbarClock.js" defer></script>

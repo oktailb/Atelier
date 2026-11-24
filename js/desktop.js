@@ -1101,6 +1101,10 @@
     }
 
     openAdminModal() {
+      if (window.sys && window.sys.authModal && typeof window.sys.authModal.open === 'function') {
+        window.sys.authModal.open();
+        return;
+      }
       const modal = document.getElementById('adminModal') || this.el.adminModal;
       if (modal) {
         this.el.adminModal = modal;
