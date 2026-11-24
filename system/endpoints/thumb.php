@@ -384,7 +384,8 @@ if ($is_download_req || $is_raw_req) {
         $can_download = true;
     } else {
         $allow_cfg = isset($allow_direct_download) ? (bool)$allow_direct_download : true;
-        $can_perm = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_download_item', $real_base_dir);
+        $rel_for_perm = \SimpleGallery\Kernel\Security\PathValidator::getRelativePath($file_path, $real_base_dir);
+        $can_perm = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_download_item', $real_base_dir, $rel_for_perm);
         $can_download = ($allow_cfg && $can_perm);
     }
 

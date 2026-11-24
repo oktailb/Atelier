@@ -201,10 +201,21 @@ class UserActions {
 
         // 6. Future-Proof Tagging, Classification & Crypto Metadata Endpoints
         if ($action === 'list_tags') {
+            if (!AuthManager::isLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
             $ns = isset($in['namespace']) ? (string)$in['namespace'] : null;
+            $tags = ShareManager::listTags($project_root, $ns);
+            if (!AuthManager::isAdminLoggedIn()) {
+                $cur = AuthManager::getCurrentUser();
+                $curId = $cur ? (int)$cur['id'] : 0;
+                $tags = array_values(array_filter($tags, function ($t) use ($curId) {
+                    return empty($t['owner_user_id']) || (int)$t['owner_user_id'] === $curId;
+                }));
+            }
             return ['status' => 200, 'data' => [
                 'success' => true,
-                'tags'    => ShareManager::listTags($project_root, $ns)
+                'tags'    => $tags
             ]];
         }
 
@@ -212,6 +223,18 @@ class UserActions {
             $rel = ShareManager::normalizeRelPath((string)($in['path'] ?? ''));
             if ($rel === '') {
                 return ['status' => 400, 'data' => ['success' => false, 'error' => 'Path required.']];
+            }
+            // Enforce strict read ACL / dotfile visibility (anti-IDOR)
+            $canRead = AuthManager::isAdminLoggedIn() || ShareManager::canReadPath($rel, $base_dir);
+            if (!$canRead) {
+                $resolved = \SimpleGallery\Kernel\Security\PathValidator::canonicalize($rel, $base_dir, true, true);
+                if ($resolved !== null) {
+                    $checkDir = is_dir($resolved) ? $resolved : dirname($resolved);
+                    $canRead = \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($checkDir, $base_dir);
+                }
+            }
+            if (!$canRead) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
             }
             return ['status' => 200, 'data' => [
                 'success'  => true,

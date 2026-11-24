@@ -58,16 +58,20 @@ class MediaActions {
         }
 
         if ($action === 'download_archive') {
-            if (!PermissionsManager::hasPermission('can_download_archive', $base_dir)) {
-                return ['status' => 403, 'data' => ['success' => false, 'error' => 'Permission de téléchargement d\'archive refusée']];
-            }
-
             $format = strtolower($raw_body['format'] ?? $_GET['format'] ?? 'zip');
             $req_dir = $raw_body['dir'] ?? $_GET['dir'] ?? '';
             $dir_target = PathValidator::sanitizeDirectory($req_dir, $base_dir);
 
             if (!$dir_target || !is_dir($dir_target) || PathValidator::isPathIgnored($dir_target, $base_dir, $ignore_list)) {
+                if (!PermissionsManager::hasPermission('can_download_archive', $base_dir)) {
+                    return ['status' => 403, 'data' => ['success' => false, 'error' => 'Permission de téléchargement d\'archive refusée']];
+                }
                 return ['status' => 404, 'data' => ['success' => false, 'error' => 'Dossier introuvable ou accès refusé']];
+            }
+
+            $rel_target = PathValidator::getRelativePath($dir_target, $base_dir);
+            if (!PermissionsManager::hasPermission('can_download_archive', $base_dir, $rel_target)) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => 'Permission de téléchargement d\'archive refusée']];
             }
 
             if (!AuthManager::isDirAccessible($dir_target, $base_dir)) {

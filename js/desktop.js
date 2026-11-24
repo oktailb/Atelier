@@ -681,17 +681,7 @@
     }
 
     initDesktopShortcuts() {
-      try {
-        const local = localStorage.getItem('sg_desktop_shortcuts');
-        if (local) {
-          const parsed = JSON.parse(local);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            window.SG_DESKTOP_CONFIG = window.SG_DESKTOP_CONFIG || {};
-            window.SG_DESKTOP_CONFIG.shortcuts = parsed;
-          }
-        }
-      } catch (e) {}
-
+      // Server-authoritative desktop shortcuts (never allow guest/stale localStorage to override server config)
       this.renderDesktopShortcuts();
       this.initDesktopDropZone();
       this.initDesktopContextMenu();
@@ -805,6 +795,8 @@
     }
 
     initDesktopDropZone() {
+      // Delegated to DesktopShortcutsManager (single source of truth, admin-gated)
+      if (window.sys && window.sys.desktopShortcuts) return;
       const dropTargets = [
         document.getElementById('desktopSurface'),
         document.getElementById('desktopShortcuts')
@@ -950,6 +942,8 @@
     }
 
     initDesktopContextMenu() {
+      // Delegated to DesktopShortcutsManager (single source of truth, admin-gated)
+      if (window.sys && window.sys.desktopShortcuts) return;
       const container = this.el.desktopShortcuts || document.getElementById('desktopShortcuts');
       if (!container) return;
 

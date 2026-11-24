@@ -1120,6 +1120,64 @@ HTACCESS;
         ]);
         $this->assert("Phase 1: Bob PEUT créer un dossier dans un partage lecture/écriture (200)", ($bob_write_rw['status'] ?? 0) === 200 && is_dir($users_root . '/alice/shared_rw/allowed_sub'));
 
+        // H1: Batch move_item MUST check can_move on EACH source item (prevent stealing files from RO share or public gallery into own home)
+        $batch_steal_ro = \SimpleGallery\Kernel\Actions\FileActions::handle('move_item', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['source' => ['users/alice/shared_ro/note.txt'], 'target_dir' => 'users/bob']
+        ]);
+        $this->assert("Audit H1: move_item batch interdit à Bob de déplacer un fichier depuis un partage lecture seule vers son home",
+            ($batch_steal_ro['status'] ?? 0) !== 200 &&
+            file_exists($users_root . '/alice/shared_ro/note.txt') &&
+            !file_exists($users_root . '/bob/note.txt')
+        );
+
+        $batch_steal_pub = \SimpleGallery\Kernel\Actions\FileActions::handle('move_item', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['source' => ['public_gallery.jpg'], 'target_dir' => 'users/bob']
+        ]);
+        $this->assert("Audit H1: move_item batch interdit à Bob de déplacer un fichier public (storage/media) sans droit can_move",
+            ($batch_steal_pub['status'] ?? 0) !== 200 &&
+            file_exists($p1_root . '/public_gallery.jpg')
+        );
+
+        // H2: Non-admin user cannot delete their own top-level home directory `users/bob` or use target_path bypass
+        $del_own_home = \SimpleGallery\Kernel\Actions\FileActions::handle('delete_item', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['target_path' => 'users/bob']
+        ]);
+        $this->assert("Audit H2: delete_item bloque la suppression du dossier home racine users/bob par son propriétaire (403)",
+            ($del_own_home['status'] ?? 0) === 403 && is_dir($users_root . '/bob')
+        );
+
+        $del_ro_via_tp = \SimpleGallery\Kernel\Actions\FileActions::handle('delete_item', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['file' => 'users/bob/mes_docs', 'target_path' => 'users/alice/shared_ro/note.txt']
+        ]);
+        $this->assert("Audit H2: delete_item bloque la confusion file/target_path sur un partage lecture seule (403)",
+            ($del_ro_via_tp['status'] ?? 0) === 403 && file_exists($users_root . '/alice/shared_ro/note.txt')
+        );
+
+        // H4: Even if guest matrix enables can_upload / can_delete globally, users/... RO share MUST NEVER allow writes!
+        \SimpleGallery\Kernel\FS\PermissionsManager::savePermissions($p1_root, ['can_upload' => true, 'can_delete' => true, 'can_create_folder' => true]);
+        $this->assert("Audit H4: Matrice invité can_upload=true ne donne JAMAIS le droit d'écriture sur un partage lecture seule users/...",
+            \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root, 'users/alice/shared_ro') === false &&
+            \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_delete', $p1_root, 'users/alice/shared_ro/note.txt') === false
+        );
+        \SimpleGallery\Kernel\FS\PermissionsManager::savePermissions($p1_root, \SimpleGallery\Kernel\FS\PermissionsManager::DEFAULT_PERMISSIONS);
+
+        // M1: Anti-IDOR on get_item_tags & list_tags
+        \SimpleGallery\Kernel\Auth\ShareManager::setItemTags($p1_root, 'users/alice/secret_only/private.txt', ['confidentiel']);
+        $bob_idor_tags = \SimpleGallery\Kernel\Actions\UserActions::handle('get_item_tags', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['path' => 'users/alice/secret_only/private.txt']
+        ]);
+        $this->assert("Audit M1: get_item_tags bloque l'accès aux tags d'un fichier privé d'Alice par Bob (403)", ($bob_idor_tags['status'] ?? 0) === 403);
+
+        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        $guest_list_tags = \SimpleGallery\Kernel\Actions\UserActions::handle('list_tags', [], ['base_dir' => $p1_root]);
+        $this->assert("Audit M1: list_tags refuse un invité non connecté (403)", ($guest_list_tags['status'] ?? 0) === 403);
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($bob_auth);
+
         // 8. Revoke RO share as Alice -> Bob immediately loses access
         \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($alice_auth);
         $rev_res = \SimpleGallery\Kernel\Actions\UserActions::handle('revoke_user_share', [], [

@@ -89,13 +89,27 @@ class PermissionsManager {
         }
 
         if ($target_rel_path !== null) {
+            $norm = trim(str_replace('\\', '/', $target_rel_path), '/');
+            $is_users_ns = ($norm === 'users' || strpos($norm, 'users/') === 0);
+            $share_perm = \SimpleGallery\Kernel\Auth\ShareManager::resolveEffectivePathPermission($norm, $base_dir);
+            $is_acl_governed = $is_users_ns || ($share_perm !== 'none');
+
             $write_perms = ['can_upload', 'can_delete', 'can_move', 'can_comment', 'can_create_folder'];
             if (in_array($permission_key, $write_perms, true)) {
-                if (\SimpleGallery\Kernel\Auth\ShareManager::canWritePath($target_rel_path, $base_dir)) {
+                $can_write = \SimpleGallery\Kernel\Auth\ShareManager::canWritePath($norm, $base_dir);
+                if ($is_acl_governed) {
+                    // Strict isolation: user homes & shared folders NEVER fall back to the public guest matrix
+                    return $can_write;
+                }
+                if ($can_write) {
                     return true;
                 }
             } elseif (in_array($permission_key, ['can_download_item', 'can_download_archive'], true)) {
-                if (\SimpleGallery\Kernel\Auth\ShareManager::canReadPath($target_rel_path, $base_dir)) {
+                $can_read = \SimpleGallery\Kernel\Auth\ShareManager::canReadPath($norm, $base_dir);
+                if ($is_acl_governed) {
+                    return $can_read;
+                }
+                if ($can_read) {
                     return true;
                 }
             }

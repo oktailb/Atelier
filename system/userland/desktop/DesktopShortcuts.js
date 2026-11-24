@@ -12,21 +12,15 @@
       this.surface = null;
     }
 
+    canEditShortcuts() {
+      return Boolean(window.IS_ADMIN || (window.desktop && window.desktop.state && window.desktop.state.isAdmin));
+    }
+
     init() {
       this.container = document.getElementById('desktopShortcuts');
       this.surface = document.getElementById('desktopSurface');
 
-      try {
-        const local = localStorage.getItem('sg_desktop_shortcuts');
-        if (local) {
-          const parsed = JSON.parse(local);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            window.SG_DESKTOP_CONFIG = window.SG_DESKTOP_CONFIG || {};
-            window.SG_DESKTOP_CONFIG.shortcuts = parsed;
-          }
-        }
-      } catch (e) {}
-
+      // Server-authoritative desktop shortcuts (do NOT let stale/guest localStorage overwrite admin config)
       this.render();
       this.initDropZone();
       this.initContextMenu();
@@ -189,6 +183,7 @@
 
       dropZones.forEach(zone => {
         zone.addEventListener('dragover', (e) => {
+          if (!this.canEditShortcuts()) return;
           if (e.dataTransfer.types.includes('application/sg-item') || e.dataTransfer.types.includes('application/json')) {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'copy';
@@ -196,6 +191,7 @@
         });
 
         zone.addEventListener('drop', async (e) => {
+          if (!this.canEditShortcuts()) return;
           e.preventDefault();
           let itemData = window.SG_DRAGGING_ITEM_DATA;
 
@@ -264,12 +260,8 @@
     }
 
     async save() {
-      const csrfToken = window.CSRF_TOKEN || window.SG_CSRF_TOKEN || '';
+      if (!this.canEditShortcuts()) return false;
       const shortcuts = (window.SG_DESKTOP_CONFIG && window.SG_DESKTOP_CONFIG.shortcuts) || [];
-
-      try {
-        localStorage.setItem('sg_desktop_shortcuts', JSON.stringify(shortcuts));
-      } catch (e) {}
 
       try {
         const api = (window.sys && window.sys.api) || window.SyscallClient;
@@ -277,11 +269,13 @@
           const json = await api.post('save_desktop_shortcuts', { shortcuts });
           if (json && json.success && Array.isArray(json.shortcuts)) {
             window.SG_DESKTOP_CONFIG.shortcuts = json.shortcuts;
+            return true;
           }
         }
       } catch (e) {
         console.error('[DesktopShortcuts] Failed to save shortcuts:', e);
       }
+      return false;
     }
 
     initContextMenu() {
@@ -296,8 +290,7 @@
         e.stopPropagation();
 
         const shortcutId = card.dataset.shortcutId;
-        const config = window.SG_DESKTOP_CONFIG || {};
-        const shortcut = (config.shortcuts || []).find(s => s.id === shortcutId);
+        const shortcut = this.getEffectiveShortcuts().find(s => s.id === shortcutId);
         if (!shortcut) return;
 
         const oldMenu = document.getElementById('desktopContextMenu');
@@ -315,6 +308,13 @@
         menu.style.minWidth = '180px';
 
         const icon = shortcut.icon || (shortcut.type === 'folder' ? '📁' : '📄');
+        const canDelete = this.canEditShortcuts() && shortcut.type !== 'volume';
+        const deleteItemHtml = canDelete ? `
+          <div class="context-menu-divider"></div>
+          <button type="button" class="context-menu-item danger" id="desktopCtxDelete">
+            <span>🗑️</span> <span>Supprimer le raccourci</span>
+          </button>
+        ` : '';
         menu.innerHTML = `
           <div class="context-menu-header">
             <span>${icon}</span> <span>${this.escapeHtml(shortcut.name || shortcut.defaultName || shortcut.appId)}</span>
@@ -322,10 +322,7 @@
           <button type="button" class="context-menu-item" id="desktopCtxOpen">
             <span>▶️</span> <span>Ouvrir</span>
           </button>
-          <div class="context-menu-divider"></div>
-          <button type="button" class="context-menu-item danger" id="desktopCtxDelete">
-            <span>🗑️</span> <span>Supprimer le raccourci</span>
-          </button>
+          ${deleteItemHtml}
         `;
 
         document.body.appendChild(menu);

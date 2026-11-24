@@ -15,20 +15,26 @@ use SimpleGallery\Kernel\Security\PathValidator;
 
 ensure_session_started();
 
-if (!PermissionsManager::hasPermission('can_download_archive', $real_base_dir)) {
-    http_response_code(403);
-    header('Content-Type: text/plain; charset=utf-8');
-    die("Accès refusé : Le téléchargement d'archives est désactivé.");
-}
-
 $format = strtolower($_GET['format'] ?? 'zip');
 $req_dir = $_GET['dir'] ?? '';
 $dir_target = PathValidator::sanitizeDirectory($req_dir, $real_base_dir);
 
 if (!$dir_target || !is_dir($dir_target) || PathValidator::isPathIgnored($dir_target, $real_base_dir, $ignore_list)) {
+    if (!PermissionsManager::hasPermission('can_download_archive', $real_base_dir)) {
+        http_response_code(403);
+        header('Content-Type: text/plain; charset=utf-8');
+        die("Accès refusé : Le téléchargement d'archives est désactivé.");
+    }
     http_response_code(404);
     header('Content-Type: text/plain; charset=utf-8');
     die("Dossier introuvable ou accès refusé.");
+}
+
+$rel_target = PathValidator::getRelativePath($dir_target, $real_base_dir);
+if (!PermissionsManager::hasPermission('can_download_archive', $real_base_dir, $rel_target)) {
+    http_response_code(403);
+    header('Content-Type: text/plain; charset=utf-8');
+    die("Accès refusé : Le téléchargement d'archives est désactivé.");
 }
 
 if (!AuthManager::isDirAccessible($dir_target, $real_base_dir)) {

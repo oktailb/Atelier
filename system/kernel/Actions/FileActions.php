@@ -392,25 +392,37 @@ class FileActions {
         if ($action === 'move_item') {
             $source_param = $_POST['source'] ?? $raw_body['source'] ?? '';
             $target_dir_param = $_POST['target_dir'] ?? $raw_body['target_dir'] ?? '';
-            $perm_path = is_array($source_param) ? (string)$target_dir_param : (string)$source_param;
-            if (!PermissionsManager::hasPermission('can_move', $base_dir, $perm_path) || !PermissionsManager::hasPermission('can_move', $base_dir, (string)$target_dir_param)) {
-                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_move_denied')]];
-            }
-            $new_name_param = isset($_POST['new_name']) ? trim($_POST['new_name']) : (isset($raw_body['new_name']) ? trim($raw_body['new_name']) : null);
-
             $target_dir_full = PathValidator::sanitizeDirectory($target_dir_param, $base_dir);
             if ($target_dir_full === null || !is_dir($target_dir_full)) {
                 return ['status' => 404, 'data' => ['success' => false, 'error' => __t('api.err_source_or_dest_invalid')]];
             }
+            $target_dir_rel = PathValidator::getRelativePath($target_dir_full, $base_dir);
+            if (!PermissionsManager::hasPermission('can_move', $base_dir, $target_dir_rel)) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_move_denied')]];
+            }
+            $new_name_param = isset($_POST['new_name']) ? trim($_POST['new_name']) : (isset($raw_body['new_name']) ? trim($raw_body['new_name']) : null);
+
             if (!DotfileManager::isDirAccessible($target_dir_full, $base_dir)) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
             }
+
+            $is_protected_user_root = function(string $rel_path): bool {
+                $clean = trim(str_replace('\\', '/', $rel_path), '/');
+                if ($clean === 'users') return true;
+                // Protect top-level user home directory `users/<username>` from being moved/deleted by non-admins
+                if (preg_match('#^users/[^/]+$#', $clean) && !AuthManager::isAdminLoggedIn()) return true;
+                return false;
+            };
 
             // Single item string path (preserves exact legacy contract & HTTP status codes)
             if (!is_array($source_param)) {
                 $source_full = PathValidator::canonicalizeAndValidate((string)$source_param, $base_dir, true, false);
                 if ($source_full === null || !file_exists($source_full)) {
                     return ['status' => 404, 'data' => ['success' => false, 'error' => __t('api.err_source_or_dest_invalid')]];
+                }
+                $source_rel = PathValidator::getRelativePath($source_full, $base_dir);
+                if ($is_protected_user_root($source_rel) || !PermissionsManager::hasPermission('can_move', $base_dir, $source_rel)) {
+                    return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_move_denied')]];
                 }
                 $src_check_dir = is_dir($source_full) ? $source_full : dirname($source_full);
                 if (!DotfileManager::isDirAccessible($src_check_dir, $base_dir)) {
@@ -457,6 +469,11 @@ class FileActions {
                 $source_full = PathValidator::canonicalizeAndValidate(trim($src_item), $base_dir, true, false);
                 if ($source_full === null || !file_exists($source_full)) {
                     $errors[] = basename($src_item) . ' introuvable';
+                    continue;
+                }
+                $src_rel = PathValidator::getRelativePath($source_full, $base_dir);
+                if ($is_protected_user_root($src_rel) || !PermissionsManager::hasPermission('can_move', $base_dir, $src_rel)) {
+                    $errors[] = basename($src_item) . ' (permission de déplacement refusée)';
                     continue;
                 }
                 $src_check_dir = is_dir($source_full) ? $source_full : dirname($source_full);
@@ -508,19 +525,19 @@ class FileActions {
         }
 
         if ($action === 'copy_item') {
-            if (!PermissionsManager::hasPermission('can_upload', $base_dir) && !AuthManager::isAdmin()) {
-                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_permission_denied')]];
-            }
-
             $source_param = $_POST['source'] ?? $raw_body['source'] ?? '';
             $target_dir_param = $_POST['target_dir'] ?? $raw_body['target_dir'] ?? '';
             $new_name_param = isset($_POST['new_name']) ? trim($_POST['new_name']) : (isset($raw_body['new_name']) ? trim($raw_body['new_name']) : null);
 
-            $source_full = PathValidator::canonicalizeAndValidate($source_param, $base_dir, true, false);
+            $source_full = PathValidator::canonicalizeAndValidate((string)$source_param, $base_dir, true, false);
             $target_dir_full = PathValidator::sanitizeDirectory($target_dir_param, $base_dir);
 
             if ($source_full === null || $target_dir_full === null || !file_exists($source_full) || !is_dir($target_dir_full)) {
                 return ['status' => 404, 'data' => ['success' => false, 'error' => __t('api.err_source_or_dest_invalid')]];
+            }
+            $target_dir_rel = PathValidator::getRelativePath($target_dir_full, $base_dir);
+            if (!PermissionsManager::hasPermission('can_upload', $base_dir, $target_dir_rel) && !AuthManager::isAdminLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_permission_denied')]];
             }
             $src_check_dir = is_dir($source_full) ? $source_full : dirname($source_full);
             if (!DotfileManager::isDirAccessible($src_check_dir, $base_dir) || !DotfileManager::isDirAccessible($target_dir_full, $base_dir)) {
@@ -570,18 +587,26 @@ class FileActions {
         }
 
         if ($action === 'delete_item' || $action === 'delete_file' || $action === 'delete_folder') {
-            $del_target_param = $_POST['target'] ?? $raw_body['target'] ?? $_POST['path'] ?? $raw_body['path'] ?? $_POST['file'] ?? $raw_body['file'] ?? '';
-            if (!PermissionsManager::hasPermission('can_delete', $base_dir, (string)$del_target_param)) {
-                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_delete_denied')]];
-            }
-
             $target_param = $_POST['target'] ?? $_GET['target'] ?? $raw_body['target']
                 ?? $_POST['target_path'] ?? $_GET['target_path'] ?? $raw_body['target_path']
-                ?? $_POST['path'] ?? $_GET['path'] ?? $raw_body['path'] ?? '';
-            $target_full = PathValidator::canonicalizeAndValidate($target_param, $base_dir, true, false);
+                ?? $_POST['path'] ?? $_GET['path'] ?? $raw_body['path']
+                ?? $_POST['file'] ?? $raw_body['file'] ?? '';
+            $target_full = PathValidator::canonicalizeAndValidate((string)$target_param, $base_dir, true, false);
 
             if ($target_full === null || !file_exists($target_full)) {
+                if (!PermissionsManager::hasPermission('can_delete', $base_dir, (string)$target_param)) {
+                    return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_delete_denied')]];
+                }
                 return ['status' => 404, 'data' => ['success' => false, 'error' => __t('api.err_item_not_found')]];
+            }
+            $target_rel = PathValidator::getRelativePath($target_full, $base_dir);
+            $target_rel_clean = trim(str_replace('\\', '/', $target_rel), '/');
+            // Never allow deleting `users` root or a top-level user home folder via delete_item
+            if ($target_rel_clean === 'users' || (preg_match('#^users/[^/]+$#', $target_rel_clean) && !AuthManager::isAdminLoggedIn())) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_delete_denied')]];
+            }
+            if (!PermissionsManager::hasPermission('can_delete', $base_dir, $target_rel_clean)) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_delete_denied')]];
             }
             $del_check_dir = is_dir($target_full) ? $target_full : dirname($target_full);
             if (!DotfileManager::isDirAccessible($del_check_dir, $base_dir)) {
@@ -620,15 +645,14 @@ class FileActions {
         }
 
         if ($action === 'edit_image') {
-            if (!AuthManager::isAdminLoggedIn() && !PermissionsManager::hasPermission('can_upload', $base_dir)) {
-                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
-            }
-
             $target_param = $raw_body['target_path'] ?? $_POST['target_path'] ?? '';
             $save_mode = $raw_body['save_mode'] ?? $_POST['save_mode'] ?? 'copy';
             $image_data = $raw_body['image_data'] ?? $_POST['image_data'] ?? '';
 
             if (empty($target_param)) {
+                if (!AuthManager::isAdminLoggedIn() && !PermissionsManager::hasPermission('can_upload', $base_dir)) {
+                    return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
+                }
                 return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_invalid_path')]];
             }
 
@@ -639,6 +663,10 @@ class FileActions {
             $target_file = PathValidator::sanitizeFile($target_param, $base_dir);
             if ($target_file === null || !is_file($target_file) || PathValidator::isPathIgnored($target_file, $base_dir, $ignore_list)) {
                 return ['status' => 404, 'data' => ['success' => false, 'error' => __t('api.err_invalid_path')]];
+            }
+            $target_rel = PathValidator::getRelativePath($target_file, $base_dir);
+            if (!AuthManager::isAdminLoggedIn() && !PermissionsManager::hasPermission('can_upload', $base_dir, $target_rel)) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
             }
             if (!DotfileManager::isDirAccessible(dirname($target_file), $base_dir)) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];

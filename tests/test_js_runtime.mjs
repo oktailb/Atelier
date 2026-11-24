@@ -1160,6 +1160,9 @@ try {
     volItems.some(v => v.path === 'users/alice/studio' && v.name === 'Studio Drive' && v.permission === 'write' && v.isEncrypted === true) &&
     !volItems.some(v => v.path === 'users/alice/hidden_desk')
   );
+  assert("Audit C1: DesktopShortcutsManager interdit l'édition/suppression de raccourcis bureau aux invités et non-admins",
+    scMgr.canEditShortcuts() === false && (await scMgr.save()) === false
+  );
 
   // Verify users-panel.js registers custom section cleanly without syntax errors
   const usersPanelCode = fs.readFileSync(usersPanelPath, 'utf8');
