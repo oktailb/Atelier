@@ -39,7 +39,14 @@ class AuthSettings {
             'smtp_password'              => '',
             'mail_from_email'            => 'noreply@localhost',
             'mail_from_name'             => 'Atelier by GallusTech',
-            'public_base_url'            => ''
+            'public_base_url'            => '',
+            'oidc_enabled'               => false,
+            'oidc_provider_name'         => 'SSO',
+            'oidc_issuer_url'            => '',
+            'oidc_client_id'             => '',
+            'oidc_client_secret'         => '',
+            'oidc_scopes'                => 'openid profile email',
+            'oidc_auto_create'           => false
         ];
     }
 
@@ -72,8 +79,10 @@ class AuthSettings {
     public static function getForAdminUi(string $baseOrRoot): array {
         $cfg = self::load($baseOrRoot);
         $hasPwd = isset($cfg['smtp_password']) && (string)$cfg['smtp_password'] !== '';
-        unset($cfg['smtp_password']);
+        $hasOidcSecret = isset($cfg['oidc_client_secret']) && (string)$cfg['oidc_client_secret'] !== '';
+        unset($cfg['smtp_password'], $cfg['oidc_client_secret']);
         $cfg['smtp_password_set'] = $hasPwd;
+        $cfg['oidc_client_secret_set'] = $hasOidcSecret;
         return $cfg;
     }
 
@@ -91,7 +100,9 @@ class AuthSettings {
             'allow_password_reset'       => !empty($cfg['allow_password_reset']),
             'min_password_length'        => max(6, (int)$cfg['min_password_length']),
             'totp_policy'                => (string)$cfg['totp_policy'],
-            'totp_enabled'               => $cfg['totp_policy'] !== 'disabled'
+            'totp_enabled'               => $cfg['totp_policy'] !== 'disabled',
+            'oidc_enabled'               => !empty($cfg['oidc_enabled']) && !empty($cfg['oidc_issuer_url']) && !empty($cfg['oidc_client_id']),
+            'oidc_provider_name'         => (string)($cfg['oidc_provider_name'] ?? 'SSO')
         ];
     }
 
@@ -216,6 +227,34 @@ class AuthSettings {
             if ($url === '' || preg_match('#^https?://[a-zA-Z0-9._:/-]+$#', $url)) {
                 $next['public_base_url'] = $url;
             }
+        }
+        if (array_key_exists('oidc_enabled', $input)) {
+            $next['oidc_enabled'] = filter_var($input['oidc_enabled'], FILTER_VALIDATE_BOOLEAN);
+        }
+        if (isset($input['oidc_provider_name'])) {
+            $pn = trim((string)$input['oidc_provider_name']);
+            if ($pn !== '') $next['oidc_provider_name'] = substr($pn, 0, 50);
+        }
+        if (isset($input['oidc_issuer_url'])) {
+            $iu = rtrim(trim((string)$input['oidc_issuer_url']), '/');
+            if ($iu === '' || preg_match('#^https?://[a-zA-Z0-9._:/-]+$#', $iu)) {
+                $next['oidc_issuer_url'] = $iu;
+            }
+        }
+        if (isset($input['oidc_client_id'])) {
+            $next['oidc_client_id'] = trim((string)$input['oidc_client_id']);
+        }
+        if (!empty($input['clear_oidc_secret'])) {
+            $next['oidc_client_secret'] = '';
+        } elseif (isset($input['oidc_client_secret']) && (string)$input['oidc_client_secret'] !== '') {
+            $next['oidc_client_secret'] = (string)$input['oidc_client_secret'];
+        }
+        if (isset($input['oidc_scopes'])) {
+            $sc = trim((string)$input['oidc_scopes']);
+            if ($sc !== '') $next['oidc_scopes'] = substr($sc, 0, 120);
+        }
+        if (array_key_exists('oidc_auto_create', $input)) {
+            $next['oidc_auto_create'] = filter_var($input['oidc_auto_create'], FILTER_VALIDATE_BOOLEAN);
         }
 
         $path = self::getFilePath($baseOrRoot);

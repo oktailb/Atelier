@@ -34,6 +34,7 @@ class UserActions {
                 'is_admin'        => $isAdmin,
                 'is_logged_in'    => AuthManager::isLoggedIn(),
                 'store_driver'    => $store->getDriverName(),
+                'quota'           => $user ? UserManager::getUserQuotaInfo($project_root, $base_dir, $user) : null,
                 'mounted_volumes' => ShareManager::getMountedVolumesForCurrentUser($base_dir)
             ]];
         }

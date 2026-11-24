@@ -98,6 +98,50 @@ class UserManager {
         return $relHome;
     }
 
+    /**
+     * Recursively calculates total bytes used inside a directory (excluding `.thumbnails`).
+     */
+    public static function computeDirectorySize(string $absDir): int {
+        if (!is_dir($absDir)) {
+            return 0;
+        }
+        $total = 0;
+        try {
+            $iter = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($absDir, \FilesystemIterator::SKIP_DOTS)
+            );
+            foreach ($iter as $file) {
+                $p = str_replace('\\', '/', $file->getPathname());
+                if (strpos($p, '/.thumbnails/') !== false) {
+                    continue;
+                }
+                if ($file->isFile()) {
+                    $total += (int)$file->getSize();
+                }
+            }
+        } catch (\Throwable $e) {}
+        return $total;
+    }
+
+    /**
+     * Computes disk quota usage metrics for a given user account.
+     */
+    public static function getUserQuotaInfo(string $projectRoot, string $mediaDir, array $user): array {
+        $username = (string)($user['username'] ?? '');
+        $quotaBytes = max(0, (int)($user['quota_bytes'] ?? 0));
+        $usersRoot = PathValidator::getUsersRoot($mediaDir);
+        $homeAbs = $username !== '' ? ($usersRoot . '/' . $username) : '';
+        $usedBytes = ($homeAbs !== '' && is_dir($homeAbs)) ? self::computeDirectorySize($homeAbs) : 0;
+        $percent = $quotaBytes > 0 ? min(100, round(($usedBytes / $quotaBytes) * 100, 1)) : 0;
+        return [
+            'used_bytes'      => $usedBytes,
+            'quota_bytes'     => $quotaBytes,
+            'remaining_bytes' => $quotaBytes > 0 ? max(0, $quotaBytes - $usedBytes) : null,
+            'percent'         => $percent,
+            'is_limited'      => $quotaBytes > 0
+        ];
+    }
+
     public static function listUsers(string $baseOrRoot): array {
         $store = AtelierStore::forRoot($baseOrRoot);
         $rows = $store->select('users', [], ['username' => 'ASC']);

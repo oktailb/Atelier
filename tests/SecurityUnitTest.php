@@ -1514,6 +1514,52 @@ HTACCESS;
             \SimpleGallery\Kernel\Auth\AuthManager::isLoggedIn() === false
         );
 
+        // 10.6 Active Sessions Tracking & Immediate Remote Revocation + Disk Quotas + /s/ Rewrite + OIDC Policy
+        $charlie_auth2 = \SimpleGallery\Kernel\Auth\UserManager::authenticate($p1_root, 'charlie', 'NewCharliePass99!');
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($charlie_auth2, $p1_root);
+        $sess_list = \SimpleGallery\Kernel\Actions\AuthActions::handle('list_sessions', [], ['base_dir' => $p1_root]);
+        $active_sessions = $sess_list['data']['sessions'] ?? [];
+        $cur_sid = (int)($active_sessions[0]['id'] ?? 0);
+        $this->assert("Phase A.2: SessionRegistry suit la session active avec indicateur is_current",
+            ($sess_list['status'] ?? 0) === 200 &&
+            count($active_sessions) >= 1 &&
+            !empty($active_sessions[0]['is_current'])
+        );
+
+        // Revoke current session -> revalidateActiveUser immediately logs out!
+        $rev_sess = \SimpleGallery\Kernel\Actions\AuthActions::handle('revoke_session', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['session_id' => $cur_sid]
+        ]);
+        \SimpleGallery\Kernel\Auth\AuthManager::revalidateActiveUser($p1_root);
+        $this->assert("Phase A.2: Révoquer une session entraîne une déconnexion immédiate à la requête suivante",
+            ($rev_sess['status'] ?? 0) === 200 &&
+            \SimpleGallery\Kernel\Auth\AuthManager::isLoggedIn() === false
+        );
+
+        // Disk quota computation check
+        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, (int)$charlie_auth2['id'], ['quota_bytes' => 10240]);
+        file_put_contents($users_root . '/charlie/sample.bin', str_repeat('A', 2048));
+        $charlie_fresh = \SimpleGallery\Kernel\Auth\UserManager::findById($p1_root, (int)$charlie_auth2['id']);
+        $qinfo = \SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo($p1_root, $p1_root, $charlie_fresh);
+        $this->assert("Phase A.2: UserManager::getUserQuotaInfo calcule précisément l'espace utilisé et le pourcentage",
+            $qinfo['is_limited'] === true &&
+            $qinfo['used_bytes'] >= 2048 &&
+            $qinfo['quota_bytes'] === 10240 &&
+            $qinfo['percent'] >= 20
+        );
+
+        // Short share link rewrite in .htaccess + OIDC disabled guard
+        $htaccess_src = @file_get_contents($this->base_dir . '/.htaccess') ?: '';
+        $oidc_off = \SimpleGallery\Kernel\Actions\AuthActions::handle('oidc_start', [], ['base_dir' => $p1_root]);
+        $jwt_sample = 'eyJhbGciOiJSUzI1NiJ9.' . rtrim(strtr(base64_encode(json_encode(['email' => 'sso@studio.fr', 'sub' => '123'])), '+/', '-_'), '=') . '.sig';
+        $jwt_claims = \SimpleGallery\Kernel\Auth\OidcProvider::decodeJwtPayload($jwt_sample);
+        $this->assert("Phase A.2: Route courte /s/<token> dans .htaccess + garde OIDC désactivé + décodeur JWT",
+            strpos($htaccess_src, 'index.php?share=$1') !== false &&
+            ($oidc_off['status'] ?? 0) === 403 &&
+            ($jwt_claims['email'] ?? '') === 'sso@studio.fr'
+        );
+
         $_SESSION = $saved_sess;
         \SimpleGallery\Kernel\Data\AtelierStore::resetCache();
     }

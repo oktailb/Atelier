@@ -886,7 +886,7 @@ try {
     localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
     GraphingCalcEngine: E,
     GraphingCalcPlotter: calcWin.GraphingCalcPlotter,
-    sys: { i18n: { t: (k) => k } }
+    sys: { i18n: { t: (k, p) => p ? Object.entries(p).reduce((s, [a, b]) => s + ':' + b, k) : k } }
   };
   new Function('window', 'document', webosAppCode)(appWin, appDoc);
   new Function('window', 'document', appSrc)(appWin, appDoc);
@@ -1149,7 +1149,7 @@ try {
     SG_CURRENT_USER: null,
     localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
     requestAnimationFrame: (fn) => fn(),
-    sys: { i18n: { t: (k) => k } }
+    sys: { i18n: { t: (k, p) => p ? Object.entries(p).reduce((s, [a, b]) => s + ':' + b, k) : k } }
   };
   const authDoc = {
     body: authOverlayHost,
@@ -1182,15 +1182,21 @@ try {
     allow_password_reset: true,
     min_password_length: 8,
     totp_policy: 'optional',
-    totp_enabled: true
+    totp_enabled: true,
+    oidc_enabled: true,
+    oidc_provider_name: 'Authentik'
   };
+  authWin.sys.authModal.open({ mode: 'password' });
+  const oidcLoginHtml = authWin.sys.authModal.overlayEl.innerHTML;
   authWin.sys.authModal.open({ mode: 'register' });
   const regHtml = authWin.sys.authModal.overlayEl.innerHTML;
   authWin.sys.authModal.open({ mode: 'totp_setup', context: { setup: { secret: 'JBSWY3DPEHPK3PXP', qr_svg: '<svg><path d="M0,0"/></svg>' } } });
   const totpSetupHtml = authWin.sys.authModal.overlayEl.innerHTML;
   authWin.sys.authModal.open({ mode: 'totp_codes', context: { codes: ['AAAA-BBBB', 'CCCC-DDDD'] } });
   const codesHtml = authWin.sys.authModal.overlayEl.innerHTML;
-  assert("Phase A.2: AuthModalService rend inscription autonome, assistant 2FA (QR SVG local) et codes de secours",
+  assert("Phase A.2: AuthModalService rend inscription autonome, bouton SSO OIDC, assistant 2FA (QR SVG local) et codes de secours",
+    oidcLoginHtml.includes('authModalOidcBtn') &&
+    oidcLoginHtml.includes('Authentik') &&
     regHtml.includes('data-auth-mode="register"') &&
     regHtml.includes('authRegEmail') &&
     regHtml.includes('authRegHoneypot') &&
@@ -1220,13 +1226,14 @@ try {
   const mockVolWin = {
     IS_ADMIN: false,
     SG_CURRENT_USER: { id: 2, username: 'bob', display_name: 'Bob', role: 'user', home_dir: 'users/bob' },
+    SG_USER_QUOTA: { used_bytes: 52428800, quota_bytes: 104857600, percent: 50, is_limited: true },
     SG_MOUNTED_VOLUMES: [
       { id: 'home_2', kind: 'home', path: 'users/bob', mount_name: 'Bob', mount_icon: '🏠', permission: 'manage', show_on_desktop: true, is_encrypted: false },
       { id: 'share_9', kind: 'shared', path: 'users/alice/studio', mount_name: 'Studio Drive', mount_icon: '💽', permission: 'write', owner_username: 'alice', show_on_desktop: true, is_encrypted: true },
       { id: 'share_10', kind: 'shared', path: 'users/alice/hidden_desk', mount_name: 'NoDesk', mount_icon: '📁', permission: 'read', owner_username: 'alice', show_on_desktop: false, is_encrypted: false }
     ],
     location: { search: '', origin: 'https://atelier.local', pathname: '/' },
-    sys: { i18n: { t: (k) => k } }
+    sys: { i18n: { t: (k, p) => p ? Object.entries(p).reduce((s, [a, b]) => s + ':' + b, k) : k } }
   };
   const mockDoc = {
     readyState: 'complete',
@@ -1244,12 +1251,25 @@ try {
     querySelector: () => null
   };
   svc.renderExplorerMountsBar(fakeBar, 'users/bob/photos', () => {});
-  assert("Phase 1: ShareVolumesService rend la barre des volumes montés (Home + Studio Drive RW 🔐 + bouton Partager)",
+  assert("Phase 1 + A.2: ShareVolumesService rend la barre des volumes montés, le quota disque visuel et le bouton Partager",
     fakeBar.style.display === 'flex' &&
     fakeBar.innerHTML.includes('Studio Drive') &&
     fakeBar.innerHTML.includes('🔐') &&
     fakeBar.innerHTML.includes('RW') &&
+    fakeBar.innerHTML.includes('vol-quota-pill') &&
     fakeBar.innerHTML.includes('data-share-path="users/bob/photos"')
+  );
+
+  // Verify WebOSApp sidebar layout & SettingsApp categorized left sidebar
+  const settingsJsCode = fs.readFileSync(path.join(appsDir, 'settings', 'settings.js'), 'utf8');
+  const webosAppCode = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'core', 'WebOSApp.js'), 'utf8');
+  assert("Phase A.2 UI: Control Panel utilise la navigation latérale catégorisée (tabLayout: 'sidebar') et sections découpées",
+    webosAppCode.includes('webos-sidebar-shell') &&
+    webosAppCode.includes('webos-sidebar-group-title') &&
+    settingsJsCode.includes("tabLayout: 'sidebar'") &&
+    settingsJsCode.includes("id: 'registration'") &&
+    settingsJsCode.includes("id: 'mail'") &&
+    settingsJsCode.includes("id: 'shares'")
   );
 
   // Verify DesktopShortcutsManager mounts volumes as desktop disk icons

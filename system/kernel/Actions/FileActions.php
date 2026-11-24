@@ -261,6 +261,28 @@ class FileActions {
                 $files_input = $_FILES[$first_key];
             }
 
+            // Enforce personal disk quota when uploading inside a user's `users/<username>` space
+            $rel_target = PathValidator::getRelativePath($target_dir, $base_dir);
+            if (preg_match('#^users/([^/]+)(?:/|$)#i', $rel_target, $um)) {
+                $owner = \SimpleGallery\Kernel\Auth\UserManager::findByUsername($project_root, $um[1]);
+                if ($owner && (int)($owner['quota_bytes'] ?? 0) > 0) {
+                    $quotaInfo = \SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo($project_root, $base_dir, $owner);
+                    $incomingBytes = 0;
+                    if (isset($files_input['size'])) {
+                        $sizes = is_array($files_input['size']) ? $files_input['size'] : [$files_input['size']];
+                        foreach ($sizes as $sz) {
+                            $incomingBytes += max(0, (int)$sz);
+                        }
+                    }
+                    if (($quotaInfo['used_bytes'] + $incomingBytes) > $quotaInfo['quota_bytes']) {
+                        return ['status' => 413, 'data' => [
+                            'success' => false,
+                            'error'   => 'Quota disque dépassé pour cet espace personnel.'
+                        ]];
+                    }
+                }
+            }
+
             $uploaded_results = [];
             $errors = [];
 

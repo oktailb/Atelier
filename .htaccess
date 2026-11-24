@@ -15,6 +15,9 @@ Options -Indexes
     RewriteRule ^thumb\.php$ system/endpoints/thumb.php [L,QSA]
     RewriteRule ^archive\.php$ system/endpoints/archive.php [L,QSA]
 
+    # Short signed share link route (/s/<token> -> index.php?share=<token>)
+    RewriteRule ^s/([A-Za-z0-9_-]{12,128})/?$ index.php?share=$1 [L,QSA]
+
     # Fallback for split-bundle WASM/Trunk standalone web apps whose app/*.js imports ./snippets/* located at package root
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^(apps/(?:[^/]+/)?[^/]+)/app/(snippets/.+)$ $1/$2 [L]

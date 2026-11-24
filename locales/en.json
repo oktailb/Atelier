@@ -877,6 +877,8 @@
     "auth_modal.verify_email_subtitle": "Validating your activation link.",
     "auth_modal.verify_email_success": "Email verified! Your account and personal workspace are now active.",
     "auth_modal.verify_email_pending_approval": "Email verified! An administrator still needs to approve your account before your first sign-in.",
-    "auth_modal.verify_email_error": "This verification link is invalid or has expired."
+    "auth_modal.verify_email_error": "This verification link is invalid or has expired.",
+    "auth_modal.quota_label": "Disk quota",
+    "auth_modal.oidc_login_btn": "Continue with {provider}"
   }
 }

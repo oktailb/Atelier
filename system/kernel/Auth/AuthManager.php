@@ -70,7 +70,7 @@ class AuthManager {
     /**
      * Stores an authenticated multi-user session (and sets admin flags when role is admin/superadmin).
      */
-    public static function loginUserSession(array $sanitizedUser): void {
+    public static function loginUserSession(array $sanitizedUser, ?string $projectRoot = null): void {
         self::ensureSessionStarted();
         if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_ACTIVE && !headers_sent()) {
             @session_regenerate_id(true);
@@ -79,18 +79,27 @@ class AuthManager {
         $isAdmin = in_array($sanitizedUser['role'] ?? '', ['superadmin', 'admin'], true);
         $_SESSION['sg_admin_logged'] = $isAdmin;
         $_SESSION['is_admin'] = $isAdmin;
+        if ($projectRoot !== null && $projectRoot !== '') {
+            SessionRegistry::registerCurrentSession($projectRoot, isset($sanitizedUser['id']) ? (int)$sanitizedUser['id'] : null, (string)($sanitizedUser['username'] ?? 'user'));
+        }
     }
 
     /**
      * Clears both legacy admin, multi-user session state, and any unlocked private folders/share links.
      */
-    public static function logoutSession(): void {
+    public static function logoutSession(?string $projectRoot = null): void {
         self::ensureSessionStarted();
+        if ($projectRoot !== null && $projectRoot !== '') {
+            SessionRegistry::markCurrentRevoked($projectRoot);
+        }
         unset(
             $_SESSION['sg_admin_logged'],
             $_SESSION['is_admin'],
             $_SESSION['sg_user'],
             $_SESSION['sg_2fa_pending'],
+            $_SESSION['sg_session_token'],
+            $_SESSION['sg_session_touched_at'],
+            $_SESSION['sg_oidc_state'],
             $_SESSION['sg_unlocked_folders'],
             $_SESSION['unlocked_dirs'],
             $_SESSION['sg_unlocked_shares']
@@ -101,11 +110,15 @@ class AuthManager {
     }
 
     /**
-     * Re-validates the active multi-user session against persistent storage on every request:
-     * immediately revokes sessions for disabled or deleted accounts and syncs role changes.
+     * Re-validates the active session against persistent storage on every request:
+     * immediately revokes sessions for disabled, deleted, or remotely revoked sessions and syncs role changes.
      */
     public static function revalidateActiveUser(string $baseOrRoot): void {
         self::ensureSessionStarted();
+        if (!empty($_SESSION['sg_session_token']) && !SessionRegistry::validateCurrentSession($baseOrRoot)) {
+            self::logoutSession();
+            return;
+        }
         $sessionUser = $_SESSION['sg_user'] ?? null;
         if (!is_array($sessionUser) || empty($sessionUser['id'])) {
             return;

@@ -19,19 +19,23 @@
         id: 'settings',
         title: 'settings.app_title',
         icon: '⚙️',
-        width: 940,
-        height: 640,
-        minWidth: 540,
-        minHeight: 440,
+        width: 1060,
+        height: 680,
+        minWidth: 660,
+        minHeight: 460,
         resizable: true,
+        tabLayout: 'sidebar',
         tabs: [
-          { id: 'security', label: 'settings.tab_security', icon: '🛡️' },
-          { id: 'users', label: 'settings.tab_users', icon: '👥' },
-          { id: 'appearance', label: 'settings.tab_appearance', icon: '🎨' },
-          { id: 'autostart', label: 'settings.tab_autostart', icon: '🚀' },
-          { id: 'system', label: 'settings.tab_system', icon: '⚙️' },
-          { id: 'privacy', label: 'settings.tab_privacy', icon: '🍪' },
-          { id: 'plugins', label: 'settings.tab_plugins', icon: '🧩' }
+          { id: 'security',     label: 'settings.tab_security',       icon: '🛡️', group: 'settings.group_access' },
+          { id: 'users',        label: 'settings.tab_users_accounts', icon: '👤', group: 'settings.group_access' },
+          { id: 'registration', label: 'settings.tab_registration',   icon: '🔐', group: 'settings.group_access' },
+          { id: 'mail',         label: 'settings.tab_mail',           icon: '✉️', group: 'settings.group_access' },
+          { id: 'shares',       label: 'settings.tab_shares_audit',   icon: '💽', group: 'settings.group_access' },
+          { id: 'appearance',   label: 'settings.tab_appearance',     icon: '🎨', group: 'settings.group_interface' },
+          { id: 'autostart',    label: 'settings.tab_autostart',      icon: '🚀', group: 'settings.group_interface' },
+          { id: 'plugins',      label: 'settings.tab_plugins',        icon: '🧩', group: 'settings.group_system' },
+          { id: 'system',       label: 'settings.tab_system',         icon: '⚙️', group: 'settings.group_system' },
+          { id: 'privacy',      label: 'settings.tab_privacy',        icon: '🍪', group: 'settings.group_system' }
         ],
         state: {
           permissions: {},
@@ -102,7 +106,11 @@
     renderTab(tabId) {
       switch (tabId) {
         case 'security': return this.renderSecurityTab();
-        case 'users': return `<div id="settingsCustomSection_users"></div>`;
+        case 'users':
+        case 'registration':
+        case 'mail':
+        case 'shares':
+          return `<div id="settingsCustomSection_${tabId}"></div>`;
         case 'appearance': return this.renderAppearanceTab();
         case 'autostart': return this.renderAutostartTab();
         case 'system': return this.renderSystemTab();
@@ -179,17 +187,28 @@
         }
       });
 
-      // Bind custom plugin sections (and built-in Users & Shares panel) if active
-      const custom = this.customSections.find(s => s.id === this.currentTab);
-      if (custom) {
-        const customArea = container.querySelector(`#settingsCustomSection_${custom.id}`);
-        if (customArea && typeof custom.render === 'function') {
-          custom.render(customArea, this);
+      // Bind modular Users/Registration/Mail/Shares panels & custom plugin sections if active
+      const modularPanelSections = ['users', 'registration', 'mail', 'shares'];
+      if (modularPanelSections.includes(this.currentTab) && window.AtelierUsersPanel && typeof window.AtelierUsersPanel.renderSection === 'function') {
+        const panelArea = container.querySelector(`#settingsCustomSection_${this.currentTab}`);
+        if (panelArea) {
+          window.AtelierUsersPanel.renderSection(this.currentTab, panelArea, this);
         }
-      } else if (this.currentTab === 'users' && window.AtelierUsersPanel && typeof window.AtelierUsersPanel.render === 'function') {
-        const usersArea = container.querySelector('#settingsCustomSection_users');
-        if (usersArea) {
-          window.AtelierUsersPanel.render(usersArea, this);
+      } else {
+        const custom = this.customSections.find(s => s.id === this.currentTab);
+        if (custom) {
+          const customArea = container.querySelector(`#settingsCustomSection_${custom.id}`);
+          if (customArea && typeof custom.render === 'function') {
+            custom.render(customArea, this);
+          }
+        }
+      }
+
+      // If Security tab is active and user is logged in, populate Active Sessions card
+      if (this.currentTab === 'security' && window.AtelierUsersPanel && typeof window.AtelierUsersPanel.renderSessionsCard === 'function') {
+        const sessHost = container.querySelector('#settingsActiveSessionsHost');
+        if (sessHost) {
+          window.AtelierUsersPanel.renderSessionsCard(sessHost, this);
         }
       }
 
@@ -286,6 +305,8 @@
           icon: '🔑',
           content: changePassContent
         }) : ''}
+
+        ${isLoggedIn ? `<div id="settingsActiveSessionsHost"></div>` : ''}
       `;
     }
 

@@ -49,10 +49,19 @@
     return active.includes('light');
   }
 
+  function formatBytesCompact(bytes) {
+    const b = Number(bytes) || 0;
+    if (b >= 1024 * 1024 * 1024) return (b / (1024 * 1024 * 1024)).toFixed(1) + ' Go';
+    if (b >= 1024 * 1024) return (b / (1024 * 1024)).toFixed(1) + ' Mo';
+    if (b >= 1024) return Math.round(b / 1024) + ' Ko';
+    return b + ' o';
+  }
+
   class ShareVolumesService {
     constructor() {
       this.currentUser = window.SG_CURRENT_USER || null;
       this.volumes = Array.isArray(window.SG_MOUNTED_VOLUMES) ? window.SG_MOUNTED_VOLUMES : [];
+      this.quota = window.SG_USER_QUOTA || null;
       this.storeDriver = '';
     }
 
@@ -62,6 +71,10 @@
 
     getVolumes() {
       return Array.isArray(this.volumes) ? this.volumes : [];
+    }
+
+    getQuota() {
+      return this.quota || window.SG_USER_QUOTA || null;
     }
 
     isLoggedIn() {
@@ -74,9 +87,11 @@
       if (res && res.success) {
         this.currentUser = res.user || null;
         this.volumes = Array.isArray(res.mounted_volumes) ? res.mounted_volumes : [];
+        this.quota = res.quota || null;
         this.storeDriver = res.store_driver || '';
         window.SG_CURRENT_USER = this.currentUser;
         window.SG_MOUNTED_VOLUMES = this.volumes;
+        window.SG_USER_QUOTA = this.quota;
         window.IS_ADMIN = Boolean(res.is_admin);
         this.updateHeaderUserBadge();
         this.emitChange();
@@ -181,8 +196,19 @@
         `);
       });
 
+      const quota = this.getQuota();
+      const quotaPillHtml = (quota && quota.is_limited) ? `
+        <span class="vol-pill vol-quota-pill" style="cursor:default;pointer-events:none;font-size:0.74rem;gap:6px;" title="${escapeHtml(formatBytesCompact(quota.used_bytes) + ' / ' + formatBytesCompact(quota.quota_bytes))}">
+          <span>📊</span>
+          <span>${escapeHtml(formatBytesCompact(quota.used_bytes))} / ${escapeHtml(formatBytesCompact(quota.quota_bytes))}</span>
+          <span style="display:inline-block;width:44px;height:5px;border-radius:99px;background:rgba(148,163,184,0.28);overflow:hidden;">
+            <span style="display:block;height:100%;width:${Math.min(100, Number(quota.percent) || 0)}%;background:${quota.percent >= 90 ? '#ef4444' : (quota.percent >= 70 ? '#f59e0b' : '#22c55e')};"></span>
+          </span>
+        </span>
+      ` : '';
+
       const shareBtnHtml = canShareCurrent ? `
-        <button type="button" class="vol-pill vol-share-action" data-share-path="${escapeHtml(normCur)}" style="margin-left:auto;">
+        <button type="button" class="vol-pill vol-share-action" data-share-path="${escapeHtml(normCur)}" style="margin-left:${quotaPillHtml ? '6px' : 'auto'};">
           <span>🔗</span><span>${escapeHtml(t('shares.share_folder_btn'))}</span>
         </button>
       ` : '';
@@ -190,7 +216,7 @@
       barEl.innerHTML = `
         <div class="explorer-volumes-list" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; width:100%;">
           ${pillsHtml.join('')}
-          ${shareBtnHtml}
+          ${quotaPillHtml ? `<span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;">${quotaPillHtml}${shareBtnHtml}</span>` : shareBtnHtml}
         </div>
       `;
 

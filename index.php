@@ -86,7 +86,7 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
   <script src="system/userland/desktop/WallpaperManager.js?v=<?php echo filemtime(__DIR__ . '/system/userland/desktop/WallpaperManager.js'); ?>" defer></script>
   <script src="system/userland/desktop/TaskbarClock.js" defer></script>
   <script src="system/userland/desktop/DesktopShortcuts.js?v=<?php echo filemtime(__DIR__ . '/system/userland/desktop/DesktopShortcuts.js'); ?>" defer></script>
-  <script src="system/userland/core/WebOSApp.js" defer></script>
+  <script src="system/userland/core/WebOSApp.js?v=<?php echo filemtime(__DIR__ . '/system/userland/core/WebOSApp.js'); ?>" defer></script>
   <script src="system/userland/core/WebAppVfsBridge.js?v=<?php echo filemtime(__DIR__ . '/system/userland/core/WebAppVfsBridge.js'); ?>" defer></script>
   <script src="system/userland/core/WebAppHost.js?v=<?php echo filemtime(__DIR__ . '/system/userland/core/WebAppHost.js'); ?>" defer></script>
 
@@ -193,9 +193,14 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
     window.SG_AUTOSTART_CONFIG = <?php echo json_encode(get_autostart_config(__DIR__), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
     window.CSRF_TOKEN = <?php echo json_encode(get_csrf_token()); ?>;
     window.SG_CSRF_TOKEN = window.CSRF_TOKEN;
-    <?php \SimpleGallery\Kernel\Auth\AuthManager::revalidateActiveUser(__DIR__); ?>
+    <?php
+    \SimpleGallery\Kernel\Auth\AuthManager::revalidateActiveUser(__DIR__);
+    $sg_boot_user = \SimpleGallery\Kernel\Auth\AuthManager::getCurrentUser();
+    $sg_boot_quota = $sg_boot_user ? \SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo(__DIR__, $real_base_dir, $sg_boot_user) : null;
+    ?>
     window.IS_ADMIN = <?php echo is_admin_logged_in() ? 'true' : 'false'; ?>;
-    window.SG_CURRENT_USER = <?php echo json_encode(\SimpleGallery\Kernel\Auth\AuthManager::getCurrentUser(), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+    window.SG_CURRENT_USER = <?php echo json_encode($sg_boot_user, JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+    window.SG_USER_QUOTA = <?php echo json_encode($sg_boot_quota, JSON_HEX_TAG | JSON_HEX_AMP); ?>;
     window.SG_MOUNTED_VOLUMES = <?php echo json_encode(\SimpleGallery\Kernel\Auth\ShareManager::getMountedVolumesForCurrentUser($real_base_dir), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
     window.SG_AUTH_POLICY = <?php echo json_encode(\SimpleGallery\Kernel\Auth\AuthSettings::getPublicPolicy(__DIR__), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
   </script>

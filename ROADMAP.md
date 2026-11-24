@@ -182,8 +182,12 @@ flowchart TB
   - Inscription autonome (refus si `disabled`, filtrage domaines, tokens expirés/réutilisés, mode `approval`, mode `invite_only`, home non créé avant activation).
   - TOTP RFC 6238 (vecteurs standards, anti-replay, codes de secours, non-élévation de session avant étape 2 du login, enrôlement obligatoire).
   - Reset mot de passe anti-énumération, `Mailer` mode `outbox_log`, parité stricte i18n FR/EN/JA, parcours UI `AuthModalService`.
-- [ ] **Autres compléments Phase A.2 (suite)** :
-  - URL courte de partage `/s/<token>`, quotas disque visuels dans l'Explorateur / Moniteur Système, révocation de sessions actives, SSO **OIDC** / **LDAP**.
+- [x] **Compléments Phase A.2 livrés** :
+  - URL courte de partage `/s/<token>` (réécriture Apache dans `.htaccess` + rétrocompatibilité `?share=<token>`).
+  - Quotas disque visuels (Explorateur + Mon Compte) et application stricte côté serveur sur `upload_file` (HTTP 413 si dépassé).
+  - Suivi et révocation à distance des sessions actives (`user_sessions` / `SessionRegistry`, révocation individuelle ou de tous les autres appareils).
+  - Client SSO **OpenID Connect (OIDC)** natif sans dépendance (`OidcProvider.php`, Discovery + PKCE S256 + provisionnement JIT optionnel).
+  - Refonte ergonomique du Panneau de Configuration en **navigation verticale latérale catégorisée** (`WebOSApp` `tabLayout: 'sidebar'`, sections dédiées : Sécurité & Droits, Utilisateurs & Groupes, Inscriptions/2FA/SSO, E-mail & SMTP, Partages/Liens/Audit).
 
 ---
 

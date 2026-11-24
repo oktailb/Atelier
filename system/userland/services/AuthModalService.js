@@ -358,6 +358,27 @@
         ? window.sys.shares.getVolumes()
         : (Array.isArray(window.SG_MOUNTED_VOLUMES) ? window.SG_MOUNTED_VOLUMES : []);
 
+      const quota = (window.sys && window.sys.shares && typeof window.sys.shares.getQuota === 'function')
+        ? window.sys.shares.getQuota()
+        : (window.SG_USER_QUOTA || null);
+      const fmtB = (b) => {
+        const n = Number(b) || 0;
+        if (n >= 1024 * 1024 * 1024) return (n / (1024 * 1024 * 1024)).toFixed(1) + ' Go';
+        if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' Mo';
+        return Math.round(n / 1024) + ' Ko';
+      };
+      const quotaCardHtml = (user && quota && quota.is_limited) ? `
+        <div class="atelier-auth-security-card" style="padding:9px 12px;">
+          <div style="display:flex;justify-content:space-between;font-size:0.76rem;margin-bottom:5px;">
+            <span>💾 ${esc(t('auth_modal.quota_label'))}</span>
+            <strong>${esc(fmtB(quota.used_bytes))} / ${esc(fmtB(quota.quota_bytes))} (${Number(quota.percent) || 0}%)</strong>
+          </div>
+          <div class="atelier-auth-strength-track">
+            <div class="atelier-auth-strength-fill" style="width:${Math.min(100, Number(quota.percent) || 0)}%;background:${quota.percent >= 90 ? '#ef4444' : (quota.percent >= 70 ? '#f59e0b' : '#22c55e')};"></div>
+          </div>
+        </div>
+      ` : '';
+
       const totpCardHtml = (user && policy.totp_enabled) ? `
         <div class="atelier-auth-security-card">
           <div class="atelier-auth-security-row">
@@ -391,6 +412,7 @@
           </div>
         </div>
 
+        ${quotaCardHtml}
         ${totpCardHtml}
 
         <div class="atelier-auth-quick-actions">
@@ -489,6 +511,12 @@
           <button type="submit" id="authModalSubmitBtn" class="atelier-auth-submit-btn">
             <span>🔑</span><span>${esc(t('auth_modal.submit_btn'))}</span>
           </button>
+
+          ${policy.oidc_enabled ? `
+            <button type="button" id="authModalOidcBtn" class="atelier-auth-action-btn" style="width:100%;justify-content:center;">
+              <span>🌐</span><span>${esc(t('auth_modal.oidc_login_btn', { provider: policy.oidc_provider_name || 'SSO' }))}</span>
+            </button>
+          ` : ''}
 
           <div class="atelier-auth-hint">${esc(t('auth_modal.root_admin_hint'))}</div>
         </form>
@@ -803,6 +831,16 @@
         this.activeMode = 'forgot_password';
         this.pendingContext = {};
         this.render();
+      });
+
+      root.querySelector('#authModalOidcBtn')?.addEventListener('click', async () => {
+        if (!window.sys || !window.sys.api) return;
+        const res = await window.sys.api.get('oidc_start');
+        if (res && res.success && res.auth_url) {
+          window.location.href = res.auth_url;
+        } else {
+          toast('error', (res && res.error) || t('shares.action_error'));
+        }
       });
 
       // Show/hide password toggle
@@ -1272,6 +1310,25 @@
       try {
         if (!window.location || !window.location.search) return;
         const params = new URLSearchParams(window.location.search);
+
+        const oidcCb = params.get('oidc_callback');
+        if (oidcCb && params.get('code') && params.get('state')) {
+          if (window.sys && window.sys.api) {
+            const res = await window.sys.api.post('oidc_complete', {
+              code: params.get('code'),
+              state: params.get('state')
+            });
+            cleanUrlParams(['oidc_callback', 'code', 'state', 'session_state', 'iss']);
+            if (res && res.success) {
+              await this.finalizeSuccessfulLogin(res, true);
+            } else {
+              this.open({ mode: 'password' });
+              const errEl = this.overlayEl?.querySelector('#authModalError');
+              if (errEl) { errEl.textContent = '❌ ' + ((res && res.error) || t('shares.action_error')); errEl.style.display = 'block'; }
+            }
+          }
+          return;
+        }
 
         const verifyToken = params.get('verify_email');
         if (verifyToken) {

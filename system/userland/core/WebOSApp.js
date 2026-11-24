@@ -29,6 +29,7 @@
       this.height = config.height || 600;
       this.resizable = config.resizable !== false;
       this.tabs = config.tabs || [];
+      this.tabLayout = config.tabLayout || 'top'; // 'top' | 'sidebar'
       this.currentTab = (this.tabs.length > 0) ? this.tabs[0].id : null;
       this.window = null;
       this._state = config.state || {};
@@ -293,9 +294,39 @@
     }
 
     /**
-     * Render the application shell (Header with tabs + Body container)
+     * Render the application shell (Top Tabs or Categorized Left Sidebar + Body container)
      */
     renderShell() {
+      if (this.tabLayout === 'sidebar' && this.tabs.length > 0) {
+        let lastGroup = null;
+        const navItemsHtml = this.tabs.map((t) => {
+          let groupHeader = '';
+          if (t.group && t.group !== lastGroup) {
+            lastGroup = t.group;
+            groupHeader = `<div class="webos-sidebar-group-title" data-group-label="${this.escapeHtml(t.group)}">${this.escapeHtml(this.t(t.group))}</div>`;
+          }
+          return `
+            ${groupHeader}
+            <button type="button" class="webos-tab-item webos-sidebar-item ${t.id === this.currentTab ? 'active' : ''}" data-tab="${t.id}">
+              ${t.icon ? `<span class="webos-sidebar-icon">${t.icon}</span>` : ''}
+              <span class="webos-sidebar-label">${this.escapeHtml(this.t(t.label))}</span>
+            </button>
+          `;
+        }).join('');
+
+        return `
+          <div class="webos-app-shell webos-sidebar-shell" id="${this.id}AppContainer">
+            <aside class="webos-sidebar-nav" id="${this.id}TabNav" role="tablist" aria-orientation="vertical">
+              <div class="webos-sidebar-list">
+                ${navItemsHtml}
+              </div>
+              ${this.renderHeaderExtra() || ''}
+            </aside>
+            <main class="webos-app-body webos-sidebar-body" id="${this.id}BodyContent"></main>
+          </div>
+        `;
+      }
+
       const tabsHtml = (this.tabs.length > 0) ? `
         <div class="webos-tabs-nav" id="${this.id}TabNav" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
           <div style="display:flex; flex-wrap:wrap; gap:6px;">
@@ -396,6 +427,10 @@
       }
       const nav = document.getElementById(`${this.id}TabNav`);
       if (nav && this.tabs && this.tabs.length > 0) {
+        nav.querySelectorAll('.webos-sidebar-group-title[data-group-label]').forEach(el => {
+          const gKey = el.dataset.groupLabel;
+          if (gKey) el.textContent = this.t(gKey);
+        });
         nav.querySelectorAll('.webos-tab-item').forEach(btn => {
           const tabId = btn.dataset.tab;
           const tabDef = this.tabs.find(t => t.id === tabId);

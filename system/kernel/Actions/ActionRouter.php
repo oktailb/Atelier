@@ -61,6 +61,9 @@ class ActionRouter {
         'revoke_invite',
         'approve_user',
         'reject_user',
+        'revoke_session',
+        'revoke_other_sessions',
+        'oidc_complete',
         // Legacy plugin mutating actions (also auto-discovered dynamically from apps/*/manifest.json)
         'tribune_clear_history',
         'tribune_boards_save',
@@ -113,6 +116,11 @@ class ActionRouter {
         'confirm_2fa_setup'       => AuthActions::class,
         'disable_2fa'             => AuthActions::class,
         'regenerate_recovery_codes' => AuthActions::class,
+        'list_sessions'           => AuthActions::class,
+        'revoke_session'          => AuthActions::class,
+        'revoke_other_sessions'   => AuthActions::class,
+        'oidc_start'              => AuthActions::class,
+        'oidc_complete'           => AuthActions::class,
 
         // Multi-User, Groups, Shares, Mounted Volumes, Tags & Audit (Phase 1)
         'get_current_user'        => UserActions::class,

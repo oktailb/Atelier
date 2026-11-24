@@ -877,6 +877,8 @@
     "auth_modal.verify_email_subtitle": "Validation de votre lien d'activation.",
     "auth_modal.verify_email_success": "Adresse e-mail confirmée ! Votre compte et votre espace personnel sont désormais actifs.",
     "auth_modal.verify_email_pending_approval": "Adresse e-mail confirmée ! Un administrateur doit encore approuver votre compte avant votre première connexion.",
-    "auth_modal.verify_email_error": "Ce lien de vérification est invalide ou expiré."
+    "auth_modal.verify_email_error": "Ce lien de vérification est invalide ou expiré.",
+    "auth_modal.quota_label": "Quota disque",
+    "auth_modal.oidc_login_btn": "Continuer avec {provider}"
   }
 }

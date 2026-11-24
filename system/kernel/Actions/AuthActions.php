@@ -4,7 +4,9 @@ namespace SimpleGallery\Kernel\Actions;
 use SimpleGallery\Kernel\Auth\AuditLogger;
 use SimpleGallery\Kernel\Auth\AuthManager;
 use SimpleGallery\Kernel\Auth\AuthSettings;
+use SimpleGallery\Kernel\Auth\OidcProvider;
 use SimpleGallery\Kernel\Auth\RegistrationService;
+use SimpleGallery\Kernel\Auth\SessionRegistry;
 use SimpleGallery\Kernel\Auth\ShareManager;
 use SimpleGallery\Kernel\Auth\TotpManager;
 use SimpleGallery\Kernel\Auth\UserManager;
@@ -65,7 +67,7 @@ class AuthActions {
                             RateLimiter::reset($ip_key);
                             unset($_SESSION['sg_2fa_pending']);
                             $freshUser = UserManager::sanitizeUserForOutput(UserManager::findById($project_root, (int)$rawUser['id']));
-                            AuthManager::loginUserSession($freshUser);
+                            AuthManager::loginUserSession($freshUser, $project_root);
                             AuditLogger::log($project_root, 'user_login', $freshUser['home_dir'], 'ok', ['username' => $freshUser['username'], '2fa' => true]);
                             return ['status' => 200, 'data' => [
                                 'success'                  => true,
@@ -117,7 +119,7 @@ class AuthActions {
                     $store->update('users', ['last_login_at' => $now], ['id' => (int)$rawUser['id']]);
                     $authUser['last_login_at'] = $now;
                     unset($_SESSION['sg_2fa_pending']);
-                    AuthManager::loginUserSession($authUser);
+                    AuthManager::loginUserSession($authUser, $project_root);
                     AuditLogger::log($project_root, 'user_login', $authUser['home_dir'], 'ok', ['username' => $authUser['username']]);
                     return ['status' => 200, 'data' => [
                         'success'         => true,
@@ -174,6 +176,7 @@ class AuthActions {
                 unset($_SESSION['sg_user'], $_SESSION['sg_2fa_pending']);
                 $_SESSION['sg_admin_logged'] = true;
                 $_SESSION['is_admin'] = true;
+                SessionRegistry::registerCurrentSession($project_root, null, 'admin');
                 AuditLogger::log($project_root, 'admin_login', '', 'ok');
 
                 return ['status' => 200, 'data' => [
@@ -222,7 +225,7 @@ class AuthActions {
                 $store = AtelierStore::forRoot($project_root);
                 $store->update('users', ['last_login_at' => time()], ['id' => $userId]);
                 $freshUser = UserManager::sanitizeUserForOutput(UserManager::findById($project_root, $userId));
-                AuthManager::loginUserSession($freshUser);
+                AuthManager::loginUserSession($freshUser, $project_root);
                 AuditLogger::log($project_root, 'user_login', $freshUser['home_dir'], 'ok', ['username' => $freshUser['username'], '2fa_enrolled' => true]);
                 return ['status' => 200, 'data' => [
                     'success'         => true,
@@ -245,7 +248,7 @@ class AuthActions {
             RateLimiter::reset($ip_key);
             unset($_SESSION['sg_2fa_pending']);
             $freshUser = UserManager::sanitizeUserForOutput(UserManager::findById($project_root, $userId));
-            AuthManager::loginUserSession($freshUser);
+            AuthManager::loginUserSession($freshUser, $project_root);
             AuditLogger::log($project_root, 'user_login', $freshUser['home_dir'], 'ok', ['username' => $freshUser['username'], '2fa' => true]);
             return ['status' => 200, 'data' => [
                 'success'                  => true,
@@ -261,8 +264,58 @@ class AuthActions {
 
         if ($action === 'logout') {
             AuditLogger::log($project_root, 'logout', '', 'ok');
-            AuthManager::logoutSession();
+            AuthManager::logoutSession($project_root);
             return ['status' => 200, 'data' => ['success' => true, 'message' => __t('api.msg_logged_out')]];
+        }
+
+        // ---------------------------------------------------------------------
+        // Phase A.2 — Active Sessions Management & Remote Revocation
+        // ---------------------------------------------------------------------
+
+        if ($action === 'list_sessions') {
+            if (!AuthManager::isLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
+            $cur = AuthManager::getCurrentUser();
+            $isAdmin = AuthManager::isAdminLoggedIn();
+            $includeAll = $isAdmin && (!empty($in['all']) || !$cur);
+            $sessions = SessionRegistry::listSessions($project_root, $cur ? (int)$cur['id'] : null, $includeAll);
+            return ['status' => 200, 'data' => ['success' => true, 'sessions' => $sessions]];
+        }
+
+        if ($action === 'revoke_session') {
+            if (!AuthManager::isLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
+            $cur = AuthManager::getCurrentUser();
+            $sid = (int)($in['session_id'] ?? $in['id'] ?? 0);
+            $res = SessionRegistry::revokeSession($project_root, $sid, $cur ? (int)$cur['id'] : null, AuthManager::isAdminLoggedIn());
+            return ['status' => $res['status'], 'data' => $res];
+        }
+
+        if ($action === 'revoke_other_sessions') {
+            if (!AuthManager::isLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
+            $cur = AuthManager::getCurrentUser();
+            $res = SessionRegistry::revokeOtherSessions($project_root, $cur ? (int)$cur['id'] : null);
+            return ['status' => $res['status'], 'data' => $res];
+        }
+
+        // ---------------------------------------------------------------------
+        // Phase A.2 — OpenID Connect (OIDC) SSO Login
+        // ---------------------------------------------------------------------
+
+        if ($action === 'oidc_start') {
+            $res = OidcProvider::beginLogin($project_root);
+            return ['status' => $res['status'], 'data' => $res];
+        }
+
+        if ($action === 'oidc_complete') {
+            $code = (string)($in['code'] ?? '');
+            $state = (string)($in['state'] ?? '');
+            $res = OidcProvider::completeCallback($project_root, $base_dir, $code, $state);
+            return ['status' => $res['status'], 'data' => $res];
         }
 
         // ---------------------------------------------------------------------

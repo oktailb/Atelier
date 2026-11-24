@@ -33,7 +33,8 @@ class SqliteStoreDriver implements AtelierStoreInterface {
         'item_metadata',
         'vault_keys',
         'audit_logs',
-        'auth_tokens'
+        'auth_tokens',
+        'user_sessions'
     ];
 
     public function __construct(string $dbPath) {
@@ -289,6 +290,33 @@ class SqliteStoreDriver implements AtelierStoreInterface {
 
                 $ins = $this->pdo->prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)");
                 $ins->execute([2, 'atelier_phase_a2_self_registration_2fa', time()]);
+                $this->pdo->commit();
+            } catch (\Throwable $e) {
+                $this->pdo->rollBack();
+                throw $e;
+            }
+        }
+
+        if (empty($applied[3])) {
+            $this->pdo->beginTransaction();
+            try {
+                $this->pdo->exec("
+                    CREATE TABLE IF NOT EXISTS user_sessions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        session_token_hash TEXT NOT NULL UNIQUE,
+                        user_id INTEGER DEFAULT NULL,
+                        username TEXT NOT NULL,
+                        ip_address TEXT DEFAULT '',
+                        user_agent TEXT DEFAULT '',
+                        created_at INTEGER NOT NULL,
+                        last_seen_at INTEGER NOT NULL,
+                        revoked_at INTEGER DEFAULT NULL
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);
+                    CREATE INDEX IF NOT EXISTS idx_user_sessions_hash ON user_sessions(session_token_hash);
+                ");
+                $ins = $this->pdo->prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)");
+                $ins->execute([3, 'atelier_phase_a2_active_sessions', time()]);
                 $this->pdo->commit();
             } catch (\Throwable $e) {
                 $this->pdo->rollBack();

@@ -877,6 +877,8 @@
     "auth_modal.verify_email_subtitle": "有効化リンクを検証しています。",
     "auth_modal.verify_email_success": "メールアドレスが確認されました！アカウントと個人スペースが有効になりました。",
     "auth_modal.verify_email_pending_approval": "メールアドレスが確認されました！初回ログイン前に管理者の承認が必要です。",
-    "auth_modal.verify_email_error": "確認リンクが無効または期限切れです。"
+    "auth_modal.verify_email_error": "確認リンクが無効または期限切れです。",
+    "auth_modal.quota_label": "ディスク容量",
+    "auth_modal.oidc_login_btn": "{provider} で続行"
   }
 }
