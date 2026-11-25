@@ -313,6 +313,45 @@ ensure_session_started();
 
 
 $requested_file = $_GET['file'] ?? '';
+
+// Phase B: Stream external cloud/storage mount files (`ext://<mount_id>/...`)
+$ext_parsed = \SimpleGallery\Kernel\Storage\ExternalMountManager::parseExternalPath((string)$requested_file);
+if ($ext_parsed !== null) {
+    ensure_session_started();
+    \SimpleGallery\Kernel\Auth\AuthManager::revalidateActiveUser($project_root);
+    $resolved_mount = \SimpleGallery\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, (int)$ext_parsed['mount_id']);
+    if (!$resolved_mount) {
+        http_response_code(403);
+        echo "403 Forbidden: Access denied.";
+        exit;
+    }
+    $ext_rel = (string)$ext_parsed['rel_path'];
+    $ext = strtolower(pathinfo($ext_rel, PATHINFO_EXTENSION));
+    if (\SimpleGallery\Kernel\Media\FormatRegistry::isForbiddenExtension($ext)) {
+        http_response_code(403);
+        echo "403 Forbidden: Access denied.";
+        exit;
+    }
+    $content = $resolved_mount['driver']->readContent($ext_rel);
+    if ($content === null) {
+        http_response_code(404);
+        echo "File not found.";
+        exit;
+    }
+    $content_type = get_full_mime_type($ext);
+    $is_dl = !empty($_GET['download']) || !empty($_GET['attachment']);
+    header('Content-Type: ' . $content_type);
+    header('Content-Disposition: ' . ($is_dl ? 'attachment' : 'inline') . '; filename="' . rawurlencode(basename($ext_rel)) . '"');
+    header('Content-Length: ' . strlen($content));
+    header('Cache-Control: private, no-store, max-age=0');
+    header('X-Content-Type-Options: nosniff');
+    if ($ext === 'svg') {
+        header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; script-src 'none';");
+    }
+    echo $content;
+    exit;
+}
+
 $file_path = sanitize_file_path($requested_file, $real_base_dir);
 
 if (!$file_path || is_path_ignored($file_path, $real_base_dir, $ignore_list)) {

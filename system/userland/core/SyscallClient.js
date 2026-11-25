@@ -163,6 +163,73 @@ class SyscallClient {
   }
 
   /**
+   * Phase B: Resumable Chunked File Upload for multi-GB files (`upload_chunk_init` -> `upload_chunk` -> `upload_chunk_complete`)
+   */
+  async uploadChunked(file, dir = '', options = {}) {
+    if (!file) return { success: false, error: 'Missing file' };
+    const chunkSize = Math.max(262144, Number(options.chunkSize) || (4 * 1024 * 1024));
+    const totalSize = Number(file.size) || 0;
+    const totalChunks = Math.max(1, Math.ceil(totalSize / chunkSize));
+    const overwrite = options.overwrite !== false;
+    const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
+    const maxRetries = Math.max(0, Number(options.retries ?? 2));
+
+    const initRes = await this.post('upload_chunk_init', {
+      dir,
+      filename: file.name || 'upload.bin',
+      total_size: totalSize,
+      total_chunks: totalChunks,
+      overwrite
+    });
+    if (!initRes || !initRes.success || !initRes.upload_id) {
+      return initRes || { success: false, error: 'Chunk upload initialization failed' };
+    }
+
+    const uploadId = initRes.upload_id;
+    let uploadedBytes = 0;
+
+    for (let idx = 0; idx < totalChunks; idx++) {
+      const start = idx * chunkSize;
+      const end = Math.min(totalSize, start + chunkSize);
+      const slice = file.slice(start, end);
+      let chunkOk = false;
+      let lastErr = null;
+
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        const fd = new FormData();
+        fd.append('upload_id', uploadId);
+        fd.append('chunk_index', String(idx));
+        fd.append('chunk', slice, `chunk_${idx}.part`);
+        const res = await this.upload('upload_chunk', fd, (pct, loaded) => {
+          if (onProgress && totalSize > 0) {
+            const totalLoaded = Math.min(totalSize, uploadedBytes + loaded);
+            onProgress(Math.round((totalLoaded / totalSize) * 100), totalLoaded, totalSize);
+          }
+        });
+        if (res && res.success) {
+          chunkOk = true;
+          break;
+        }
+        lastErr = (res && res.error) || `Chunk #${idx} failed`;
+      }
+
+      if (!chunkOk) {
+        return { success: false, error: lastErr || 'Chunk transfer failed', upload_id: uploadId };
+      }
+      uploadedBytes += (end - start);
+      if (onProgress && totalSize > 0) {
+        onProgress(Math.min(99, Math.round((uploadedBytes / totalSize) * 100)), uploadedBytes, totalSize);
+      }
+    }
+
+    const doneRes = await this.post('upload_chunk_complete', { upload_id: uploadId });
+    if (doneRes && doneRes.success && onProgress) {
+      onProgress(100, totalSize, totalSize);
+    }
+    return doneRes;
+  }
+
+  /**
    * Generic call method for backwards compatibility
    */
   async call(action, params = {}, method = 'POST') {

@@ -188,22 +188,32 @@ flowchart TB
   - Suivi et révocation à distance des sessions actives (`user_sessions` / `SessionRegistry`, révocation individuelle ou de tous les autres appareils).
   - Client SSO **OpenID Connect (OIDC)** natif sans dépendance (`OidcProvider.php`, Discovery + PKCE S256 + provisionnement JIT optionnel).
   - Refonte ergonomique du Panneau de Configuration en **navigation verticale latérale catégorisée** (`WebOSApp` `tabLayout: 'sidebar'`, sections dédiées : Sécurité & Droits, Utilisateurs & Groupes, Inscriptions/2FA/SSO, E-mail & SMTP, Partages/Liens/Audit).
+  - **Isolation complète multi-utilisateurs (Bureaux & `localStorage`)** : bureau personnel dans `users.preferences_json`, bureau admin legacy isolé dans `storage/desktop_admin.json`, gestion/publication du modèle global `storage/desktop.json`, cloisonnement de `sys.storage`, préférences synchronisées et applications (`tribune`, `settings`, `browser`, `explorer`, `WebAppVfsBridge`).
+  - **Matrice de droits en cascade à 3 niveaux (`PermissionsManager` + Migration v4)** : Rôle (`anonymous` / `guest` / `user`) → Surcharges Groupe (`deny` prioritaire sur `allow`) → Surcharges Utilisateur (prise d'effet en direct), tout en conservant l'étanchéité stricte des ACL `ShareManager` sur `users/` et les partages.
+  - **Export RGPD (archive ZIP signée) & Suppression autonome de compte (`AccountExportService` + `export.php` + `/e/<token>`)** : génération d'archive ZIP complète à durée limitée (`6h`/`24h`/`72h`), vérification SHA-256 + transfert complet côté serveur, confirmation explicite de réception avec purge immédiate du disque, et suppression sécurisée du compte (mot de passe + 2FA + confirmation nom d'utilisateur + anti-verrouillage dernier admin).
+  - **Guide d'Administration complet** ([docs/admin-guide.md](docs/admin-guide.md)).
 
 ---
 
-### 🟩 Phase B — Abstraction Stockage (`StorageDriver`), Gros Fichiers & Résilience
-*Objectif : supporter des téraoctets sur stockage objet peu coûteux et des fichiers vidéo/PSD de plusieurs gigaoctets.*
+### ✅ Phase B — Abstraction Stockage (`StorageDriver`), Connecteurs Cloud Externes, Gros Fichiers & Résilience *(Livrée & Testée)*
+*Objectif : supporter des téraoctets sur stockage objet peu coûteux, monter des ressources cloud externes dans le VFS unifié, et manipuler des fichiers vidéo/PSD de plusieurs gigaoctets.*
 
-- **Interface `StorageDriverInterface`** :
-  - `LocalFilesystemDriver` (mode natif actuel, zéro surcharge).
-  - `S3ObjectStorageDriver` (compatible AWS S3, **Cloudflare R2**, Backblaze B2, Scaleway Object Storage, MinIO) avec URLs présignées pour le streaming direct sans engorger PHP.
-- **Uploads fragmentés & résumables (*Chunked Uploads* / protocole TUS)** :
-  - Découpage en morceaux (ex. 5–10 Mo) côté `SyscallClient`, reprise automatique après coupure réseau, contournement propre des limites `post_max_size` / `upload_max_filesize`, barre de progression multi-fichiers.
-- **Corbeille (*Trash*) & Versioning léger** :
-  - Suppression douce vers `.trash/` avec restauration 1-clic et purge automatique (ex. 30 jours).
-  - Historique des N dernières versions d'un fichier lors d'un écrasement (très précieux avec le Pont VFS des éditeurs PhotoCraft/PdfCraft !).
-- **Indexation SQLite des fichiers & métadonnées** :
-  - Remplacement progressif des `scandir()` récursifs lourds par un index incrémental (nom, taille, MIME, EXIF, GPS, tags, commentaires) pour une recherche et une carte GPS instantanées même sur 100 000+ fichiers.
+- [x] **Interface `StorageDriverInterface` & Coffre Chiffré (`CredentialVault` AES-256-GCM)** :
+  - `LocalFilesystemDriver` (mode natif sandboxé, zéro surcharge).
+  - `S3StorageDriver` (natif PHP **AWS SigV4** zéro dépendance : AWS S3, **Cloudflare R2**, Backblaze B2, Scaleway Object Storage, MinIO) avec génération d'URLs présignées GET (`buildPresignedGetUrl()`).
+  - `WebDavStorageDriver` (client WebDAV natif `PROPFIND`/`GET`/`PUT`/`MKCOL`/`DELETE`/`MOVE`, parsing XML anti-XXE `LIBXML_NONET`, garde SSRF + option LAN NAS admin).
+  - `GoogleDriveStorageDriver` (client REST v3 OAuth2 avec rafraîchissement automatique `refresh_token`).
+- [x] **Connecteurs Cloud & Volumes Externes montés (`ExternalMountManager`, Migration v5 `external_mounts`)** :
+  - Découplage **Login SSO/OIDC** vs **Volumes Externes** avec identifiants/jetons chiffrés au repos (`CredentialVault` + clé maître `storage/.vault_master.key` en `0600`).
+  - Exposition VFS transparente **`ext://<mount_id>/...`** intégrée dans `ShareManager`, `GalleryActions`, `thumb.php`, `FileActions` (`upload_file`, `create_folder`, `delete_item`, `save_text_file`) et l'onglet **Stockage & Cloud** du Control Panel.
+  - *Suite optionnelle (Lot 2b / Lot 3)* : connecteurs OneDrive/Dropbox, assistant OAuth interactif Google Picker (`drive.file` / Google Photos Picker API), Instagram Business/Creator Graph API & importateur d'archives Meta/Takeout.
+- [x] **Uploads fragmentés & résumables (`ChunkedUploadManager` + `SyscallClient.uploadChunked()`)** :
+  - Endpoints CSRF-protégés `upload_chunk_init`, `upload_chunk`, `upload_chunk_complete` (`storage/chunks/` protégé `.htaccess`), contrôle quota & `FormatRegistry` en amont, retries par fragment, compatible VFS local et `ext://`.
+- [x] **Corbeille 30 jours (`TrashAndVersioningManager`) & Versioning léger** :
+  - Suppression douce automatique vers `storage/trash/<scope>/` (rétention 30 jours, restauration 1-clic `restore_trash_item`, purge manuelle/globale, gestionnaire intégré dans **Stockage & Cloud**).
+  - Snapshot automatique à l'écrasement (5 dernières révisions par fichier dans `storage/versions/`, `list_file_versions` / `restore_file_version` non-destructif).
+- [x] **Indexation incrémentale SQLite (`FileIndexManager`, Migration v5 `file_index`)** :
+  - Index incrémental (`rebuild_file_index`, `get_file_index_stats`, `search_file_index`) sautant les fichiers inchangés (`mtime` + `size_bytes`), mis à jour en temps réel sur upload/edit/delete/restore et respectant strictement les ACL `DotfileManager::isDirAccessible()`.
 
 ---
 

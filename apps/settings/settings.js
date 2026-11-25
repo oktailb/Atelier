@@ -40,6 +40,7 @@
           { id: 'shares', label: 'settings.tab_shares_audit', icon: '💽', group: 'settings.group_access' },
           { id: 'appearance', label: 'settings.tab_appearance', icon: '🎨', group: 'settings.group_interface' },
           { id: 'autostart', label: 'settings.tab_autostart', icon: '🚀', group: 'settings.group_interface' },
+          { id: 'storage', label: 'settings.tab_storage', icon: '☁️', group: 'settings.group_system' },
           { id: 'plugins', label: 'settings.tab_plugins', icon: '🧩', group: 'settings.group_system' },
           { id: 'system', label: 'settings.tab_system', icon: '⚙️', group: 'settings.group_system' },
           { id: 'privacy', label: 'settings.tab_privacy', icon: '🍪', group: 'settings.group_system' }
@@ -157,6 +158,7 @@
         case 'registration':
         case 'mail':
         case 'shares':
+        case 'storage':
           return `<div id="settingsCustomSection_${tabId}"></div>`;
         case 'appearance': return this.renderAppearanceTab();
         case 'autostart': return this.renderAutostartTab();
@@ -237,8 +239,8 @@
         }
       });
 
-      // Bind modular Users/Registration/Mail/Shares panels & custom plugin sections if active
-      const modularPanelSections = ['users', 'registration', 'mail', 'shares'];
+      // Bind modular Users/Registration/Mail/Shares/Storage panels & custom plugin sections if active
+      const modularPanelSections = ['users', 'registration', 'mail', 'shares', 'storage'];
       if (modularPanelSections.includes(this.currentTab) && window.AtelierUsersPanel && typeof window.AtelierUsersPanel.renderSection === 'function') {
         const panelArea = container.querySelector(`#settingsCustomSection_${this.currentTab}`);
         if (panelArea) {

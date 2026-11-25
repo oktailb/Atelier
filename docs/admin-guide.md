@@ -170,6 +170,17 @@ Tout utilisateur authentifié (compte en base `users`) dispose depuis **Panneau 
 
 ---
 
+## 6.2 Stockage externe, Corbeille 30 jours, Versioning & Index SQLite (Phase B)
+
+Depuis **Panneau de configuration → Stockage & Cloud** :
+- **Volumes externes (`ext://<id>`)** : montez des espaces **WebDAV** (Nextcloud, Synology, kDrive), **S3 / Cloudflare R2 / MinIO / Scaleway** (signature SigV4 native sans SDK externe), **Google Drive** (OAuth2 v3 avec refresh automatique) ou un **dossier serveur local** (réservé aux admins). Tous les secrets et jetons sont chiffrés au repos par `CredentialVault` (AES-256-GCM, clé `storage/.vault_master.key` en `0600`). Les montages apparaissent directement comme disques dans l'Explorateur, le Bureau et le sélecteur VFS.
+- **Corbeille 30 jours (`storage/trash/<scope>/`)** : toute suppression standard déplace l'élément dans la corbeille isolée de l'utilisateur avec restauration 1-clic et purge automatique au bout de 30 jours.
+- **Versioning léger (`storage/versions/`)** : chaque écrasement de fichier (upload avec écrasement, `save_text_file`, sauvegarde WASM VFS) conserve automatiquement les **5 dernières révisions** restaurables de façon non destructive (`list_file_versions` / `restore_file_version`).
+- **Uploads fragmentés** : `SyscallClient.uploadChunked()` découpe les fichiers volumineux via `upload_chunk_init` / `upload_chunk` / `upload_chunk_complete` (compatible VFS local et `ext://`, avec contrôle des quotas et de `FormatRegistry`).
+- **Index incrémental SQLite (`file_index`)** : réindexable depuis l'onglet *Stockage & Cloud* (`rebuild_file_index`), filtré systématiquement par ACL avant tout retour de recherche (`search_file_index`).
+
+---
+
 ## 7. Sauvegarde et checklist de mise en production
 
 ### Fichiers critiques à sauvegarder

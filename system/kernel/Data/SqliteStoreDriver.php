@@ -34,7 +34,9 @@ class SqliteStoreDriver implements AtelierStoreInterface {
         'vault_keys',
         'audit_logs',
         'auth_tokens',
-        'user_sessions'
+        'user_sessions',
+        'external_mounts',
+        'file_index'
     ];
 
     public function __construct(string $dbPath) {
@@ -341,6 +343,56 @@ class SqliteStoreDriver implements AtelierStoreInterface {
                 }
                 $ins = $this->pdo->prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)");
                 $ins->execute([4, 'atelier_role_group_user_permissions', time()]);
+                $this->pdo->commit();
+            } catch (\Throwable $e) {
+                $this->pdo->rollBack();
+                throw $e;
+            }
+        }
+
+        if (empty($applied[5])) {
+            $this->pdo->beginTransaction();
+            try {
+                $this->pdo->exec("
+                    CREATE TABLE IF NOT EXISTS external_mounts (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        owner_user_id INTEGER DEFAULT NULL,
+                        target_type TEXT NOT NULL DEFAULT 'user',
+                        target_id INTEGER NOT NULL DEFAULT 0,
+                        driver TEXT NOT NULL,
+                        mount_name TEXT NOT NULL,
+                        mount_icon TEXT NOT NULL DEFAULT '☁️',
+                        permission TEXT NOT NULL DEFAULT 'read',
+                        show_on_desktop INTEGER NOT NULL DEFAULT 1,
+                        config_enc TEXT NOT NULL DEFAULT '',
+                        is_active INTEGER NOT NULL DEFAULT 1,
+                        created_at INTEGER NOT NULL,
+                        updated_at INTEGER NOT NULL
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_external_mounts_owner ON external_mounts(owner_user_id);
+
+                    CREATE TABLE IF NOT EXISTS file_index (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        path TEXT NOT NULL UNIQUE,
+                        parent_dir TEXT NOT NULL DEFAULT '',
+                        name TEXT NOT NULL,
+                        extension TEXT NOT NULL DEFAULT '',
+                        category TEXT NOT NULL DEFAULT 'other',
+                        size_bytes INTEGER NOT NULL DEFAULT 0,
+                        mtime INTEGER NOT NULL DEFAULT 0,
+                        has_gps INTEGER NOT NULL DEFAULT 0,
+                        lat REAL DEFAULT NULL,
+                        lng REAL DEFAULT NULL,
+                        comment TEXT DEFAULT '',
+                        tags_text TEXT DEFAULT '',
+                        indexed_at INTEGER NOT NULL
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_file_index_parent ON file_index(parent_dir);
+                    CREATE INDEX IF NOT EXISTS idx_file_index_name ON file_index(name);
+                    CREATE INDEX IF NOT EXISTS idx_file_index_cat ON file_index(category);
+                ");
+                $ins = $this->pdo->prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)");
+                $ins->execute([5, 'atelier_phase_b_external_mounts_and_file_index', time()]);
                 $this->pdo->commit();
             } catch (\Throwable $e) {
                 $this->pdo->rollBack();

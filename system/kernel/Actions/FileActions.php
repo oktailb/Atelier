@@ -228,6 +228,50 @@ class FileActions {
 
         if ($action === 'upload_file' || $action === 'upload_media') {
             $dir_param = $_POST['dir'] ?? $_GET['dir'] ?? '';
+
+            // Phase B: Direct upload into an external mount (`ext://<mount_id>/...`)
+            $ext_up = \SimpleGallery\Kernel\Storage\ExternalMountManager::parseExternalPath((string)$dir_param);
+            if ($ext_up !== null) {
+                $resolved = \SimpleGallery\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, (int)$ext_up['mount_id']);
+                if (!$resolved || empty($resolved['can_write'])) {
+                    return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_upload_denied')]];
+                }
+                $allowed_exts = FormatRegistry::getAllowedUploadExtensions($project_root, $media_types);
+                $files_input = $_FILES['file'] ?? $_FILES['files'] ?? null;
+                if (!$files_input && !empty($_FILES)) {
+                    $first_key = array_keys($_FILES)[0];
+                    $files_input = $_FILES[$first_key];
+                }
+                if (!$files_input) {
+                    return ['status' => 400, 'data' => ['success' => false, 'error' => 'Aucun fichier reçu pour le téléversement.']];
+                }
+                $is_multi = is_array($files_input['name']);
+                $cnt = $is_multi ? count($files_input['name']) : 1;
+                $uploaded = [];
+                $errs = [];
+                for ($i = 0; $i < $cnt; $i++) {
+                    $raw_n = $is_multi ? $files_input['name'][$i] : $files_input['name'];
+                    $tmp_n = $is_multi ? $files_input['tmp_name'][$i] : $files_input['tmp_name'];
+                    $err_c = $is_multi ? $files_input['error'][$i] : $files_input['error'];
+                    if ($err_c !== UPLOAD_ERR_OK) { $errs[] = "Upload error on '{$raw_n}'."; continue; }
+                    $safe_n = preg_replace('/[^\w\.\-\s]/u', '_', basename($raw_n));
+                    $ext = strtolower(pathinfo($safe_n, PATHINFO_EXTENSION));
+                    if ($safe_n === '' || $safe_n[0] === '.' || FormatRegistry::hasForbiddenDoubleExtension($safe_n) || FormatRegistry::isForbiddenExtension($ext) || !in_array($ext, $allowed_exts, true)) {
+                        $errs[] = "Forbidden format '{$raw_n}'.";
+                        continue;
+                    }
+                    $destRel = $ext_up['rel_path'] === '' ? $safe_n : ($ext_up['rel_path'] . '/' . $safe_n);
+                    $mime = FormatRegistry::getHttpContentType($ext, $project_root, $media_types);
+                    if ($resolved['driver']->putFile($destRel, $tmp_n, $mime)) {
+                        $uploaded[] = ['original_name' => $raw_n, 'saved_name' => $safe_n, 'renamed' => false];
+                    } else {
+                        $errs[] = "External mount write failed for '{$raw_n}'.";
+                    }
+                }
+                $ok = !empty($uploaded);
+                return ['status' => $ok ? 200 : 400, 'data' => ['success' => $ok, 'uploaded' => $uploaded, 'errors' => $errs, 'error' => $ok ? null : implode(' ', $errs)]];
+            }
+
             if (!PermissionsManager::hasPermission('can_upload', $base_dir, (string)$dir_param)) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => 'Accès refusé. Permission d\'upload manquante.']];
             }
@@ -332,11 +376,17 @@ class FileActions {
                     $dest_path = $target_dir . '/' . $target_file_name;
                 }
 
+                if (file_exists($dest_path) && $overwrite) {
+                    $rel_existing = PathValidator::getRelativePath($dest_path, $base_dir);
+                    \SimpleGallery\Kernel\FS\TrashAndVersioningManager::snapshotBeforeOverwrite($project_root, $dest_path, $rel_existing);
+                }
+
                 if (@move_uploaded_file($tmp_name, $dest_path)) {
                     @chmod($dest_path, 0644);
                     if ($ext === 'svg') {
                         SecurityManager::sanitizeSvgContent($dest_path);
                     }
+                    \SimpleGallery\Kernel\FS\FileIndexManager::upsertFile($project_root, $base_dir, $dest_path, $media_types);
                     $uploaded_results[] = [
                         'original_name' => $raw_name,
                         'saved_name'    => $target_file_name,
@@ -367,6 +417,25 @@ class FileActions {
 
         if ($action === 'create_folder') {
             $dir_param = $_POST['dir'] ?? $raw_body['dir'] ?? '';
+            $name_param = trim($_POST['name'] ?? $raw_body['name'] ?? '');
+
+            $ext_mk = \SimpleGallery\Kernel\Storage\ExternalMountManager::parseExternalPath((string)$dir_param);
+            if ($ext_mk !== null) {
+                $resolved = \SimpleGallery\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, (int)$ext_mk['mount_id']);
+                if (!$resolved || empty($resolved['can_write'])) {
+                    return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_create_folder_denied')]];
+                }
+                $clean_name = basename($name_param);
+                if (empty($clean_name) || $clean_name[0] === '.' || preg_match('/[\/\\\\:\*\?"<>\|]/', $clean_name)) {
+                    return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_invalid_folder_name')]];
+                }
+                $relNew = $ext_mk['rel_path'] === '' ? $clean_name : ($ext_mk['rel_path'] . '/' . $clean_name);
+                if ($resolved['driver']->mkdir($relNew)) {
+                    return ['status' => 200, 'data' => ['success' => true, 'message' => __t('api.msg_folder_created'), 'name' => $clean_name]];
+                }
+                return ['status' => 500, 'data' => ['success' => false, 'error' => __t('api.err_folder_create_failed')]];
+            }
+
             if (!PermissionsManager::hasPermission('can_create_folder', $base_dir, (string)$dir_param)) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_create_folder_denied')]];
             }
@@ -606,6 +675,20 @@ class FileActions {
                 ?? $_POST['target_path'] ?? $_GET['target_path'] ?? $raw_body['target_path']
                 ?? $_POST['path'] ?? $_GET['path'] ?? $raw_body['path']
                 ?? $_POST['file'] ?? $raw_body['file'] ?? '';
+
+            // Phase B: Delete inside an external mount (`ext://<mount_id>/...`)
+            $ext_del = \SimpleGallery\Kernel\Storage\ExternalMountManager::parseExternalPath((string)$target_param);
+            if ($ext_del !== null) {
+                $resolved = \SimpleGallery\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, (int)$ext_del['mount_id']);
+                if (!$resolved || empty($resolved['can_write']) || $ext_del['rel_path'] === '') {
+                    return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_delete_denied')]];
+                }
+                if ($resolved['driver']->delete($ext_del['rel_path'])) {
+                    return ['status' => 200, 'data' => ['success' => true, 'message' => __t('api.msg_item_deleted')]];
+                }
+                return ['status' => 500, 'data' => ['success' => false, 'error' => __t('api.err_delete_failed')]];
+            }
+
             $target_full = PathValidator::canonicalizeAndValidate((string)$target_param, $base_dir, true, false);
 
             if ($target_full === null || !file_exists($target_full)) {
@@ -629,31 +712,49 @@ class FileActions {
             }
 
             $parent_dir = dirname($target_full);
+            $permanent = !empty($raw_body['permanent']) || !empty($_POST['permanent']) || !empty($raw_body['hard_delete']);
             $success = false;
+            $trash_item = null;
 
-            if (is_dir($target_full)) {
-                $recursive_delete = function(string $dir) use (&$recursive_delete): bool {
-                    $items = @scandir($dir);
-                    if ($items === false) return false;
-                    foreach ($items as $item) {
-                        if ($item === '.' || $item === '..') continue;
-                        $path = $dir . '/' . $item;
-                        if (is_dir($path)) {
-                            if (!$recursive_delete($path)) return false;
-                        } else {
-                            if (!@unlink($path)) return false;
+            if (!$permanent) {
+                $tr_res = \SimpleGallery\Kernel\FS\TrashAndVersioningManager::moveToTrash($project_root, $target_full, $target_rel_clean);
+                if (!empty($tr_res['success'])) {
+                    $success = true;
+                    $trash_item = $tr_res['item'] ?? null;
+                }
+            }
+
+            if (!$success) {
+                if (is_dir($target_full)) {
+                    $recursive_delete = function(string $dir) use (&$recursive_delete): bool {
+                        $items = @scandir($dir);
+                        if ($items === false) return false;
+                        foreach ($items as $item) {
+                            if ($item === '.' || $item === '..') continue;
+                            $path = $dir . '/' . $item;
+                            if (is_dir($path)) {
+                                if (!$recursive_delete($path)) return false;
+                            } else {
+                                if (!@unlink($path)) return false;
+                            }
                         }
-                    }
-                    return @rmdir($dir);
-                };
-                $success = $recursive_delete($target_full);
-            } else {
-                $success = @unlink($target_full);
+                        return @rmdir($dir);
+                    };
+                    $success = $recursive_delete($target_full);
+                } else {
+                    $success = @unlink($target_full);
+                }
             }
 
             if ($success) {
                 CacheManager::invalidateDirCache($parent_dir, $base_dir, $thumb_dir_name);
-                return ['status' => 200, 'data' => ['success' => true, 'message' => __t('api.msg_item_deleted')]];
+                \SimpleGallery\Kernel\FS\FileIndexManager::removePath($project_root, $target_rel_clean);
+                return ['status' => 200, 'data' => [
+                    'success'    => true,
+                    'trashed'    => $trash_item !== null,
+                    'trash_item' => $trash_item,
+                    'message'    => __t('api.msg_item_deleted')
+                ]];
             }
 
             return ['status' => 500, 'data' => ['success' => false, 'error' => __t('api.err_delete_failed')]];
@@ -763,6 +864,25 @@ class FileActions {
         if ($action === 'save_text_file' || $action === 'save_file_content') {
             $file_param = $raw_body['file'] ?? $raw_body['path'] ?? $_POST['file'] ?? $_POST['path'] ?? '';
             $content    = $raw_body['content'] ?? $_POST['content'] ?? '';
+
+            // Phase B: Save text file inside an external mount (`ext://<mount_id>/...`)
+            $ext_save = \SimpleGallery\Kernel\Storage\ExternalMountManager::parseExternalPath((string)$file_param);
+            if ($ext_save !== null) {
+                $resolved = \SimpleGallery\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, (int)$ext_save['mount_id']);
+                if (!$resolved || empty($resolved['can_write']) || $ext_save['rel_path'] === '') {
+                    return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_save_denied')]];
+                }
+                $ext = strtolower(pathinfo($ext_save['rel_path'], PATHINFO_EXTENSION));
+                if (FormatRegistry::isForbiddenExtension($ext)) {
+                    return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_forbidden_file_type')]];
+                }
+                $mime = FormatRegistry::getHttpContentType($ext, $project_root, $media_types);
+                if ($resolved['driver']->putContent($ext_save['rel_path'], (string)$content, $mime)) {
+                    return ['status' => 200, 'data' => ['success' => true, 'message' => __t('api.msg_file_saved')]];
+                }
+                return ['status' => 500, 'data' => ['success' => false, 'error' => __t('api.err_file_save_failed')]];
+            }
+
             if (!PermissionsManager::hasPermission('can_upload', $base_dir, (string)$file_param) && !AuthManager::isAdminLoggedIn()) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_save_denied')]];
             }
@@ -793,10 +913,16 @@ class FileActions {
                 }
             }
 
+            if (is_file($file_full)) {
+                $rel_v = PathValidator::getRelativePath($file_full, $base_dir);
+                \SimpleGallery\Kernel\FS\TrashAndVersioningManager::snapshotBeforeOverwrite($project_root, $file_full, $rel_v);
+            }
+
             if (@file_put_contents($file_full, (string)$content, LOCK_EX) !== false) {
                 if ($ext === 'svg') {
                     SecurityManager::sanitizeSvgContent($file_full);
                 }
+                \SimpleGallery\Kernel\FS\FileIndexManager::upsertFile($project_root, $base_dir, $file_full, $media_types);
                 if ($is_allowed_dotfile) {
                     $dir = dirname($file_full);
                     $alt_name = (strtolower($filename) === '.autorun.json') ? 'autorun.json' : '.autorun.json';

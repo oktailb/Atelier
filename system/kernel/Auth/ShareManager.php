@@ -181,6 +181,26 @@ class ShareManager {
                     'is_encrypted'    => false
                 ];
             }
+            if (AuthManager::isAdminLoggedIn()) {
+                try {
+                    foreach (\SimpleGallery\Kernel\Storage\ExternalMountManager::listAccessibleMounts($projectRoot) as $em) {
+                        $volumes[] = [
+                            'id'              => 'vol-ext-' . (int)$em['id'],
+                            'mount_id'        => (int)$em['id'],
+                            'kind'            => 'external',
+                            'driver'          => (string)$em['driver'],
+                            'mount_name'      => (string)$em['mount_name'],
+                            'mount_icon'      => (string)($em['mount_icon'] ?: '☁️'),
+                            'path'            => 'ext://' . (int)$em['id'],
+                            'permission'      => (string)($em['permission'] ?? 'write'),
+                            'owner_username'  => (string)$em['driver'],
+                            'owner_name'      => strtoupper((string)$em['driver']),
+                            'show_on_desktop' => !empty($em['show_on_desktop']),
+                            'is_encrypted'    => false
+                        ];
+                    }
+                } catch (\Throwable $e) {}
+            }
             return $volumes;
         }
 
@@ -257,6 +277,27 @@ class ShareManager {
                 'expires_at'      => isset($s['expires_at']) ? (int)$s['expires_at'] : null
             ];
         }
+
+        // 3. External Cloud & Storage Mounts (`ext://<id>`)
+        try {
+            $extMounts = \SimpleGallery\Kernel\Storage\ExternalMountManager::listAccessibleMounts($projectRoot);
+            foreach ($extMounts as $em) {
+                $volumes[] = [
+                    'id'              => 'vol-ext-' . (int)$em['id'],
+                    'mount_id'        => (int)$em['id'],
+                    'kind'            => 'external',
+                    'driver'          => (string)$em['driver'],
+                    'mount_name'      => (string)$em['mount_name'],
+                    'mount_icon'      => (string)($em['mount_icon'] ?: '☁️'),
+                    'path'            => 'ext://' . (int)$em['id'],
+                    'permission'      => (string)($em['permission'] ?? 'read'),
+                    'owner_username'  => (string)$em['driver'],
+                    'owner_name'      => strtoupper((string)$em['driver']),
+                    'show_on_desktop' => !empty($em['show_on_desktop']),
+                    'is_encrypted'    => false
+                ];
+            }
+        } catch (\Throwable $e) {}
 
         return $volumes;
     }

@@ -1887,6 +1887,189 @@ HTACCESS;
             strpos($htaccess_src, 'system/endpoints/export.php?token=$1') !== false
         );
 
+        // 10.11 Phase B: CredentialVault, S3 SigV4, WebDAV XML, External Mounts, Chunked Uploads, Trash, Versioning & FileIndex
+        $vault_secret = ['password' => 'UltraSecretDav99!', 'access_key' => 'AKIA_TEST'];
+        $vault_enc = \SimpleGallery\Kernel\Storage\CredentialVault::encryptJson($p1_root, $vault_secret);
+        $vault_dec = \SimpleGallery\Kernel\Storage\CredentialVault::decryptJson($p1_root, $vault_enc);
+        $this->assert("Phase B: CredentialVault chiffre en AES-256-GCM au repos sans exposer le secret en clair",
+            $vault_enc !== '' &&
+            strpos($vault_enc, 'UltraSecretDav99!') === false &&
+            ($vault_dec['password'] ?? '') === 'UltraSecretDav99!'
+        );
+
+        // S3 SigV4 presigned URL + WebDAV safe XML parser
+        $s3_drv = new \SimpleGallery\Kernel\Storage\S3StorageDriver([
+            'endpoint'   => 'https://r2.example.com',
+            'region'     => 'auto',
+            'bucket'     => 'atelier-media',
+            'access_key' => 'AKIAEXAMPLE',
+            'secret_key' => 'SECRETEXAMPLE'
+        ]);
+        $presigned = $s3_drv->buildPresignedGetUrl('studio/photo.jpg', 600, 1700000000);
+        $dav_drv = new \SimpleGallery\Kernel\Storage\WebDavStorageDriver(['endpoint' => 'https://cloud.example.com/dav/']);
+        $dav_xml = '<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">'
+            . '<d:response><d:href>/dav/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat></d:response>'
+            . '<d:response><d:href>/dav/Photos/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat></d:response>'
+            . '<d:response><d:href>/dav/report.pdf</d:href><d:propstat><d:prop><d:resourcetype/><d:getcontentlength>4096</d:getcontentlength></d:prop></d:propstat></d:response>'
+            . '</d:multistatus>';
+        $dav_parsed = $dav_drv->parsePropfindXml($dav_xml);
+        $this->assert("Phase B: S3StorageDriver génère une URL présignée SigV4 valide & WebDavStorageDriver parse PROPFIND",
+            strpos($presigned, 'X-Amz-Algorithm=AWS4-HMAC-SHA256') !== false &&
+            strpos($presigned, 'X-Amz-Signature=') !== false &&
+            count($dav_parsed['directories']) === 1 && ($dav_parsed['directories'][0]['name'] ?? '') === 'Photos' &&
+            count($dav_parsed['files']) === 1 && ($dav_parsed['files'][0]['name'] ?? '') === 'report.pdf' &&
+            (int)($dav_parsed['files'][0]['size'] ?? 0) === 4096
+        );
+
+        // External Mount isolation & transparent VFS operations (`ext://<id>`)
+        $ext_disk = $this->temp_test_dir . '/phase_b_ext_disk';
+        @mkdir($ext_disk, 0755, true);
+        file_put_contents($ext_disk . '/welcome.txt', 'Hello from external mount');
+
+        // Non-admin cannot create local mount (403)
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
+        $non_admin_local = \SimpleGallery\Kernel\Actions\StorageActions::handle('create_external_mount', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['driver' => 'local', 'mount_name' => 'HackLocal', 'config' => ['root_dir' => $ext_disk]]
+        ]);
+
+        // Admin creates personal/user external mount for Alice (`desk_alice`)
+        $_SESSION['is_admin'] = true;
+        $_SESSION['sg_admin_logged'] = true;
+        $ext_create = \SimpleGallery\Kernel\Actions\StorageActions::handle('create_external_mount', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => [
+                'driver'      => 'local',
+                'mount_name'  => 'Studio External',
+                'permission'  => 'write',
+                'target_type' => 'user',
+                'target_id'   => $desk_a['user']['id'],
+                'config'      => ['root_dir' => $ext_disk]
+            ]
+        ]);
+        $ext_id = (int)($ext_create['data']['mount']['id'] ?? 0);
+        $ext_path = 'ext://' . $ext_id;
+
+        // Alice lists & creates folder/file in ext://<id>; Bob is denied (403)!
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
+        $alice_ext_gal = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => $ext_path], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
+        $alice_ext_mk = \SimpleGallery\Kernel\Actions\FileActions::handle('create_folder', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root,
+            'raw_body' => ['dir' => $ext_path, 'name' => 'exports']
+        ]);
+        $alice_ext_save = \SimpleGallery\Kernel\Actions\FileActions::handle('save_text_file', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root,
+            'raw_body' => ['file' => $ext_path . '/exports/note.txt', 'content' => 'Saved via ext:// VFS']
+        ]);
+
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
+        $bob_ext_gal = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => $ext_path], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
+
+        $this->assert("Phase B: Volume externe ext://<id> transparent pour Alice (list/mkdir/save) et refusé à Bob (403)",
+            ($non_admin_local['status'] ?? 0) === 403 &&
+            ($ext_create['status'] ?? 0) === 200 && $ext_id > 0 &&
+            ($alice_ext_gal['status'] ?? 0) === 200 &&
+            count($alice_ext_gal['data']['files'] ?? []) === 1 &&
+            ($alice_ext_mk['status'] ?? 0) === 200 &&
+            ($alice_ext_save['status'] ?? 0) === 200 &&
+            @file_get_contents($ext_disk . '/exports/note.txt') === 'Saved via ext:// VFS' &&
+            ($bob_ext_gal['status'] ?? 0) === 403
+        );
+
+        // Chunked resumable upload (both rejected dangerous extension & valid 2-chunk reassembly into ext://)
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
+        $chunk_bad = \SimpleGallery\Kernel\Actions\StorageActions::handle('upload_chunk_init', [], [
+            'base_dir' => $p1_root, 'media_types' => $mtypes,
+            'raw_body' => ['dir' => 'users/desk_alice', 'filename' => 'evil.php', 'total_size' => 10, 'total_chunks' => 1]
+        ]);
+        $chunk_init = \SimpleGallery\Kernel\Actions\StorageActions::handle('upload_chunk_init', [], [
+            'base_dir' => $p1_root, 'media_types' => $mtypes,
+            'raw_body' => ['dir' => $ext_path, 'filename' => 'big_note.txt', 'total_size' => 12, 'total_chunks' => 2]
+        ]);
+        $up_id = (string)($chunk_init['data']['upload_id'] ?? '');
+        $ch0 = \SimpleGallery\Kernel\Actions\StorageActions::handle('upload_chunk', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['upload_id' => $up_id, 'chunk_index' => 0, 'chunk_base64' => base64_encode('Hello ')]
+        ]);
+        $ch1 = \SimpleGallery\Kernel\Actions\StorageActions::handle('upload_chunk', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['upload_id' => $up_id, 'chunk_index' => 1, 'chunk_base64' => base64_encode('World!')]
+        ]);
+        $ch_done = \SimpleGallery\Kernel\Actions\StorageActions::handle('upload_chunk_complete', [], [
+            'base_dir' => $p1_root, 'media_types' => $mtypes,
+            'raw_body' => ['upload_id' => $up_id]
+        ]);
+        $this->assert("Phase B: Uploads fragmentés assemblent exactement les chunks sur ext:// et bloquent .php (400)",
+            ($chunk_bad['status'] ?? 0) === 400 &&
+            ($chunk_init['status'] ?? 0) === 200 &&
+            ($ch0['status'] ?? 0) === 200 && ($ch1['status'] ?? 0) === 200 &&
+            ($ch_done['status'] ?? 0) === 200 &&
+            @file_get_contents($ext_disk . '/big_note.txt') === 'Hello World!'
+        );
+
+        // Soft-delete Trash (30d) + 1-click Restore + Automatic File Versioning on Overwrite
+        $v_file_rel = 'users/desk_alice/doc_ver.txt';
+        $v_file_abs = $users_root . '/desk_alice/doc_ver.txt';
+        file_put_contents($v_file_abs, 'Version 1 content');
+        \SimpleGallery\Kernel\Actions\FileActions::handle('save_text_file', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root,
+            'raw_body' => ['file' => $v_file_rel, 'content' => 'Version 2 content']
+        ]);
+        $vers_list = \SimpleGallery\Kernel\Actions\StorageActions::handle('list_file_versions', [], [
+            'base_dir' => $p1_root, 'raw_body' => ['file' => $v_file_rel]
+        ]);
+        $v1_id = (string)($vers_list['data']['versions'][0]['version_id'] ?? '');
+        $v_restore = \SimpleGallery\Kernel\Actions\StorageActions::handle('restore_file_version', [], [
+            'base_dir' => $p1_root, 'raw_body' => ['file' => $v_file_rel, 'version_id' => $v1_id]
+        ]);
+        $after_v_restore = @file_get_contents($v_file_abs);
+
+        // Soft-delete into Trash and restore back
+        $del_soft = \SimpleGallery\Kernel\Actions\FileActions::handle('delete_item', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root,
+            'raw_body' => ['target' => $v_file_rel]
+        ]);
+        $trash_id = (string)($del_soft['data']['trash_item']['id'] ?? '');
+        $gone_before_restore = !file_exists($v_file_abs);
+        $tr_restore = \SimpleGallery\Kernel\Actions\StorageActions::handle('restore_trash_item', [], [
+            'base_dir' => $p1_root, 'raw_body' => ['trash_id' => $trash_id]
+        ]);
+        $back_after_restore = file_exists($v_file_abs) && @file_get_contents($v_file_abs) === 'Version 1 content';
+
+        $this->assert("Phase B: Versioning auto à l'écrasement + Corbeille 30j avec restauration 1-clic",
+            $v1_id !== '' &&
+            ($v_restore['status'] ?? 0) === 200 &&
+            $after_v_restore === 'Version 1 content' &&
+            !empty($del_soft['data']['trashed']) &&
+            $gone_before_restore === true &&
+            ($tr_restore['status'] ?? 0) === 200 &&
+            $back_after_restore === true
+        );
+
+        // SQLite Incremental FileIndex & strict ACL search isolation
+        $_SESSION['is_admin'] = true;
+        $_SESSION['sg_admin_logged'] = true;
+        $idx1 = \SimpleGallery\Kernel\Actions\StorageActions::handle('rebuild_file_index', [], [
+            'base_dir' => $p1_root, 'media_types' => $mtypes
+        ]);
+        $idx2 = \SimpleGallery\Kernel\Actions\StorageActions::handle('rebuild_file_index', [], [
+            'base_dir' => $p1_root, 'media_types' => $mtypes
+        ]);
+        // Bob searching for Alice's doc_ver.txt via index must get ZERO results!
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
+        $bob_idx_search = \SimpleGallery\Kernel\Actions\StorageActions::handle('search_file_index', [], [
+            'base_dir' => $p1_root, 'raw_body' => ['q' => 'doc_ver']
+        ]);
+        $pub_idx_search = \SimpleGallery\Kernel\Actions\StorageActions::handle('search_file_index', [], [
+            'base_dir' => $p1_root, 'raw_body' => ['q' => 'public_gallery']
+        ]);
+        $this->assert("Phase B: Index incrémental SQLite saute les fichiers inchangés et filtre strictement par ACL",
+            ($idx1['data']['total'] ?? 0) >= 2 &&
+            ($idx2['data']['skipped'] ?? 0) >= 2 &&
+            count($bob_idx_search['data']['results'] ?? []) === 0 &&
+            count($pub_idx_search['data']['results'] ?? []) >= 1
+        );
+
         $_SESSION = $saved_sess;
         \SimpleGallery\Kernel\Security\RateLimiter::reset('register_' . $cli_ip);
         \SimpleGallery\Kernel\Security\RateLimiter::reset('login_' . $cli_ip);

@@ -45,6 +45,13 @@ class GalleryActions {
 
     public static function getGallery(array $params, string $base_dir, array $media_types, array $ignore_list, string $gallery_title, string $thumbnail_dir): array {
         $requested_dir = $params['dir'] ?? '';
+
+        // Phase B: Transparent Virtual Mount browsing (`ext://<mount_id>/...`)
+        $extParsed = \SimpleGallery\Kernel\Storage\ExternalMountManager::parseExternalPath((string)$requested_dir);
+        if ($extParsed !== null) {
+            return self::getExternalGallery($extParsed, $base_dir, $media_types, $gallery_title);
+        }
+
         $target_dir = PathValidator::sanitizePath($requested_dir, $base_dir);
 
         if (!$target_dir || !is_dir($target_dir)) {
@@ -353,6 +360,113 @@ class GalleryActions {
         ];
 
         return ['status' => 200, 'data' => $output_data];
+    }
+
+    /**
+     * Phase B: Renders an external storage mount (`ext://<mount_id>/...`) in standard Explorer gallery format.
+     */
+    private static function getExternalGallery(array $extParsed, string $base_dir, array $media_types, string $gallery_title): array {
+        $project_root = \SimpleGallery\Kernel\Config\ConfigStore::resolveRoot($base_dir);
+        $mountId = (int)$extParsed['mount_id'];
+        $rel = (string)$extParsed['rel_path'];
+        $resolved = \SimpleGallery\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, $mountId);
+        if (!$resolved) {
+            return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied', [], null, $base_dir)]];
+        }
+
+        $mount = $resolved['mount'];
+        $driver = $resolved['driver'];
+        $canWrite = !empty($resolved['can_write']);
+        $prefix = 'ext://' . $mountId;
+        $currentPath = $rel === '' ? $prefix : ($prefix . '/' . $rel);
+
+        $listing = $driver->listDir($rel);
+        $directories = [];
+        foreach ($listing['directories'] ?? [] as $d) {
+            $dPath = $prefix . '/' . ltrim((string)$d['path'], '/');
+            $directories[] = [
+                'name'      => (string)$d['name'],
+                'raw_name'  => (string)$d['name'],
+                'path'      => $dPath,
+                'mtime'     => (int)($d['mtime'] ?? 0),
+                'count'     => 0,
+                'cover_url' => null,
+                'is_locked' => false,
+                'is_private'=> false
+            ];
+        }
+
+        $files = [];
+        foreach ($listing['files'] ?? [] as $f) {
+            $name = (string)$f['name'];
+            $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+            $cat = ExifParser::getMediaCategory($ext, $media_types);
+            $fPath = $prefix . '/' . ltrim((string)$f['path'], '/');
+            $encPath = rawurlencode($fPath);
+            $size = (int)($f['size'] ?? 0);
+            $mtime = (int)($f['mtime'] ?? 0);
+            $files[] = [
+                'name'           => $name,
+                'path'           => $fPath,
+                'extension'      => $ext,
+                'category'       => $cat,
+                'size'           => $size,
+                'size_formatted' => ExifParser::formatBytes($size),
+                'mtime'          => $mtime,
+                'date_formatted' => $mtime > 0 ? date('d/m/Y H:i', $mtime) : '',
+                'thumb_url'      => 'system/endpoints/thumb.php?file=' . $encPath,
+                'file_url'       => 'system/endpoints/thumb.php?file=' . $encPath . '&raw=1',
+                'download_url'   => 'system/endpoints/thumb.php?file=' . $encPath . '&download=1',
+                'comment'        => '',
+                'external_driver'=> (string)$mount['driver']
+            ];
+        }
+
+        $breadcrumbs = [
+            ['name' => $gallery_title, 'path' => ''],
+            ['name' => ($mount['mount_icon'] ?? '☁️') . ' ' . $mount['mount_name'], 'path' => $prefix]
+        ];
+        $parentPath = '';
+        if ($rel !== '') {
+            $parts = explode('/', $rel);
+            $acc = '';
+            foreach ($parts as $p) {
+                $acc = $acc === '' ? $p : ($acc . '/' . $p);
+                $breadcrumbs[] = ['name' => $p, 'path' => $prefix . '/' . $acc];
+            }
+            $parentRel = strpos($rel, '/') !== false ? dirname($rel) : '';
+            $parentPath = $parentRel === '' ? $prefix : ($prefix . '/' . $parentRel);
+        }
+
+        return ['status' => 200, 'data' => [
+            'success'            => true,
+            'csrf_token'         => SecurityManager::getCsrfToken(),
+            'title'              => (string)$mount['mount_name'],
+            'current_path'       => $currentPath,
+            'parent_path'        => $parentPath,
+            'breadcrumbs'        => $breadcrumbs,
+            'overrides'          => [],
+            'directories'        => $directories,
+            'files'              => $files,
+            'is_admin'           => AuthManager::isAdminLoggedIn(),
+            'is_external_mount'  => true,
+            'external_driver'    => (string)$mount['driver'],
+            'user_permissions'   => PermissionsManager::resolveEffectivePermissions($base_dir),
+            'user_rights'        => [
+                'is_admin'             => AuthManager::isAdminLoggedIn(),
+                'can_upload'           => $canWrite,
+                'can_delete'           => $canWrite,
+                'can_move'             => $canWrite,
+                'can_comment'          => false,
+                'can_create_folder'    => $canWrite,
+                'can_download_archive' => false,
+                'can_download_item'    => true
+            ],
+            'stats'              => [
+                'directory_count' => count($directories),
+                'file_count'      => count($files)
+            ]
+        ]];
     }
 
     public static function getMetadata(array $params, string $base_dir, array $media_types): array {

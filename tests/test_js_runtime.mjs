@@ -1388,6 +1388,19 @@ try {
     adminGuideText.includes('AccountExportService')
   );
 
+  // Verify Phase B frontend integration (SyscallClient.uploadChunked + Control Panel Storage/Cloud/Trash/Index tab)
+  const syscallCode = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'core', 'SyscallClient.js'), 'utf8');
+  assert("Phase B UI & Client: SyscallClient.uploadChunked + onglet Stockage & Cloud (montages externes, corbeille 30j, index SQLite)",
+    syscallCode.includes('async uploadChunked(') &&
+    syscallCode.includes('upload_chunk_init') &&
+    syscallCode.includes('upload_chunk_complete') &&
+    settingsUiCode.includes("id: 'storage'") &&
+    usersPanelUiCode.includes('renderStorageSection') &&
+    usersPanelUiCode.includes('create_external_mount') &&
+    usersPanelUiCode.includes('restore_trash_item') &&
+    usersPanelUiCode.includes('rebuild_file_index')
+  );
+
   // Verify users-panel.js registers custom section cleanly without syntax errors
   const usersPanelCode = fs.readFileSync(usersPanelPath, 'utf8');
   const registeredSections = [];
