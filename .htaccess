@@ -14,9 +14,12 @@ Options -Indexes
     RewriteRule ^api\.php$ system/endpoints/api.php [L,QSA]
     RewriteRule ^thumb\.php$ system/endpoints/thumb.php [L,QSA]
     RewriteRule ^archive\.php$ system/endpoints/archive.php [L,QSA]
+    RewriteRule ^export\.php$ system/endpoints/export.php [L,QSA]
 
     # Short signed share link route (/s/<token> -> index.php?share=<token>)
     RewriteRule ^s/([A-Za-z0-9_-]{12,128})/?$ index.php?share=$1 [L,QSA]
+    # Short signed account export route (/e/<token> -> system/endpoints/export.php?token=<token>)
+    RewriteRule ^e/([A-Za-z0-9_-]{12,128})/?$ system/endpoints/export.php?token=$1 [L,QSA]
 
     # Fallback for split-bundle WASM/Trunk standalone web apps whose app/*.js imports ./snippets/* located at package root
     RewriteCond %{REQUEST_FILENAME} !-f

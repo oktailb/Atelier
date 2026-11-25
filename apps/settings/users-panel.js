@@ -1043,10 +1043,352 @@
     }
   }
 
+  function formatBytesSize(bytes) {
+    const b = Number(bytes) || 0;
+    if (b >= 1024 * 1024 * 1024) return (b / (1024 * 1024 * 1024)).toFixed(2) + ' Go';
+    if (b >= 1024 * 1024) return (b / (1024 * 1024)).toFixed(2) + ' Mo';
+    if (b >= 1024) return (b / 1024).toFixed(1) + ' Ko';
+    return b + ' o';
+  }
+
+  function showPostDeletionExportModal(exp, settingsApp) {
+    if (!exp || typeof document === 'undefined') return;
+    const t = (k, p) => settingsApp.t(k, p);
+    const old = document.getElementById('atelierPostDeleteExportModal');
+    if (old) old.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'atelierPostDeleteExportModal';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:100250;background:rgba(15,23,42,0.82);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:18px;';
+
+    const box = document.createElement('div');
+    box.style.cssText = 'width:560px;max-width:96vw;max-height:90vh;overflow-y:auto;background:var(--window-bg,#0f172a);color:var(--text-main,#f8fafc);border:1px solid var(--border-color,rgba(255,255,255,0.14));border-radius:16px;box-shadow:0 24px 60px rgba(0,0,0,0.55);padding:22px;display:flex;flex-direction:column;gap:14px;';
+
+    box.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div style="font-weight:700;font-size:1.05rem;">📦 ${esc(t('account.deleted_export_modal_title'))}</div>
+        <button type="button" id="postDelCloseBtn" style="background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer;">✕</button>
+      </div>
+      <p style="margin:0;font-size:0.86rem;color:var(--text-muted);line-height:1.5;">
+        ${esc(t('account.deleted_export_modal_desc'))}
+      </p>
+      <div style="padding:12px;border-radius:10px;border:1px solid var(--border-color);background:var(--bg-card);display:flex;flex-direction:column;gap:6px;font-size:0.82rem;">
+        <div><strong>${esc(t('account.export_file_label'))}:</strong> ${esc(exp.filename)} (${esc(formatBytesSize(exp.size_bytes))} · ${Number(exp.file_count) || 0})</div>
+        <div><strong>${esc(t('account.export_expires_label'))}:</strong> ${esc(formatTs(exp.expires_at))}</div>
+        <div><strong>SHA-256:</strong> <code style="font-size:0.74rem;word-break:break-all;">${esc(exp.sha256 || '')}</code></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a href="${esc(exp.download_url)}" class="sysmon-action-btn" style="flex:1;justify-content:center;padding:9px 14px;background:var(--accent-primary,#6366f1);color:#fff;font-weight:600;text-decoration:none;">
+          ⬇️ ${esc(t('account.export_download_btn'))}
+        </a>
+        <button type="button" id="postDelCopyPortalBtn" class="sysmon-action-btn" style="padding:9px 12px;">
+          📋 ${esc(t('account.export_copy_link_btn'))}
+        </button>
+        <a href="${esc(exp.portal_url)}" target="_blank" rel="noopener" class="sysmon-action-btn" style="padding:9px 12px;text-decoration:none;">
+          🔗 ${esc(t('account.export_open_portal_btn'))}
+        </a>
+      </div>
+      <div id="postDelReceiptZone" style="display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--border-color);padding-top:12px;">
+        <button type="button" id="postDelConfirmReceiptBtn" class="sysmon-action-btn" style="justify-content:center;padding:9px 14px;background:#16a34a;color:#fff;font-weight:600;">
+          ✅ ${esc(t('account.export_confirm_receipt_btn'))}
+        </button>
+        <div id="postDelReceiptStatus" style="font-size:0.8rem;color:var(--text-muted);"></div>
+      </div>
+    `;
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    box.querySelector('#postDelCloseBtn')?.addEventListener('click', () => overlay.remove());
+    box.querySelector('#postDelCopyPortalBtn')?.addEventListener('click', () => {
+      copyText(exp.portal_url || exp.download_url || '').then(() => settingsApp.toast.success(t('users.copied_toast')));
+    });
+    box.querySelector('#postDelConfirmReceiptBtn')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const statusEl = box.querySelector('#postDelReceiptStatus');
+      btn.disabled = true;
+      const r = await settingsApp.api.post('confirm_account_export_receipt', { token: exp.token });
+      if (r && r.success) {
+        if (statusEl) {
+          statusEl.style.color = '#22c55e';
+          statusEl.textContent = '✅ ' + t('account.export_receipt_confirmed_toast');
+        }
+        settingsApp.toast.success(t('account.export_receipt_confirmed_toast'));
+      } else {
+        btn.disabled = false;
+        if (statusEl) {
+          statusEl.style.color = '#f87171';
+          statusEl.textContent = '⚠️ ' + ((r && r.error) || t('users.action_error'));
+        }
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // ACCOUNT DATA EXPORT (SIGNED ZIP) & SELF-DELETION DANGER ZONE
+  // ---------------------------------------------------------------------------
+  async function renderAccountDangerZoneCard(container, settingsApp) {
+    if (!container || !settingsApp) return;
+    const t = (k, p) => settingsApp.t(k, p);
+    const currentUser = (window.sys && window.sys.shares && typeof window.sys.shares.getCurrentUser === 'function')
+      ? window.sys.shares.getCurrentUser()
+      : window.SG_CURRENT_USER;
+    if (!currentUser || !currentUser.id) {
+      container.innerHTML = '';
+      return;
+    }
+
+    const listRes = await settingsApp.api.get('list_account_exports');
+    const exportsList = (listRes && listRes.success && Array.isArray(listRes.exports)) ? listRes.exports : [];
+    const lastCreated = settingsApp.state && settingsApp.state.lastAccountExport ? settingsApp.state.lastAccountExport : null;
+
+    const latestExportHtml = lastCreated ? `
+      <div style="margin-top:10px;padding:12px;border-radius:10px;border:1px solid rgba(99,102,241,0.45);background:rgba(99,102,241,0.08);display:flex;flex-direction:column;gap:8px;font-size:0.82rem;">
+        <div style="font-weight:700;color:var(--text-main);">📦 ${esc(lastCreated.filename)} (${esc(formatBytesSize(lastCreated.size_bytes))} · ${Number(lastCreated.file_count) || 0})</div>
+        <div style="color:var(--text-muted);font-size:0.76rem;">
+          ${esc(t('account.export_expires_label'))}: <strong>${esc(formatTs(lastCreated.expires_at))}</strong>
+        </div>
+        <div style="font-size:0.74rem;color:var(--text-muted);">
+          SHA-256: <code style="word-break:break-all;">${esc(lastCreated.sha256 || '')}</code>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <a href="${esc(lastCreated.download_url)}" class="sysmon-action-btn" id="acctExportDownloadLink" style="padding:6px 12px;background:var(--accent-primary,#6366f1);color:#fff;font-weight:600;text-decoration:none;font-size:0.78rem;">
+            ⬇️ ${esc(t('account.export_download_btn'))}
+          </a>
+          <button type="button" id="acctExportCopyPortalBtn" class="sysmon-action-btn" style="padding:6px 10px;font-size:0.78rem;">
+            📋 ${esc(t('account.export_copy_link_btn'))}
+          </button>
+          <a href="${esc(lastCreated.portal_url)}" target="_blank" rel="noopener" class="sysmon-action-btn" style="padding:6px 10px;text-decoration:none;font-size:0.78rem;">
+            🔗 ${esc(t('account.export_open_portal_btn'))}
+          </a>
+          <button type="button" id="acctExportConfirmTokenBtn" class="sysmon-action-btn" style="padding:6px 12px;background:#16a34a;color:#fff;font-weight:600;font-size:0.78rem;">
+            ✅ ${esc(t('account.export_confirm_receipt_btn'))}
+          </button>
+        </div>
+      </div>
+    ` : '';
+
+    const activeExportsHtml = exportsList.length > 0 ? `
+      <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
+        ${exportsList.map(ex => {
+          const completed = Boolean(ex.download_completed_at);
+          return `
+            <div style="${rowStyle}">
+              <div style="display:flex;flex-direction:column;gap:2px;font-size:0.79rem;">
+                <div style="font-weight:600;color:var(--text-main);">
+                  📦 ${esc(ex.filename)} <span style="font-weight:400;color:var(--text-muted);">(${esc(formatBytesSize(ex.size_bytes))})</span>
+                  <span style="margin-left:6px;padding:1px 7px;border-radius:99px;font-size:0.68rem;background:${completed ? 'rgba(34,197,94,0.16)' : 'rgba(245,158,11,0.16)'};color:${completed ? '#22c55e' : '#f59e0b'};font-weight:700;">
+                    ${esc(completed ? t('account.export_status_downloaded') : t('account.export_status_pending'))}
+                  </span>
+                </div>
+                <div style="font-size:0.72rem;color:var(--text-muted);">
+                  ${esc(t('account.export_expires_label'))}: ${esc(formatTs(ex.expires_at))} · SHA-256: <code>${esc((ex.sha256 || '').slice(0, 16))}…</code>
+                </div>
+              </div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                ${completed ? `
+                  <button type="button" class="acct-export-confirm-id-btn" data-id="${ex.id}" style="padding:4px 9px;border-radius:6px;border:none;background:#16a34a;color:#fff;cursor:pointer;font-size:0.74rem;font-weight:600;">
+                    ✅ ${esc(t('account.export_confirm_receipt_short'))}
+                  </button>
+                ` : ''}
+                <button type="button" class="acct-export-discard-id-btn" data-id="${ex.id}" style="padding:4px 9px;border-radius:6px;border:1px solid rgba(239,68,68,0.4);background:rgba(239,68,68,0.12);color:#ef4444;cursor:pointer;font-size:0.74rem;">
+                  🗑️ ${esc(t('account.export_purge_btn'))}
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    ` : '';
+
+    const exportCardHtml = window.sys.ui.card({
+      title: 'account.export_title',
+      icon: '📦',
+      content: `
+        <p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 10px;">
+          ${esc(t('account.export_desc'))}
+        </p>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <select id="acctExportTtlSelect" style="${inputStyle}">
+            <option value="6">6 h</option>
+            <option value="24" selected>24 h</option>
+            <option value="72">72 h</option>
+          </select>
+          <button type="button" id="acctGenerateExportBtn" class="sysmon-action-btn" style="padding:7px 14px;background:var(--accent-primary,#6366f1);color:#fff;font-weight:600;">
+            📦 ${esc(t('account.export_generate_btn'))}
+          </button>
+        </div>
+        ${latestExportHtml}
+        ${activeExportsHtml}
+      `
+    });
+
+    const deleteCardHtml = window.sys.ui.card({
+      title: 'account.delete_title',
+      icon: '⚠️',
+      content: `
+        <div style="padding:10px 12px;border-radius:9px;border:1px solid rgba(239,68,68,0.45);background:rgba(239,68,68,0.1);color:#fca5a5;font-size:0.8rem;line-height:1.5;margin-bottom:12px;">
+          ⚠️ ${esc(t('account.delete_warning'))}
+        </div>
+        <form id="acctSelfDeleteForm" style="display:flex;flex-direction:column;gap:10px;">
+          <label style="display:inline-flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--text-main);cursor:pointer;">
+            <input type="checkbox" id="acctDeleteWithExport" checked />
+            <span>📦 ${esc(t('account.delete_with_export_label'))}</span>
+          </label>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;">
+            <input type="password" id="acctDeletePassword" required autocomplete="current-password" placeholder="${esc(t('account.delete_password_placeholder'))}" style="${inputStyle}" />
+            <input type="text" id="acctDeleteConfirmUsername" required autocomplete="off" placeholder="${esc(t('account.delete_username_placeholder', { username: currentUser.username }))}" style="${inputStyle}" />
+            ${currentUser.has_2fa ? `<input type="text" id="acctDeleteTotp" required inputmode="numeric" autocomplete="one-time-code" placeholder="${esc(t('account.delete_totp_placeholder'))}" style="${inputStyle}" />` : ''}
+          </div>
+          <label style="display:inline-flex;align-items:center;gap:8px;font-size:0.8rem;color:var(--text-muted);cursor:pointer;">
+            <input type="checkbox" id="acctDeleteConfirmCheck" required />
+            <span>${esc(t('account.delete_irreversible_check'))}</span>
+          </label>
+          <div id="acctSelfDeleteError" style="display:none;color:#f87171;font-size:0.82rem;"></div>
+          <div>
+            <button type="submit" id="acctSelfDeleteSubmitBtn" class="sysmon-action-btn" style="padding:8px 16px;background:rgba(239,68,68,0.22);color:#f87171;border:1px solid rgba(239,68,68,0.5);font-weight:700;">
+              🗑️ ${esc(t('account.delete_submit_btn'))}
+            </button>
+          </div>
+        </form>
+      `
+    });
+
+    container.innerHTML = `${exportCardHtml}${deleteCardHtml}`;
+
+    const rerender = () => renderAccountDangerZoneCard(container, settingsApp);
+
+    container.querySelector('#acctGenerateExportBtn')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const ttlHours = parseInt(container.querySelector('#acctExportTtlSelect')?.value || '24', 10) || 24;
+      btn.disabled = true;
+      const res = await settingsApp.api.post('create_account_export', { ttl_hours: ttlHours });
+      btn.disabled = false;
+      if (res && res.success && res.export) {
+        settingsApp.state.lastAccountExport = res.export;
+        settingsApp.toast.success(t('account.export_ready_toast'));
+        rerender();
+      } else {
+        settingsApp.toast.error((res && res.error) || t('users.action_error'));
+      }
+    });
+
+    container.querySelector('#acctExportCopyPortalBtn')?.addEventListener('click', () => {
+      if (lastCreated) {
+        copyText(lastCreated.portal_url || lastCreated.download_url || '').then(() => settingsApp.toast.success(t('users.copied_toast')));
+      }
+    });
+
+    container.querySelector('#acctExportDownloadLink')?.addEventListener('click', () => {
+      setTimeout(rerender, 2500);
+    });
+
+    container.querySelector('#acctExportConfirmTokenBtn')?.addEventListener('click', async () => {
+      if (!lastCreated || !lastCreated.token) return;
+      const res = await settingsApp.api.post('confirm_account_export_receipt', { token: lastCreated.token });
+      if (res && res.success) {
+        settingsApp.state.lastAccountExport = null;
+        settingsApp.toast.success(t('account.export_receipt_confirmed_toast'));
+        rerender();
+      } else {
+        settingsApp.toast.warning((res && res.error) || t('users.action_error'));
+      }
+    });
+
+    container.querySelectorAll('.acct-export-confirm-id-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const res = await settingsApp.api.post('confirm_account_export_receipt', { export_id: parseInt(btn.dataset.id, 10) });
+        if (res && res.success) {
+          if (settingsApp.state.lastAccountExport && Number(settingsApp.state.lastAccountExport.id) === parseInt(btn.dataset.id, 10)) {
+            settingsApp.state.lastAccountExport = null;
+          }
+          settingsApp.toast.success(t('account.export_receipt_confirmed_toast'));
+          rerender();
+        } else {
+          settingsApp.toast.warning((res && res.error) || t('users.action_error'));
+        }
+      });
+    });
+
+    container.querySelectorAll('.acct-export-discard-id-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const res = await settingsApp.api.post('confirm_account_export_receipt', {
+          export_id: parseInt(btn.dataset.id, 10),
+          discard_without_download: true
+        });
+        if (res && res.success) {
+          if (settingsApp.state.lastAccountExport && Number(settingsApp.state.lastAccountExport.id) === parseInt(btn.dataset.id, 10)) {
+            settingsApp.state.lastAccountExport = null;
+          }
+          settingsApp.toast.info(t('account.export_purged_toast'));
+          rerender();
+        } else {
+          settingsApp.toast.error((res && res.error) || t('users.action_error'));
+        }
+      });
+    });
+
+    container.querySelector('#acctSelfDeleteForm')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = container.querySelector('#acctSelfDeleteError');
+      const submitBtn = container.querySelector('#acctSelfDeleteSubmitBtn');
+      const password = container.querySelector('#acctDeletePassword')?.value || '';
+      const confirmUsername = (container.querySelector('#acctDeleteConfirmUsername')?.value || '').trim();
+      const totpCode = (container.querySelector('#acctDeleteTotp')?.value || '').trim();
+      const confirmIrreversible = Boolean(container.querySelector('#acctDeleteConfirmCheck')?.checked);
+      const createExport = Boolean(container.querySelector('#acctDeleteWithExport')?.checked);
+      const ttlHours = parseInt(container.querySelector('#acctExportTtlSelect')?.value || '24', 10) || 24;
+
+      if (errEl) errEl.style.display = 'none';
+
+      const finalOk = (window.sys && window.sys.dialog && typeof window.sys.dialog.confirm === 'function')
+        ? await window.sys.dialog.confirm(t('account.delete_final_confirm', { username: currentUser.username }))
+        : window.confirm(t('account.delete_final_confirm', { username: currentUser.username }));
+      if (!finalOk) return;
+
+      if (submitBtn) submitBtn.disabled = true;
+      const res = await settingsApp.api.post('delete_own_account', {
+        password,
+        confirm_username: confirmUsername,
+        confirm_irreversible: confirmIrreversible,
+        totp_code: totpCode,
+        create_export: createExport,
+        ttl_hours: ttlHours
+      });
+      if (submitBtn) submitBtn.disabled = false;
+
+      if (res && res.success) {
+        if (window.sys && window.sys.storage && typeof window.sys.storage.clearUserScope === 'function') {
+          window.sys.storage.clearUserScope();
+        }
+        window.IS_ADMIN = false;
+        window.SG_CURRENT_USER = null;
+        window.SG_MOUNTED_VOLUMES = [];
+        window.SG_USER_PREFERENCES = {};
+        if (window.desktop) window.desktop.state.isAdmin = false;
+        if (window.sys && window.sys.shares && typeof window.sys.shares.refreshIdentity === 'function') {
+          await window.sys.shares.refreshIdentity();
+        }
+        if (window.EventBus && typeof window.EventBus.emit === 'function') {
+          window.EventBus.emit('fs:changed');
+        }
+        settingsApp.toast.info(t('account.deleted_success_toast'));
+        if (typeof settingsApp.render === 'function') settingsApp.render();
+        if (res.export) {
+          showPostDeletionExportModal(res.export, settingsApp);
+        }
+      } else if (errEl) {
+        errEl.textContent = '❌ ' + ((res && res.error) || t('users.action_error'));
+        errEl.style.display = 'block';
+      }
+    });
+  }
+
   window.AtelierUsersPanel = {
     render: (c, s) => renderSection('users', c, s),
     renderSection,
     renderSessionsCard,
+    renderAccountDangerZoneCard,
     register: registerUsersSection
   };
 

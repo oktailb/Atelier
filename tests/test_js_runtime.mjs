@@ -1377,6 +1377,17 @@ try {
     adminGuideText.includes('PermissionsManager')
   );
 
+  assert("GDPR Self-Delete UI: Control Panel expose export ZIP signé, confirmation de réception et suppression de compte",
+    settingsUiCode.includes('settingsAccountDangerHost') &&
+    settingsUiCode.includes('renderAccountDangerZoneCard') &&
+    usersPanelUiCode.includes('create_account_export') &&
+    usersPanelUiCode.includes('confirm_account_export_receipt') &&
+    usersPanelUiCode.includes('delete_own_account') &&
+    usersPanelUiCode.includes('showPostDeletionExportModal') &&
+    fs.existsSync(path.join(rootDir, 'system', 'endpoints', 'export.php')) &&
+    adminGuideText.includes('AccountExportService')
+  );
+
   // Verify users-panel.js registers custom section cleanly without syntax errors
   const usersPanelCode = fs.readFileSync(usersPanelPath, 'utf8');
   const registeredSections = [];

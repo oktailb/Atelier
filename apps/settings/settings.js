@@ -254,11 +254,15 @@
         }
       }
 
-      // If Security tab is active and user is logged in, populate Active Sessions card
-      if (this.currentTab === 'security' && window.AtelierUsersPanel && typeof window.AtelierUsersPanel.renderSessionsCard === 'function') {
+      // If Security tab is active and user is logged in, populate Active Sessions & Account Data/Deletion cards
+      if (this.currentTab === 'security' && window.AtelierUsersPanel) {
         const sessHost = container.querySelector('#settingsActiveSessionsHost');
-        if (sessHost) {
+        if (sessHost && typeof window.AtelierUsersPanel.renderSessionsCard === 'function') {
           window.AtelierUsersPanel.renderSessionsCard(sessHost, this);
+        }
+        const dangerHost = container.querySelector('#settingsAccountDangerHost');
+        if (dangerHost && typeof window.AtelierUsersPanel.renderAccountDangerZoneCard === 'function') {
+          window.AtelierUsersPanel.renderAccountDangerZoneCard(dangerHost, this);
         }
       }
 
@@ -379,6 +383,8 @@
       }) : ''}
 
         ${isLoggedIn ? `<div id="settingsActiveSessionsHost"></div>` : ''}
+
+        ${currentUser ? `<div id="settingsAccountDangerHost"></div>` : ''}
       `;
     }
 

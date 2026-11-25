@@ -1783,6 +1783,110 @@ HTACCESS;
             $user_up_other_home === false
         );
 
+        // 10.10 Self-Service Account Deletion + Signed Time-Limited ZIP Export + Complete Receipt Confirmation
+        $gdpr_res = \SimpleGallery\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
+            'username'     => 'gdpr_user',
+            'display_name' => 'GDPR User',
+            'email'        => 'gdpr@studio.fr',
+            'password'     => 'GdprSecret99!',
+            'role'         => 'user'
+        ]);
+        $gdpr_user = $gdpr_res['user'];
+        @mkdir($users_root . '/gdpr_user/notes', 0755, true);
+        file_put_contents($users_root . '/gdpr_user/notes/diary.txt', 'My private GDPR note 2026');
+
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($gdpr_user, $p1_root);
+        $del_bad_pwd = \SimpleGallery\Kernel\Actions\UserActions::handle('delete_own_account', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => [
+                'password'             => 'WrongPassword!',
+                'confirm_username'     => 'gdpr_user',
+                'confirm_irreversible' => true,
+                'create_export'        => true
+            ]
+        ]);
+        $del_bad_confirm = \SimpleGallery\Kernel\Actions\UserActions::handle('delete_own_account', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => [
+                'password'             => 'GdprSecret99!',
+                'confirm_username'     => 'wrong_name',
+                'confirm_irreversible' => true
+            ]
+        ]);
+        $this->assert("Self-Delete Account: Refuse mot de passe erroné (401) et confirmation username invalide (400)",
+            ($del_bad_pwd['status'] ?? 0) === 401 &&
+            ($del_bad_confirm['status'] ?? 0) === 400 &&
+            \SimpleGallery\Kernel\Auth\UserManager::findByUsername($p1_root, 'gdpr_user') !== null
+        );
+
+        // Valid self-deletion with signed 24h ZIP export
+        $del_ok = \SimpleGallery\Kernel\Actions\UserActions::handle('delete_own_account', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => [
+                'password'             => 'GdprSecret99!',
+                'confirm_username'     => 'gdpr_user',
+                'confirm_irreversible' => true,
+                'create_export'        => true,
+                'ttl_hours'            => 24
+            ]
+        ]);
+        $exp_info = $del_ok['data']['export'] ?? null;
+        $exp_token = (string)($exp_info['token'] ?? '');
+        $inspected = \SimpleGallery\Kernel\Auth\AccountExportService::inspectByToken($p1_root, $exp_token);
+        $zip_abs = (string)($inspected['abs_path'] ?? '');
+
+        $zip_has_json = false;
+        $zip_note_content = '';
+        if ($zip_abs !== '' && is_file($zip_abs) && class_exists('\ZipArchive')) {
+            $z = new \ZipArchive();
+            if ($z->open($zip_abs) === true) {
+                $zip_has_json = ($z->locateName('account_export.json') !== false);
+                $zip_note_content = (string)$z->getFromName('files/notes/diary.txt');
+                $z->close();
+            }
+        }
+
+        $this->assert("Self-Delete Account: Génère l'archive ZIP signée complète puis supprime home, compte et session",
+            ($del_ok['status'] ?? 0) === 200 &&
+            !empty($del_ok['data']['deleted']) &&
+            \SimpleGallery\Kernel\Auth\AuthManager::isLoggedIn() === false &&
+            \SimpleGallery\Kernel\Auth\UserManager::findByUsername($p1_root, 'gdpr_user') === null &&
+            !is_dir($users_root . '/gdpr_user') &&
+            ($inspected['status'] ?? 0) === 200 &&
+            strlen((string)($exp_info['sha256'] ?? '')) === 64 &&
+            $zip_has_json === true &&
+            $zip_note_content === 'My private GDPR note 2026' &&
+            file_exists(\SimpleGallery\Kernel\Auth\AccountExportService::getExportsDir($p1_root) . '/.htaccess')
+        );
+
+        // Receipt confirmation blocked (409) before complete download, then succeeds (200) and purges ZIP -> 410 Gone
+        $premature_confirm = \SimpleGallery\Kernel\Actions\UserActions::handle('confirm_account_export_receipt', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['token' => $exp_token]
+        ]);
+        \SimpleGallery\Kernel\Auth\AccountExportService::markDownloadCompleted(
+            $p1_root,
+            (int)$inspected['token_id'],
+            (int)$exp_info['size_bytes']
+        );
+        $final_confirm = \SimpleGallery\Kernel\Actions\UserActions::handle('confirm_account_export_receipt', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['token' => $exp_token]
+        ]);
+        $after_purge = \SimpleGallery\Kernel\Auth\AccountExportService::inspectByToken($p1_root, $exp_token);
+
+        $this->assert("Self-Delete Account: Confirmation de réception exige transfert complet (409 -> 200), purge le ZIP et renvoie 410",
+            ($premature_confirm['status'] ?? 0) === 409 &&
+            ($final_confirm['status'] ?? 0) === 200 &&
+            !empty($final_confirm['data']['purged']) &&
+            !file_exists($zip_abs) &&
+            ($after_purge['status'] ?? 0) === 410 &&
+            in_array('delete_own_account', \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true) &&
+            in_array('create_account_export', \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true) &&
+            in_array('confirm_account_export_receipt', \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true) &&
+            strpos($htaccess_src, 'system/endpoints/export.php?token=$1') !== false
+        );
+
         $_SESSION = $saved_sess;
         \SimpleGallery\Kernel\Security\RateLimiter::reset('register_' . $cli_ip);
         \SimpleGallery\Kernel\Security\RateLimiter::reset('login_' . $cli_ip);

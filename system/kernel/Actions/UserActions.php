@@ -66,6 +66,55 @@ class UserActions {
             return ['status' => $res['status'], 'data' => $res];
         }
 
+        // 1b. Self-Service Data Export (Signed ZIP) & Account Deletion
+        if ($action === 'create_account_export') {
+            $user = AuthManager::getCurrentUser();
+            if (!$user) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
+            $ttlHours = (int)($in['ttl_hours'] ?? \SimpleGallery\Kernel\Auth\AccountExportService::DEFAULT_TTL_HOURS);
+            $res = \SimpleGallery\Kernel\Auth\AccountExportService::createExport($project_root, $base_dir, $user, $ttlHours, false);
+            return ['status' => $res['status'], 'data' => $res];
+        }
+
+        if ($action === 'list_account_exports') {
+            $user = AuthManager::getCurrentUser();
+            if (!$user) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
+            return ['status' => 200, 'data' => [
+                'success' => true,
+                'exports' => \SimpleGallery\Kernel\Auth\AccountExportService::listUserExports($project_root, (int)$user['id'])
+            ]];
+        }
+
+        if ($action === 'confirm_account_export_receipt') {
+            $token = isset($in['token']) ? trim((string)$in['token']) : null;
+            $exportId = isset($in['export_id']) ? (int)$in['export_id'] : null;
+            $discard = !empty($in['discard_without_download']);
+            $user = AuthManager::getCurrentUser();
+            if (($token === null || $token === '') && !$user) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
+            $res = \SimpleGallery\Kernel\Auth\AccountExportService::confirmReceipt(
+                $project_root,
+                $token,
+                $exportId,
+                $user ? (int)$user['id'] : null,
+                $discard
+            );
+            return ['status' => $res['status'], 'data' => $res];
+        }
+
+        if ($action === 'delete_own_account') {
+            $user = AuthManager::getCurrentUser();
+            if (!$user) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
+            $res = \SimpleGallery\Kernel\Auth\AccountExportService::deleteSelfAccount($project_root, $base_dir, $user, $in);
+            return ['status' => $res['status'], 'data' => $res];
+        }
+
         if ($action === 'get_mounted_volumes') {
             return ['status' => 200, 'data' => [
                 'success' => true,

@@ -151,6 +151,25 @@ La matrice ci-dessus **ne s'applique jamais** pour ouvrir un accès sur `users/<
 
 ---
 
+## 6.1 Export de données personnelles (ZIP signé) & suppression autonome de compte (RGPD)
+
+Tout utilisateur authentifié (compte en base `users`) dispose depuis **Panneau de configuration → Sécurité** de deux outils de souveraineté sur ses données :
+
+1. **Archive ZIP signée à durée de vie limitée (`AccountExportService`)** :
+   - Empaquette `account_export.json` (profil sanitisé, préférences, groupes, partages) + l'intégralité du home `users/<login>/` (hors `.thumbnails/` et dotfiles système) dans `storage/exports/` (protégé par `.htaccess` `Deny from all`).
+   - Délivre un lien signé à durée limitée (`6 h` / `24 h` / `72 h`, jeton stocké **hashé SHA-256** dans `auth_tokens`) accessible via `system/endpoints/export.php?token=<token>` ou la route courte `/e/<token>`, **même après déconnexion ou suppression du compte**.
+   - **Confirmation de réception complète** :
+     - Lors du téléchargement streamé (`Content-Length` + en-tête `X-Export-SHA256`), le serveur vérifie que **100 % des octets** ont été transmis sans interruption avant d'enregistrer `download_completed_at`.
+     - L'utilisateur vérifie son archive (empreinte SHA-256 affichée) et clique sur **« Confirmer la réception complète & purger »** (`confirm_account_export_receipt` ou portail `/e/<token>`), ce qui invalide le jeton (`410 Gone`) et **supprime immédiatement le fichier `.zip` du disque**.
+     - Les archives expirées sont automatiquement purgées du disque par ramasse-miettes opportuniste.
+
+2. **Suppression autonome de compte (`delete_own_account`)** :
+   - Exige le **mot de passe actuel**, un **code 2FA** (si activé), la saisie exacte du `@username` et une confirmation d'irréversibilité.
+   - Bloque la suppression si le compte est le **dernier administrateur actif** sans mot de passe maître `.admin_password_hash` (protection anti-verrouillage).
+   - Par défaut, génère l'archive ZIP signée **avant** d'effacer la moindre donnée (si l'empaquetage échoue, la suppression est annulée), envoie le lien par e-mail si une adresse est renseignée, affiche la modale de téléchargement post-suppression, puis efface physiquement `storage/users/<login>/`, les sessions, les partages, les lignes en base et le `localStorage` du compte.
+
+---
+
 ## 7. Sauvegarde et checklist de mise en production
 
 ### Fichiers critiques à sauvegarder
