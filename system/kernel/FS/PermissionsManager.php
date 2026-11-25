@@ -260,15 +260,13 @@ class PermissionsManager {
                 }
             }
 
-            // Level 3: User explicit overrides (highest precedence)
+            // Level 3: User explicit overrides (highest precedence — always read fresh from store for live enforcement)
             $userOverrides = [];
-            if (isset($user['permission_overrides']) && is_array($user['permission_overrides'])) {
+            $dbUser = $store->selectOne('users', ['id' => $userId]);
+            if ($dbUser && !empty($dbUser['permissions_json'])) {
+                $userOverrides = self::decodeOverrides($dbUser['permissions_json']);
+            } elseif (isset($user['permission_overrides']) && is_array($user['permission_overrides'])) {
                 $userOverrides = self::sanitizeOverrides($user['permission_overrides']);
-            } else {
-                $dbUser = $store->selectOne('users', ['id' => $userId]);
-                if ($dbUser && !empty($dbUser['permissions_json'])) {
-                    $userOverrides = self::decodeOverrides($dbUser['permissions_json']);
-                }
             }
             foreach ($userOverrides as $k => $decision) {
                 $effective[$k] = ($decision === 'allow');
