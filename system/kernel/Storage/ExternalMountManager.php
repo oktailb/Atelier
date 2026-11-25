@@ -323,4 +323,41 @@ class ExternalMountManager {
             'message' => (string)($res['message'] ?? '')
         ];
     }
+
+    /**
+     * Tests an unsaved external mount configuration before persisting it.
+     */
+    public static function testRawConfig(string $projectRoot, array $input): array {
+        $isAdmin = AuthManager::isAdminLoggedIn();
+        $user = AuthManager::getCurrentUser();
+        if (!$isAdmin && !$user) {
+            return ['success' => false, 'status' => 403, 'error' => 'Authentication required.'];
+        }
+        $driver = strtolower(trim((string)($input['driver'] ?? '')));
+        if (!in_array($driver, self::VALID_DRIVERS, true)) {
+            return ['success' => false, 'status' => 400, 'error' => 'Unsupported storage driver.'];
+        }
+        if ($driver === 'local' && !$isAdmin) {
+            return ['success' => false, 'status' => 403, 'error' => 'Only administrators can test local filesystem mounts.'];
+        }
+        $cfg = is_array($input['config'] ?? null) ? $input['config'] : [];
+        if (!$isAdmin) {
+            unset($cfg['allow_private_lan']);
+        }
+        $fakeRow = [
+            'id'         => 0,
+            'driver'     => $driver,
+            'config_enc' => CredentialVault::encryptJson($projectRoot, $cfg)
+        ];
+        $instance = self::buildDriver($projectRoot, $fakeRow);
+        if (!$instance) {
+            return ['success' => false, 'status' => 400, 'error' => 'Incomplete driver configuration.'];
+        }
+        $res = $instance->testConnection();
+        return [
+            'success' => !empty($res['success']),
+            'status'  => !empty($res['success']) ? 200 : 502,
+            'message' => (string)($res['message'] ?? '')
+        ];
+    }
 }

@@ -1042,75 +1042,144 @@
     }
     const [mountsRes, trashRes, idxRes] = await Promise.all(calls);
     const mounts = (mountsRes && mountsRes.success && Array.isArray(mountsRes.mounts)) ? mountsRes.mounts : [];
+    const gdriveRedirectUri = (mountsRes && mountsRes.gdrive_oauth_redirect_uri)
+      ? String(mountsRes.gdrive_oauth_redirect_uri)
+      : (typeof window !== 'undefined' ? (window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '') + '/api.php?action=gdrive_oauth_callback') : '');
+    const gdriveHasServerClient = Boolean(mountsRes && mountsRes.gdrive_has_server_client);
     const trashItems = (trashRes && trashRes.success && Array.isArray(trashRes.items)) ? trashRes.items : [];
     const idxStats = (idxRes && idxRes.success && idxRes.stats) ? idxRes.stats : null;
 
-    const mountsListHtml = mounts.length === 0
-      ? `<div style="font-size:0.82rem;color:var(--text-muted);padding:6px 0;">${esc(t('storage.empty_mounts'))}</div>`
-      : `<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
-          ${mounts.map(m => `
-            <div style="${rowStyle}">
-              <div style="display:flex;flex-direction:column;gap:2px;font-size:0.82rem;">
-                <div style="font-weight:600;color:var(--text-main);display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                  <span>${esc(m.mount_icon || '☁️')} ${esc(m.mount_name)}</span>
-                  <span style="padding:1px 7px;border-radius:99px;font-size:0.68rem;background:rgba(99,102,241,0.16);color:var(--accent-primary,#6366f1);font-weight:700;">${esc(String(m.driver || '').toUpperCase())}</span>
-                  <span style="padding:1px 7px;border-radius:99px;font-size:0.68rem;background:rgba(34,197,94,0.16);color:#22c55e;font-weight:700;">${esc(m.permission === 'write' ? 'RW' : 'R')}</span>
+    const fieldLabelStyle = 'display:block;font-size:0.76rem;font-weight:600;color:var(--text-main);margin-bottom:4px;';
+    const fieldHintStyle = 'font-size:0.72rem;color:var(--text-muted);margin-top:3px;line-height:1.35;';
+    const sectionHeaderStyle = 'font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--accent-primary,#6366f1);margin-bottom:8px;';
+    const guideBoxStyle = 'padding:10px 12px;border-radius:9px;border:1px solid rgba(99,102,241,0.28);background:rgba(99,102,241,0.07);font-size:0.77rem;color:var(--text-main);line-height:1.45;margin-bottom:10px;';
+    const presetBtnStyle = 'padding:3px 9px;border-radius:99px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-main);cursor:pointer;font-size:0.72rem;font-weight:500;';
+
+    const pwField = (id, label, placeholder, required = false, hint = '') => `
+      <div style="display:flex;flex-direction:column;">
+        <label for="${id}" style="${fieldLabelStyle}">${esc(label)}${required ? ' <span style="color:#ef4444;">*</span>' : ''}</label>
+        <div style="position:relative;display:flex;align-items:center;">
+          <input type="password" id="${id}" ${required ? 'required' : ''} autocomplete="new-password" placeholder="${esc(placeholder)}" style="${inputStyle}width:100%;padding-right:34px;box-sizing:border-box;" />
+          <button type="button" class="ext-pw-toggle-btn" data-target="${id}" title="Show/Hide" style="position:absolute;right:6px;background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:0.85rem;padding:2px 4px;">👁️</button>
+        </div>
+        ${hint ? `<div style="${fieldHintStyle}">${esc(hint)}</div>` : ''}
+      </div>
+    `;
+
+    const mountsListHtml = `
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border-color);">
+        <div style="${sectionHeaderStyle}">${esc(t('storage.mounted_list_title'))} (${mounts.length})</div>
+        ${mounts.length === 0
+          ? `<div style="font-size:0.82rem;color:var(--text-muted);padding:4px 0;">${esc(t('storage.empty_mounts'))}</div>`
+          : `<div style="display:flex;flex-direction:column;gap:8px;">
+              ${mounts.map(m => `
+                <div style="${rowStyle}">
+                  <div style="display:flex;flex-direction:column;gap:2px;font-size:0.82rem;">
+                    <div style="font-weight:600;color:var(--text-main);display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                      <span>${esc(m.mount_icon || '☁️')} ${esc(m.mount_name)}</span>
+                      <span style="padding:1px 7px;border-radius:99px;font-size:0.68rem;background:rgba(99,102,241,0.16);color:var(--accent-primary,#6366f1);font-weight:700;">${esc(String(m.driver || '').toUpperCase())}</span>
+                      <span style="padding:1px 7px;border-radius:99px;font-size:0.68rem;background:rgba(34,197,94,0.16);color:#22c55e;font-weight:700;">${esc(m.permission === 'write' ? 'RW' : 'R')}</span>
+                    </div>
+                    <div style="font-size:0.74rem;color:var(--text-muted);font-family:monospace;">
+                      ${esc(m.path)} ${m.config && m.config.endpoint ? '· ' + esc(m.config.endpoint) : (m.config && m.config.bucket ? '· s3://' + esc(m.config.bucket) : '')}
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <button type="button" class="ext-mount-open-btn" data-path="${esc(m.path)}" style="padding:4px 9px;border-radius:6px;border:1px solid var(--border-color);background:transparent;color:var(--accent-primary,#6366f1);cursor:pointer;font-size:0.74rem;font-weight:600;">
+                      📂 ${esc(t('storage.open_btn'))}
+                    </button>
+                    <button type="button" class="ext-mount-test-btn" data-id="${m.id}" style="padding:4px 9px;border-radius:6px;border:1px solid var(--border-color);background:transparent;color:var(--text-main);cursor:pointer;font-size:0.74rem;">
+                      🔌 ${esc(t('storage.test_btn'))}
+                    </button>
+                    <button type="button" class="ext-mount-del-btn" data-id="${m.id}" style="padding:4px 9px;border-radius:6px;border:1px solid rgba(239,68,68,0.4);background:rgba(239,68,68,0.12);color:#ef4444;cursor:pointer;font-size:0.74rem;">
+                      🗑️
+                    </button>
+                  </div>
                 </div>
-                <div style="font-size:0.74rem;color:var(--text-muted);font-family:monospace;">
-                  ${esc(m.path)} ${m.config && m.config.endpoint ? '· ' + esc(m.config.endpoint) : (m.config && m.config.bucket ? '· s3://' + esc(m.config.bucket) : '')}
-                </div>
-              </div>
-              <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                <button type="button" class="ext-mount-open-btn" data-path="${esc(m.path)}" style="padding:4px 9px;border-radius:6px;border:1px solid var(--border-color);background:transparent;color:var(--accent-primary,#6366f1);cursor:pointer;font-size:0.74rem;font-weight:600;">
-                  📂 ${esc(t('storage.open_btn'))}
-                </button>
-                <button type="button" class="ext-mount-test-btn" data-id="${m.id}" style="padding:4px 9px;border-radius:6px;border:1px solid var(--border-color);background:transparent;color:var(--text-main);cursor:pointer;font-size:0.74rem;">
-                  🔌 ${esc(t('storage.test_btn'))}
-                </button>
-                <button type="button" class="ext-mount-del-btn" data-id="${m.id}" style="padding:4px 9px;border-radius:6px;border:1px solid rgba(239,68,68,0.4);background:rgba(239,68,68,0.12);color:#ef4444;cursor:pointer;font-size:0.74rem;">
-                  🗑️
-                </button>
-              </div>
-            </div>
-          `).join('')}
-        </div>`;
+              `).join('')}
+            </div>`}
+      </div>`;
+
+    const driverCards = [
+      { id: 'webdav', icon: '🌐', title: 'WebDAV', sub: t('storage.driver_webdav_sub') },
+      { id: 's3',     icon: '🪣', title: 'S3 / R2 / MinIO', sub: t('storage.driver_s3_sub') },
+      { id: 'gdrive', icon: '🔺', title: 'Google Drive', sub: t('storage.driver_gdrive_sub') }
+    ];
+    if (settingsApp.isAdmin) {
+      driverCards.push({ id: 'local', icon: '💾', title: t('storage.driver_local_label'), sub: t('storage.driver_local_sub') });
+    }
 
     const mountsCardHtml = window.sys.ui.card({
       title: 'storage.section_mounts',
       icon: '☁️',
       content: `
-        <p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 10px;">
+        <p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 14px;line-height:1.45;">
           ${esc(t('storage.mounts_desc'))}
         </p>
-        <form id="extMountCreateForm" style="display:flex;flex-direction:column;gap:8px;">
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;">
-            <select id="extMountDriver" style="${inputStyle}">
-              <option value="webdav">WebDAV (Nextcloud / NAS)</option>
-              <option value="s3">S3 / R2 / MinIO</option>
-              <option value="gdrive">Google Drive (OAuth2)</option>
-              ${settingsApp.isAdmin ? '<option value="local">Local Server Folder</option>' : ''}
-            </select>
-            <input type="text" id="extMountName" required placeholder="${esc(t('storage.mount_name_placeholder'))}" style="${inputStyle}" />
-            <select id="extMountPerm" style="${inputStyle}">
-              <option value="write">RW (${esc(t('shares.perm_write'))})</option>
-              <option value="read">R (${esc(t('shares.perm_read'))})</option>
-            </select>
-            ${settingsApp.isAdmin ? `
-              <select id="extMountTarget" style="${inputStyle}">
-                <option value="user">${esc(t('storage.scope_personal'))}</option>
-                <option value="global">${esc(t('storage.scope_global'))}</option>
-              </select>
-            ` : ''}
+        <form id="extMountCreateForm" style="display:flex;flex-direction:column;gap:14px;">
+          <input type="hidden" id="extMountDriver" value="webdav" />
+
+          <div>
+            <div style="${sectionHeaderStyle}">${esc(t('storage.step_provider'))}</div>
+            <div id="extMountDriverCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;">
+              ${driverCards.map((dc, idx) => `
+                <button type="button" class="ext-driver-card" data-driver="${dc.id}" style="text-align:left;padding:10px 12px;border-radius:10px;border:2px solid ${idx === 0 ? 'var(--accent-primary,#6366f1)' : 'var(--border-color)'};background:${idx === 0 ? 'rgba(99,102,241,0.1)' : 'var(--bg-card)'};cursor:pointer;display:flex;flex-direction:column;gap:3px;transition:border-color 0.15s,background 0.15s;">
+                  <div style="font-size:0.86rem;font-weight:700;color:var(--text-main);display:flex;align-items:center;gap:6px;">
+                    <span>${dc.icon}</span><span>${esc(dc.title)}</span>
+                  </div>
+                  <div style="font-size:0.71rem;color:var(--text-muted);line-height:1.3;">${esc(dc.sub)}</div>
+                </button>
+              `).join('')}
+            </div>
           </div>
-          <div id="extMountDriverFields" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;"></div>
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+
+          <div style="padding:12px;border-radius:10px;border:1px solid var(--border-color);background:var(--bg-card);">
+            <div style="${sectionHeaderStyle}">${esc(t('storage.step_identity'))}</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;">
+              <div style="display:flex;flex-direction:column;">
+                <label for="extMountName" style="${fieldLabelStyle}">${esc(t('storage.field_volume_name'))} <span style="color:#ef4444;">*</span></label>
+                <input type="text" id="extMountName" required placeholder="${esc(t('storage.mount_name_placeholder'))}" style="${inputStyle}width:100%;box-sizing:border-box;" />
+                <div style="${fieldHintStyle}">${esc(t('storage.field_volume_name_hint'))}</div>
+              </div>
+              <div style="display:flex;flex-direction:column;">
+                <label for="extMountPerm" style="${fieldLabelStyle}">${esc(t('storage.field_permission'))}</label>
+                <select id="extMountPerm" style="${inputStyle}width:100%;box-sizing:border-box;">
+                  <option value="write">${esc(t('shares.perm_write'))}</option>
+                  <option value="read">${esc(t('shares.perm_read'))}</option>
+                </select>
+              </div>
+              ${settingsApp.isAdmin ? `
+                <div style="display:flex;flex-direction:column;">
+                  <label for="extMountTarget" style="${fieldLabelStyle}">${esc(t('storage.field_scope'))}</label>
+                  <select id="extMountTarget" style="${inputStyle}width:100%;box-sizing:border-box;">
+                    <option value="user">${esc(t('storage.scope_personal'))}</option>
+                    <option value="global">${esc(t('storage.scope_global'))}</option>
+                  </select>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+
+          <div style="padding:12px;border-radius:10px;border:1px solid var(--border-color);background:var(--bg-card);">
+            <div style="${sectionHeaderStyle}">${esc(t('storage.step_connection'))}</div>
+            <div id="extMountDriverFields" style="display:flex;flex-direction:column;gap:10px;"></div>
+          </div>
+
+          <div id="extMountTestFeedback" style="display:none;padding:9px 12px;border-radius:8px;font-size:0.8rem;line-height:1.4;"></div>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
             <label style="display:inline-flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--text-muted);cursor:pointer;">
               <input type="checkbox" id="extMountShowDesktop" checked />
               <span>${esc(t('shares.show_on_desktop'))}</span>
             </label>
-            <button type="submit" class="sysmon-action-btn" style="padding:7px 14px;background:var(--accent-primary,#6366f1);color:#fff;font-weight:600;">
-              ➕ ${esc(t('storage.add_mount_btn'))}
-            </button>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button type="button" id="extMountTestConfigBtn" class="sysmon-action-btn" style="padding:7px 13px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-main);font-weight:600;font-size:0.8rem;">
+                🔌 ${esc(t('storage.test_before_mount_btn'))}
+              </button>
+              <button type="submit" id="extMountSubmitBtn" class="sysmon-action-btn" style="padding:7px 15px;background:var(--accent-primary,#6366f1);color:#fff;font-weight:600;font-size:0.82rem;">
+                ➕ ${esc(t('storage.add_mount_btn'))}
+              </button>
+            </div>
           </div>
         </form>
         ${mountsListHtml}
@@ -1179,46 +1248,11 @@
     const rerender = () => renderStorageSection(container, settingsApp);
 
     const fieldsBox = container.querySelector('#extMountDriverFields');
-    const driverSel = container.querySelector('#extMountDriver');
-    const renderDriverFields = () => {
-      if (!fieldsBox || !driverSel) return;
-      const d = driverSel.value;
-      if (d === 'webdav') {
-        fieldsBox.innerHTML = `
-          <input type="url" id="extCfgEndpoint" required placeholder="https://cloud.example.com/remote.php/dav/files/user/" style="${inputStyle}" />
-          <input type="text" id="extCfgUsername" placeholder="${esc(t('users.username_placeholder'))}" style="${inputStyle}" />
-          <input type="password" id="extCfgPassword" placeholder="${esc(t('users.password_placeholder'))}" style="${inputStyle}" />
-          ${settingsApp.isAdmin ? `<label style="display:inline-flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--text-muted);"><input type="checkbox" id="extCfgAllowLan" /><span>LAN / NAS</span></label>` : ''}
-        `;
-      } else if (d === 's3') {
-        fieldsBox.innerHTML = `
-          <input type="url" id="extCfgEndpoint" placeholder="https://<account>.r2.cloudflarestorage.com" style="${inputStyle}" />
-          <input type="text" id="extCfgBucket" required placeholder="Bucket" style="${inputStyle}" />
-          <input type="text" id="extCfgRegion" value="auto" placeholder="Region (auto / eu-west-3)" style="${inputStyle}" />
-          <input type="text" id="extCfgPrefix" placeholder="Prefix (optional)" style="${inputStyle}" />
-          <input type="text" id="extCfgAccessKey" required placeholder="Access Key ID" style="${inputStyle}" />
-          <input type="password" id="extCfgSecretKey" required placeholder="Secret Access Key" style="${inputStyle}" />
-        `;
-      } else if (d === 'gdrive') {
-        fieldsBox.innerHTML = `
-          <input type="password" id="extCfgAccessToken" placeholder="OAuth2 Access Token" style="${inputStyle}" />
-          <input type="password" id="extCfgRefreshToken" placeholder="OAuth2 Refresh Token" style="${inputStyle}" />
-          <input type="text" id="extCfgClientId" placeholder="Google Client ID" style="${inputStyle}" />
-          <input type="password" id="extCfgClientSecret" placeholder="Google Client Secret" style="${inputStyle}" />
-          <input type="text" id="extCfgRootFolder" value="root" placeholder="Root Folder ID (root)" style="${inputStyle}" />
-        `;
-      } else {
-        fieldsBox.innerHTML = `
-          <input type="text" id="extCfgRootDir" required placeholder="/mnt/nas/photos" style="${inputStyle}" />
-        `;
-      }
-    };
-    renderDriverFields();
-    driverSel?.addEventListener('change', renderDriverFields);
+    const driverInput = container.querySelector('#extMountDriver');
+    const feedbackEl = container.querySelector('#extMountTestFeedback');
 
-    container.querySelector('#extMountCreateForm')?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const driver = driverSel?.value || 'webdav';
+    const collectMountPayload = () => {
+      const driver = driverInput?.value || 'webdav';
       const mount_name = container.querySelector('#extMountName')?.value.trim() || '';
       const permission = container.querySelector('#extMountPerm')?.value || 'write';
       const target_type = container.querySelector('#extMountTarget')?.value || 'user';
@@ -1245,10 +1279,270 @@
       } else {
         config.root_dir = container.querySelector('#extCfgRootDir')?.value.trim() || '';
       }
+      return { driver, mount_name, permission, target_type, show_on_desktop, config };
+    };
 
-      const res = await settingsApp.api.post('create_external_mount', {
-        driver, mount_name, permission, target_type, show_on_desktop, config
+    const bindPasswordToggles = () => {
+      fieldsBox?.querySelectorAll('.ext-pw-toggle-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const inp = fieldsBox.querySelector('#' + btn.dataset.target);
+          if (!inp) return;
+          inp.type = inp.type === 'password' ? 'text' : 'password';
+          btn.textContent = inp.type === 'password' ? '👁️' : '🙈';
+        });
       });
+    };
+
+    const renderDriverFields = () => {
+      if (!fieldsBox || !driverInput) return;
+      if (feedbackEl) { feedbackEl.style.display = 'none'; feedbackEl.textContent = ''; }
+      const d = driverInput.value;
+
+      if (d === 'webdav') {
+        fieldsBox.innerHTML = `
+          <div style="${guideBoxStyle}">
+            <div>💡 ${esc(t('storage.webdav_guide'))}</div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;">
+              <span style="font-size:0.72rem;font-weight:600;color:var(--text-muted);">${esc(t('storage.presets_label'))}</span>
+              <button type="button" class="ext-webdav-preset" data-url="https://cloud.example.com/remote.php/dav/files/USERNAME/" data-name="Nextcloud" style="${presetBtnStyle}">Nextcloud / ownCloud</button>
+              <button type="button" class="ext-webdav-preset" data-url="https://nas.example.com:5006/" data-name="Synology NAS" style="${presetBtnStyle}">Synology DSM</button>
+              <button type="button" class="ext-webdav-preset" data-url="https://connect.drive.infomaniak.com/" data-name="Infomaniak kDrive" style="${presetBtnStyle}">Infomaniak kDrive</button>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;">
+            <label for="extCfgEndpoint" style="${fieldLabelStyle}">${esc(t('storage.webdav_url_label'))} <span style="color:#ef4444;">*</span></label>
+            <input type="url" id="extCfgEndpoint" required placeholder="https://cloud.example.com/remote.php/dav/files/user/" style="${inputStyle}width:100%;box-sizing:border-box;" />
+            <div style="${fieldHintStyle}">${esc(t('storage.webdav_url_hint'))}</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;">
+            <div style="display:flex;flex-direction:column;">
+              <label for="extCfgUsername" style="${fieldLabelStyle}">${esc(t('storage.webdav_user_label'))}</label>
+              <input type="text" id="extCfgUsername" autocomplete="username" placeholder="alice" style="${inputStyle}width:100%;box-sizing:border-box;" />
+            </div>
+            ${pwField('extCfgPassword', t('storage.webdav_pass_label'), '••••••••••••', false)}
+          </div>
+          ${settingsApp.isAdmin ? `
+            <label style="display:inline-flex;align-items:flex-start;gap:8px;font-size:0.78rem;color:var(--text-main);cursor:pointer;margin-top:2px;">
+              <input type="checkbox" id="extCfgAllowLan" style="margin-top:2px;" />
+              <span><strong>${esc(t('storage.webdav_lan_label'))}</strong><br/><span style="font-size:0.72rem;color:var(--text-muted);">${esc(t('storage.webdav_lan_hint'))}</span></span>
+            </label>
+          ` : ''}
+        `;
+        fieldsBox.querySelectorAll('.ext-webdav-preset').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const ep = fieldsBox.querySelector('#extCfgEndpoint');
+            const nameInp = container.querySelector('#extMountName');
+            if (ep) { ep.value = btn.dataset.url || ''; ep.focus(); }
+            if (nameInp && !nameInp.value.trim()) nameInp.value = btn.dataset.name || '';
+          });
+        });
+      } else if (d === 's3') {
+        fieldsBox.innerHTML = `
+          <div style="${guideBoxStyle}">
+            <div>💡 ${esc(t('storage.s3_guide'))}</div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;">
+              <span style="font-size:0.72rem;font-weight:600;color:var(--text-muted);">${esc(t('storage.presets_label'))}</span>
+              <button type="button" class="ext-s3-preset" data-endpoint="https://<ACCOUNT_ID>.r2.cloudflarestorage.com" data-region="auto" data-name="Cloudflare R2" style="${presetBtnStyle}">Cloudflare R2</button>
+              <button type="button" class="ext-s3-preset" data-endpoint="" data-region="eu-west-3" data-name="AWS S3" style="${presetBtnStyle}">AWS S3</button>
+              <button type="button" class="ext-s3-preset" data-endpoint="https://minio.example.com" data-region="us-east-1" data-name="MinIO" style="${presetBtnStyle}">MinIO</button>
+              <button type="button" class="ext-s3-preset" data-endpoint="https://s3.fr-par.scw.cloud" data-region="fr-par" data-name="Scaleway" style="${presetBtnStyle}">Scaleway</button>
+              <button type="button" class="ext-s3-preset" data-endpoint="https://s3.eu-central-003.backblazeb2.com" data-region="eu-central-003" data-name="Backblaze B2" style="${presetBtnStyle}">Backblaze B2</button>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;">
+            <div style="display:flex;flex-direction:column;">
+              <label for="extCfgBucket" style="${fieldLabelStyle}">${esc(t('storage.s3_bucket_label'))} <span style="color:#ef4444;">*</span></label>
+              <input type="text" id="extCfgBucket" required placeholder="my-media-bucket" style="${inputStyle}width:100%;box-sizing:border-box;" />
+            </div>
+            <div style="display:flex;flex-direction:column;">
+              <label for="extCfgRegion" style="${fieldLabelStyle}">${esc(t('storage.s3_region_label'))}</label>
+              <input type="text" id="extCfgRegion" value="auto" placeholder="auto / eu-west-3" style="${inputStyle}width:100%;box-sizing:border-box;" />
+            </div>
+            <div style="display:flex;flex-direction:column;">
+              <label for="extCfgEndpoint" style="${fieldLabelStyle}">${esc(t('storage.s3_endpoint_label'))}</label>
+              <input type="url" id="extCfgEndpoint" placeholder="https://<account>.r2.cloudflarestorage.com" style="${inputStyle}width:100%;box-sizing:border-box;" />
+              <div style="${fieldHintStyle}">${esc(t('storage.s3_endpoint_hint'))}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;">
+              <label for="extCfgPrefix" style="${fieldLabelStyle}">${esc(t('storage.s3_prefix_label'))}</label>
+              <input type="text" id="extCfgPrefix" placeholder="photos/2026" style="${inputStyle}width:100%;box-sizing:border-box;" />
+            </div>
+            <div style="display:flex;flex-direction:column;">
+              <label for="extCfgAccessKey" style="${fieldLabelStyle}">${esc(t('storage.s3_access_key_label'))} <span style="color:#ef4444;">*</span></label>
+              <input type="text" id="extCfgAccessKey" required placeholder="AKIA..." style="${inputStyle}width:100%;box-sizing:border-box;" />
+            </div>
+            ${pwField('extCfgSecretKey', t('storage.s3_secret_key_label'), '••••••••••••', true)}
+          </div>
+        `;
+        fieldsBox.querySelectorAll('.ext-s3-preset').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const ep = fieldsBox.querySelector('#extCfgEndpoint');
+            const reg = fieldsBox.querySelector('#extCfgRegion');
+            const nameInp = container.querySelector('#extMountName');
+            if (ep) ep.value = btn.dataset.endpoint || '';
+            if (reg) reg.value = btn.dataset.region || 'auto';
+            if (nameInp && !nameInp.value.trim()) nameInp.value = btn.dataset.name || '';
+          });
+        });
+      } else if (d === 'gdrive') {
+        fieldsBox.innerHTML = `
+          <div style="${guideBoxStyle}">
+            <div style="font-weight:700;margin-bottom:5px;">🔺 ${esc(t('storage.gdrive_guide_title'))}</div>
+            ${gdriveHasServerClient ? `
+              <div style="padding:7px 10px;border-radius:7px;background:rgba(34,197,94,0.14);border:1px solid rgba(34,197,94,0.35);color:#16a34a;font-weight:600;margin-bottom:8px;">
+                ✅ ${esc(t('storage.gdrive_server_client_ok'))}
+              </div>
+            ` : `
+              <ol style="margin:0 0 8px 18px;padding:0;display:flex;flex-direction:column;gap:4px;">
+                <li>${esc(t('storage.gdrive_guide_step1'))}</li>
+                <li>${esc(t('storage.gdrive_guide_step2'))}</li>
+              </ol>
+            `}
+            <div style="margin-top:6px;">
+              <div style="font-size:0.72rem;font-weight:600;color:var(--text-muted);margin-bottom:3px;">${esc(t('storage.gdrive_redirect_uri_label'))}</div>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <code style="flex:1;min-width:200px;padding:5px 8px;border-radius:6px;background:var(--bg-card);border:1px solid var(--border-color);font-size:0.72rem;word-break:break-all;">${esc(gdriveRedirectUri)}</code>
+                <button type="button" id="extGdriveCopyUriBtn" style="${presetBtnStyle}padding:5px 10px;">📋 ${esc(t('storage.gdrive_copy_uri_btn'))}</button>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;">
+            <div style="display:flex;flex-direction:column;">
+              <label for="extCfgClientId" style="${fieldLabelStyle}">${esc(t('storage.gdrive_client_id_label'))}${gdriveHasServerClient ? '' : ' <span style="color:#ef4444;">*</span>'}</label>
+              <input type="text" id="extCfgClientId" placeholder="1234567890-xxxx.apps.googleusercontent.com" style="${inputStyle}width:100%;box-sizing:border-box;" />
+            </div>
+            ${pwField('extCfgClientSecret', t('storage.gdrive_client_secret_label'), 'GOCSPX-...', false)}
+            <div style="display:flex;flex-direction:column;">
+              <label for="extCfgRootFolder" style="${fieldLabelStyle}">${esc(t('storage.gdrive_root_label'))}</label>
+              <input type="text" id="extCfgRootFolder" value="root" placeholder="root" style="${inputStyle}width:100%;box-sizing:border-box;" />
+              <div style="${fieldHintStyle}">${esc(t('storage.gdrive_root_hint'))}</div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:2px;">
+            <button type="button" id="extGdriveOauthBtn" class="sysmon-action-btn" style="padding:8px 16px;background:#1a73e8;color:#fff;font-weight:700;font-size:0.83rem;border:none;border-radius:8px;cursor:pointer;">
+              🔗 ${esc(t('storage.gdrive_connect_btn'))}
+            </button>
+          </div>
+
+          <details style="margin-top:4px;border:1px solid var(--border-color);border-radius:8px;padding:8px 10px;background:rgba(148,163,184,0.05);">
+            <summary style="cursor:pointer;font-size:0.76rem;font-weight:600;color:var(--text-muted);">
+              ⚙️ ${esc(t('storage.gdrive_manual_toggle'))}
+            </summary>
+            <p style="${fieldHintStyle}margin:6px 0 8px;">${esc(t('storage.gdrive_manual_hint'))}</p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;">
+              ${pwField('extCfgAccessToken', t('storage.gdrive_access_token_label'), 'ya29....', false)}
+              ${pwField('extCfgRefreshToken', t('storage.gdrive_refresh_token_label'), '1//0...', false)}
+            </div>
+          </details>
+        `;
+        fieldsBox.querySelector('#extGdriveCopyUriBtn')?.addEventListener('click', () => {
+          copyText(gdriveRedirectUri).then(() => settingsApp.toast.success(t('users.copied_toast')));
+        });
+        fieldsBox.querySelector('#extGdriveOauthBtn')?.addEventListener('click', async (e) => {
+          const btn = e.currentTarget;
+          const payload = collectMountPayload();
+          btn.disabled = true;
+          const res = await settingsApp.api.post('gdrive_oauth_start', {
+            client_id: payload.config.client_id || '',
+            client_secret: payload.config.client_secret || '',
+            mount_name: payload.mount_name || 'Google Drive',
+            permission: payload.permission,
+            target_type: payload.target_type,
+            show_on_desktop: payload.show_on_desktop,
+            root_folder_id: payload.config.root_folder_id || 'root'
+          });
+          btn.disabled = false;
+          if (!res || !res.success || !res.auth_url) {
+            settingsApp.toast.error((res && res.error) || t('users.action_error'));
+            return;
+          }
+          const popup = window.open(res.auth_url, 'atelier_gdrive_oauth', 'width=540,height=660,menubar=no,toolbar=no');
+          if (!popup) {
+            settingsApp.toast.error(t('storage.gdrive_popup_blocked'));
+            return;
+          }
+          const onMsg = async (ev) => {
+            if (ev.origin !== window.location.origin) return;
+            if (!ev.data || ev.data.type !== 'atelier_gdrive_oauth_result') return;
+            window.removeEventListener('message', onMsg);
+            if (ev.data.success) {
+              settingsApp.toast.success(t('storage.mount_created_toast'));
+              if (window.sys && window.sys.shares) await window.sys.shares.refreshIdentity();
+              rerender();
+            } else {
+              settingsApp.toast.error(ev.data.error || t('users.action_error'));
+            }
+          };
+          window.addEventListener('message', onMsg);
+        });
+      } else {
+        fieldsBox.innerHTML = `
+          <div style="${guideBoxStyle}">
+            💡 ${esc(t('storage.local_guide'))}
+          </div>
+          <div style="display:flex;flex-direction:column;">
+            <label for="extCfgRootDir" style="${fieldLabelStyle}">${esc(t('storage.local_path_label'))} <span style="color:#ef4444;">*</span></label>
+            <input type="text" id="extCfgRootDir" required placeholder="/mnt/nas/photos" style="${inputStyle}width:100%;box-sizing:border-box;" />
+            <div style="${fieldHintStyle}">${esc(t('storage.local_path_hint'))}</div>
+          </div>
+        `;
+      }
+      bindPasswordToggles();
+    };
+    renderDriverFields();
+
+    container.querySelectorAll('.ext-driver-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const next = card.dataset.driver || 'webdav';
+        if (driverInput) driverInput.value = next;
+        container.querySelectorAll('.ext-driver-card').forEach(c => {
+          const active = c.dataset.driver === next;
+          c.style.borderColor = active ? 'var(--accent-primary,#6366f1)' : 'var(--border-color)';
+          c.style.background = active ? 'rgba(99,102,241,0.1)' : 'var(--bg-card)';
+        });
+        renderDriverFields();
+      });
+    });
+
+    container.querySelector('#extMountTestConfigBtn')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const payload = collectMountPayload();
+      btn.disabled = true;
+      if (feedbackEl) {
+        feedbackEl.style.display = 'block';
+        feedbackEl.style.background = 'rgba(99,102,241,0.1)';
+        feedbackEl.style.border = '1px solid rgba(99,102,241,0.35)';
+        feedbackEl.style.color = 'var(--text-main)';
+        feedbackEl.textContent = '⏳ ' + t('storage.testing_status');
+      }
+      const res = await settingsApp.api.post('test_external_mount_config', payload);
+      btn.disabled = false;
+      if (res && res.success) {
+        if (feedbackEl) {
+          feedbackEl.style.background = 'rgba(34,197,94,0.12)';
+          feedbackEl.style.border = '1px solid rgba(34,197,94,0.4)';
+          feedbackEl.style.color = '#16a34a';
+          feedbackEl.textContent = '✅ ' + (res.message || t('storage.test_ok_toast'));
+        }
+        settingsApp.toast.success(res.message || t('storage.test_ok_toast'));
+      } else {
+        const msg = (res && (res.message || res.error)) || t('users.action_error');
+        if (feedbackEl) {
+          feedbackEl.style.background = 'rgba(239,68,68,0.12)';
+          feedbackEl.style.border = '1px solid rgba(239,68,68,0.4)';
+          feedbackEl.style.color = '#ef4444';
+          feedbackEl.textContent = '❌ ' + msg;
+        }
+        settingsApp.toast.error(msg);
+      }
+    });
+
+    container.querySelector('#extMountCreateForm')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = collectMountPayload();
+      const res = await settingsApp.api.post('create_external_mount', payload);
       if (res && res.success) {
         settingsApp.toast.success(t('storage.mount_created_toast'));
         if (window.sys && window.sys.shares) await window.sys.shares.refreshIdentity();

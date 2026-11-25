@@ -1976,6 +1976,33 @@ HTACCESS;
             ($bob_ext_gal['status'] ?? 0) === 403
         );
 
+        // Pre-mount config test & Google Drive OAuth2 wizard (PKCE state + anti-CSRF callback guard)
+        $_SESSION['is_admin'] = true;
+        $_SESSION['sg_admin_logged'] = true;
+        $pre_test_ok = \SimpleGallery\Kernel\Actions\StorageActions::handle('test_external_mount_config', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['driver' => 'local', 'config' => ['root_dir' => $ext_disk]]
+        ]);
+        $gd_start_no_cid = \SimpleGallery\Kernel\Actions\StorageActions::handle('gdrive_oauth_start', [], [
+            'base_dir' => $p1_root, 'raw_body' => []
+        ]);
+        $gd_start_ok = \SimpleGallery\Kernel\Actions\StorageActions::handle('gdrive_oauth_start', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['client_id' => 'test-client.apps.googleusercontent.com', 'mount_name' => 'Mon Drive', 'permission' => 'read']
+        ]);
+        $gd_cb_bad_state = \SimpleGallery\Kernel\Actions\StorageActions::handle('gdrive_oauth_callback', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => ['code' => 'fake_code', 'state' => 'wrong_state_value']
+        ]);
+        $this->assert("Phase B: Test pré-montage + Assistant Google Drive OAuth2 (PKCE S256 & rejet state invalide 403)",
+            ($pre_test_ok['status'] ?? 0) === 200 && !empty($pre_test_ok['data']['success']) &&
+            ($gd_start_no_cid['status'] ?? 0) === 400 &&
+            ($gd_start_ok['status'] ?? 0) === 200 &&
+            strpos((string)($gd_start_ok['data']['auth_url'] ?? ''), 'code_challenge_method=S256') !== false &&
+            strpos((string)($gd_start_ok['data']['auth_url'] ?? ''), 'drive.readonly') !== false &&
+            ($gd_cb_bad_state['status'] ?? 0) === 403
+        );
+
         // Chunked resumable upload (both rejected dangerous extension & valid 2-chunk reassembly into ext://)
         \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
         $chunk_bad = \SimpleGallery\Kernel\Actions\StorageActions::handle('upload_chunk_init', [], [

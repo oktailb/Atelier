@@ -1390,13 +1390,17 @@ try {
 
   // Verify Phase B frontend integration (SyscallClient.uploadChunked + Control Panel Storage/Cloud/Trash/Index tab)
   const syscallCode = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'core', 'SyscallClient.js'), 'utf8');
-  assert("Phase B UI & Client: SyscallClient.uploadChunked + onglet Stockage & Cloud (montages externes, corbeille 30j, index SQLite)",
+  assert("Phase B UI & Client: SyscallClient.uploadChunked + onglet Stockage & Cloud (montages guidés, OAuth2 Drive, pré-test, corbeille 30j, index SQLite)",
     syscallCode.includes('async uploadChunked(') &&
     syscallCode.includes('upload_chunk_init') &&
     syscallCode.includes('upload_chunk_complete') &&
     settingsUiCode.includes("id: 'storage'") &&
     usersPanelUiCode.includes('renderStorageSection') &&
     usersPanelUiCode.includes('create_external_mount') &&
+    usersPanelUiCode.includes('test_external_mount_config') &&
+    usersPanelUiCode.includes('gdrive_oauth_start') &&
+    usersPanelUiCode.includes('ext-driver-card') &&
+    usersPanelUiCode.includes('extGdriveOauthBtn') &&
     usersPanelUiCode.includes('restore_trash_item') &&
     usersPanelUiCode.includes('rebuild_file_index')
   );

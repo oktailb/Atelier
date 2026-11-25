@@ -6,6 +6,7 @@
 namespace SimpleGallery\Kernel\Actions;
 
 use SimpleGallery\Kernel\Auth\AuthManager;
+use SimpleGallery\Kernel\Auth\AuthSettings;
 use SimpleGallery\Kernel\Config\ConfigStore;
 use SimpleGallery\Kernel\FS\CacheManager;
 use SimpleGallery\Kernel\FS\ChunkedUploadManager;
@@ -36,9 +37,15 @@ class StorageActions {
             if (!AuthManager::isLoggedIn()) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
             }
+            $authCfg = AuthSettings::load($project_root);
+            $baseUrl = AuthSettings::resolvePublicBaseUrl($authCfg);
+            $isGoogleOidc = !empty($authCfg['oidc_client_id'])
+                && stripos((string)($authCfg['oidc_issuer_url'] ?? ''), 'accounts.google.com') !== false;
             return ['status' => 200, 'data' => [
-                'success' => true,
-                'mounts'  => ExternalMountManager::listAccessibleMounts($project_root)
+                'success'                  => true,
+                'mounts'                   => ExternalMountManager::listAccessibleMounts($project_root),
+                'gdrive_oauth_redirect_uri' => $baseUrl . '/api.php?action=gdrive_oauth_callback',
+                'gdrive_has_server_client' => $isGoogleOidc
             ]];
         }
 
@@ -57,6 +64,166 @@ class StorageActions {
             $id = (int)($in['mount_id'] ?? $in['id'] ?? 0);
             $res = ExternalMountManager::testMount($project_root, $id);
             return ['status' => $res['status'], 'data' => $res];
+        }
+
+        if ($action === 'test_external_mount_config') {
+            $res = ExternalMountManager::testRawConfig($project_root, $in);
+            return ['status' => $res['status'], 'data' => $res];
+        }
+
+        if ($action === 'gdrive_oauth_start') {
+            if (!AuthManager::isLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
+            $authCfg = AuthSettings::load($project_root);
+            $clientId = trim((string)($in['client_id'] ?? ''));
+            $clientSecret = trim((string)($in['client_secret'] ?? ''));
+            if ($clientId === '' && stripos((string)($authCfg['oidc_issuer_url'] ?? ''), 'accounts.google.com') !== false) {
+                $clientId = trim((string)($authCfg['oidc_client_id'] ?? ''));
+                if ($clientSecret === '') {
+                    $clientSecret = trim((string)($authCfg['oidc_client_secret'] ?? ''));
+                }
+            }
+            if ($clientId === '') {
+                return ['status' => 400, 'data' => [
+                    'success' => false,
+                    'error'   => 'Google Client ID is required to start OAuth2 sign-in.'
+                ]];
+            }
+
+            AuthManager::ensureSessionStarted();
+            $state = bin2hex(random_bytes(16));
+            $verifier = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+            $challenge = rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '=');
+            $redirectUri = AuthSettings::resolvePublicBaseUrl($authCfg) . '/api.php?action=gdrive_oauth_callback';
+            $permission = strtolower(trim((string)($in['permission'] ?? 'write'))) === 'read' ? 'read' : 'write';
+            $scope = $permission === 'read'
+                ? 'https://www.googleapis.com/auth/drive.readonly'
+                : 'https://www.googleapis.com/auth/drive';
+            $mountName = trim((string)($in['mount_name'] ?? '')) ?: 'Google Drive';
+            $targetType = (string)($in['target_type'] ?? 'user');
+            $showOnDesktop = !array_key_exists('show_on_desktop', $in) || !empty($in['show_on_desktop']);
+            $rootFolderId = trim((string)($in['root_folder_id'] ?? 'root')) ?: 'root';
+
+            $_SESSION['sg_gdrive_oauth'] = [
+                'state'           => $state,
+                'code_verifier'   => $verifier,
+                'redirect_uri'    => $redirectUri,
+                'client_id'       => $clientId,
+                'client_secret'   => $clientSecret,
+                'mount_name'      => $mountName,
+                'permission'      => $permission,
+                'target_type'     => $targetType,
+                'show_on_desktop' => $showOnDesktop,
+                'root_folder_id'  => $rootFolderId,
+                'expires_at'      => time() + 600
+            ];
+
+            $authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query([
+                'client_id'             => $clientId,
+                'redirect_uri'          => $redirectUri,
+                'response_type'         => 'code',
+                'scope'                 => $scope,
+                'access_type'           => 'offline',
+                'prompt'                => 'consent',
+                'state'                 => $state,
+                'code_challenge'        => $challenge,
+                'code_challenge_method' => 'S256'
+            ]);
+
+            return ['status' => 200, 'data' => [
+                'success'      => true,
+                'auth_url'     => $authUrl,
+                'redirect_uri' => $redirectUri
+            ]];
+        }
+
+        if ($action === 'gdrive_oauth_callback') {
+            AuthManager::ensureSessionStarted();
+            $saved = $_SESSION['sg_gdrive_oauth'] ?? null;
+            unset($_SESSION['sg_gdrive_oauth']);
+
+            $code = trim((string)($in['code'] ?? ''));
+            $state = trim((string)($in['state'] ?? ''));
+            $oauthErr = trim((string)($in['error'] ?? ''));
+
+            $payload = ['type' => 'atelier_gdrive_oauth_result', 'success' => false, 'error' => 'OAuth2 failed.'];
+
+            if (!AuthManager::isLoggedIn()) {
+                $payload['error'] = 'Authentication required.';
+                return self::renderGdriveOauthCallbackResponse($payload, 403);
+            }
+            if ($oauthErr !== '') {
+                $payload['error'] = 'Google OAuth2 error: ' . $oauthErr;
+                return self::renderGdriveOauthCallbackResponse($payload, 400);
+            }
+            if (!is_array($saved) || (int)($saved['expires_at'] ?? 0) < time()) {
+                $payload['error'] = 'OAuth2 session expired. Please try again.';
+                return self::renderGdriveOauthCallbackResponse($payload, 400);
+            }
+            if ($code === '' || $state === '' || !hash_equals((string)($saved['state'] ?? ''), $state)) {
+                $payload['error'] = 'Invalid OAuth2 state parameter.';
+                return self::renderGdriveOauthCallbackResponse($payload, 403);
+            }
+
+            $postFields = [
+                'grant_type'    => 'authorization_code',
+                'code'          => $code,
+                'redirect_uri'  => (string)$saved['redirect_uri'],
+                'client_id'     => (string)$saved['client_id'],
+                'code_verifier' => (string)$saved['code_verifier']
+            ];
+            if (!empty($saved['client_secret'])) {
+                $postFields['client_secret'] = (string)$saved['client_secret'];
+            }
+
+            $tokenData = null;
+            if (function_exists('curl_init')) {
+                $ch = curl_init('https://oauth2.googleapis.com/token');
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postFields));
+                $resp = curl_exec($ch);
+                $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                if ($httpCode === 200 && is_string($resp)) {
+                    $tokenData = @json_decode($resp, true);
+                }
+            }
+
+            if (!is_array($tokenData) || empty($tokenData['access_token'])) {
+                $payload['error'] = 'Failed to exchange Google OAuth2 authorization code for tokens.';
+                return self::renderGdriveOauthCallbackResponse($payload, 502);
+            }
+
+            $created = ExternalMountManager::createMount($project_root, [
+                'driver'          => 'gdrive',
+                'mount_name'      => (string)($saved['mount_name'] ?? 'Google Drive'),
+                'permission'      => (string)($saved['permission'] ?? 'write'),
+                'target_type'     => (string)($saved['target_type'] ?? 'user'),
+                'show_on_desktop' => !empty($saved['show_on_desktop']),
+                'config'          => [
+                    'access_token'   => (string)$tokenData['access_token'],
+                    'refresh_token'  => (string)($tokenData['refresh_token'] ?? ''),
+                    'client_id'      => (string)$saved['client_id'],
+                    'client_secret'  => (string)($saved['client_secret'] ?? ''),
+                    'expires_at'     => time() + max(300, (int)($tokenData['expires_in'] ?? 3600)),
+                    'root_folder_id' => (string)($saved['root_folder_id'] ?? 'root')
+                ]
+            ]);
+
+            if (!empty($created['success'])) {
+                $payload = [
+                    'type'    => 'atelier_gdrive_oauth_result',
+                    'success' => true,
+                    'mount'   => $created['mount'] ?? null
+                ];
+                return self::renderGdriveOauthCallbackResponse($payload, 200);
+            }
+
+            $payload['error'] = (string)($created['error'] ?? 'Could not create Google Drive mount.');
+            return self::renderGdriveOauthCallbackResponse($payload, (int)($created['status'] ?? 500));
         }
 
         // ---------------------------------------------------------------------
@@ -205,5 +372,31 @@ class StorageActions {
         }
 
         return null;
+    }
+
+    /**
+     * Emits an origin-locked postMessage HTML page for browser OAuth2 popups,
+     * or returns a structured JSON response when invoked in CLI/unit tests.
+     */
+    private static function renderGdriveOauthCallbackResponse(array $payload, int $status): array {
+        if (PHP_SAPI === 'cli') {
+            return ['status' => $status, 'data' => $payload];
+        }
+        $json = json_encode($payload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE);
+        $title = !empty($payload['success']) ? 'Google Drive connected' : 'Google Drive connection error';
+        $msg = !empty($payload['success'])
+            ? 'Google Drive mounted successfully. You can close this window.'
+            : (string)($payload['error'] ?? 'OAuth2 error');
+        http_response_code($status);
+        if (!headers_sent()) {
+            header('Content-Type: text/html; charset=utf-8');
+            header('Cache-Control: no-store');
+        }
+        echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '</title>'
+            . '<style>body{font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#f8fafc;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;text-align:center}.card{max-width:420px;padding:24px;border-radius:14px;border:1px solid rgba(255,255,255,0.14);background:rgba(30,41,59,0.9)}</style></head><body>'
+            . '<div class="card"><h3>' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '</h3><p>' . htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') . '</p></div>'
+            . '<script>(function(){var d=' . $json . ';try{if(window.opener&&!window.opener.closed){window.opener.postMessage(d,window.location.origin);}}catch(e){}if(d&&d.success){setTimeout(function(){window.close();},900);}})();</script>'
+            . '</body></html>';
+        exit;
     }
 }
