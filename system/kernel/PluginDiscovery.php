@@ -135,10 +135,29 @@ class PluginDiscovery {
 
             $app_id = $manifest['id'] ?? $folder;
             $is_enabled = !in_array($app_id, $disabled_ids, true);
+            $is_healthy = !isset($manifest['health']['ok']) || !empty($manifest['health']['ok']);
+
+            // Skip unhealthy standalone deployments (e.g. 0-byte incomplete upload) unless include_disabled=true
+            if (!$include_disabled && !$is_healthy) {
+                continue;
+            }
 
             // Skip completely if app is disabled and we only want active apps
             if (!$include_disabled && !$is_enabled) {
                 continue;
+            }
+
+            // SemVer deduplication when multiple versioned folders of the same app coexist
+            if (isset($apps[$app_id])) {
+                $existing_healthy = !isset($apps[$app_id]['manifest']['health']['ok']) || !empty($apps[$app_id]['manifest']['health']['ok']);
+                $new_ver = (string)($manifest['version'] ?? '0.0.0');
+                $old_ver = (string)($apps[$app_id]['version'] ?? '0.0.0');
+                if ($existing_healthy && !$is_healthy) {
+                    continue;
+                }
+                if ($existing_healthy === $is_healthy && version_compare($new_ver, $old_ver, '<=')) {
+                    continue;
+                }
             }
 
             // Find JS entry point
@@ -197,10 +216,13 @@ class PluginDiscovery {
                 }
             }
 
-            // Category resolution
+            // Category resolution (treat `apps/external/` as a neutral container folder)
             $cat = !empty($manifest['category']) ? trim((string)$manifest['category']) : '';
             if ($cat === '' && strpos($rel_key, '/') !== false) {
-                $cat = dirname($rel_key);
+                $parent_dir = dirname($rel_key);
+                if (strtolower($parent_dir) !== 'external') {
+                    $cat = $parent_dir;
+                }
             }
 
             // Find additional auxiliary JS scripts if defined in manifest

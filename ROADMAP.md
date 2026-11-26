@@ -240,8 +240,11 @@ flowchart TB
 - **Mode « Galerie de Livraison Client »** :
   - Présentation soignée sans barre WebOS complexe sur les liens partagés `/s/<token>` : choix de mise en page (Mosaïque / Polaroid / Cinéma), **filigrane dynamique** sur les aperçus (protégeant les originaux HD avant validation/paiement), système de **sélection / favoris client** (*proofing*) et commentaires horodatés, téléchargement sélectif ZIP HD.
 - **Intégration poussée du Studio Créatif (`WebAppHost` + `WebAppVfsBridge`)** :
-  - Sauvegarde incrémentale avec versioning automatique lors des exports depuis PhotoCraft / PdfCraft / FilmCraft.
-  - Catalogue d'applications activables en 1 clic (*App Store* interne curaté) dans les Paramètres Admin.
+  - [x] **Lot 1 — Pont natif `?host=parent` & Synthétiseur v2** *(Livré)* : auto-détection dans `HOSTING.md` du protocole `<app>:ready/open/save/dirty/failed` (+ `&author=`, `?chrome=notitlebar`, `?blank`) pour GridCraft/DeckCraft/CADCraft/FilmCraft/PdfCraft avec sauvegarde directe VFS local & Cloud `ext://` sur `Ctrl+S` et indicateur `●` non sauvegardé ; extraction enrichie des associations (`.xls`, `.pptx`, `.doc`, `.eml`, `.mbox`, `.ics`, `.vcf`, `.fcproj`, filtrage anti-faux-positifs), découverte d'icônes locales (`.svg`/`.png`/`.ico`), santé des déploiements (filtrage dossiers 0 octet), dédoublonnage SemVer dans `PluginDiscovery` et support du conteneur git-ignoré `apps/external/`.
+  - [ ] **Lot 2 — Déploiement Admin d'Apps Externes, Mises à jour & Associations par défaut** :
+    - Déploiement **réservé aux administrateurs** via upload d'archive `.zip` **ou URL directe** (validation anti-SSRF, contrôle intégrité `index.html`/`.wasm`, extraction sandboxée dans `apps/external/<app>`).
+    - **Détection automatique des mises à jour amont** (comparaison SemVer via API Releases GitHub / URL source enregistrée) avec **file de validation administrateur** (approbation en 1 clic, téléchargement + bascule sans interruption).
+    - **Préférences d'associations par défaut par utilisateur** (*« Ouvrir avec → Définir par défaut »* stocké dans `users.preferences_json.default_apps`) + éditeur visuel admin de `config/external_apps.json`.
 - **Marque Blanche (*White-Label*) complète** :
   - Personnalisation par instance/organisation : nom de marque, logo, favicon, domaine personnalisé (`cloud.monstudio.fr`), palette de couleurs, page de connexion et mentions légales.
 

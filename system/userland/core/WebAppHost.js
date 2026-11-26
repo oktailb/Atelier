@@ -23,6 +23,32 @@
       this.activeRendererFlag = '';
       this.iframeLoaded = false;
       this.win = null;
+      this.hostBridge = (this.manifest && this.manifest.hostBridge && this.manifest.hostBridge.mode === 'parent')
+        ? this.manifest.hostBridge
+        : null;
+      this.hostReady = false;
+      this.pendingHostFile = null;
+      this.isDirty = false;
+      this._onHostMessage = null;
+    }
+
+    isHostBridgeActive() {
+      if (!this.hostBridge || this.hostBridge.mode !== 'parent') return false;
+      const bridge = window.sys && window.sys.webAppVfsBridge;
+      if (bridge && typeof bridge.isEnabledForApp === 'function') {
+        return bridge.isEnabledForApp(this);
+      }
+      return true;
+    }
+
+    updateWindowTitle() {
+      const wm = window.WindowManager;
+      if (!wm || typeof wm.setTitle !== 'function') return;
+      const appTitle = this.getAppTitle();
+      const baseTitle = this.activeFile && this.activeFile.name
+        ? `${appTitle} — ${this.activeFile.name}`
+        : appTitle;
+      wm.setTitle(this.windowId, `${this.isDirty ? '● ' : ''}${baseTitle}`);
     }
 
     t(key, replacements = {}) {
@@ -67,6 +93,24 @@
       const params = [];
       if (this.activeRendererFlag) {
         params.push(encodeURIComponent(this.activeRendererFlag));
+      }
+      if (this.isHostBridgeActive()) {
+        params.push('host=parent');
+        if (this.hostBridge.supportsChrome) {
+          params.push('chrome=notitlebar');
+        }
+        if (this.hostBridge.supportsBlank && (startupFile || this.activeFile)) {
+          params.push('blank');
+        }
+        if (this.hostBridge.supportsAuthor) {
+          const u = (window.sys && window.sys.shares && typeof window.sys.shares.getCurrentUser === 'function')
+            ? window.sys.shares.getCurrentUser()
+            : window.SG_CURRENT_USER;
+          const author = u && (u.display_name || u.username);
+          if (author) {
+            params.push(`author=${encodeURIComponent(author)}`);
+          }
+        }
       }
       const openParam = this.manifest && this.manifest.openFileParam;
       if (startupFile && openParam) {
@@ -144,10 +188,154 @@
       }
     }
 
+    cleanupHostBridge() {
+      if (this._onHostMessage && typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
+        window.removeEventListener('message', this._onHostMessage);
+      }
+      this._onHostMessage = null;
+      this.hostReady = false;
+    }
+
+    bindHostBridgeListener(iframe, filePassedViaQuery = false) {
+      this.cleanupHostBridge();
+      if (!this.isHostBridgeActive() || !iframe || typeof window === 'undefined' || typeof window.addEventListener !== 'function') {
+        return;
+      }
+      const prefix = String(this.hostBridge.prefix || this.id).toLowerCase();
+      this._onHostMessage = (event) => {
+        if (!event || !event.data || typeof event.data !== 'object') return;
+        if (window.location && event.origin && event.origin !== window.location.origin) return;
+        const curIframe = this.getIframeElement();
+        if (!curIframe || !curIframe.contentWindow || event.source !== curIframe.contentWindow) return;
+        const msg = event.data;
+        const type = String(msg.type || '').toLowerCase();
+        if (!type.startsWith(prefix + ':')) return;
+
+        const sub = type.slice(prefix.length + 1);
+        if (sub === 'ready') {
+          this.hostReady = true;
+          this.hideBootOverlay();
+          const toSend = this.pendingHostFile || (!filePassedViaQuery ? this.activeFile : null);
+          this.pendingHostFile = null;
+          if (toSend) {
+            this.sendFileViaHostBridge(toSend);
+          }
+        } else if (sub === 'save') {
+          this.handleHostBridgeSave(msg.name || 'document', msg.bytes || msg.data || null);
+        } else if (sub === 'dirty') {
+          this.isDirty = Boolean(msg.dirty);
+          this.updateWindowTitle();
+        } else if (sub === 'failed') {
+          this.showBootOverlay(String(msg.error || 'App initialization failed'));
+        }
+      };
+      window.addEventListener('message', this._onHostMessage);
+    }
+
+    async sendFileViaHostBridge(file) {
+      if (!file || !this.isHostBridgeActive()) return false;
+      const iframe = this.getIframeElement();
+      if (!iframe || !iframe.contentWindow) return false;
+      const fileUrl = this.resolveFileUrl(file);
+      if (!fileUrl) return false;
+
+      const prefix = String(this.hostBridge.prefix || this.id).toLowerCase();
+      const appTitle = this.getAppTitle();
+      const fileName = file.name || (file.path ? file.path.split('/').pop() : 'document');
+      if (window.sys && window.sys.toast && typeof window.sys.toast.info === 'function') {
+        window.sys.toast.info(this.t('webapp.opening_file', { name: fileName, app: appTitle }));
+      }
+      try {
+        const resp = await fetch(fileUrl, { credentials: 'same-origin' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const bytes = await resp.arrayBuffer();
+        const targetOrigin = (window.location && window.location.origin) ? window.location.origin : '*';
+        iframe.contentWindow.postMessage(
+          { type: `${prefix}:open`, name: fileName, bytes },
+          targetOrigin,
+          [bytes]
+        );
+        this.activeFile = file;
+        this.isDirty = false;
+        this.updateWindowTitle();
+        if (window.sys && window.sys.toast && typeof window.sys.toast.success === 'function') {
+          window.sys.toast.success(this.t('webapp.file_sent', { name: fileName, app: appTitle }));
+        }
+        return true;
+      } catch (err) {
+        console.warn(`[WebAppHost:${this.id}] Host bridge open failed:`, err);
+        if (window.sys && window.sys.toast && typeof window.sys.toast.error === 'function') {
+          window.sys.toast.error(this.t('webapp.file_send_error', { name: fileName, app: appTitle }));
+        }
+        return false;
+      }
+    }
+
+    async handleHostBridgeSave(suggestedName, rawBytes) {
+      const bridge = window.sys && window.sys.webAppVfsBridge;
+      if (!bridge || typeof bridge.uploadBlobToVfs !== 'function' || !rawBytes) return false;
+      const cleanName = String(suggestedName || 'export.bin').trim() || 'export.bin';
+      const saveExt = cleanName.includes('.') ? cleanName.split('.').pop().toLowerCase() : '';
+      const mime = this.guessMimeType({ name: cleanName, extension: saveExt });
+      const blob = rawBytes instanceof Blob ? rawBytes : new Blob([rawBytes], { type: mime });
+
+      let targetDir = null;
+      let targetFilename = cleanName;
+      let overwrite = true;
+
+      // If saving the same document format as the currently opened VFS file (Ctrl+S), overwrite in-place
+      // (supports both local homes/media with auto-versioning AND `ext://<id>` cloud mounts!).
+      if (this.activeFile && this.activeFile.path) {
+        const activeSplit = bridge.splitVfsPath(this.activeFile.path);
+        const activeExt = (this.activeFile.extension || (activeSplit.filename.includes('.') ? activeSplit.filename.split('.').pop() : '')).toLowerCase();
+        if (activeSplit.filename && (!saveExt || !activeExt || saveExt === activeExt)) {
+          targetDir = activeSplit.dir;
+          targetFilename = activeSplit.filename;
+        }
+      }
+
+      // Otherwise (Export PDF / Save As / brand-new document), ask user where to save in VFS
+      if (targetDir === null) {
+        if (!window.sys || typeof window.sys.pickSaveLocation !== 'function') return false;
+        const initDir = (this.activeFile && this.activeFile.path)
+          ? bridge.splitVfsPath(this.activeFile.path).dir
+          : ((window.explorerApp && window.explorerApp.state && window.explorerApp.state.currentPath) || '');
+        const dest = await window.sys.pickSaveLocation({
+          title: this.t('vfs.save_for_app', { app: this.getAppTitle() }),
+          initialPath: initDir,
+          suggestedName: cleanName,
+          allowLocalFallback: false
+        });
+        if (!dest) return false;
+        targetDir = dest.dir || '';
+        targetFilename = dest.filename || cleanName;
+        overwrite = dest.overwrite !== false;
+      }
+
+      const res = await bridge.uploadBlobToVfs(blob, targetDir, targetFilename, overwrite);
+      if (res && res.success) {
+        if (!this.activeFile || !this.activeFile.path) {
+          this.activeFile = { name: targetFilename, path: res.path, extension: saveExt };
+        }
+        this.isDirty = false;
+        this.updateWindowTitle();
+        if (window.sys && window.sys.toast && typeof window.sys.toast.success === 'function') {
+          window.sys.toast.success(this.t('vfs.saved_to_gallery', { name: targetFilename }));
+        }
+        return true;
+      }
+      if (window.sys && window.sys.toast && typeof window.sys.toast.error === 'function') {
+        window.sys.toast.error((res && res.error) || this.t('vfs.save_denied'));
+      }
+      return false;
+    }
+
     bindBootLifecycle(iframe, filePassedViaQuery = false) {
       if (!iframe) return;
       if (this._slowTimer) clearTimeout(this._slowTimer);
       if (this._bootPollTimer) clearInterval(this._bootPollTimer);
+      this.hostReady = false;
+      this.bindHostBridgeListener(iframe, filePassedViaQuery);
 
       const overlay = this.getBootOverlayElement();
       const isWasm = Array.isArray(this.manifest.capabilities) && this.manifest.capabilities.includes('wasm');
@@ -257,7 +445,7 @@
           }, 300);
         }
 
-        if (this.activeFile && !filePassedViaQuery) {
+        if (this.activeFile && !filePassedViaQuery && !this.isHostBridgeActive()) {
           this.injectFileIntoIframe(this.activeFile);
         }
       };
@@ -519,6 +707,8 @@
         onClose: () => {
           if (this._slowTimer) clearTimeout(this._slowTimer);
           if (this._bootPollTimer) clearInterval(this._bootPollTimer);
+          this.cleanupHostBridge();
+          this.isDirty = false;
           this.iframeLoaded = false;
           this.win = null;
         }
@@ -590,9 +780,33 @@
         tiff: 'image/tiff',
         tif: 'image/tiff',
         pdf: 'application/pdf',
+        xls: 'application/vnd.ms-excel',
+        xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ods: 'application/vnd.oasis.opendocument.spreadsheet',
+        csv: 'text/csv',
+        doc: 'application/msword',
+        docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        odt: 'application/vnd.oasis.opendocument.text',
+        rtf: 'application/rtf',
+        epub: 'application/epub+zip',
+        ppt: 'application/vnd.ms-powerpoint',
+        pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        odp: 'application/vnd.oasis.opendocument.presentation',
+        eml: 'message/rfc822',
+        mbox: 'application/mbox',
+        ics: 'text/calendar',
+        vcf: 'text/vcard',
+        dxf: 'image/vnd.dxf',
+        stl: 'model/stl',
+        obj: 'model/obj',
+        gltf: 'model/gltf+json',
+        glb: 'model/gltf-binary',
         mp4: 'video/mp4',
+        mov: 'video/quicktime',
+        webm: 'video/webm',
         mp3: 'audio/mpeg',
-        wav: 'audio/wav'
+        wav: 'audio/wav',
+        flac: 'audio/flac'
       };
       return map[ext] || 'application/octet-stream';
     }
@@ -633,6 +847,17 @@
       if (!file) return false;
       const iframe = this.getIframeElement();
       if (!iframe) return false;
+
+      // Prefer native `?host=parent` protocol when available (zero race condition + native Ctrl+S VFS saveback)
+      if (this.isHostBridgeActive()) {
+        if (this.hostReady) {
+          return this.sendFileViaHostBridge(file);
+        }
+        this.pendingHostFile = file;
+        this.activeFile = file;
+        this.updateWindowTitle();
+        return true;
+      }
 
       const fileUrl = this.resolveFileUrl(file);
       if (!fileUrl) return false;

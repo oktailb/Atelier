@@ -21,10 +21,12 @@ scratch/
 .admin_password_hash
 .permissions.json
 /storage/tribune_secrets.php
-# Extensions métier / modules privés
+# Extensions métier / modules privés & apps externes déployées manuellement
 apps/ffs-apps/
 apps/sim-*/
 apps/ffs/
+apps/external/
+apps/*-web-*/
 # Archives & gros binaires (sécurité anti-fuite)
 *.7z
 *.zip

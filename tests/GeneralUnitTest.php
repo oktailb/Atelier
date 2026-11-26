@@ -1091,6 +1091,38 @@ class GeneralUnitTestSuite {
         $this->assert("Inférence Layer 4 associe .pdf sans section Formats explicite", in_array('pdf', $db['manifest']['extensions'] ?? [], true));
         $this->assert("Détection du paramètre de démarrage openFileParam='file' depuis HOSTING.md", ($db['manifest']['openFileParam'] ?? null) === 'file');
 
+        // Test Lot 1 Synthesizer v2: ?host=parent detection, .xls extraction, SemVer dedup, apps/external/, & 0-byte health filter
+        $tmp_sheet_old = $tmp_root . '/apps/external/sheetcraft-web-0.18.0';
+        $tmp_sheet_new = $tmp_root . '/apps/external/sheetcraft-web-0.19.1';
+        $tmp_broken    = $tmp_root . '/apps/external/broken-web-0.1.0';
+        @mkdir($tmp_sheet_old, 0755, true);
+        @mkdir($tmp_sheet_new, 0755, true);
+        @mkdir($tmp_broken, 0755, true);
+        file_put_contents($tmp_sheet_old . '/index.html', '<!DOCTYPE html><html><head><title>SheetCraft</title></head><body></body></html>');
+        file_put_contents($tmp_sheet_new . '/index.html', '<!DOCTYPE html><html><head><title>SheetCraft</title></head><body></body></html>');
+        file_put_contents($tmp_sheet_new . '/README.md', "# SheetCraft\nSpreadsheet editor opening .xls, .xlsx and .ods files. Needs 2 GB RAM.");
+        file_put_contents($tmp_sheet_new . '/HOSTING.md', "Use `?host=parent&author=Ada` and `?chrome=notitlebar` for iframe hosting. Posts `sheetcraft:ready` and `sheetcraft:save`.");
+        file_put_contents($tmp_broken . '/index.html', '');
+
+        $tmp_active_l1 = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($tmp_root, false);
+        $sc = $tmp_active_l1['sheetcraft'] ?? [];
+        $hb = $sc['manifest']['hostBridge'] ?? null;
+        $this->assert("Lot 1 Synthétiseur v2: dédoublonnage SemVer (0.19.1 > 0.18.0), conteneur apps/external/ neutre & filtrage app 0 octet",
+            ($sc['version'] ?? '') === '0.19.1' &&
+            ($sc['category'] ?? '') === 'productivity' &&
+            !isset($tmp_active_l1['broken'])
+        );
+        $this->assert("Lot 1 Synthétiseur v2: détection native ?host=parent (+chrome/+author) & formats .xls/.xlsx sans faux positif 'gb'",
+            is_array($hb) &&
+            ($hb['mode'] ?? '') === 'parent' &&
+            ($hb['prefix'] ?? '') === 'sheetcraft' &&
+            !empty($hb['supportsChrome']) &&
+            !empty($hb['supportsAuthor']) &&
+            in_array('xls', $sc['manifest']['extensions'] ?? [], true) &&
+            in_array('xlsx', $sc['manifest']['extensions'] ?? [], true) &&
+            !in_array('gb', $sc['manifest']['extensions'] ?? [], true)
+        );
+
         // Verify optional admin override via config/external_apps.json
         file_put_contents($tmp_root . '/config/external_apps.json', json_encode([
             'pixelcraft' => ['icon' => '🖌️', 'category' => 'productivity']

@@ -191,16 +191,33 @@
     });
   }
 
+  function splitVfsPath(fullPath) {
+    const raw = String(fullPath || '').replace(/\\/g, '/').trim();
+    if (!raw) return { dir: '', filename: '' };
+    const extMatch = raw.match(/^(ext:\/\/\d+)(?:\/(.*))?$/i);
+    if (extMatch) {
+      const mountRoot = extMatch[1];
+      const rest = (extMatch[2] || '').replace(/^\/+/, '');
+      if (!rest) return { dir: mountRoot, filename: '' };
+      const idx = rest.lastIndexOf('/');
+      if (idx === -1) return { dir: mountRoot, filename: rest };
+      return { dir: `${mountRoot}/${rest.slice(0, idx)}`, filename: rest.slice(idx + 1) };
+    }
+    const clean = raw.replace(/^\/+/, '');
+    const idx = clean.lastIndexOf('/');
+    if (idx === -1) return { dir: '', filename: clean };
+    return { dir: clean.slice(0, idx), filename: clean.slice(idx + 1) };
+  }
+
   /**
    * Builds a W3C-compatible FileSystemFileHandle backed by the SimpleGallery VFS.
    * Supports both reading (`getFile()`) and saving back to the gallery (`createWritable()`).
    * All Promise-returning methods return `cw.Promise` instances for cross-realm WASM compatibility.
    */
   function createVirtualFileHandle(cw, appInstance, meta) {
-    const dir = meta.dir !== undefined
-      ? meta.dir
-      : (meta.path && meta.path.includes('/') ? meta.path.slice(0, meta.path.lastIndexOf('/')) : '');
-    const fileName = meta.filename || meta.name || 'document';
+    const split = splitVfsPath(meta.path || '');
+    const dir = meta.dir !== undefined ? meta.dir : split.dir;
+    const fileName = meta.filename || meta.name || split.filename || 'document';
     const overwrite = meta.overwrite !== false;
     let cachedFileObj = meta.fileObj || null;
 
@@ -579,6 +596,14 @@
       }
 
       return true;
+    }
+
+    splitVfsPath(fullPath) {
+      return splitVfsPath(fullPath);
+    }
+
+    uploadBlobToVfs(blob, dir, filename, overwrite = true) {
+      return uploadBlobToVfs(blob, dir, filename, overwrite);
     }
 
     /**

@@ -562,9 +562,13 @@ assert("Tribune JS implémente refreshOAuthTokenSilently avec tribune_oauth_refr
 const collectJsFiles = (dir, acc = []) => {
   if (!fs.existsSync(dir)) return acc;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name.startsWith('.') || entry.name === 'ffs-apps') continue;
+    if (entry.name.startsWith('.') || entry.name === 'ffs-apps' || entry.name === 'external') continue;
     const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) collectJsFiles(full, acc);
+    if (entry.isDirectory()) {
+      // Skip third-party standalone HTML/WASM bundles (index.html without native manifest.json)
+      if (fs.existsSync(path.join(full, 'index.html')) && !fs.existsSync(path.join(full, 'manifest.json'))) continue;
+      collectJsFiles(full, acc);
+    }
     else if (entry.name.endsWith('.js')) acc.push(full);
   }
   return acc;
@@ -789,6 +793,19 @@ try {
   hostInst.manifest.openFileParam = 'file';
   const querySrc = hostInst.getEffectiveSrc({ name: 'doc.pdf', path: 'docs/doc.pdf', file_url: 'system/endpoints/thumb.php?file=docs%2Fdoc.pdf&raw=1' });
   assert("WebAppHost.getEffectiveSrc injecte ?file=... quand openFileParam est déclaré", querySrc.includes('?file=') && querySrc.includes('doc.pdf'));
+  hostInst.hostBridge = { mode: 'parent', prefix: 'gridcraft', supportsAuthor: true, supportsChrome: true, supportsBlank: true };
+  sandboxWin.SG_CURRENT_USER = { username: 'alice', display_name: 'Alice' };
+  const hostBridgeSrc = hostInst.getEffectiveSrc({ name: 'budget.xlsx', path: 'ext://1/budget.xlsx', file_url: 'system/endpoints/thumb.php?file=ext%3A%2F%2F1%2Fbudget.xlsx&raw=1' });
+  assert("Lot 1 WebAppHost: ?host=parent injecte host=parent, chrome=notitlebar, blank et author=<user>",
+    hostBridgeSrc.includes('host=parent') &&
+    hostBridgeSrc.includes('chrome=notitlebar') &&
+    hostBridgeSrc.includes('blank') &&
+    hostBridgeSrc.includes('author=Alice') &&
+    typeof hostInst.bindHostBridgeListener === 'function' &&
+    typeof hostInst.sendFileViaHostBridge === 'function' &&
+    typeof hostInst.handleHostBridgeSave === 'function'
+  );
+  hostInst.hostBridge = null;
   assert("IconHelper.isSafeIconUrl rejette javascript: et traversal ..", !sandboxWin.IconHelper.isSafeIconUrl('javascript:alert(1)') && !sandboxWin.IconHelper.isSafeIconUrl('apps/../etc/passwd.png'));
 } catch (e) {
   assert("WebAppHost exécution runtime", false, e.stack);
