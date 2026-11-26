@@ -783,6 +783,16 @@ try {
   assert("MediaViewerRegistry préserve la priorité native (image-viewer) pour .jpg", viewerForJpg && viewerForJpg.id === 'image-viewer');
   assert("MediaViewerRegistry sélectionne mock-studio pour .psd", viewerForPsd && viewerForPsd.id === 'mock-studio');
 
+  // Verify fallbackExtensions: specialized standalone spreadsheet app beats doc-viewer fallback card for .xls/.xlsx
+  sandboxWin.AppManager.registerApp({ id: 'doc-viewer', name: 'Doc Viewer', extensions: ['pdf', 'xls', 'xlsx'], fallbackExtensions: ['xls', 'xlsx'] }, null);
+  sandboxWin.AppManager.registerApp({ id: 'mock-grid', name: 'GridCraft', runtime: 'iframe', distribution: 'standalone-web', extensions: ['xls', 'xlsx', 'ods', 'csv'] }, null);
+  const defaultForXls = sandboxWin.AppManager.getAppForFile({ name: 'Budget.xls', extension: 'xls', category: 'doc' });
+  const defaultForPdf = sandboxWin.AppManager.getAppForFile({ name: 'Notice.pdf', extension: 'pdf', category: 'doc' });
+  assert("AppManager donne priorité à l'app spécialisée (GridCraft) sur doc-viewer fallbackExtensions pour .xls (tout en gardant .pdf sur doc-viewer)",
+    defaultForXls && defaultForXls.manifest.id === 'mock-grid' &&
+    defaultForPdf && defaultForPdf.manifest.id === 'doc-viewer'
+  );
+
   // Windowing test
   sandboxWin.AppManager.launchApp('mock-studio', { file: { name: 'design.psd', path: 'art/design.psd', extension: 'psd' } });
   assert("AppManager.launchApp('mock-studio', {file}) crée une fenêtre WindowManager dédiée", createdWindows.length === 1 && createdWindows[0].appId === 'mock-studio');

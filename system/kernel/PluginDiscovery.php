@@ -217,12 +217,11 @@ class PluginDiscovery {
             }
 
             // Category resolution (treat `apps/external/` as a neutral container folder)
+            $parent_dir = (strpos($rel_key, '/') !== false) ? dirname($rel_key) : '';
+            $is_neutral_container = in_array(strtolower($parent_dir), ['external', 'externals', 'third-party', '3rdparty'], true);
             $cat = !empty($manifest['category']) ? trim((string)$manifest['category']) : '';
-            if ($cat === '' && strpos($rel_key, '/') !== false) {
-                $parent_dir = dirname($rel_key);
-                if (strtolower($parent_dir) !== 'external') {
-                    $cat = $parent_dir;
-                }
+            if ($cat === '' && $parent_dir !== '' && !$is_neutral_container) {
+                $cat = $parent_dir;
             }
 
             // Find additional auxiliary JS scripts if defined in manifest
@@ -242,7 +241,7 @@ class PluginDiscovery {
                 'icon'           => $manifest['icon'] ?? '📱',
                 'icon_url'       => $manifest['icon_url'] ?? null,
                 'category'       => $cat,
-                'parent_folder'  => (strpos($rel_key, '/') !== false ? dirname($rel_key) : ''),
+                'parent_folder'  => $is_neutral_container ? '' : $parent_dir,
                 'distribution'   => $is_standalone_web ? 'standalone-web' : ($manifest['distribution'] ?? 'native'),
                 'manifest'       => $manifest,
                 'locales'        => $manifest['locales'] ?? [],

@@ -73,8 +73,14 @@ class AppManager {
         });
 
         const isStandaloneWeb = (mergedManifest.runtime === 'iframe' || mergedManifest.distribution === 'standalone-web');
+        const fallbackExts = new Set(
+            (Array.isArray(mergedManifest.fallbackExtensions) ? mergedManifest.fallbackExtensions : [])
+                .map(e => String(e).toLowerCase().replace(/^\./, ''))
+        );
 
-        // Register extension associations (preserving built-in primary defaults over standalone web apps)
+        // Register extension associations:
+        // 1. Specialized apps (native or standalone) ALWAYS beat a fallback-only download card (`fallbackExtensions`)
+        // 2. Otherwise built-in native viewers preserve priority over standalone web apps
         if (Array.isArray(mergedManifest.extensions)) {
             mergedManifest.extensions.forEach(rawExt => {
                 const ext = String(rawExt).toLowerCase().replace(/^\./, '');
@@ -84,11 +90,17 @@ class AppManager {
                 }
                 this.extAppsMap.get(ext).add(manifest.id);
 
+                const isFallbackExt = fallbackExts.has(ext);
                 const currentPrimaryId = this.extMap.get(ext);
                 const currentPrimary = currentPrimaryId ? this.apps.get(currentPrimaryId) : null;
                 const currentPrimaryIsStandalone = !!(currentPrimary && currentPrimary.manifest && (currentPrimary.manifest.runtime === 'iframe' || currentPrimary.manifest.distribution === 'standalone-web'));
+                const currentPrimaryIsFallback = !!(currentPrimary && currentPrimary.manifest && Array.isArray(currentPrimary.manifest.fallbackExtensions) && currentPrimary.manifest.fallbackExtensions.map(e => String(e).toLowerCase().replace(/^\./, '')).includes(ext));
 
-                if (!currentPrimaryId || (!isStandaloneWeb && currentPrimaryIsStandalone)) {
+                const shouldReplace = !currentPrimaryId
+                    || (currentPrimaryIsFallback && !isFallbackExt)
+                    || (!isFallbackExt && !currentPrimaryIsFallback && !isStandaloneWeb && currentPrimaryIsStandalone);
+
+                if (shouldReplace) {
                     this.extMap.set(ext, manifest.id);
                 }
             });

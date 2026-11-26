@@ -245,7 +245,7 @@ class StandaloneWebAppManifestSynthesizer {
 
         // 6. Infer Category & Icon (plus real image icon URL when available)
         $parent_cat = (strpos($rel_key, '/') !== false) ? dirname($rel_key) : '';
-        if (strtolower($parent_cat) === 'external') {
+        if (in_array(strtolower($parent_cat), ['external', 'externals', 'third-party', '3rdparty'], true)) {
             $parent_cat = '';
         }
         $inferred = self::inferCategoryAndIcon($parent_cat, $w3c, $name, $description, $extensions, $app_id);

@@ -64,6 +64,20 @@
     "epub",
     "tsv"
   ],
+  "fallbackExtensions": [
+    "doc",
+    "docx",
+    "xls",
+    "xlsx",
+    "ppt",
+    "pptx",
+    "rtf",
+    "odt",
+    "ods",
+    "odp",
+    "odg",
+    "epub"
+  ],
   "entry": {
     "js": "viewer.js",
     "css": "viewer.css"
