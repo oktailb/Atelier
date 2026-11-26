@@ -2413,12 +2413,283 @@
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // PHASE C: WEBDAV APP PASSWORDS CARD (Embedded in Security tab for multi-user accounts)
+  // ---------------------------------------------------------------------------
+  async function renderAppPasswordsCard(container, settingsApp, opts = {}) {
+    if (!container || !settingsApp) return;
+    const t = (k, p) => settingsApp.t(k, p);
+    const res = await settingsApp.api.get('list_app_passwords');
+    if (!res || !res.success) {
+      container.innerHTML = '';
+      return;
+    }
+    const davUrl = res.dav_url || (window.location.origin + '/dav/');
+    const username = res.username || '';
+    const passwords = Array.isArray(res.app_passwords) ? res.app_passwords : [];
+    const createdSecret = opts.createdSecret || null;
+
+    const secretBanner = createdSecret ? `
+      <div style="padding:10px 12px;margin-bottom:12px;border-radius:8px;border:1px solid rgba(34,197,94,0.5);background:rgba(34,197,94,0.12);">
+        <div style="font-weight:700;font-size:0.82rem;margin-bottom:4px;color:#22c55e;">🔑 ${esc(t('dav.secret_once_notice'))}</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <code style="flex:1;padding:6px 10px;border-radius:6px;background:var(--bg-main);border:1px solid var(--border-color);font-size:0.82rem;word-break:break-all;">${esc(createdSecret)}</code>
+          <button type="button" id="davCopySecretBtn" style="padding:5px 11px;border-radius:6px;border:none;background:#16a34a;color:#fff;cursor:pointer;font-size:0.76rem;font-weight:600;">📋 ${esc(t('dav.copy_btn'))}</button>
+        </div>
+      </div>
+    ` : '';
+
+    const listHtml = passwords.length === 0
+      ? `<p style="margin:8px 0 0 0;font-size:0.8rem;color:var(--text-muted);">${esc(t('dav.empty_passwords'))}</p>`
+      : `<div style="display:flex;flex-direction:column;gap:6px;margin-top:10px;">
+          ${passwords.map(p => `
+            <div style="${rowStyle}">
+              <div>
+                <div style="font-weight:600;font-size:0.83rem;">
+                  ${esc(p.label)}
+                  <code style="margin-left:6px;font-size:0.73rem;color:var(--text-muted);">${esc(p.token_prefix)}…</code>
+                  <span style="margin-left:6px;padding:1px 7px;border-radius:99px;font-size:0.68rem;background:rgba(99,102,241,0.16);color:var(--accent-primary,#6366f1);font-weight:600;">${esc(p.scope === 'read' ? t('dav.scope_read') : t('dav.scope_write'))}</span>
+                </div>
+                <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">
+                  ${esc(t('dav.created_at'))}: ${esc(formatTs(p.created_at))}
+                  ${p.last_used_at ? ` · ${esc(t('dav.last_used'))}: ${esc(formatTs(p.last_used_at))}` : ''}
+                </div>
+              </div>
+              <button type="button" class="dav-revoke-btn" data-id="${p.id}" style="padding:4px 10px;border-radius:6px;border:1px solid rgba(239,68,68,0.4);background:rgba(239,68,68,0.12);color:#ef4444;cursor:pointer;font-size:0.75rem;font-weight:600;">
+                🗑️ ${esc(t('dav.revoke_btn'))}
+              </button>
+            </div>
+          `).join('')}
+        </div>`;
+
+    container.innerHTML = window.sys.ui.card({
+      title: 'dav.title',
+      icon: '🖥️',
+      content: `
+        <p style="margin:0 0 10px 0;font-size:0.82rem;color:var(--text-muted);">${esc(t('dav.desc'))}</p>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;margin-bottom:10px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-main);">
+          <span style="font-size:0.76rem;color:var(--text-muted);">${esc(t('dav.endpoint_label'))}</span>
+          <code style="flex:1;font-size:0.8rem;word-break:break-all;">${esc(davUrl)}</code>
+          <span style="font-size:0.74rem;color:var(--text-muted);">${esc(t('dav.username_label'))}: <strong>${esc(username)}</strong></span>
+          <button type="button" id="davCopyUrlBtn" style="padding:4px 10px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-main);cursor:pointer;font-size:0.74rem;">📋 ${esc(t('dav.copy_btn'))}</button>
+        </div>
+        ${secretBanner}
+        <form id="davCreatePasswordForm" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <input type="text" id="davLabelInput" placeholder="${esc(t('dav.label_placeholder'))}" style="${inputStyle};flex:1;min-width:180px;" required maxlength="80" />
+          <select id="davScopeSelect" style="${inputStyle}">
+            <option value="write">${esc(t('dav.scope_write'))}</option>
+            <option value="read">${esc(t('dav.scope_read'))}</option>
+          </select>
+          <button type="submit" style="padding:7px 14px;border-radius:7px;border:none;background:var(--accent-primary,#6366f1);color:#fff;cursor:pointer;font-size:0.8rem;font-weight:600;">
+            ➕ ${esc(t('dav.create_btn'))}
+          </button>
+        </form>
+        ${listHtml}
+      `
+    });
+
+    const copyUrlBtn = container.querySelector('#davCopyUrlBtn');
+    if (copyUrlBtn) {
+      copyUrlBtn.addEventListener('click', () => {
+        copyText(davUrl);
+        settingsApp.toast.success(t('dav.copied_toast'));
+      });
+    }
+    const copySecBtn = container.querySelector('#davCopySecretBtn');
+    if (copySecBtn && createdSecret) {
+      copySecBtn.addEventListener('click', () => {
+        copyText(createdSecret);
+        settingsApp.toast.success(t('dav.copied_toast'));
+      });
+    }
+
+    const createForm = container.querySelector('#davCreatePasswordForm');
+    if (createForm) {
+      createForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const label = container.querySelector('#davLabelInput')?.value?.trim() || 'WebDAV Client';
+        const scope = container.querySelector('#davScopeSelect')?.value || 'write';
+        const cRes = await settingsApp.api.post('create_app_password', { label, scope });
+        if (cRes && cRes.success && cRes.app_password) {
+          settingsApp.toast.success(t('dav.created_toast'));
+          renderAppPasswordsCard(container, settingsApp, { createdSecret: cRes.app_password.secret });
+        } else {
+          settingsApp.toast.error((cRes && cRes.error) || t('users.action_error'));
+        }
+      });
+    }
+
+    container.querySelectorAll('.dav-revoke-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = Number(btn.dataset.id);
+        const rRes = await settingsApp.api.post('revoke_app_password', { id });
+        if (rRes && rRes.success) {
+          settingsApp.toast.info(t('dav.revoked_toast'));
+          renderAppPasswordsCard(container, settingsApp);
+        } else {
+          settingsApp.toast.error((rRes && rRes.error) || t('users.action_error'));
+        }
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // PHASE C: ASYNC JOBS QUEUE & AUTOMATED INSTANCE BACKUPS (System Tab — Admin)
+  // ---------------------------------------------------------------------------
+  async function renderJobsAndBackupsSection(container, settingsApp) {
+    if (!container || !settingsApp || !settingsApp.isAdmin) {
+      if (container) container.innerHTML = '';
+      return;
+    }
+    const t = (k, p) => settingsApp.t(k, p);
+    const [jobsRes, backupsRes] = await Promise.all([
+      settingsApp.api.get('list_jobs'),
+      settingsApp.api.get('list_instance_backups')
+    ]);
+
+    const stats = (jobsRes && jobsRes.stats) || { pending: 0, running: 0, completed: 0, failed: 0 };
+    const jobs = (jobsRes && Array.isArray(jobsRes.jobs)) ? jobsRes.jobs : [];
+    const backups = (backupsRes && Array.isArray(backupsRes.backups)) ? backupsRes.backups : [];
+
+    const jobsCard = window.sys.ui.card({
+      title: 'jobs.title',
+      icon: '⚙️',
+      content: `
+        <p style="margin:0 0 10px 0;font-size:0.82rem;color:var(--text-muted);">${esc(t('jobs.desc'))}</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;font-size:0.78rem;">
+          <span style="padding:3px 9px;border-radius:99px;background:rgba(245,158,11,0.16);color:#f59e0b;font-weight:700;">⏳ ${esc(t('jobs.stat_pending'))}: ${stats.pending || 0}</span>
+          <span style="padding:3px 9px;border-radius:99px;background:rgba(99,102,241,0.16);color:var(--accent-primary,#6366f1);font-weight:700;">⚡ ${esc(t('jobs.stat_running'))}: ${stats.running || 0}</span>
+          <span style="padding:3px 9px;border-radius:99px;background:rgba(34,197,94,0.16);color:#22c55e;font-weight:700;">✅ ${esc(t('jobs.stat_completed'))}: ${stats.completed || 0}</span>
+          <span style="padding:3px 9px;border-radius:99px;background:rgba(239,68,68,0.16);color:#ef4444;font-weight:700;">❌ ${esc(t('jobs.stat_failed'))}: ${stats.failed || 0}</span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+          <button type="button" class="sysmon-action-btn job-enqueue-btn" data-job-type="generate_thumbnails" style="padding:5px 11px;font-size:0.77rem;">🖼️ ${esc(t('jobs.enqueue_thumbs_btn'))}</button>
+          <button type="button" class="sysmon-action-btn job-enqueue-btn" data-job-type="rebuild_file_index" style="padding:5px 11px;font-size:0.77rem;">🔍 ${esc(t('jobs.enqueue_index_btn'))}</button>
+          <button type="button" class="sysmon-action-btn job-enqueue-btn" data-job-type="clamav_scan" style="padding:5px 11px;font-size:0.77rem;">🛡️ ${esc(t('jobs.enqueue_clamav_btn'))}</button>
+          <button type="button" id="jobRunNextBtn" style="margin-left:auto;padding:5px 12px;border-radius:7px;border:none;background:var(--accent-primary,#6366f1);color:#fff;cursor:pointer;font-size:0.77rem;font-weight:600;">▶ ${esc(t('jobs.run_next_btn'))}</button>
+        </div>
+        ${jobs.length === 0
+          ? `<p style="margin:0;font-size:0.8rem;color:var(--text-muted);">${esc(t('jobs.empty'))}</p>`
+          : `<div style="display:flex;flex-direction:column;gap:6px;">
+              ${jobs.slice(0, 12).map(j => `
+                <div style="${rowStyle}">
+                  <div>
+                    <strong style="font-size:0.81rem;">#${j.id} · ${esc(j.job_type)}</strong>
+                    <span style="margin-left:6px;font-size:0.73rem;color:var(--text-muted);">[${esc(j.status)} · ${j.progress}%]</span>
+                    ${j.last_error ? `<div style="font-size:0.72rem;color:#ef4444;margin-top:2px;">${esc(j.last_error)}</div>` : ''}
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:0.72rem;color:var(--text-muted);">${esc(formatTs(j.created_at))}</span>
+                    ${j.status === 'pending' ? `<button type="button" class="job-cancel-btn" data-job-id="${j.id}" style="padding:3px 8px;border-radius:5px;border:1px solid var(--border-color);background:var(--bg-main);color:var(--text-main);cursor:pointer;font-size:0.72rem;">✕</button>` : ''}
+                  </div>
+                </div>
+              `).join('')}
+            </div>`
+        }
+      `
+    });
+
+    const backupsCard = window.sys.ui.card({
+      title: 'backups.title',
+      icon: '🗄️',
+      content: `
+        <p style="margin:0 0 10px 0;font-size:0.82rem;color:var(--text-muted);">${esc(t('backups.desc'))}</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+          <button type="button" id="backupCreateMetaBtn" style="padding:6px 12px;border-radius:7px;border:none;background:var(--accent-primary,#6366f1);color:#fff;cursor:pointer;font-size:0.78rem;font-weight:600;">💾 ${esc(t('backups.create_meta_btn'))}</button>
+          <button type="button" id="backupCreateFullBtn" class="sysmon-action-btn" style="padding:6px 12px;font-size:0.78rem;">📦 ${esc(t('backups.create_full_btn'))}</button>
+        </div>
+        ${backups.length === 0
+          ? `<p style="margin:0;font-size:0.8rem;color:var(--text-muted);">${esc(t('backups.empty'))}</p>`
+          : `<div style="display:flex;flex-direction:column;gap:6px;">
+              ${backups.map(b => `
+                <div style="${rowStyle}">
+                  <div>
+                    <code style="font-size:0.78rem;font-weight:600;">${esc(b.filename)}</code>
+                    <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">${esc(formatAppBytes(b.size_bytes))} · ${esc(formatTs(b.created_at))}</div>
+                  </div>
+                  <button type="button" class="backup-delete-btn" data-filename="${esc(b.filename)}" style="padding:4px 10px;border-radius:6px;border:1px solid rgba(239,68,68,0.4);background:rgba(239,68,68,0.12);color:#ef4444;cursor:pointer;font-size:0.74rem;font-weight:600;">
+                    🗑️ ${esc(t('backups.delete_btn'))}
+                  </button>
+                </div>
+              `).join('')}
+            </div>`
+        }
+      `
+    });
+
+    container.innerHTML = jobsCard + backupsCard;
+
+    container.querySelectorAll('.job-enqueue-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const jobType = btn.dataset.jobType;
+        const r = await settingsApp.api.post('enqueue_job', { job_type: jobType });
+        if (r && r.success) {
+          settingsApp.toast.success(t('jobs.enqueued_toast', { type: jobType }));
+          renderJobsAndBackupsSection(container, settingsApp);
+        } else {
+          settingsApp.toast.error((r && r.error) || t('users.action_error'));
+        }
+      });
+    });
+
+    const runBtn = container.querySelector('#jobRunNextBtn');
+    if (runBtn) {
+      runBtn.addEventListener('click', async () => {
+        runBtn.disabled = true;
+        const r = await settingsApp.api.post('run_next_job', {});
+        runBtn.disabled = false;
+        if (r && r.success) {
+          settingsApp.toast.info(r.processed ? t('jobs.ran_toast', { type: r.job.job_type, status: r.job.status }) : t('jobs.queue_empty_toast'));
+          renderJobsAndBackupsSection(container, settingsApp);
+        } else {
+          settingsApp.toast.error((r && r.error) || t('users.action_error'));
+        }
+      });
+    }
+
+    container.querySelectorAll('.job-cancel-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const r = await settingsApp.api.post('cancel_job', { job_id: Number(btn.dataset.jobId) });
+        if (r && r.success) {
+          renderJobsAndBackupsSection(container, settingsApp);
+        }
+      });
+    });
+
+    const createBackup = async (includeMedia) => {
+      const r = await settingsApp.api.post('create_instance_backup', { include_media: includeMedia });
+      if (r && r.success) {
+        settingsApp.toast.success(t('backups.created_toast', { name: r.backup.filename }));
+        renderJobsAndBackupsSection(container, settingsApp);
+      } else {
+        settingsApp.toast.error((r && r.error) || t('users.action_error'));
+      }
+    };
+    const metaBtn = container.querySelector('#backupCreateMetaBtn');
+    if (metaBtn) metaBtn.addEventListener('click', () => createBackup(false));
+    const fullBtn = container.querySelector('#backupCreateFullBtn');
+    if (fullBtn) fullBtn.addEventListener('click', () => createBackup(true));
+
+    container.querySelectorAll('.backup-delete-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const filename = btn.dataset.filename;
+        const r = await settingsApp.api.post('delete_instance_backup', { filename });
+        if (r && r.success) {
+          settingsApp.toast.info(t('backups.deleted_toast'));
+          renderJobsAndBackupsSection(container, settingsApp);
+        }
+      });
+    });
+  }
+
   window.AtelierUsersPanel = {
     render: (c, s) => renderSection('users', c, s),
     renderSection,
     renderSessionsCard,
     renderAccountDangerZoneCard,
     renderExternalAppsSection,
+    renderAppPasswordsCard,
+    renderJobsAndBackupsSection,
     register: registerUsersSection
   };
 

@@ -31,6 +31,11 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
   <meta name="cookie-consent-enabled" content="<?php echo !empty($enable_cookie_consent) ? '1' : '0'; ?>">
   <meta name="default-locale" content="<?php echo htmlspecialchars($default_locale, ENT_QUOTES, 'UTF-8'); ?>">
   <meta name="description" content="Atelier by GallusTech — Sovereign Web Desktop, Media Cloud & Creative Studio">
+  <meta name="theme-color" content="#4f46e5">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="docs/assets/atelier-icon.svg">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%234f46e5'/><stop offset='100%25' stop-color='%232563eb'/></linearGradient></defs><rect width='64' height='64' rx='16' fill='url(%23g)'/><path d='M32 14L48 50H40.5L37 41.5H27L23.5 50H16L32 14ZM32 24.5L29.2 35.5H34.8L32 24.5Z' fill='%23ffffff'/></svg>">
   <title><?php echo htmlspecialchars($gallery_title . (!empty($gallery_brand_subtitle) ? ' ' . $gallery_brand_subtitle : ''), ENT_QUOTES, 'UTF-8'); ?></title>
 
@@ -348,5 +353,12 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
       <?php include __DIR__ . '/' . $app_info['template_entry']; ?>
     <?php endif; ?>
   <?php endforeach; ?>
+  <script>
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('sw.js').catch(function() {});
+      });
+    }
+  </script>
 </body>
 </html>

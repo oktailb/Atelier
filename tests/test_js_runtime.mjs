@@ -1579,6 +1579,43 @@ try {
     webAppHostCodeExit.includes("sub === 'close' || sub === 'quit' || sub === 'exit'")
   );
 
+  // Verify Phase C: WebDAV UI, Async Jobs/Backups UI, Docker packaging, First-Run Setup & PWA
+  const pwaManifestPath = path.join(rootDir, 'manifest.webmanifest');
+  const swPath = path.join(rootDir, 'sw.js');
+  const dockerfilePath = path.join(rootDir, 'Dockerfile');
+  const composePath = path.join(rootDir, 'docker-compose.yml');
+  const nginxConfPath = path.join(rootDir, 'docker', 'nginx.conf');
+  const workerPath = path.join(rootDir, 'bin', 'worker.php');
+  const davEndpointPath = path.join(rootDir, 'system', 'endpoints', 'dav.php');
+  const setupEndpointPath = path.join(rootDir, 'system', 'endpoints', 'setup.php');
+  const pwaManifest = fs.existsSync(pwaManifestPath) ? JSON.parse(fs.readFileSync(pwaManifestPath, 'utf8')) : null;
+  const swCode = fs.existsSync(swPath) ? fs.readFileSync(swPath, 'utf8') : '';
+  const nginxConf = fs.existsSync(nginxConfPath) ? fs.readFileSync(nginxConfPath, 'utf8') : '';
+  const indexHtmlPhaseC = fs.readFileSync(path.join(rootDir, 'index.php'), 'utf8');
+
+  assert("Phase C: Packaging Prod (Dockerfile, docker-compose, nginx sécurisé, worker.php, dav.php, setup.php), PWA & Control Panel UI",
+    fs.existsSync(dockerfilePath) &&
+    fs.existsSync(composePath) &&
+    fs.existsSync(workerPath) &&
+    fs.existsSync(davEndpointPath) &&
+    fs.existsSync(setupEndpointPath) &&
+    nginxConf.includes('location ~ ^/(storage|config|tests|bin|docker)/') &&
+    nginxConf.includes('HTTP_AUTHORIZATION') &&
+    pwaManifest && pwaManifest.display === 'standalone' &&
+    swCode.includes("p.includes('api.php')") &&
+    swCode.includes("p.includes('/dav')") &&
+    indexHtmlPhaseC.includes('manifest.webmanifest') &&
+    indexHtmlPhaseC.includes("navigator.serviceWorker.register('sw.js')") &&
+    settingsUiCode.includes('settingsAppPasswordsHost') &&
+    settingsUiCode.includes('settingsJobsBackupsHost') &&
+    usersPanelUiCode.includes('renderAppPasswordsCard') &&
+    usersPanelUiCode.includes('renderJobsAndBackupsSection') &&
+    usersPanelUiCode.includes('create_app_password') &&
+    usersPanelUiCode.includes('enqueue_job') &&
+    usersPanelUiCode.includes('create_instance_backup') &&
+    adminGuideText.includes('InstanceBackupService')
+  );
+
   // Verify users-panel.js registers custom section cleanly without syntax errors
   const usersPanelCode = fs.readFileSync(usersPanelPath, 'utf8');
   const registeredSections = [];

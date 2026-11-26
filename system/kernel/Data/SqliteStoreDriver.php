@@ -36,7 +36,9 @@ class SqliteStoreDriver implements AtelierStoreInterface {
         'auth_tokens',
         'user_sessions',
         'external_mounts',
-        'file_index'
+        'file_index',
+        'app_passwords',
+        'background_jobs'
     ];
 
     public function __construct(string $dbPath) {
@@ -393,6 +395,52 @@ class SqliteStoreDriver implements AtelierStoreInterface {
                 ");
                 $ins = $this->pdo->prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)");
                 $ins->execute([5, 'atelier_phase_b_external_mounts_and_file_index', time()]);
+                $this->pdo->commit();
+            } catch (\Throwable $e) {
+                $this->pdo->rollBack();
+                throw $e;
+            }
+        }
+
+        if (empty($applied[6])) {
+            $this->pdo->beginTransaction();
+            try {
+                $this->pdo->exec("
+                    CREATE TABLE IF NOT EXISTS app_passwords (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        label TEXT NOT NULL,
+                        token_prefix TEXT NOT NULL,
+                        secret_hash TEXT NOT NULL,
+                        scope TEXT NOT NULL DEFAULT 'write',
+                        created_at INTEGER NOT NULL,
+                        last_used_at INTEGER DEFAULT NULL,
+                        revoked_at INTEGER DEFAULT NULL
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_app_passwords_user ON app_passwords(user_id);
+                    CREATE INDEX IF NOT EXISTS idx_app_passwords_prefix ON app_passwords(token_prefix);
+
+                    CREATE TABLE IF NOT EXISTS background_jobs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        job_type TEXT NOT NULL,
+                        owner_user_id INTEGER DEFAULT NULL,
+                        status TEXT NOT NULL DEFAULT 'pending',
+                        priority INTEGER NOT NULL DEFAULT 50,
+                        payload_json TEXT NOT NULL DEFAULT '{}',
+                        result_json TEXT DEFAULT NULL,
+                        progress INTEGER NOT NULL DEFAULT 0,
+                        attempts INTEGER NOT NULL DEFAULT 0,
+                        max_attempts INTEGER NOT NULL DEFAULT 3,
+                        last_error TEXT DEFAULT '',
+                        created_at INTEGER NOT NULL,
+                        started_at INTEGER DEFAULT NULL,
+                        completed_at INTEGER DEFAULT NULL
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_bg_jobs_status ON background_jobs(status, priority, created_at);
+                    CREATE INDEX IF NOT EXISTS idx_bg_jobs_owner ON background_jobs(owner_user_id);
+                ");
+                $ins = $this->pdo->prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)");
+                $ins->execute([6, 'atelier_phase_c_webdav_app_passwords_and_jobs', time()]);
                 $this->pdo->commit();
             } catch (\Throwable $e) {
                 $this->pdo->rollBack();

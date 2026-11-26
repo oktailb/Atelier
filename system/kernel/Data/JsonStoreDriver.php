@@ -28,7 +28,9 @@ class JsonStoreDriver implements AtelierStoreInterface {
         'auth_tokens',
         'user_sessions',
         'external_mounts',
-        'file_index'
+        'file_index',
+        'app_passwords',
+        'background_jobs'
     ];
 
     private const UNIQUE_COLUMNS = [

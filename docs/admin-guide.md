@@ -196,6 +196,21 @@ Depuis **Panneau de configuration → Plugins & Applications** :
 
 ---
 
+## 6.4 Passerelle WebDAV (`/dav/`), Jobs Asynchrones, Sauvegardes, Docker & PWA (Phase C)
+
+1. **Passerelle WebDAV native (`/dav/`) & App Passwords** :
+   - Chaque utilisateur multi-compte crée ses **Mots de passe d'application** depuis **Panneau de configuration → Sécurité** (`read` ou `write`, affichés une seule fois, hashés en base, révocables individuellement, 100 % compatibles avec les comptes protégés par 2FA).
+   - URL à monter dans Windows Explorer, macOS Finder (`⌘K`), Nautilus/Dolphin ou mobile : `https://<votre-domaine>/dav/` (expose `/home/`, `/shared/<montage>/` et `/public/` en appliquant strictement les ACL, les quotas disque `507` et la corbeille/versioning).
+2. **Moteur de Jobs Asynchrones (`bin/worker.php`) & Sauvegardes d'Instance** :
+   - Depuis **Panneau de configuration → Système**, les administrateurs peuvent planifier des tâches d'arrière-plan (`generate_thumbnails`, `rebuild_file_index`, `build_zip_archive`, `video_preview` FFmpeg, `clamav_scan`, `instance_backup`), exécuter un job immédiatement ou laisser tourner `php bin/worker.php --daemon --sleep=3` (lancé automatiquement par Supervisor dans Docker, ou via cron `php bin/worker.php --once`).
+   - Les sauvegardes d'instance ZIP (`InstanceBackupService`) sont stockées dans `storage/backups/` (protégé `.htaccess` `Deny from all`) avec manifeste SHA-256.
+3. **Déploiement Docker 1-clic, Assistant `/setup` & PWA** :
+   - Lancez `docker compose up -d --build` avec [Dockerfile](../Dockerfile), [docker-compose.yml](../docker-compose.yml) et [docker/nginx.conf](../docker/nginx.conf) (prêt derrière Traefik ou Caddy HTTPS).
+   - Sur une instance vierge (aucun `.admin_password_hash` ni admin actif), ouvrez `/setup` pour diagnostiquer l'environnement PHP et créer le premier SuperAdmin ; l'assistant se **verrouille définitivement (`HTTP 403`)** dès qu'un administrateur existe.
+   - L'application expose [manifest.webmanifest](../manifest.webmanifest) et [sw.js](../sw.js) pour une installation **PWA** sur mobile/tablette sans jamais mettre en cache d'API ni de médias privés.
+
+---
+
 ## 7. Sauvegarde et checklist de mise en production
 
 ### Fichiers critiques à sauvegarder

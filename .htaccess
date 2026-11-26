@@ -15,6 +15,14 @@ Options -Indexes
     RewriteRule ^thumb\.php$ system/endpoints/thumb.php [L,QSA]
     RewriteRule ^archive\.php$ system/endpoints/archive.php [L,QSA]
     RewriteRule ^export\.php$ system/endpoints/export.php [L,QSA]
+    RewriteRule ^setup/?$ system/endpoints/setup.php [L,QSA]
+
+    # Pass Authorization header through CGI/FastCGI/PHP-FPM for WebDAV Basic Auth
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Native OS WebDAV Gateway (/dav/... -> system/endpoints/dav.php)
+    RewriteRule ^dav/?$ system/endpoints/dav.php?dav_path= [L,QSA]
+    RewriteRule ^dav/(.+)$ system/endpoints/dav.php?dav_path=$1 [L,QSA]
 
     # Short signed share link route (/s/<token> -> index.php?share=<token>)
     RewriteRule ^s/([A-Za-z0-9_-]{12,128})/?$ index.php?share=$1 [L,QSA]

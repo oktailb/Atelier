@@ -5,8 +5,10 @@
 
 namespace SimpleGallery\Kernel\Actions;
 
+use SimpleGallery\Kernel\Auth\AppPasswordManager;
 use SimpleGallery\Kernel\Auth\AuthManager;
 use SimpleGallery\Kernel\Auth\AuthSettings;
+use SimpleGallery\Kernel\Backup\InstanceBackupService;
 use SimpleGallery\Kernel\Config\ConfigStore;
 use SimpleGallery\Kernel\FS\CacheManager;
 use SimpleGallery\Kernel\FS\ChunkedUploadManager;
@@ -14,6 +16,7 @@ use SimpleGallery\Kernel\FS\DotfileManager;
 use SimpleGallery\Kernel\FS\FileIndexManager;
 use SimpleGallery\Kernel\FS\PermissionsManager;
 use SimpleGallery\Kernel\FS\TrashAndVersioningManager;
+use SimpleGallery\Kernel\Jobs\JobQueueManager;
 use SimpleGallery\Kernel\Security\PathValidator;
 use SimpleGallery\Kernel\Storage\ExternalMountManager;
 
@@ -369,6 +372,154 @@ class StorageActions {
                 'success' => true,
                 'results' => FileIndexManager::search($project_root, $base_dir, $q, $cat, $limit)
             ]];
+        }
+
+        // ---------------------------------------------------------------------
+        // 6. PHASE C — WEBDAV APP PASSWORDS (`/dav/`)
+        // ---------------------------------------------------------------------
+        if ($action === 'list_app_passwords') {
+            $curUser = AuthManager::getCurrentUser();
+            if (!$curUser || empty($curUser['id'])) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
+            $authCfg = AuthSettings::load($project_root);
+            $baseUrl = AuthSettings::resolvePublicBaseUrl($authCfg);
+            return ['status' => 200, 'data' => [
+                'success'       => true,
+                'dav_url'       => rtrim($baseUrl, '/') . '/dav/',
+                'username'      => (string)$curUser['username'],
+                'app_passwords' => AppPasswordManager::listForUser($project_root, (int)$curUser['id'])
+            ]];
+        }
+
+        if ($action === 'create_app_password') {
+            $curUser = AuthManager::getCurrentUser();
+            if (!$curUser || empty($curUser['id'])) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
+            $label = (string)($in['label'] ?? 'WebDAV Client');
+            $scope = (string)($in['scope'] ?? 'write');
+            $res = AppPasswordManager::createForUser($project_root, (int)$curUser['id'], $label, $scope);
+            return ['status' => (int)($res['status'] ?? 200), 'data' => $res];
+        }
+
+        if ($action === 'revoke_app_password') {
+            if (!AuthManager::isLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
+            $curUser = AuthManager::getCurrentUser();
+            $id = (int)($in['id'] ?? $in['app_password_id'] ?? 0);
+            $res = AppPasswordManager::revoke(
+                $project_root,
+                $id,
+                $curUser ? (int)$curUser['id'] : null,
+                AuthManager::isAdminLoggedIn()
+            );
+            return ['status' => (int)($res['status'] ?? 200), 'data' => $res];
+        }
+
+        // ---------------------------------------------------------------------
+        // 7. PHASE C — ASYNC BACKGROUND JOB QUEUE (`bin/worker.php`)
+        // ---------------------------------------------------------------------
+        if ($action === 'list_jobs') {
+            if (!AuthManager::isLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
+            $isAdmin = AuthManager::isAdminLoggedIn();
+            $curUser = AuthManager::getCurrentUser();
+            $uid = $curUser ? (int)$curUser['id'] : null;
+            return ['status' => 200, 'data' => [
+                'success' => true,
+                'stats'   => JobQueueManager::getStats($project_root),
+                'jobs'    => JobQueueManager::listJobs($project_root, $uid, $isAdmin, 50)
+            ]];
+        }
+
+        if ($action === 'enqueue_job') {
+            if (!AuthManager::isLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
+            $isAdmin = AuthManager::isAdminLoggedIn();
+            $curUser = AuthManager::getCurrentUser();
+            $jobType = strtolower(trim((string)($in['job_type'] ?? '')));
+            if (in_array($jobType, JobQueueManager::ADMIN_ONLY_TYPES, true) && !$isAdmin) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
+            }
+            $payload = is_array($in['payload'] ?? null) ? $in['payload'] : [];
+            if (isset($in['dir']) && !isset($payload['dir'])) {
+                $payload['dir'] = (string)$in['dir'];
+            }
+            if (isset($in['include_media']) && !isset($payload['include_media'])) {
+                $payload['include_media'] = !empty($in['include_media']);
+            }
+            $res = JobQueueManager::enqueue(
+                $project_root,
+                $jobType,
+                $payload,
+                $curUser ? (int)$curUser['id'] : null,
+                (int)($in['priority'] ?? 50)
+            );
+            return ['status' => (int)($res['status'] ?? 200), 'data' => $res];
+        }
+
+        if ($action === 'run_next_job') {
+            if (!AuthManager::isAdminLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
+            }
+            $job = JobQueueManager::runNextJob($project_root, $base_dir, $media_types);
+            return ['status' => 200, 'data' => [
+                'success'   => true,
+                'processed' => $job !== null,
+                'job'       => $job,
+                'stats'     => JobQueueManager::getStats($project_root)
+            ]];
+        }
+
+        if ($action === 'cancel_job') {
+            if (!AuthManager::isLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
+            $curUser = AuthManager::getCurrentUser();
+            $jobId = (int)($in['job_id'] ?? $in['id'] ?? 0);
+            $res = JobQueueManager::cancelJob(
+                $project_root,
+                $jobId,
+                $curUser ? (int)$curUser['id'] : null,
+                AuthManager::isAdminLoggedIn()
+            );
+            return ['status' => (int)($res['status'] ?? 200), 'data' => $res];
+        }
+
+        // ---------------------------------------------------------------------
+        // 8. PHASE C — AUTOMATED INSTANCE BACKUPS (Admin Only)
+        // ---------------------------------------------------------------------
+        if ($action === 'list_instance_backups') {
+            if (!AuthManager::isAdminLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
+            }
+            return ['status' => 200, 'data' => [
+                'success' => true,
+                'backups' => InstanceBackupService::listBackups($project_root)
+            ]];
+        }
+
+        if ($action === 'create_instance_backup') {
+            if (!AuthManager::isAdminLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
+            }
+            $includeMedia = !empty($in['include_media']);
+            $label = (string)($in['label'] ?? '');
+            $res = InstanceBackupService::createBackup($project_root, $includeMedia, $label);
+            return ['status' => (int)($res['status'] ?? 200), 'data' => $res];
+        }
+
+        if ($action === 'delete_instance_backup') {
+            if (!AuthManager::isAdminLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
+            }
+            $filename = (string)($in['filename'] ?? '');
+            $res = InstanceBackupService::deleteBackup($project_root, $filename);
+            return ['status' => (int)($res['status'] ?? 200), 'data' => $res];
         }
 
         return null;

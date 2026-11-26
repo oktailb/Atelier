@@ -1,0 +1,29 @@
+# Atelier by GallusTech — Production Docker Compose (Traefik / Caddy ready)
+services:
+  atelier:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: atelier-cloud:latest
+    container_name: atelier-cloud
+    restart: unless-stopped
+    ports:
+      - "${ATELIER_PORT:-8080}:80"
+    volumes:
+      - atelier_storage:/var/www/html/storage
+      - atelier_config:/var/www/html/config
+      - atelier_external_apps:/var/www/html/apps/external
+    environment:
+      TZ: "${TZ:-Europe/Paris}"
+    # Uncomment for Traefik automatic HTTPS reverse proxy:
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.atelier.rule=Host(`cloud.example.com`)"
+    #   - "traefik.http.routers.atelier.entrypoints=websecure"
+    #   - "traefik.http.routers.atelier.tls.certresolver=letsencrypt"
+    #   - "traefik.http.services.atelier.loadbalancer.server.port=80"
+
+volumes:
+  atelier_storage:
+  atelier_config:
+  atelier_external_apps:

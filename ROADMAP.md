@@ -217,20 +217,21 @@ flowchart TB
 
 ---
 
-### 🟨 Phase C — Interopérabilité OS (WebDAV), Jobs Asynchrones & Packaging Prod
+### ✅ Phase C — Interopérabilité OS (WebDAV), Jobs Asynchrones & Packaging Prod *(Livrée & Testée)*
 *Objectif : rendre le produit exploitable au quotidien depuis n'importe quel appareil et déployable industriellement.*
 
-- **Passerelle WebDAV (`/dav/`)** :
-  - Montage natif du cloud dans l'Explorateur Windows, Finder macOS, Nautilus/Dolphin Linux et clients mobiles (authentification par *App Passwords* dédiés + respect strict des ACL et quotas).
-- **Moteur de Jobs Asynchrones (`bin/worker.php` + file SQLite)** :
-  - Génération de miniatures/aperçus en arrière-plan, transcodage vidéo léger (aperçus web / HLS), construction d'archives ZIP massives avec notification à la fin, scan antivirus optionnel (ClamAV).
-- **Observabilité, Sauvegardes & Conformité RGPD** :
-  - Journal d'audit consultable par l'Admin (connexions, partages créés, téléchargements, suppressions).
-  - Outil d'export/sauvegarde automatisée (métadonnées + config + stockage) et export des données personnelles utilisateur (droit à la portabilité RGPD).
-- **Packaging Production 1-clic** :
-  - Image **Docker** officielle (`Dockerfile` multi-stage PHP-FPM + Nginx + FFmpeg + GD/Imagick) + `docker-compose.yml` prêt pour Reverse Proxy (Traefik/Caddy).
-  - Assistant d'installation web au premier démarrage (création du premier SuperAdmin, choix du stockage, diagnostic des extensions PHP).
-  - **PWA (Progressive Web App)** : icône installable sur smartphone/tablette + upload rapide depuis la pellicule photo.
+- [x] **Passerelle WebDAV (`/dav/`)** (`WebDavServer.php`, `system/endpoints/dav.php`, `AppPasswordManager.php`, Migration v6 `app_passwords`) :
+  - Montage natif RFC 4918 (`OPTIONS`, `PROPFIND`, `GET`, `HEAD`, `PUT`, `MKCOL`, `DELETE`, `MOVE`, `COPY`) dans l'Explorateur Windows, Finder macOS, Nautilus/Dolphin Linux et clients mobiles.
+  - Authentification Basic Auth **exclusivement par App Passwords dédiés** (hashés, révocables, portée `read`/`write`, compatibles 2FA, protégés anti-bruteforce), exposant `/dav/home/`, `/dav/shared/<montage>/` et `/dav/public/` avec respect strict des ACL, dotfiles, extensions interdites, corbeille/versioning et quotas disque (`507`).
+- [x] **Moteur de Jobs Asynchrones (`JobQueueManager.php`, `bin/worker.php`, Migration v6 `background_jobs`)** :
+  - File SQLite/JSON persistante traitée par `bin/worker.php` (`--once` pour cron ou `--daemon` pour Docker/Supervisor) ou à la demande depuis l'onglet *Système* : pré-génération de vignettes (`generate_thumbnails`), réindexation SQLite (`rebuild_file_index`), archives ZIP massives (`build_zip_archive`), aperçus vidéo FFmpeg (`video_preview`), scan antivirus optionnel ClamAV (`clamav_scan`) et sauvegardes d'instance (`instance_backup`).
+- [x] **Observabilité, Sauvegardes & Conformité RGPD** :
+  - Journal d'audit consultable par l'Admin (*Partages, Liens & Audit*) + Export RGPD / suppression autonome de compte (*Sécurité*).
+  - **Sauvegardes d'instance automatisées (`InstanceBackupService.php`)** : instantanés ZIP protégés dans `storage/backups/` (`.htaccess` `Deny from all`) incluant base SQLite/JSON, configurations, manifeste SHA-256 et médias optionnels.
+- [x] **Packaging Production 1-clic** :
+  - **Docker** : [Dockerfile](Dockerfile) multi-services PHP 8.3-FPM + Nginx + Supervisor (`php-fpm`, `nginx`, `bin/worker.php --daemon`) + FFmpeg + GD/WebP/Zip/SQLite, [docker/nginx.conf](docker/nginx.conf) (parité stricte `.htaccess`), [docker/php.ini](docker/php.ini) et [docker-compose.yml](docker-compose.yml) prêt pour Traefik/Caddy.
+  - **Assistant d'installation web au premier démarrage (`SetupWizard.php` + `/setup`)** : diagnostic complet PHP/extensions/stockage, création du SuperAdmin initial et **auto-verrouillage définitif (`HTTP 403`)** dès qu'un administrateur existe.
+  - **PWA (Progressive Web App)** : [manifest.webmanifest](manifest.webmanifest), icône vectorielle [docs/assets/atelier-icon.svg](docs/assets/atelier-icon.svg) et Service Worker sécurisé [sw.js](sw.js) (zéro mise en cache d'API ou médias privés).
 
 ---
 

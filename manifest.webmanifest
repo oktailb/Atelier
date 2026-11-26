@@ -1,0 +1,27 @@
+{
+  "name": "Atelier by GallusTech",
+  "short_name": "Atelier",
+  "description": "Sovereign Web Desktop, Media Cloud & Creative Studio",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "docs/assets/atelier-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "share_target": {
+    "action": "./?pwa_upload=1",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}

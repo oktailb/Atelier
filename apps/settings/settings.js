@@ -256,15 +256,27 @@
         }
       }
 
-      // If Security tab is active and user is logged in, populate Active Sessions & Account Data/Deletion cards
+      // If Security tab is active and user is logged in, populate Active Sessions, WebDAV App Passwords & Account Data/Deletion cards
       if (this.currentTab === 'security' && window.AtelierUsersPanel) {
         const sessHost = container.querySelector('#settingsActiveSessionsHost');
         if (sessHost && typeof window.AtelierUsersPanel.renderSessionsCard === 'function') {
           window.AtelierUsersPanel.renderSessionsCard(sessHost, this);
         }
+        const davHost = container.querySelector('#settingsAppPasswordsHost');
+        if (davHost && typeof window.AtelierUsersPanel.renderAppPasswordsCard === 'function') {
+          window.AtelierUsersPanel.renderAppPasswordsCard(davHost, this);
+        }
         const dangerHost = container.querySelector('#settingsAccountDangerHost');
         if (dangerHost && typeof window.AtelierUsersPanel.renderAccountDangerZoneCard === 'function') {
           window.AtelierUsersPanel.renderAccountDangerZoneCard(dangerHost, this);
+        }
+      }
+
+      // If System tab is active, populate Async Jobs Worker & Instance Backups cards (Admin)
+      if (this.currentTab === 'system' && window.AtelierUsersPanel && typeof window.AtelierUsersPanel.renderJobsAndBackupsSection === 'function') {
+        const jobsHost = container.querySelector('#settingsJobsBackupsHost');
+        if (jobsHost) {
+          window.AtelierUsersPanel.renderJobsAndBackupsSection(jobsHost, this);
         }
       }
 
@@ -393,6 +405,8 @@
       }) : ''}
 
         ${isLoggedIn ? `<div id="settingsActiveSessionsHost"></div>` : ''}
+
+        ${currentUser ? `<div id="settingsAppPasswordsHost"></div>` : ''}
 
         ${currentUser ? `<div id="settingsAccountDangerHost"></div>` : ''}
       `;
@@ -912,6 +926,8 @@
         icon: '🧪',
         content: testsContent
       })}
+
+        <div id="settingsJobsBackupsHost" style="display:flex;flex-direction:column;gap:14px;margin-top:14px;"></div>
       `;
     }
 

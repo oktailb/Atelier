@@ -1380,6 +1380,9 @@ HTACCESS;
         );
 
         // 10.3 Password reset (anti-enumeration + functional token confirmation)
+        \SimpleGallery\Kernel\Security\RateLimiter::reset('pwd_reset_' . md5('charlie@studio.fr|' . $cli_ip));
+        \SimpleGallery\Kernel\Security\RateLimiter::reset('pwd_reset_' . md5('nobody@studio.fr|' . $cli_ip));
+        \SimpleGallery\Kernel\Security\RateLimiter::reset('dav_auth_' . md5('unknown|desk_alice'));
         $reset_unknown = \SimpleGallery\Kernel\Actions\AuthActions::handle('request_password_reset', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['email' => 'nobody@studio.fr']
@@ -2360,6 +2363,160 @@ HTACCESS;
                 $dir_gone === true
             );
         }
+
+        // =========================================================================
+        // 10.13 Phase C: WebDAV Gateway (/dav/) + App Passwords, Async Job Queue
+        //       + Instance Backups, and Self-Locking First-Run Setup Wizard
+        // =========================================================================
+        $phase_c_mutating = [
+            'create_app_password',
+            'revoke_app_password',
+            'enqueue_job',
+            'run_next_job',
+            'cancel_job',
+            'create_instance_backup',
+            'delete_instance_backup'
+        ];
+        $all_pc_csrf = true;
+        foreach ($phase_c_mutating as $actName) {
+            if (!\SimpleGallery\Kernel\Actions\ActionRouter::isMutatingAction($actName, $p1_root)) {
+                $all_pc_csrf = false;
+            }
+        }
+        $this->assert("Phase C: Toutes les actions mutantes WebDAV/Jobs/Backups sont protégées par CSRF",
+            $all_pc_csrf
+        );
+
+        // App Passwords + WebDAV Server RFC 4918 + ACL/Quota/Dotfile/Extension enforcement
+        $alice_id = (int)$desk_a['user']['id'];
+        $ap_rw = \SimpleGallery\Kernel\Auth\AppPasswordManager::createForUser($p1_root, $alice_id, 'Finder Mac', 'write');
+        $ap_ro = \SimpleGallery\Kernel\Auth\AppPasswordManager::createForUser($p1_root, $alice_id, 'Mobile RO', 'read');
+        $rw_secret = (string)($ap_rw['app_password']['secret'] ?? '');
+        $ro_secret = (string)($ap_ro['app_password']['secret'] ?? '');
+        $ap_list = \SimpleGallery\Kernel\Auth\AppPasswordManager::listForUser($p1_root, $alice_id);
+        $no_secret_leak = count($ap_list) >= 2 && !isset($ap_list[0]['secret']) && !isset($ap_list[0]['secret_hash']);
+
+        $dav_unauth = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+            'method' => 'PROPFIND', 'dav_path' => ''
+        ]);
+        $dav_opts = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+            'method' => 'OPTIONS', 'dav_path' => '', 'auth_user' => 'desk_alice', 'auth_pass' => $rw_secret
+        ]);
+        $dav_root = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+            'method' => 'PROPFIND', 'dav_path' => '', 'depth' => '1', 'auth_user' => 'desk_alice', 'auth_pass' => $rw_secret
+        ]);
+        $dav_mkcol = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+            'method' => 'MKCOL', 'dav_path' => 'home/dav_docs', 'auth_user' => 'desk_alice', 'auth_pass' => $rw_secret
+        ]);
+        $dav_put = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+            'method' => 'PUT', 'dav_path' => 'home/dav_docs/hello.txt', 'body' => 'Hello WebDAV!', 'auth_user' => 'desk_alice', 'auth_pass' => $rw_secret
+        ]);
+        $dav_get = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+            'method' => 'GET', 'dav_path' => 'home/dav_docs/hello.txt', 'auth_user' => 'desk_alice', 'auth_pass' => $rw_secret
+        ]);
+        $dav_get_content = (!empty($dav_get['file_path']) && is_file((string)$dav_get['file_path']))
+            ? (string)@file_get_contents((string)$dav_get['file_path'])
+            : '';
+        $dav_php_block = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+            'method' => 'PUT', 'dav_path' => 'home/dav_docs/shell.php', 'body' => '<?php phpinfo();', 'auth_user' => 'desk_alice', 'auth_pass' => $rw_secret
+        ]);
+        $dav_dot_block = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+            'method' => 'PUT', 'dav_path' => 'home/.htaccess', 'body' => 'Allow from all', 'auth_user' => 'desk_alice', 'auth_pass' => $rw_secret
+        ]);
+        $dav_ro_put = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+            'method' => 'PUT', 'dav_path' => 'home/dav_docs/ro.txt', 'body' => 'nope', 'auth_user' => 'desk_alice', 'auth_pass' => $ro_secret
+        ]);
+        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 256]);
+        $dav_quota_507 = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+            'method' => 'PUT', 'dav_path' => 'home/dav_docs/huge.txt', 'body' => str_repeat('X', 2048), 'auth_user' => 'desk_alice', 'auth_pass' => $rw_secret
+        ]);
+        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 0]);
+        $dav_del = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+            'method' => 'DELETE', 'dav_path' => 'home/dav_docs/hello.txt', 'auth_user' => 'desk_alice', 'auth_pass' => $rw_secret
+        ]);
+        \SimpleGallery\Kernel\Auth\AppPasswordManager::revoke($p1_root, (int)$ap_rw['app_password']['id'], $alice_id, false);
+        $dav_after_revoke = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+            'method' => 'PROPFIND', 'dav_path' => 'home', 'auth_user' => 'desk_alice', 'auth_pass' => $rw_secret
+        ]);
+
+        $this->assert("Phase C: Passerelle WebDAV /dav/ + App Passwords (401 anonyme, PROPFIND/MKCOL/PUT/GET/DELETE, blocage .php/dotfile/RO/quota 507 & révocation)",
+            !empty($ap_rw['success']) && $no_secret_leak &&
+            ($dav_unauth['status'] ?? 0) === 401 &&
+            ($dav_opts['status'] ?? 0) === 200 && strpos((string)($dav_opts['headers']['DAV'] ?? ''), '1') !== false &&
+            ($dav_root['status'] ?? 0) === 207 && strpos((string)($dav_root['body'] ?? ''), '/dav/home/') !== false &&
+            ($dav_mkcol['status'] ?? 0) === 201 &&
+            ($dav_put['status'] ?? 0) === 201 &&
+            ($dav_get['status'] ?? 0) === 200 &&
+            $dav_get_content === 'Hello WebDAV!' &&
+            ($dav_php_block['status'] ?? 0) === 403 &&
+            in_array($dav_dot_block['status'] ?? 0, [400, 403], true) &&
+            ($dav_ro_put['status'] ?? 0) === 403 &&
+            ($dav_quota_507['status'] ?? 0) === 507 &&
+            ($dav_del['status'] ?? 0) === 204 &&
+            ($dav_after_revoke['status'] ?? 0) === 401
+        );
+
+        // Async Job Queue + Instance Backups (non-admin denied on system jobs/backups; admin enqueues & runs)
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
+        $bob_backup_403 = \SimpleGallery\Kernel\Actions\StorageActions::handle('create_instance_backup', [], ['base_dir' => $p1_root, 'project_root' => $p1_root]);
+        $bob_sysjob_403 = \SimpleGallery\Kernel\Actions\StorageActions::handle('enqueue_job', [], ['base_dir' => $p1_root, 'project_root' => $p1_root, 'raw_body' => ['job_type' => 'instance_backup']]);
+        $bob_runjob_403 = \SimpleGallery\Kernel\Actions\StorageActions::handle('run_next_job', [], ['base_dir' => $p1_root, 'project_root' => $p1_root]);
+
+        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        $_SESSION['is_admin'] = true;
+        $_SESSION['sg_admin_logged'] = true;
+        $enq_idx = \SimpleGallery\Kernel\Actions\StorageActions::handle('enqueue_job', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root, 'raw_body' => ['job_type' => 'rebuild_file_index']
+        ]);
+        $enq_bkp = \SimpleGallery\Kernel\Actions\StorageActions::handle('enqueue_job', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root, 'raw_body' => ['job_type' => 'instance_backup', 'include_media' => false]
+        ]);
+        $ran1 = \SimpleGallery\Kernel\Actions\StorageActions::handle('run_next_job', [], ['base_dir' => $p1_root, 'project_root' => $p1_root, 'media_types' => $mtypes]);
+        $ran2 = \SimpleGallery\Kernel\Actions\StorageActions::handle('run_next_job', [], ['base_dir' => $p1_root, 'project_root' => $p1_root, 'media_types' => $mtypes]);
+        $bkp_list = \SimpleGallery\Kernel\Backup\InstanceBackupService::listBackups($p1_root);
+        $bkp_ht = @file_get_contents($p1_root . '/storage/backups/.htaccess') ?: '';
+        $bkp_del = !empty($bkp_list[0]['filename'])
+            ? \SimpleGallery\Kernel\Backup\InstanceBackupService::deleteBackup($p1_root, (string)$bkp_list[0]['filename'])
+            : ['success' => false];
+
+        $this->assert("Phase C: File de jobs asynchrones + Sauvegardes d'instance (403 non-admin, exécution SQLite/ZIP & .htaccess Deny)",
+            ($bob_backup_403['status'] ?? 0) === 403 &&
+            ($bob_sysjob_403['status'] ?? 0) === 403 &&
+            ($bob_runjob_403['status'] ?? 0) === 403 &&
+            ($enq_idx['status'] ?? 0) === 200 &&
+            ($enq_bkp['status'] ?? 0) === 200 &&
+            ($ran1['data']['job']['status'] ?? '') === 'completed' &&
+            ($ran2['data']['job']['status'] ?? '') === 'completed' &&
+            count($bkp_list) >= 1 &&
+            stripos($bkp_ht, 'Deny from all') !== false &&
+            !empty($bkp_del['success'])
+        );
+
+        // First-Run Setup Wizard self-lock test on isolated fresh root
+        $setup_root = $this->temp_test_dir . '/phase_c_fresh_setup';
+        @mkdir($setup_root . '/storage/media', 0755, true);
+        @mkdir($setup_root . '/config', 0755, true);
+        $setup_needed_before = \SimpleGallery\Kernel\Setup\SetupWizard::isSetupRequired($setup_root);
+        $setup_diag = \SimpleGallery\Kernel\Setup\SetupWizard::getEnvironmentDiagnostics($setup_root);
+        $setup_ok = \SimpleGallery\Kernel\Setup\SetupWizard::completeSetup($setup_root, $setup_root . '/storage/media', [
+            'username' => 'founder',
+            'display_name' => 'Studio Founder',
+            'email' => 'founder@studio.fr',
+            'password' => 'SuperSecureFounder2026!'
+        ]);
+        $setup_needed_after = \SimpleGallery\Kernel\Setup\SetupWizard::isSetupRequired($setup_root);
+        $setup_locked_403 = \SimpleGallery\Kernel\Setup\SetupWizard::completeSetup($setup_root, $setup_root . '/storage/media', [
+            'username' => 'attacker',
+            'password' => 'AttackerPass999!'
+        ]);
+        $this->assert("Phase C: Assistant /setup détecte instance vierge, crée le SuperAdmin puis se verrouille définitivement (403)",
+            $setup_needed_before === true &&
+            !empty($setup_diag['ready']) &&
+            ($setup_ok['status'] ?? 0) === 200 &&
+            ($setup_ok['user']['role'] ?? '') === 'superadmin' &&
+            $setup_needed_after === false &&
+            ($setup_locked_403['status'] ?? 0) === 403
+        );
 
         $_SESSION = $saved_sess;
         \SimpleGallery\Kernel\Security\RateLimiter::reset('register_' . $cli_ip);
