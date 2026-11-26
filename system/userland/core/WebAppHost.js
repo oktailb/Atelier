@@ -90,6 +90,9 @@
 
     getEffectiveSrc(startupFile = null) {
       if (!this.htmlEntry) return 'about:blank';
+      const baseEntry = (this.manifest && this.manifest.publicBase)
+        ? `system/endpoints/webapp.php?app=${encodeURIComponent(this.id)}`
+        : this.htmlEntry;
       const params = [];
       if (this.activeRendererFlag) {
         params.push(encodeURIComponent(this.activeRendererFlag));
@@ -125,9 +128,9 @@
           params.push(`${encodeURIComponent(openParam)}=${encodeURIComponent(absUrl)}`);
         }
       }
-      if (params.length === 0) return this.htmlEntry;
-      const sep = this.htmlEntry.includes('?') ? '&' : '?';
-      return `${this.htmlEntry}${sep}${params.join('&')}`;
+      if (params.length === 0) return baseEntry;
+      const sep = baseEntry.includes('?') ? '&' : '?';
+      return `${baseEntry}${sep}${params.join('&')}`;
     }
 
     getIframeElement() {

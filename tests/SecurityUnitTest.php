@@ -2316,6 +2316,29 @@ HTACCESS;
             $uninst_ok = \SimpleGallery\Kernel\ExternalAppManager::uninstallApp($p1_root, $installed_id);
             $dir_gone = !is_dir($p1_root . '/apps/external/' . ($res_ok['app']['folder'] ?? '__none__'));
 
+            // 6. Trunk / GitHub Pages bundle with hardcoded root-absolute `--public-url /my-reader/`
+            $gh_dir = $p1_root . '/apps/external/my-reader';
+            @mkdir($gh_dir, 0755, true);
+            $gh_html = '<!doctype html><html><head><title>My EPUB Reader</title><link href=/my-reader/logo-123.svg rel=icon><script type=module>import init from \'/my-reader/app.js\'; init({module_or_path:\'/my-reader/app_bg.wasm\'});</script></head><body></body></html>';
+            file_put_contents($gh_dir . '/index.html', $gh_html);
+            file_put_contents($gh_dir . '/app.js', 'export default function() {}');
+            file_put_contents($gh_dir . '/app_bg.wasm', "\x00asm\x01\x00\x00\x00");
+            file_put_contents($gh_dir . '/logo-123.svg', '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
+            $gh_manifest = \SimpleGallery\Kernel\StandaloneWebAppManifestSynthesizer::synthesize($gh_dir, 'external/my-reader', $p1_root);
+            $gh_rewritten = \SimpleGallery\Kernel\StandaloneWebAppManifestSynthesizer::rewriteHtmlPublicBase(
+                $gh_html,
+                (string)($gh_manifest['publicBase'] ?? ''),
+                '/apps/external/my-reader/'
+            );
+            $this->assert("Lot 2: Bundle Trunk/GitHub Pages (--public-url /my-reader/) reconnu sain, icône non quotée extraite et HTML relocalisé",
+                !empty($gh_manifest['health']['ok']) &&
+                ($gh_manifest['publicBase'] ?? '') === '/my-reader/' &&
+                ($gh_manifest['icon_url'] ?? '') === 'apps/external/my-reader/logo-123.svg' &&
+                in_array('epub', $gh_manifest['extensions'] ?? [], true) &&
+                strpos($gh_rewritten, '/apps/external/my-reader/app_bg.wasm') !== false &&
+                strpos($gh_rewritten, '<base href="/apps/external/my-reader/">') !== false
+            );
+
             $this->assert("Lot 2: Install ZIP -> apps/external/, détection MAJ GitHub en file d'attente (sans auto-install), overrides & désinstallation sécurisée",
                 !empty($res_ok['success']) &&
                 $installed_id !== '' &&

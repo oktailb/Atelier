@@ -299,6 +299,7 @@ class StandaloneWebAppManifestSynthesizer {
             'synthetic'     => true,
             'source_folder' => $folder,
             'health'        => $health,
+            'publicBase'    => $health['public_base'] ?? null,
             'entry'         => [
                 'html' => $html_entry
             ],
@@ -403,25 +404,100 @@ class StandaloneWebAppManifestSynthesizer {
     }
 
     /**
+     * Detects a hardcoded root-absolute public base path (e.g. GitHub Pages Trunk/Vite builds
+     * compiled with `--public-url /epub-reader-rs/`) where referenced assets actually exist
+     * directly inside `$app_path` once that `/<prefix>/` is stripped.
+     */
+    public static function detectHardcodedPublicBase(string $app_path, string $html_content): ?string {
+        if ($html_content === '') {
+            return null;
+        }
+        $candidates = [];
+        if (preg_match_all('/(?:(?:href|src)\s*=\s*["\']?|[\'"])(\/[a-zA-Z0-9._-]+\/[a-zA-Z0-9._\/-]+\.(?:wasm|js|mjs|css|svg|png|ico|woff2?))(?=["\'\s>])/i', $html_content, $m)) {
+            foreach ($m[1] as $rawPath) {
+                $norm = str_replace('\\', '/', $rawPath);
+                if (strpos($norm, '..') !== false) continue;
+                if (preg_match('#^/([^/]+)/(.+)$#', $norm, $pm)) {
+                    $prefix = '/' . $pm[1] . '/';
+                    $rel = $pm[2];
+                    if (is_file($app_path . '/' . $rel) && (int)@filesize($app_path . '/' . $rel) > 0 && !is_file($app_path . $norm)) {
+                        $candidates[$prefix] = ($candidates[$prefix] ?? 0) + 1;
+                    }
+                }
+            }
+        }
+        if (empty($candidates)) {
+            return null;
+        }
+        arsort($candidates);
+        return (string)array_key_first($candidates);
+    }
+
+    /**
+     * Rewrites hardcoded root-absolute public base paths (e.g. `/epub-reader-rs/`) in a standalone
+     * app's HTML entry to the actual web mount path (`<webAppBaseUrl>/`) while preserving SRI hashes.
+     */
+    public static function rewriteHtmlPublicBase(string $html_content, string $public_base, string $web_app_base_url): string {
+        $cleanBase = '/' . trim($public_base, '/') . '/';
+        $cleanTarget = rtrim($web_app_base_url, '/') . '/';
+        if ($cleanBase === '//' || $cleanTarget === '/') {
+            return $html_content;
+        }
+        // Replace quoted or unquoted attribute/JS references to `/<prefix>/`
+        $rewritten = preg_replace(
+            '/(["\'=,\(\s])' . preg_quote($cleanBase, '/') . '/i',
+            '$1' . $cleanTarget,
+            $html_content
+        );
+        if (!is_string($rewritten)) {
+            $rewritten = $html_content;
+        }
+        // Inject <base href="..."> if absent so any relative URLs (fonts, workers, sub-assets) resolve cleanly
+        if (stripos($rewritten, '<base ') === false) {
+            $baseTag = '<base href="' . htmlspecialchars($cleanTarget, ENT_QUOTES, 'UTF-8') . '">';
+            if (preg_match('/<head\b[^>]*>/i', $rewritten)) {
+                $rewritten = preg_replace('/(<head\b[^>]*>)/i', '$1' . $baseTag, $rewritten, 1);
+            } elseif (preg_match('/<meta\b[^>]*charset[^>]*>/i', $rewritten)) {
+                $rewritten = preg_replace('/(<meta\b[^>]*charset[^>]*>)/i', '$1' . $baseTag, $rewritten, 1);
+            } else {
+                $rewritten = $baseTag . $rewritten;
+            }
+        }
+        return $rewritten;
+    }
+
+    /**
      * Verifies that a standalone web app deployment is intact (non-empty HTML entry and non-empty WASM assets).
      */
     private static function checkDeploymentHealth(string $app_path, string $html_file, string $html_content): array {
         $entry_path = $app_path . '/' . $html_file;
         $entry_size = is_file($entry_path) ? (int)@filesize($entry_path) : 0;
         if ($entry_size <= 0 || trim($html_content) === '') {
-            return ['ok' => false, 'reason' => 'empty_html_entry'];
+            return ['ok' => false, 'reason' => 'empty_html_entry', 'public_base' => null];
         }
-        if (preg_match_all('/[\'"](?:\.\/)?([a-zA-Z0-9._\/-]+\.wasm)[\'"]/i', $html_content, $wm)) {
-            foreach ($wm[1] as $wasm_rel) {
-                $clean = ltrim(str_replace('\\', '/', $wasm_rel), './');
-                if (strpos($clean, '..') !== false) continue;
-                $wp = $app_path . '/' . $clean;
-                if (!is_file($wp) || (int)@filesize($wp) <= 0) {
-                    return ['ok' => false, 'reason' => 'missing_or_empty_wasm'];
+        $public_base = self::detectHardcodedPublicBase($app_path, $html_content);
+
+        if (preg_match_all('/(?:[\'"]|(?:href|src)\s*=\s*["\']?)((?:\.\/|\/)?[a-zA-Z0-9._\/-]+\.wasm)(?=["\'\s>])/i', $html_content, $wm)) {
+            foreach (array_unique($wm[1]) as $wasm_rel) {
+                $norm = str_replace('\\', '/', $wasm_rel);
+                if (strpos($norm, '..') !== false) continue;
+
+                $resolved = null;
+                $clean = ltrim($norm, './');
+                if (is_file($app_path . '/' . $clean) && (int)@filesize($app_path . '/' . $clean) > 0) {
+                    $resolved = $app_path . '/' . $clean;
+                } elseif ($public_base !== null && stripos($norm, $public_base) === 0) {
+                    $stripped = ltrim(substr($norm, strlen($public_base)), '/');
+                    if (is_file($app_path . '/' . $stripped) && (int)@filesize($app_path . '/' . $stripped) > 0) {
+                        $resolved = $app_path . '/' . $stripped;
+                    }
+                }
+                if ($resolved === null) {
+                    return ['ok' => false, 'reason' => 'missing_or_empty_wasm', 'public_base' => $public_base];
                 }
             }
         }
-        return ['ok' => true, 'reason' => 'ok'];
+        return ['ok' => true, 'reason' => 'ok', 'public_base' => $public_base];
     }
 
     /**
@@ -583,6 +659,7 @@ class StandaloneWebAppManifestSynthesizer {
         $summary = strtolower($app_id . ' ' . $name . ' ' . $description . ' ' . substr($hosting_content, 0, 1200));
         $primary_rules = [
             '/\bpdf(craft)?\b/i'                                   => ['pdf'],
+            '/\bepub\b|e-?book\s+reader/i'                         => ['epub'],
             '/\b(svg|vector\s+illustration|vectorcraft)\b/i'       => ['svg', 'eps'],
             '/\bmarkdown\b/i'                                      => ['md'],
             '/\b(spreadsheet|workbook|tableur|gridcraft)\b/i'      => ['xlsx', 'xls', 'ods', 'csv'],
@@ -667,6 +744,9 @@ class StandaloneWebAppManifestSynthesizer {
         if ($has_ext(['pdf', 'pdfcraft']) || preg_match('/\b(pdfcraft|pdf\s+editor|pdf\s+reader)\b/i', $text)) {
             return ['category' => $category ?: 'productivity', 'icon' => '📕'];
         }
+        if ($has_ext(['epub']) && !$has_ext(['docx', 'doc', 'odt']) || preg_match('/\b(epub|e-?book)\b/i', $text)) {
+            return ['category' => $category ?: 'productivity', 'icon' => '📖'];
+        }
         if ($has_ext(['docx', 'doc', 'odt', 'rtf', 'epub', 'wcraft']) || preg_match('/\b(wordcraft|word\s+process|document|office|markdown)\b/i', $text)) {
             return ['category' => $category ?: 'productivity', 'icon' => '📝'];
         }
@@ -706,11 +786,16 @@ class StandaloneWebAppManifestSynthesizer {
         string $name
     ): ?string {
         $base_web_prefix = 'apps/' . trim($rel_key, '/') . '/';
+        $public_base = self::detectHardcodedPublicBase($app_path, $html_content);
 
         // Helper to validate a local relative path strictly inside $app_path
-        $resolve_local = function (string $rel) use ($app_path, $base_web_prefix): ?string {
-            $clean = preg_replace('/[?#].*$/', '', trim($rel));
-            $clean = ltrim(str_replace('\\', '/', $clean), './');
+        $resolve_local = function (string $rel) use ($app_path, $base_web_prefix, $public_base): ?string {
+            $raw = preg_replace('/[?#].*$/', '', trim($rel));
+            $norm = str_replace('\\', '/', $raw);
+            if ($public_base !== null && stripos($norm, $public_base) === 0) {
+                $norm = substr($norm, strlen($public_base));
+            }
+            $clean = ltrim($norm, './');
             if ($clean === '' || strpos($clean, '..') !== false) {
                 return null;
             }
@@ -720,14 +805,15 @@ class StandaloneWebAppManifestSynthesizer {
             return null;
         };
 
-        // Stage 1: <link rel="...icon..." href="..."> in index.html
+        // Stage 1: <link rel="...icon..." href="..."> (supports both quoted and unquoted HTML5 attributes)
         if ($html_content !== '' && preg_match_all('/<link\b[^>]*>/i', $html_content, $link_tags)) {
             foreach ($link_tags[0] as $tag) {
-                if (!preg_match('/\brel\s*=\s*["\']([^"\']*icon[^"\']*)["\']/i', $tag)) {
+                if (!preg_match('/\brel\s*=\s*(?:["\'][^"\']*icon[^"\']*["\']|[^\s>]*icon[^\s>]*)/i', $tag)) {
                     continue;
                 }
-                if (preg_match('/\bhref\s*=\s*["\']([^"\']+)["\']/i', $tag, $hm)) {
-                    $href = trim(html_entity_decode($hm[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+                if (preg_match('/\bhref\s*=\s*(?:["\']([^"\']+)["\']|([^\s>]+))/i', $tag, $hm)) {
+                    $rawHref = ($hm[1] !== '') ? $hm[1] : ($hm[2] ?? '');
+                    $href = trim(html_entity_decode($rawHref, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
                     if (preg_match('#^data:image/(png|svg\+xml|webp|jpeg|gif|x-icon)(;|,)#i', $href)) {
                         return $href;
                     }
