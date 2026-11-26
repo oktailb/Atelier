@@ -511,10 +511,17 @@
         return;
       }
 
-      // Group apps by category
+      // Group apps by canonical normalized category (merge singular/plural aliases like game/games, utility/utilities)
+      const canonicalCatMap = {
+        game: 'games',
+        utility: 'utilities',
+        tool: 'utilities',
+        tools: 'utilities'
+      };
       const groups = new Map();
       apps.forEach(app => {
-        const cat = (app.category || '').trim();
+        const rawCat = (app.category || '').trim().toLowerCase();
+        const cat = canonicalCatMap[rawCat] || rawCat;
         if (!groups.has(cat)) {
           groups.set(cat, []);
         }
