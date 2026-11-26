@@ -412,22 +412,28 @@ class GalleryActions {
         $files = [];
         foreach ($listing['files'] ?? [] as $f) {
             $name = (string)$f['name'];
+            $mime = (string)($f['mime'] ?? '');
             $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+            if ($ext === '' && $mime !== '') {
+                $ext = \SimpleGallery\Kernel\Storage\GoogleDriveStorageDriver::inferExtensionFromMime($mime);
+            }
             $cat = ExifParser::getMediaCategory($ext, $media_types);
             $fPath = $prefix . '/' . ltrim((string)$f['path'], '/');
             $encPath = rawurlencode($fPath);
             $size = (int)($f['size'] ?? 0);
             $mtime = (int)($f['mtime'] ?? 0);
+            $cacheVer = ($mtime > 0 || $size > 0) ? ('&v=' . $mtime . '_' . $size) : '';
             $files[] = [
                 'name'           => $name,
                 'path'           => $fPath,
                 'extension'      => $ext,
+                'mime'           => $mime,
                 'category'       => $cat,
                 'size'           => $size,
                 'size_formatted' => ExifParser::formatBytes($size),
                 'mtime'          => $mtime,
                 'date_formatted' => $mtime > 0 ? date('d/m/Y H:i', $mtime) : '',
-                'thumb_url'      => 'system/endpoints/thumb.php?file=' . $encPath,
+                'thumb_url'      => 'system/endpoints/thumb.php?file=' . $encPath . $cacheVer,
                 'file_url'       => 'system/endpoints/thumb.php?file=' . $encPath . '&raw=1',
                 'download_url'   => 'system/endpoints/thumb.php?file=' . $encPath . '&download=1',
                 'comment'        => '',

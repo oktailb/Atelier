@@ -159,6 +159,12 @@ function render_svg_placeholder(string $category, string $ext, string $filename)
         'docx'  => ['#2563eb', '#1d4ed8'],
         'xls'   => ['#16a34a', '#15803d'],
         'xlsx'  => ['#16a34a', '#15803d'],
+        'ods'   => ['#16a34a', '#15803d'],
+        'csv'   => ['#059669', '#047857'],
+        'tsv'   => ['#059669', '#047857'],
+        'odt'   => ['#2563eb', '#1d4ed8'],
+        'odp'   => ['#ea580c', '#c2410c'],
+        'epub'  => ['#7c3aed', '#6d28d9'],
         'ppt'   => ['#ea580c', '#c2410c'],
         'pptx'  => ['#ea580c', '#c2410c'],
         'zip'   => ['#d97706', '#b45309'],
@@ -196,7 +202,10 @@ function render_svg_placeholder(string $category, string $ext, string $filename)
     $primary_color = $colors[0];
     $dark_color    = $colors[1];
 
-    $ext_label = strtoupper($ext);
+    $ext_label = strtoupper(trim($ext));
+    if ($ext_label === '') {
+        $ext_label = strtoupper($category !== '' ? $category : 'FILE');
+    }
     if (strlen($ext_label) > 5) {
         $ext_label = substr($ext_label, 0, 5);
     }
@@ -314,12 +323,13 @@ ensure_session_started();
 
 $requested_file = $_GET['file'] ?? '';
 
-// Phase B: Stream external cloud/storage mount files (`ext://<mount_id>/...`)
+// Phase B: Stream & cache thumbnails for external cloud/storage mount files (`ext://<mount_id>/...`)
 $ext_parsed = \SimpleGallery\Kernel\Storage\ExternalMountManager::parseExternalPath((string)$requested_file);
 if ($ext_parsed !== null) {
     ensure_session_started();
     \SimpleGallery\Kernel\Auth\AuthManager::revalidateActiveUser($project_root);
-    $resolved_mount = \SimpleGallery\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, (int)$ext_parsed['mount_id']);
+    $mount_id = (int)$ext_parsed['mount_id'];
+    $resolved_mount = \SimpleGallery\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, $mount_id);
     if (!$resolved_mount) {
         http_response_code(403);
         echo "403 Forbidden: Access denied.";
@@ -332,24 +342,180 @@ if ($ext_parsed !== null) {
         echo "403 Forbidden: Access denied.";
         exit;
     }
-    $content = $resolved_mount['driver']->readContent($ext_rel);
-    if ($content === null) {
-        http_response_code(404);
-        echo "File not found.";
+
+    $driver = $resolved_mount['driver'];
+    $is_dl = !empty($_GET['download']) || !empty($_GET['attachment']);
+    $is_raw = !empty($_GET['raw']);
+
+    // 1. Raw file stream or explicit attachment download
+    if ($is_dl || $is_raw) {
+        $content = null;
+        $content_type = '';
+        $dl_name = basename($ext_rel);
+        $effective_ext = $ext;
+
+        if (method_exists($driver, 'readContentWithMeta')) {
+            $meta = $driver->readContentWithMeta($ext_rel);
+            if (is_array($meta) && isset($meta['content'])) {
+                $content = (string)$meta['content'];
+                $content_type = (string)($meta['mime'] ?? '');
+                if (!empty($meta['filename'])) $dl_name = (string)$meta['filename'];
+                if (!empty($meta['extension'])) $effective_ext = strtolower((string)$meta['extension']);
+            }
+        } else {
+            $content = $driver->readContent($ext_rel);
+        }
+
+        if ($content === null) {
+            http_response_code(404);
+            echo "File not found.";
+            exit;
+        }
+        if ($content_type === '' || $content_type === 'application/octet-stream') {
+            $content_type = get_full_mime_type($effective_ext);
+        }
+        header('Content-Type: ' . $content_type);
+        header('Content-Disposition: ' . ($is_dl ? 'attachment' : 'inline') . '; filename="' . rawurlencode($dl_name) . '"');
+        header('Content-Length: ' . strlen($content));
+        header('Cache-Control: private, no-store, max-age=0');
+        header('X-Content-Type-Options: nosniff');
+        if ($effective_ext === 'svg' || stripos($content_type, 'svg') !== false) {
+            header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; script-src 'none';");
+        }
+        echo $content;
         exit;
     }
-    $content_type = get_full_mime_type($ext);
-    $is_dl = !empty($_GET['download']) || !empty($_GET['attachment']);
-    header('Content-Type: ' . $content_type);
-    header('Content-Disposition: ' . ($is_dl ? 'attachment' : 'inline') . '; filename="' . rawurlencode(basename($ext_rel)) . '"');
-    header('Content-Length: ' . strlen($content));
-    header('Cache-Control: private, no-store, max-age=0');
-    header('X-Content-Type-Options: nosniff');
-    if ($ext === 'svg') {
-        header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; script-src 'none';");
+
+    // 2. Thumbnail mode: serve from persistent per-mount disk cache (`storage/.thumbnails/ext_cache/`)
+    $ext_cache_dir = get_cache_storage_dir($real_base_dir, $thumbnail_dir ?? '.thumbnails') . '/ext_cache';
+    if (!is_dir($ext_cache_dir)) {
+        @mkdir($ext_cache_dir, 0755, true);
+        @file_put_contents($ext_cache_dir . '/.htaccess', "Order allow,deny\nDeny from all\n");
     }
-    echo $content;
-    exit;
+
+    $ver_tag = preg_replace('/[^0-9_]/', '', (string)($_GET['v'] ?? ''));
+    $cache_key = sha1("ext|{$mount_id}|{$ext_rel}|{$ver_tag}|v2");
+
+    $serve_ext_cached = function (string $path, string $mime) {
+        $mtime = @filemtime($path) ?: time();
+        $size = @filesize($path) ?: 0;
+        $etag = '"' . md5($path . '-' . $mtime . '-' . $size) . '"';
+        header('Content-Type: ' . $mime);
+        header('Cache-Control: private, max-age=86400, must-revalidate');
+        header('ETag: ' . $etag);
+        header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $mtime) . ' GMT');
+        header('X-Content-Type-Options: nosniff');
+        if (stripos($mime, 'svg') !== false) {
+            header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; script-src 'none';");
+        }
+        $inm = isset($_SERVER['HTTP_IF_NONE_MATCH']) ? trim($_SERVER['HTTP_IF_NONE_MATCH']) : null;
+        $ims = isset($_SERVER['HTTP_IF_MODIFIED_SINCE']) ? strtotime($_SERVER['HTTP_IF_MODIFIED_SINCE']) : null;
+        if (($inm !== null && $inm === $etag) || ($ims !== null && $ims >= $mtime)) {
+            http_response_code(304);
+            exit;
+        }
+        header('Content-Length: ' . $size);
+        readfile($path);
+        exit;
+    };
+
+    // Instant cache hit (0 remote API calls!)
+    $max_unversioned_age = 86400 * 7;
+    foreach (['jpg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp', 'svg' => 'image/svg+xml'] as $cext => $cmime) {
+        $candidate = $ext_cache_dir . '/' . $cache_key . '.' . $cext;
+        if (is_file($candidate) && filesize($candidate) > 0) {
+            if ($ver_tag !== '' || (time() - (int)filemtime($candidate)) < $max_unversioned_age) {
+                $serve_ext_cached($candidate, $cmime);
+            }
+        }
+    }
+
+    // Attempt A: Driver-native pre-rendered thumbnail (e.g. Google Drive thumbnailLink for PDFs, Docs, Sheets, Videos & Images)
+    if (method_exists($driver, 'fetchThumbnail')) {
+        $remote_thumb = $driver->fetchThumbnail($ext_rel, max((int)($thumb_width ?? 360), 400));
+        if (is_array($remote_thumb) && !empty($remote_thumb['data'])) {
+            $rmime = (string)($remote_thumb['mime'] ?? 'image/jpeg');
+            $rext = (stripos($rmime, 'png') !== false) ? 'png' : ((stripos($rmime, 'webp') !== false) ? 'webp' : 'jpg');
+            $dest = $ext_cache_dir . '/' . $cache_key . '.' . $rext;
+            @file_put_contents($dest, $remote_thumb['data'], LOCK_EX);
+            if (is_file($dest) && filesize($dest) > 0) {
+                $serve_ext_cached($dest, $rmime);
+            }
+        }
+    }
+
+    // Resolve effective extension for non-Drive mounts or Drive items without thumbnailLink
+    $effective_ext = $ext;
+    if ($effective_ext === '' && method_exists($driver, 'stat')) {
+        $st = $driver->stat($ext_rel);
+        if (is_array($st) && !empty($st['mime'])) {
+            $effective_ext = \SimpleGallery\Kernel\Storage\GoogleDriveStorageDriver::inferExtensionFromMime((string)$st['mime']);
+        }
+    }
+    $is_ext_image = in_array($effective_ext, $media_types['image'] ?? [], true);
+
+    // Attempt B: Resize remote image once with GD and cache to disk
+    if ($is_ext_image) {
+        $raw_img = $driver->readContent($ext_rel);
+        if ($raw_img !== null && $raw_img !== '') {
+            if ($effective_ext === 'svg') {
+                $dest = $ext_cache_dir . '/' . $cache_key . '.svg';
+                @file_put_contents($dest, $raw_img, LOCK_EX);
+                if (is_file($dest) && filesize($dest) > 0) {
+                    $serve_ext_cached($dest, 'image/svg+xml');
+                }
+            }
+            if (function_exists('imagecreatefromstring')) {
+                $src_im = @imagecreatefromstring($raw_img);
+                if ($src_im !== false) {
+                    $ow = imagesx($src_im);
+                    $oh = imagesy($src_im);
+                    $tw = max(120, (int)($thumb_width ?? 360));
+                    $th = max(120, (int)($thumb_height ?? 360));
+                    $ratio = ($ow > 0 && $oh > 0) ? min($tw / $ow, $th / $oh, 1.0) : 1.0;
+                    $nw = max(1, (int)round($ow * $ratio));
+                    $nh = max(1, (int)round($oh * $ratio));
+                    $dst_im = imagecreatetruecolor($nw, $nh);
+                    $white = imagecolorallocate($dst_im, 255, 255, 255);
+                    imagefill($dst_im, 0, 0, $white);
+                    imagecopyresampled($dst_im, $src_im, 0, 0, 0, 0, $nw, $nh, $ow, $oh);
+                    $dest = $ext_cache_dir . '/' . $cache_key . '.jpg';
+                    @imagejpeg($dst_im, $dest, (int)($thumb_quality ?? 85));
+                    imagedestroy($src_im);
+                    imagedestroy($dst_im);
+                    if (is_file($dest) && filesize($dest) > 0) {
+                        $serve_ext_cached($dest, 'image/jpeg');
+                    }
+                }
+            }
+            // Fallback: cache original image bytes
+            $fallback_ext = ($effective_ext === 'png') ? 'png' : (($effective_ext === 'webp') ? 'webp' : 'jpg');
+            $dest = $ext_cache_dir . '/' . $cache_key . '.' . $fallback_ext;
+            @file_put_contents($dest, $raw_img, LOCK_EX);
+            if (is_file($dest) && filesize($dest) > 0) {
+                $serve_ext_cached($dest, get_full_mime_type($effective_ext));
+            }
+        }
+    }
+
+    // Attempt C: Render page 0 of remote PDF via Imagick / ImageMagick if available
+    if ($effective_ext === 'pdf' && (class_exists('Imagick') || find_convert_binary())) {
+        $pdf_bytes = $driver->readContent($ext_rel);
+        if ($pdf_bytes !== null && strlen($pdf_bytes) > 0 && strlen($pdf_bytes) <= 25 * 1024 * 1024) {
+            $tmp_pdf = $ext_cache_dir . '/tmp_' . $cache_key . '.pdf';
+            $dest = $ext_cache_dir . '/' . $cache_key . '.jpg';
+            @file_put_contents($tmp_pdf, $pdf_bytes, LOCK_EX);
+            $ok = generate_imagemagick_frame_thumbnail($tmp_pdf, $dest, (int)($thumb_width ?? 360), (int)($thumb_height ?? 360), (int)($thumb_quality ?? 85));
+            @unlink($tmp_pdf);
+            if ($ok && is_file($dest) && filesize($dest) > 0) {
+                $serve_ext_cached($dest, 'image/jpeg');
+            }
+        }
+    }
+
+    // Attempt D: Crisp color-coded SVG placeholder icon (never dump raw PDF/Office/MP4 bytes into <img>!)
+    $ext_cat = get_media_category($effective_ext, $media_types);
+    render_svg_placeholder($ext_cat, $effective_ext, basename($ext_rel));
 }
 
 $file_path = sanitize_file_path($requested_file, $real_base_dir);

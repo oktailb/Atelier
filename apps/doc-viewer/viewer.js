@@ -374,8 +374,11 @@
     id: 'generic-doc',
     nameKey: 'viewer.doc',
     categories: ['doc', 'other'],
-    extensions: ['pdf', 'txt', 'md', 'markdown', 'json', 'csv', 'xml', 'html', 'htm', 'tex', 'latex', 'js', 'css', 'php', 'py', 'sh', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'rtf', 'odt', 'log', 'ini', 'sql', 'yaml', 'yml'],
-    mimeTypes: ['application/pdf', 'text/*', 'application/json', 'application/msword', 'application/vnd.openxmlformats-officedocument.*'],
+    // Register natively-rendered extensions at default priority (100);
+    // binary Office formats (xls/xlsx/doc/docx/ppt/pptx/ods/odt) are handled via categories fallback
+    // so specialized standalone apps (WebAppHost priority 50) take precedence when installed.
+    extensions: ['pdf', 'txt', 'md', 'markdown', 'json', 'csv', 'tsv', 'xml', 'html', 'htm', 'tex', 'latex', 'js', 'css', 'php', 'py', 'sh', 'log', 'ini', 'sql', 'yaml', 'yml'],
+    mimeTypes: ['application/pdf', 'text/*', 'application/json'],
     defaultTarget: 'pip',
     supportsFullscreen: true,
     supportsPip: true,
@@ -404,7 +407,7 @@
       const canDownloadItem = effectiveCtx.state.isAdmin || (effectiveCtx.state.userRights ? effectiveCtx.state.userRights.can_download_item : true);
       const cleanPathId = encodeURIComponent(file.path).replace(/%/g, '_');
       const winId = `doc-${cleanPathId}`;
-      const ext = (file.extension || (file.name ? file.name.split('.').pop() : '')).toLowerCase();
+      const ext = (file.extension || (file.name && file.name.includes('.') ? file.name.split('.').pop() : '')).toLowerCase();
       const isPdf = ext === 'pdf';
       const isMd = ['md', 'markdown'].includes(ext);
       const isHtml = ['html', 'htm'].includes(ext);

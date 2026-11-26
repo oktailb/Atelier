@@ -39,6 +39,55 @@ class GoogleDriveStorageDriver implements StorageDriverInterface {
     }
 
     /**
+     * Infers a normalized lowercase file extension from a MIME type (including Google Workspace native MIME types).
+     */
+    public static function inferExtensionFromMime(string $mime): string {
+        $m = strtolower(trim(explode(';', $mime)[0]));
+        if ($m === '') return '';
+        static $map = [
+            'application/vnd.google-apps.document'                                      => 'pdf',
+            'application/vnd.google-apps.spreadsheet'                                   => 'xlsx',
+            'application/vnd.google-apps.presentation'                                  => 'pdf',
+            'application/vnd.google-apps.drawing'                                       => 'png',
+            'application/pdf'                                                           => 'pdf',
+            'application/vnd.ms-excel'                                                  => 'xls',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'         => 'xlsx',
+            'application/vnd.oasis.opendocument.spreadsheet'                            => 'ods',
+            'application/msword'                                                        => 'doc',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'   => 'docx',
+            'application/vnd.oasis.opendocument.text'                                   => 'odt',
+            'application/vnd.ms-powerpoint'                                             => 'ppt',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation' => 'pptx',
+            'application/vnd.oasis.opendocument.presentation'                           => 'odp',
+            'application/rtf'                                                           => 'rtf',
+            'text/csv'                                                                  => 'csv',
+            'text/tab-separated-values'                                                 => 'tsv',
+            'text/plain'                                                                => 'txt',
+            'text/markdown'                                                             => 'md',
+            'text/html'                                                                 => 'html',
+            'application/json'                                                          => 'json',
+            'application/xml'                                                           => 'xml',
+            'text/xml'                                                                  => 'xml',
+            'application/zip'                                                           => 'zip',
+            'image/jpeg'                                                                => 'jpg',
+            'image/png'                                                                 => 'png',
+            'image/gif'                                                                 => 'gif',
+            'image/webp'                                                                => 'webp',
+            'image/svg+xml'                                                             => 'svg',
+            'image/bmp'                                                                 => 'bmp',
+            'image/avif'                                                                => 'avif',
+            'video/mp4'                                                                 => 'mp4',
+            'video/webm'                                                                => 'webm',
+            'video/quicktime'                                                           => 'mov',
+            'audio/mpeg'                                                                => 'mp3',
+            'audio/wav'                                                                 => 'wav',
+            'audio/ogg'                                                                 => 'ogg',
+            'audio/flac'                                                                => 'flac'
+        ];
+        return $map[$m] ?? '';
+    }
+
+    /**
      * Accepts 'root', a raw Google Drive folder ID, or a full Drive folder URL (`.../folders/<ID>`).
      */
     public static function normalizeFolderId(string $raw): string {
@@ -152,7 +201,7 @@ class GoogleDriveStorageDriver implements StorageDriverInterface {
             $q = "'{$parentId}' in parents and name = '{$escaped}' and trashed = false";
             $url = self::API_BASE . '/files?' . http_build_query([
                 'q'                         => $q,
-                'fields'                    => 'files(id,name,mimeType,size,modifiedTime,shortcutDetails)',
+                'fields'                    => 'files(id,name,mimeType,size,modifiedTime,thumbnailLink,shortcutDetails)',
                 'pageSize'                  => 1,
                 'supportsAllDrives'         => 'true',
                 'includeItemsFromAllDrives' => 'true'
@@ -242,22 +291,87 @@ class GoogleDriveStorageDriver implements StorageDriverInterface {
     }
 
     public function readContent(string $relPath): ?string {
+        $meta = $this->readContentWithMeta($relPath);
+        return $meta !== null ? $meta['content'] : null;
+    }
+
+    /**
+     * Downloads file content alongside accurate exported MIME type and extension
+     * (handles native Google Docs / Sheets / Slides / Drawings automatically).
+     */
+    public function readContentWithMeta(string $relPath): ?array {
         $item = $this->resolveItemByPath($relPath);
         if (!$item || ($item['mimeType'] ?? '') === self::FOLDER_MIME) return null;
         $mime = (string)($item['mimeType'] ?? '');
+        $name = (string)($item['name'] ?? basename($relPath));
         $exportMap = [
-            'application/vnd.google-apps.document'     => 'application/pdf',
-            'application/vnd.google-apps.spreadsheet'  => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'application/vnd.google-apps.presentation' => 'application/pdf',
-            'application/vnd.google-apps.drawing'      => 'image/png'
+            'application/vnd.google-apps.document'     => ['mime' => 'application/pdf', 'ext' => 'pdf'],
+            'application/vnd.google-apps.spreadsheet'  => ['mime' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'ext' => 'xlsx'],
+            'application/vnd.google-apps.presentation' => ['mime' => 'application/pdf', 'ext' => 'pdf'],
+            'application/vnd.google-apps.drawing'      => ['mime' => 'image/png', 'ext' => 'png']
         ];
         if (isset($exportMap[$mime])) {
-            $url = self::API_BASE . '/files/' . rawurlencode((string)$item['id']) . '/export?mimeType=' . rawurlencode($exportMap[$mime]);
+            $outMime = $exportMap[$mime]['mime'];
+            $outExt = $exportMap[$mime]['ext'];
+            $url = self::API_BASE . '/files/' . rawurlencode((string)$item['id']) . '/export?mimeType=' . rawurlencode($outMime);
+            $outName = pathinfo($name, PATHINFO_EXTENSION) !== '' ? $name : ($name . '.' . $outExt);
         } else {
+            $outMime = $mime !== '' ? $mime : 'application/octet-stream';
+            $outExt = strtolower(pathinfo($name, PATHINFO_EXTENSION)) ?: self::inferExtensionFromMime($mime);
+            $outName = $name;
             $url = self::API_BASE . '/files/' . rawurlencode((string)$item['id']) . '?alt=media&supportsAllDrives=true';
         }
         $res = $this->apiRequest('GET', $url);
-        return ($res['status'] >= 200 && $res['status'] < 300) ? $res['body'] : null;
+        if ($res['status'] < 200 || $res['status'] >= 300) {
+            return null;
+        }
+        return [
+            'content'   => $res['body'],
+            'mime'      => $outMime,
+            'extension' => $outExt,
+            'filename'  => $outName
+        ];
+    }
+
+    /**
+     * Fetches Google Drive's pre-rendered thumbnail (`thumbnailLink`) for images, PDFs, Office docs,
+     * Google Docs/Sheets/Slides, and videos without downloading the full file.
+     */
+    public function fetchThumbnail(string $relPath, int $maxSize = 400): ?array {
+        $item = $this->resolveItemByPath($relPath);
+        if (!$item || empty($item['thumbnailLink']) || !function_exists('curl_init')) {
+            return null;
+        }
+        $thumbUrl = (string)$item['thumbnailLink'];
+        $size = max(120, min(800, $maxSize));
+        $thumbUrl = preg_replace('/=s\d+$/', '=s' . $size, $thumbUrl);
+
+        $this->ensureValidToken();
+        $fetch = function (bool $withAuth) use ($thumbUrl): array {
+            $ch = curl_init($thumbUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+            curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+            if ($withAuth && $this->accessToken !== '') {
+                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $this->accessToken]);
+            }
+            $data = curl_exec($ch);
+            $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $ctype = (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+            curl_close($ch);
+            return ['status' => $status, 'data' => is_string($data) ? $data : '', 'mime' => $ctype];
+        };
+
+        $res = $fetch(true);
+        if ($res['status'] !== 200 || stripos($res['mime'], 'image/') !== 0 || strlen($res['data']) < 64) {
+            $res = $fetch(false);
+        }
+        if ($res['status'] === 200 && stripos($res['mime'], 'image/') === 0 && strlen($res['data']) >= 64) {
+            $cleanMime = strtolower(trim(explode(';', $res['mime'])[0]));
+            return ['data' => $res['data'], 'mime' => $cleanMime];
+        }
+        return null;
     }
 
     public function putContent(string $relPath, string $content, string $mime = 'application/octet-stream'): bool {
