@@ -1993,11 +1993,432 @@
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // EXTERNAL WEB APPS MANAGER & DEFAULT FILE ASSOCIATIONS (Lot 2 — Plugins Tab)
+  // ---------------------------------------------------------------------------
+  function formatAppBytes(bytes) {
+    const b = Number(bytes) || 0;
+    if (b <= 0) return '0 B';
+    if (b >= 1024 * 1024) return (b / (1024 * 1024)).toFixed(1) + ' MB';
+    if (b >= 1024) return Math.round(b / 1024) + ' KB';
+    return b + ' B';
+  }
+
+  function renderAppIconHtml(icon) {
+    const raw = String(icon || '🌐').trim();
+    if (/^(apps\/|assets\/|icons\/|system\/)/i.test(raw) || /\.(svg|png|jpe?g|webp|ico)$/i.test(raw)) {
+      return `<img src="${esc(raw)}" alt="" style="width:24px;height:24px;object-fit:contain;border-radius:4px;vertical-align:middle;" />`;
+    }
+    return `<span style="font-size:1.25rem;line-height:1;">${esc(raw)}</span>`;
+  }
+
+  async function renderExternalAppsSection(container, settingsApp, opts = {}) {
+    if (!container || !settingsApp) return;
+    const t = (k, p) => settingsApp.t(k, p);
+    const appMgr = (window.sys && window.sys.appManager) ? window.sys.appManager : null;
+    const needsReload = Boolean(opts.needsReload);
+
+    // 1. Personal Default File Associations card (visible to every user)
+    const userDefaults = (appMgr && typeof appMgr.getUserDefaultApps === 'function')
+      ? appMgr.getUserDefaultApps()
+      : {};
+    const defaultEntries = Object.entries(userDefaults).sort((a, b) => a[0].localeCompare(b[0]));
+
+    const defaultsHtml = defaultEntries.length === 0
+      ? `<p style="margin:0;font-size:0.82rem;color:var(--text-muted);">${esc(t('ext_apps.defaults_empty'))}</p>`
+      : `<div style="display:flex;flex-direction:column;gap:6px;">
+          ${defaultEntries.map(([ext, appId]) => {
+            const title = (appMgr && typeof appMgr.getAppTitle === 'function') ? appMgr.getAppTitle(appId) : appId;
+            return `
+              <div style="${rowStyle}">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  <code style="padding:2px 7px;border-radius:6px;background:rgba(99,102,241,0.14);color:var(--accent-primary,#6366f1);font-weight:700;font-size:0.78rem;">.${esc(ext)}</code>
+                  <span style="font-size:0.84rem;font-weight:600;">${esc(title)}</span>
+                  <span style="font-size:0.74rem;color:var(--text-muted);">(${esc(appId)})</span>
+                </div>
+                <button type="button" class="ext-app-reset-default-btn" data-ext="${esc(ext)}" style="padding:4px 10px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-main);color:var(--text-main);cursor:pointer;font-size:0.75rem;">
+                  ↺ ${esc(t('ext_apps.defaults_reset_btn'))}
+                </button>
+              </div>
+            `;
+          }).join('')}
+        </div>`;
+
+    const defaultsCard = window.sys.ui.card({
+      title: 'ext_apps.defaults_title',
+      icon: '⭐',
+      content: `
+        <p style="margin:0 0 10px 0;font-size:0.82rem;color:var(--text-muted);">${esc(t('ext_apps.defaults_desc'))}</p>
+        ${defaultsHtml}
+      `
+    });
+
+    // 2. Admin External Apps Manager card (strictly admin-only)
+    let adminCard = '';
+    let extApps = [];
+    if (settingsApp.isAdmin) {
+      const listRes = await settingsApp.api.get('list_external_apps');
+      if (listRes && listRes.success && Array.isArray(listRes.apps)) {
+        extApps = listRes.apps;
+      }
+
+      const categoryOptions = ['productivity', 'media', 'games', 'communication', 'utilities', 'development', 'education'];
+      const reloadBanner = needsReload ? `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;margin-bottom:12px;border-radius:8px;border:1px solid rgba(34,197,94,0.45);background:rgba(34,197,94,0.1);flex-wrap:wrap;">
+          <span style="font-size:0.8rem;color:var(--text-main);">✅ ${esc(t('ext_apps.reload_hint'))}</span>
+          <button type="button" id="extAppsReloadBtn" style="padding:5px 12px;border-radius:6px;border:none;background:#16a34a;color:#fff;cursor:pointer;font-size:0.78rem;font-weight:600;">
+            🔄 ${esc(t('ext_apps.reload_btn'))}
+          </button>
+        </div>
+      ` : '';
+
+      const appsListHtml = extApps.length === 0
+        ? `<p style="margin:8px 0 0 0;font-size:0.82rem;color:var(--text-muted);">${esc(t('ext_apps.empty_list'))}</p>`
+        : `<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px;">
+            ${extApps.map(app => {
+              const healthOk = app.health && app.health.ok !== false;
+              const healthBadge = healthOk
+                ? `<span style="padding:2px 7px;border-radius:99px;font-size:0.7rem;background:rgba(34,197,94,0.16);color:#22c55e;font-weight:700;">✅ ${esc(t('ext_apps.health_ok'))}</span>`
+                : `<span style="padding:2px 7px;border-radius:99px;font-size:0.7rem;background:rgba(239,68,68,0.16);color:#ef4444;font-weight:700;">⚠️ ${esc(t('ext_apps.health_broken'))}</span>`;
+              const protoBadge = app.protocol === 'host-parent'
+                ? `<span style="padding:2px 7px;border-radius:99px;font-size:0.7rem;background:rgba(99,102,241,0.16);color:var(--accent-primary,#6366f1);font-weight:600;">⚡ ${esc(t('ext_apps.protocol_host'))}</span>`
+                : `<span style="padding:2px 7px;border-radius:99px;font-size:0.7rem;background:rgba(148,163,184,0.18);color:var(--text-muted);font-weight:600;">🔗 ${esc(t('ext_apps.protocol_vfs'))}</span>`;
+              const originBadge = app.managed
+                ? `<span style="padding:2px 7px;border-radius:99px;font-size:0.68rem;border:1px solid var(--border-color);color:var(--text-muted);">${esc(t('ext_apps.managed_badge'))}</span>`
+                : `<span style="padding:2px 7px;border-radius:99px;font-size:0.68rem;border:1px solid var(--border-color);color:var(--text-muted);">${esc(t('ext_apps.manual_badge'))}</span>`;
+              const exts = Array.isArray(app.extensions) ? app.extensions : [];
+              const extsHtml = exts.length > 0
+                ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">${exts.slice(0, 12).map(e => `<code style="font-size:0.69rem;padding:1px 5px;border-radius:4px;background:var(--bg-main);border:1px solid var(--border-color);">.${esc(e)}</code>`).join('')}${exts.length > 12 ? `<span style="font-size:0.69rem;color:var(--text-muted);">+${exts.length - 12}</span>` : ''}</div>`
+                : '';
+
+              const pending = app.pending_update;
+              const pendingBanner = pending ? `
+                <div style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;margin-top:6px;border-radius:7px;border:1px solid rgba(245,158,11,0.5);background:rgba(245,158,11,0.12);flex-wrap:wrap;">
+                  <div style="font-size:0.79rem;font-weight:600;color:var(--text-main);">
+                    🆕 ${esc(t('ext_apps.pending_update_banner', { version: pending.version || '' }))}
+                    ${pending.asset_name ? `<span style="font-weight:400;color:var(--text-muted);margin-left:6px;">(${esc(pending.asset_name)})</span>` : ''}
+                  </div>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <button type="button" class="ext-app-approve-update-btn" data-app-id="${esc(app.id)}" data-app-name="${esc(app.name)}" data-version="${esc(pending.version || '')}" style="padding:4px 10px;border-radius:6px;border:none;background:#16a34a;color:#fff;cursor:pointer;font-size:0.75rem;font-weight:600;">
+                      ✅ ${esc(t('ext_apps.approve_update_btn'))}
+                    </button>
+                    <button type="button" class="ext-app-dismiss-update-btn" data-app-id="${esc(app.id)}" style="padding:4px 10px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-main);color:var(--text-main);cursor:pointer;font-size:0.75rem;">
+                      ✕ ${esc(t('ext_apps.dismiss_update_btn'))}
+                    </button>
+                  </div>
+                </div>
+              ` : '';
+
+              const ov = (app.override && typeof app.override === 'object') ? app.override : {};
+              const curCat = ov.category || app.category || 'utilities';
+              const curIcon = ov.icon || app.icon || '';
+              const curExts = Array.isArray(ov.extensions) ? ov.extensions.join(', ') : exts.join(', ');
+              const curRepo = ov.github_repo || app.github_repo || '';
+              const curPattern = ov.asset_pattern || app.asset_pattern || '';
+              const curVfs = ov.vfsBridge !== false;
+
+              return `
+                <div style="${rowStyle};flex-direction:column;align-items:stretch;">
+                  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+                    <div style="display:flex;align-items:flex-start;gap:10px;min-width:220px;flex:1;">
+                      <div style="margin-top:2px;">${renderAppIconHtml(app.icon)}</div>
+                      <div>
+                        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                          <strong style="font-size:0.88rem;">${esc(app.name)}</strong>
+                          <span style="font-size:0.73rem;color:var(--text-muted);">v${esc(app.version || '1.0.0')}</span>
+                          ${healthBadge}
+                          ${protoBadge}
+                          ${originBadge}
+                        </div>
+                        <div style="font-size:0.74rem;color:var(--text-muted);margin-top:2px;">
+                          <code>${esc(app.rel_path || app.id)}</code> · ${esc(formatAppBytes(app.size_bytes))}
+                          ${app.github_repo ? ` · GitHub: <code>${esc(app.github_repo)}</code>` : ''}
+                        </div>
+                        ${extsHtml}
+                      </div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                      <button type="button" class="ext-app-uninstall-btn" data-app-id="${esc(app.id)}" data-app-name="${esc(app.name)}" style="padding:4px 10px;border-radius:6px;border:1px solid rgba(239,68,68,0.4);background:rgba(239,68,68,0.12);color:#ef4444;cursor:pointer;font-size:0.75rem;font-weight:600;">
+                        🗑️ ${esc(t('ext_apps.uninstall_btn'))}
+                      </button>
+                    </div>
+                  </div>
+                  ${pendingBanner}
+                  <details style="margin-top:6px;border-top:1px dashed var(--border-color);padding-top:6px;">
+                    <summary style="cursor:pointer;font-size:0.76rem;color:var(--text-muted);user-select:none;">⚙️ ${esc(t('ext_apps.configure_btn'))}</summary>
+                    <form class="ext-app-override-form" data-app-id="${esc(app.id)}" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin-top:8px;">
+                      <label style="${labelStyle}">
+                        <span>${esc(t('ext_apps.override_icon_label'))}</span>
+                        <input type="text" name="icon" value="${esc(curIcon)}" style="${inputStyle}" />
+                      </label>
+                      <label style="${labelStyle}">
+                        <span>${esc(t('ext_apps.override_category_label'))}</span>
+                        <select name="category" style="${inputStyle}">
+                          ${categoryOptions.map(c => `<option value="${c}" ${curCat === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
+                        </select>
+                      </label>
+                      <label style="${labelStyle}">
+                        <span>${esc(t('ext_apps.override_extensions_label'))}</span>
+                        <input type="text" name="extensions" value="${esc(curExts)}" style="${inputStyle}" />
+                      </label>
+                      <label style="${labelStyle}">
+                        <span>${esc(t('ext_apps.github_repo_label'))}</span>
+                        <input type="text" name="github_repo" value="${esc(curRepo)}" placeholder="${esc(t('ext_apps.github_repo_placeholder'))}" style="${inputStyle}" />
+                      </label>
+                      <label style="${labelStyle}">
+                        <span>${esc(t('ext_apps.override_asset_pattern_label'))}</span>
+                        <input type="text" name="asset_pattern" value="${esc(curPattern)}" style="${inputStyle}" />
+                      </label>
+                      <label style="display:flex;align-items:center;gap:8px;font-size:0.78rem;color:var(--text-main);align-self:end;padding-bottom:6px;">
+                        <input type="checkbox" name="vfsBridge" ${curVfs ? 'checked' : ''} />
+                        <span>${esc(t('ext_apps.override_vfs_bridge_label'))}</span>
+                      </label>
+                      <div style="grid-column:1 / -1;display:flex;justify-content:flex-end;">
+                        <button type="submit" style="padding:5px 14px;border-radius:6px;border:none;background:var(--accent-primary,#6366f1);color:#fff;cursor:pointer;font-size:0.77rem;font-weight:600;">
+                          💾 ${esc(t('ext_apps.override_save_btn'))}
+                        </button>
+                      </div>
+                    </form>
+                  </details>
+                </div>
+              `;
+            }).join('')}
+          </div>`;
+
+      adminCard = window.sys.ui.card({
+        title: 'ext_apps.manager_title',
+        icon: '📦',
+        content: `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+            <p style="margin:0;font-size:0.82rem;color:var(--text-muted);flex:1;min-width:240px;">${esc(t('ext_apps.manager_desc'))}</p>
+            <button type="button" id="extAppsCheckUpdatesBtn" class="sysmon-action-btn" style="padding:6px 12px;font-size:0.78rem;">
+              🔄 ${esc(t('ext_apps.check_updates_btn'))}
+            </button>
+          </div>
+          ${reloadBanner}
+          <div id="extAppsStatusMsg" style="display:none;margin-bottom:10px;padding:7px 10px;border-radius:7px;font-size:0.8rem;border:1px solid var(--border-color);background:var(--bg-main);"></div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px;">
+            <form id="extAppsZipForm" style="display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-main);">
+              <strong style="font-size:0.82rem;">🗜️ ${esc(t('ext_apps.deploy_zip_title'))}</strong>
+              <label style="${labelStyle}">
+                <span>${esc(t('ext_apps.zip_file_label'))}</span>
+                <input type="file" id="extAppsZipInput" name="archive" accept=".zip,application/zip" style="${inputStyle}" />
+              </label>
+              <label style="${labelStyle}">
+                <span>${esc(t('ext_apps.github_repo_label'))}</span>
+                <input type="text" id="extAppsZipRepo" name="github_repo" placeholder="${esc(t('ext_apps.github_repo_placeholder'))}" style="${inputStyle}" />
+              </label>
+              <button type="submit" style="margin-top:auto;padding:7px 12px;border-radius:7px;border:none;background:var(--accent-primary,#6366f1);color:#fff;cursor:pointer;font-size:0.8rem;font-weight:600;">
+                ⬆️ ${esc(t('ext_apps.install_zip_btn'))}
+              </button>
+            </form>
+            <form id="extAppsUrlForm" style="display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-main);">
+              <strong style="font-size:0.82rem;">🌐 ${esc(t('ext_apps.deploy_url_title'))}</strong>
+              <label style="${labelStyle}">
+                <span>${esc(t('ext_apps.url_label'))}</span>
+                <input type="url" id="extAppsUrlInput" name="url" placeholder="${esc(t('ext_apps.url_placeholder'))}" style="${inputStyle}" />
+              </label>
+              <label style="${labelStyle}">
+                <span>${esc(t('ext_apps.github_repo_label'))}</span>
+                <input type="text" id="extAppsUrlRepo" name="github_repo" placeholder="${esc(t('ext_apps.github_repo_placeholder'))}" style="${inputStyle}" />
+              </label>
+              <button type="submit" style="margin-top:auto;padding:7px 12px;border-radius:7px;border:none;background:var(--accent-primary,#6366f1);color:#fff;cursor:pointer;font-size:0.8rem;font-weight:600;">
+                ⬇️ ${esc(t('ext_apps.install_url_btn'))}
+              </button>
+            </form>
+          </div>
+          ${appsListHtml}
+        `
+      });
+    }
+
+    container.innerHTML = defaultsCard + adminCard;
+
+    // Bind personal default app reset buttons
+    container.querySelectorAll('.ext-app-reset-default-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const ext = btn.dataset.ext;
+        if (ext && appMgr && typeof appMgr.setDefaultAppForExtension === 'function') {
+          appMgr.setDefaultAppForExtension(ext, null);
+          settingsApp.toast.success(t('ext_apps.defaults_reset_toast', { ext }));
+          renderExternalAppsSection(container, settingsApp, { needsReload });
+        }
+      });
+    });
+
+    if (!settingsApp.isAdmin) return;
+
+    const statusEl = container.querySelector('#extAppsStatusMsg');
+    const setStatus = (msg, isError = false) => {
+      if (!statusEl) return;
+      statusEl.textContent = msg;
+      statusEl.style.display = msg ? 'block' : 'none';
+      statusEl.style.color = isError ? '#ef4444' : 'var(--text-main)';
+      statusEl.style.borderColor = isError ? 'rgba(239,68,68,0.45)' : 'var(--border-color)';
+    };
+
+    const reloadBtn = container.querySelector('#extAppsReloadBtn');
+    if (reloadBtn) {
+      reloadBtn.addEventListener('click', () => window.location.reload());
+    }
+
+    // Bind ZIP install
+    const zipForm = container.querySelector('#extAppsZipForm');
+    if (zipForm) {
+      zipForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fileInput = container.querySelector('#extAppsZipInput');
+        const repoInput = container.querySelector('#extAppsZipRepo');
+        const file = fileInput && fileInput.files && fileInput.files[0];
+        if (!file) {
+          setStatus('⚠️ ' + t('ext_apps.select_zip_error'), true);
+          return;
+        }
+        setStatus('⏳ ' + t('ext_apps.installing_status'));
+        const fd = new FormData();
+        fd.append('archive', file, file.name);
+        if (repoInput && repoInput.value.trim()) {
+          fd.append('github_repo', repoInput.value.trim());
+        }
+        const res = await settingsApp.api.upload('install_external_app_zip', fd);
+        if (res && res.success) {
+          settingsApp.toast.success(t('ext_apps.installed_toast', { name: (res.app && res.app.name) || file.name }));
+          renderExternalAppsSection(container, settingsApp, { needsReload: true });
+        } else {
+          setStatus('❌ ' + ((res && res.error) || t('ext_apps.error_generic')), true);
+        }
+      });
+    }
+
+    // Bind Direct URL install
+    const urlForm = container.querySelector('#extAppsUrlForm');
+    if (urlForm) {
+      urlForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const urlInput = container.querySelector('#extAppsUrlInput');
+        const repoInput = container.querySelector('#extAppsUrlRepo');
+        const url = urlInput ? urlInput.value.trim() : '';
+        if (!url) {
+          setStatus('⚠️ ' + t('ext_apps.enter_url_error'), true);
+          return;
+        }
+        setStatus('⏳ ' + t('ext_apps.installing_status'));
+        const res = await settingsApp.api.post('install_external_app_url', {
+          url,
+          github_repo: repoInput ? repoInput.value.trim() : ''
+        });
+        if (res && res.success) {
+          settingsApp.toast.success(t('ext_apps.installed_toast', { name: (res.app && res.app.name) || url }));
+          renderExternalAppsSection(container, settingsApp, { needsReload: true });
+        } else {
+          setStatus('❌ ' + ((res && res.error) || t('ext_apps.error_generic')), true);
+        }
+      });
+    }
+
+    // Bind Check Updates button
+    const checkBtn = container.querySelector('#extAppsCheckUpdatesBtn');
+    if (checkBtn) {
+      checkBtn.addEventListener('click', async () => {
+        checkBtn.disabled = true;
+        setStatus('⏳ ' + t('ext_apps.checking_updates_status'));
+        const res = await settingsApp.api.post('check_external_app_updates', {});
+        checkBtn.disabled = false;
+        if (res && res.success) {
+          settingsApp.toast.info(t('ext_apps.updates_checked_toast', {
+            checked: res.checked || 0,
+            updates: res.updates_found || 0
+          }));
+          renderExternalAppsSection(container, settingsApp, { needsReload });
+        } else {
+          setStatus('❌ ' + ((res && res.error) || t('ext_apps.error_generic')), true);
+        }
+      });
+    }
+
+    // Bind Approve Update buttons (admin validation required)
+    container.querySelectorAll('.ext-app-approve-update-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const appId = btn.dataset.appId;
+        const appName = btn.dataset.appName || appId;
+        const ver = btn.dataset.version || '';
+        btn.disabled = true;
+        setStatus('⏳ ' + t('ext_apps.installing_status'));
+        const res = await settingsApp.api.post('approve_external_app_update', { app_id: appId });
+        if (res && res.success) {
+          settingsApp.toast.success(t('ext_apps.update_approved_toast', { name: appName, version: ver }));
+          renderExternalAppsSection(container, settingsApp, { needsReload: true });
+        } else {
+          btn.disabled = false;
+          setStatus('❌ ' + ((res && res.error) || t('ext_apps.error_generic')), true);
+        }
+      });
+    });
+
+    // Bind Dismiss Update buttons
+    container.querySelectorAll('.ext-app-dismiss-update-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const appId = btn.dataset.appId;
+        const res = await settingsApp.api.post('dismiss_external_app_update', { app_id: appId });
+        if (res && res.success) {
+          settingsApp.toast.info(t('ext_apps.update_dismissed_toast'));
+          renderExternalAppsSection(container, settingsApp, { needsReload });
+        } else {
+          setStatus('❌ ' + ((res && res.error) || t('ext_apps.error_generic')), true);
+        }
+      });
+    });
+
+    // Bind Override forms
+    container.querySelectorAll('.ext-app-override-form').forEach(form => {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const appId = form.dataset.appId;
+        const fd = new FormData(form);
+        const rawExts = String(fd.get('extensions') || '').split(',').map(s => s.trim()).filter(Boolean);
+        const res = await settingsApp.api.post('save_external_app_override', {
+          app_id: appId,
+          override: {
+            icon: String(fd.get('icon') || '').trim(),
+            category: String(fd.get('category') || '').trim(),
+            extensions: rawExts,
+            github_repo: String(fd.get('github_repo') || '').trim(),
+            asset_pattern: String(fd.get('asset_pattern') || '').trim(),
+            vfsBridge: Boolean(form.querySelector('[name="vfsBridge"]')?.checked)
+          }
+        });
+        if (res && res.success) {
+          settingsApp.toast.success(t('ext_apps.override_saved_toast'));
+          renderExternalAppsSection(container, settingsApp, { needsReload: true });
+        } else {
+          setStatus('❌ ' + ((res && res.error) || t('ext_apps.error_generic')), true);
+        }
+      });
+    });
+
+    // Bind Uninstall buttons
+    container.querySelectorAll('.ext-app-uninstall-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const appId = btn.dataset.appId;
+        const appName = btn.dataset.appName || appId;
+        if (!window.confirm(t('ext_apps.uninstall_confirm', { name: appName }))) return;
+        const res = await settingsApp.api.post('uninstall_external_app', { app_id: appId });
+        if (res && res.success) {
+          settingsApp.toast.success(t('ext_apps.uninstalled_toast'));
+          renderExternalAppsSection(container, settingsApp, { needsReload: true });
+        } else {
+          setStatus('❌ ' + ((res && res.error) || t('ext_apps.error_generic')), true);
+        }
+      });
+    });
+  }
+
   window.AtelierUsersPanel = {
     render: (c, s) => renderSection('users', c, s),
     renderSection,
     renderSessionsCard,
     renderAccountDangerZoneCard,
+    renderExternalAppsSection,
     register: registerUsersSection
   };
 

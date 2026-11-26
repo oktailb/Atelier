@@ -181,6 +181,21 @@ Depuis **Panneau de configuration → Stockage & Cloud** :
 
 ---
 
+## 6.3 Applications Web Externes, Mises à jour & Associations par défaut (Lot 2)
+
+Depuis **Panneau de configuration → Plugins & Applications** :
+
+1. **Associations de fichiers par défaut (tous les utilisateurs)** :
+   - Chaque utilisateur connecté peut définir son application préférée par extension (ex. `.xls`, `.pdf`, `.psd`) soit en cliquant sur l'étoile `☆` dans le menu contextuel **Ouvrir avec** de l'Explorateur, soit en réinitialisant ses choix dans la carte **Associations de fichiers par défaut**.
+   - Les préférences sont isolées par compte (`users.preferences_json.default_apps`) et prioritaires dans `AppManager` et `MediaViewerRegistry`.
+
+2. **Gestionnaire d'Applications Web Externes (Administrateurs uniquement)** :
+   - **Déploiement ZIP ou URL directe (`ExternalAppManager`)** : installe toute application web HTML5/WASM autonome dans `apps/external/<dossier>` (dossier git-ignoré). Chaque archive est auditée dans un répertoire de staging avant bascule : rejet strict des chemins `..` (Zip-Slip), liens symboliques, fichiers `.user.ini` et extensions exécutables côté serveur (`.php`, `.phtml`, `.phar`, `.sh`, `.exe`, etc.) ; validation anti-SSRF (`UrlValidator`) sur chaque saut de redirection HTTP/HTTPS ; vérification de santé (`index.html` + bundles non vides).
+   - **Détection de mises à jour GitHub avec validation manuelle** : le bouton **Vérifier les mises à jour** (`check_external_app_updates`) interroge l'API GitHub Releases pour chaque app ayant un `github_repo` (auto-détecté depuis `README.md` ou saisi dans la configuration), compare les versions SemVer et place les nouvelles releases en attente (`storage/external_apps_registry.json`). **Aucune mise à jour n'est installée automatiquement** : l'administrateur choisit explicitement **Valider et installer** (`approve_external_app_update`) ou **Ignorer** (`dismiss_external_app_update`).
+   - **Éditeur visuel de surcharges (`config/external_apps.json`) & Désinstallation** : personnalisez l'icône, la catégorie de menu, les extensions associées, le dépôt GitHub, le filtre regex d'archive et le pont VFS sans éditer de JSON à la main. La désinstallation (`uninstall_external_app`) supprime uniquement les applications externes autonomes et bloque toute suppression d'application native (`manifest.json`).
+
+---
+
 ## 7. Sauvegarde et checklist de mise en production
 
 ### Fichiers critiques à sauvegarder

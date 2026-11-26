@@ -84,6 +84,14 @@ class ActionRouter {
         'empty_trash',
         'restore_file_version',
         'rebuild_file_index',
+        // External Standalone Web App Manager (Lot 2 — Admin Only)
+        'install_external_app_zip',
+        'install_external_app_url',
+        'check_external_app_updates',
+        'approve_external_app_update',
+        'dismiss_external_app_update',
+        'save_external_app_override',
+        'uninstall_external_app',
         // Legacy plugin mutating actions (also auto-discovered dynamically from apps/*/manifest.json)
         'tribune_clear_history',
         'tribune_boards_save',
@@ -205,6 +213,14 @@ class ActionRouter {
         'get_disabled_apps'       => SystemActions::class,
         'set_app_enabled'         => SystemActions::class,
         'get_wm_styles'           => SystemActions::class,
+        'list_external_apps'          => SystemActions::class,
+        'install_external_app_zip'    => SystemActions::class,
+        'install_external_app_url'    => SystemActions::class,
+        'check_external_app_updates'  => SystemActions::class,
+        'approve_external_app_update' => SystemActions::class,
+        'dismiss_external_app_update' => SystemActions::class,
+        'save_external_app_override'  => SystemActions::class,
+        'uninstall_external_app'      => SystemActions::class,
 
         // Media & Search
         'search'                  => MediaActions::class,

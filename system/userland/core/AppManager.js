@@ -144,10 +144,69 @@ class AppManager {
         }
     }
 
+    /**
+     * Returns the current user's custom default app overrides (`{ ext: appId }`).
+     */
+    getUserDefaultApps() {
+        let raw = null;
+        if (typeof window !== 'undefined' && window.sys && window.sys.storage && typeof window.sys.storage.getPref === 'function') {
+            raw = window.sys.storage.getPref('default_apps', {});
+        } else if (typeof window !== 'undefined' && window.SG_USER_PREFERENCES && typeof window.SG_USER_PREFERENCES.default_apps === 'object') {
+            raw = window.SG_USER_PREFERENCES.default_apps;
+        }
+        if (typeof raw === 'string') {
+            try { raw = JSON.parse(raw); } catch (e) { raw = {}; }
+        }
+        return (raw && typeof raw === 'object' && !Array.isArray(raw)) ? { ...raw } : {};
+    }
+
+    /**
+     * Returns the user-preferred app ID for an extension if configured & enabled, otherwise null.
+     */
+    getUserDefaultAppId(ext) {
+        const cleanExt = String(ext || '').toLowerCase().replace(/^\./, '').trim();
+        if (!cleanExt) return null;
+        const map = this.getUserDefaultApps();
+        const preferred = map[cleanExt];
+        if (preferred && typeof preferred === 'string' && this.apps.has(preferred) && this.isAppEnabled(preferred)) {
+            return preferred;
+        }
+        return null;
+    }
+
+    /**
+     * Persists (or clears when appId is null/empty) the user's preferred app for a file extension.
+     */
+    setDefaultAppForExtension(ext, appId) {
+        const cleanExt = String(ext || '').toLowerCase().replace(/^\./, '').trim();
+        if (!cleanExt) return false;
+        const next = this.getUserDefaultApps();
+        if (!appId) {
+            delete next[cleanExt];
+        } else {
+            next[cleanExt] = String(appId).trim();
+        }
+        if (typeof window !== 'undefined' && window.sys && window.sys.storage && typeof window.sys.storage.setPref === 'function') {
+            window.sys.storage.setPref('default_apps', next);
+        } else if (typeof window !== 'undefined') {
+            window.SG_USER_PREFERENCES = window.SG_USER_PREFERENCES || {};
+            window.SG_USER_PREFERENCES.default_apps = next;
+        }
+        if (typeof window !== 'undefined' && window.EventBus && typeof window.EventBus.emit === 'function') {
+            window.EventBus.emit('apps:defaults_changed', { ext: cleanExt, appId: appId || null, defaults: next });
+        }
+        return true;
+    }
+
     getAppForFile(file) {
         if (!file) return null;
         if (this.apps.size === 0) this.initDefaultApps();
         const ext = (file.extension || (file.name && file.name.includes('.') ? file.name.split('.').pop() : '') || '').toLowerCase();
+        // 1. Per-user explicit default association ALWAYS takes highest priority
+        const userPrefId = this.getUserDefaultAppId(ext);
+        if (userPrefId && this.apps.has(userPrefId)) {
+            return this.apps.get(userPrefId);
+        }
         if (ext && this.extMap.has(ext)) {
             const mappedId = this.extMap.get(ext);
             if (this.isAppEnabled(mappedId)) {

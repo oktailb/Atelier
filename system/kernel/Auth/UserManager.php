@@ -591,6 +591,24 @@ class UserManager {
             }
         }
 
+        if (isset($patch['default_apps']) && is_array($patch['default_apps'])) {
+            $cleanDefaults = [];
+            foreach ($patch['default_apps'] as $rawExt => $rawAppId) {
+                if (count($cleanDefaults) >= 64) break;
+                $ext = strtolower(ltrim(trim((string)$rawExt), '.'));
+                if (!preg_match('/^[a-z0-9]{1,12}$/', $ext)) continue;
+                if ($rawAppId === null || $rawAppId === '') continue;
+                $appId = trim((string)$rawAppId);
+                if (!preg_match('/^[a-zA-Z0-9._-]{1,64}$/', $appId)) continue;
+                $cleanDefaults[$ext] = $appId;
+            }
+            if (empty($cleanDefaults)) {
+                unset($current['default_apps']);
+            } else {
+                $current['default_apps'] = $cleanDefaults;
+            }
+        }
+
         if (isset($patch['app_data']) && is_array($patch['app_data'])) {
             $appData = is_array($current['app_data'] ?? null) ? $current['app_data'] : [];
             foreach ($patch['app_data'] as $appKey => $val) {

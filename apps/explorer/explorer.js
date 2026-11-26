@@ -1111,10 +1111,20 @@
         hdr.textContent = this.t('explorer.open_with');
         menu.appendChild(hdr);
 
+        const fileExt = (file.extension || (file.name && file.name.includes('.') ? file.name.split('.').pop() : '') || '').toLowerCase();
+        const currentDefaultEntry = (appMgr && typeof appMgr.getAppForFile === 'function') ? appMgr.getAppForFile(file) : null;
+        const currentDefaultId = currentDefaultEntry && currentDefaultEntry.manifest ? currentDefaultEntry.manifest.id : null;
+
         compatibleApps.forEach((app) => {
+          const isDef = (app.id === currentDefaultId);
+          const row = document.createElement('div');
+          row.className = 'explorer-open-with-row';
+          row.style.cssText = 'display:flex;align-items:center;gap:4px;';
+
           const btn = document.createElement('button');
           btn.type = 'button';
           btn.className = 'explorer-open-with-item';
+          btn.style.flex = '1';
           btn.innerHTML = `<span>${app.icon || '🗔'}</span><span>${this.escapeHtml(app.name)}</span>`;
           btn.onclick = () => {
             menu.remove();
@@ -1122,7 +1132,29 @@
               appMgr.launchApp(app.id, { file, index });
             }
           };
-          menu.appendChild(btn);
+          row.appendChild(btn);
+
+          if (fileExt && appMgr && typeof appMgr.setDefaultAppForExtension === 'function') {
+            const starBtn = document.createElement('button');
+            starBtn.type = 'button';
+            starBtn.className = 'explorer-open-with-default-btn';
+            starBtn.dataset.ext = fileExt;
+            starBtn.dataset.appId = app.id;
+            starBtn.title = isDef
+              ? this.t('explorer.default_app_active', { ext: fileExt })
+              : this.t('explorer.set_default_app', { ext: fileExt });
+            starBtn.style.cssText = `background:transparent;border:none;cursor:pointer;padding:4px 6px;font-size:0.9rem;color:${isDef ? '#f59e0b' : 'var(--text-muted, #94a3b8)'};`;
+            starBtn.textContent = isDef ? '★' : '☆';
+            starBtn.onclick = (evt) => {
+              evt.stopPropagation();
+              appMgr.setDefaultAppForExtension(fileExt, app.id);
+              menu.remove();
+              this.showToast(this.t('explorer.default_app_saved', { ext: fileExt, name: app.name }), 'success');
+            };
+            row.appendChild(starBtn);
+          }
+
+          menu.appendChild(row);
         });
       }
 

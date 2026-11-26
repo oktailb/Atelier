@@ -285,6 +285,99 @@ class SystemActions {
             return ['status' => 200, 'data' => ['success' => true, 'styles' => $styles]];
         }
 
+        // -----------------------------------------------------------------
+        // External Standalone Web App Manager (Lot 2 — Admin Only)
+        // -----------------------------------------------------------------
+        if ($action === 'list_external_apps') {
+            if (!AuthManager::isAdminLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
+            }
+            $res = \SimpleGallery\Kernel\ExternalAppManager::listExternalApps($project_root);
+            return ['status' => (int)($res['status'] ?? 200), 'data' => $res];
+        }
+
+        if ($action === 'install_external_app_zip') {
+            if (!AuthManager::isAdminLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
+            }
+            $file = $_FILES['archive'] ?? $_FILES['file'] ?? null;
+            if (!$file || !is_array($file) || empty($file['tmp_name']) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+                return ['status' => 400, 'data' => ['success' => false, 'error' => 'Archive ZIP manquante ou invalide.']];
+            }
+            $meta = [
+                'github_repo'   => trim((string)($raw_body['github_repo'] ?? $_POST['github_repo'] ?? '')),
+                'asset_pattern' => trim((string)($raw_body['asset_pattern'] ?? $_POST['asset_pattern'] ?? '')),
+                'source_type'   => 'zip'
+            ];
+            $res = \SimpleGallery\Kernel\ExternalAppManager::installFromZipFile(
+                $project_root,
+                (string)$file['tmp_name'],
+                (string)($file['name'] ?? 'app.zip'),
+                $meta
+            );
+            return ['status' => (int)($res['status'] ?? (!empty($res['success']) ? 200 : 400)), 'data' => $res];
+        }
+
+        if ($action === 'install_external_app_url') {
+            if (!AuthManager::isAdminLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
+            }
+            $url = trim((string)($raw_body['url'] ?? $_POST['url'] ?? ''));
+            $meta = [
+                'github_repo'   => trim((string)($raw_body['github_repo'] ?? $_POST['github_repo'] ?? '')),
+                'asset_pattern' => trim((string)($raw_body['asset_pattern'] ?? $_POST['asset_pattern'] ?? '')),
+                'source_type'   => 'url'
+            ];
+            $res = \SimpleGallery\Kernel\ExternalAppManager::installFromUrl($project_root, $url, $meta);
+            return ['status' => (int)($res['status'] ?? (!empty($res['success']) ? 200 : 400)), 'data' => $res];
+        }
+
+        if ($action === 'check_external_app_updates') {
+            if (!AuthManager::isAdminLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
+            }
+            $onlyAppId = trim((string)($raw_body['app_id'] ?? $_POST['app_id'] ?? ''));
+            $res = \SimpleGallery\Kernel\ExternalAppManager::checkUpdates($project_root, $onlyAppId !== '' ? $onlyAppId : null);
+            return ['status' => (int)($res['status'] ?? 200), 'data' => $res];
+        }
+
+        if ($action === 'approve_external_app_update') {
+            if (!AuthManager::isAdminLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
+            }
+            $appId = trim((string)($raw_body['app_id'] ?? $_POST['app_id'] ?? ''));
+            $res = \SimpleGallery\Kernel\ExternalAppManager::approveUpdate($project_root, $appId);
+            return ['status' => (int)($res['status'] ?? (!empty($res['success']) ? 200 : 400)), 'data' => $res];
+        }
+
+        if ($action === 'dismiss_external_app_update') {
+            if (!AuthManager::isAdminLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
+            }
+            $appId = trim((string)($raw_body['app_id'] ?? $_POST['app_id'] ?? ''));
+            $res = \SimpleGallery\Kernel\ExternalAppManager::dismissUpdate($project_root, $appId);
+            return ['status' => (int)($res['status'] ?? (!empty($res['success']) ? 200 : 400)), 'data' => $res];
+        }
+
+        if ($action === 'save_external_app_override') {
+            if (!AuthManager::isAdminLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
+            }
+            $appId = trim((string)($raw_body['app_id'] ?? $_POST['app_id'] ?? ''));
+            $input = is_array($raw_body['override'] ?? null) ? $raw_body['override'] : $raw_body;
+            $res = \SimpleGallery\Kernel\ExternalAppManager::saveOverride($project_root, $appId, $input);
+            return ['status' => (int)($res['status'] ?? (!empty($res['success']) ? 200 : 400)), 'data' => $res];
+        }
+
+        if ($action === 'uninstall_external_app') {
+            if (!AuthManager::isAdminLoggedIn()) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
+            }
+            $appId = trim((string)($raw_body['app_id'] ?? $_POST['app_id'] ?? ''));
+            $res = \SimpleGallery\Kernel\ExternalAppManager::uninstallApp($project_root, $appId);
+            return ['status' => (int)($res['status'] ?? (!empty($res['success']) ? 200 : 400)), 'data' => $res];
+        }
+
         return null;
     }
 }

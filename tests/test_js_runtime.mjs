@@ -1438,6 +1438,78 @@ try {
     usersPanelUiCode.includes('rebuild_file_index')
   );
 
+  // Verify Lot 2: Per-user default file associations override AppManager & MediaViewerRegistry + Admin External Apps UI
+  const explorerCodeLot2 = fs.readFileSync(path.join(appsDir, 'explorer', 'explorer.js'), 'utf8');
+  const webosServicesCode = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'services', 'WebOSServices.js'), 'utf8');
+  const appMgrCodeLot2 = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'core', 'AppManager.js'), 'utf8');
+  const mvrCodeLot2 = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'core', 'MediaViewerRegistry.js'), 'utf8');
+
+  // Execute AppManager + MediaViewerRegistry in isolated sandbox to prove per-user default_apps takes priority
+  const lot2Store = {};
+  const lot2Win = {
+    SG_DISCOVERED_APPS: {
+      'doc-viewer': { id: 'doc-viewer', name: 'Doc Viewer', extensions: ['pdf', 'xls'], fallbackExtensions: ['xls'] },
+      'gridcraft': { id: 'gridcraft', name: 'GridCraft', runtime: 'iframe', distribution: 'standalone-web', extensions: ['xls', 'xlsx'] },
+      'pdfcraft': { id: 'pdfcraft', name: 'PdfCraft', runtime: 'iframe', distribution: 'standalone-web', extensions: ['pdf'] }
+    },
+    SG_USER_PREFERENCES: {},
+    EventBus: { emit: () => {} },
+    document: { getElementById: () => null, head: { appendChild: () => {} }, createElement: () => ({}) },
+    sys: {
+      storage: {
+        getPref: (k, def) => (k in lot2Store ? lot2Store[k] : def),
+        setPref: (k, v) => { lot2Store[k] = v; return true; }
+      }
+    }
+  };
+  const AppMgrClass = new Function('window', `${appMgrCodeLot2}; return AppManager;`)(lot2Win);
+  const amLot2 = new AppMgrClass();
+  lot2Win.sys.appManager = amLot2;
+  new Function('window', 'document', mvrCodeLot2)(lot2Win, lot2Win.document);
+  lot2Win.MediaViewerRegistry.register({ id: 'generic-doc', priority: 100, extensions: ['pdf', 'xls'] });
+  lot2Win.MediaViewerRegistry.register({ id: 'pdfcraft', priority: 50, extensions: ['pdf'] });
+  lot2Win.MediaViewerRegistry.register({ id: 'gridcraft', priority: 50, extensions: ['xls'] });
+
+  const pdfBefore = amLot2.getAppForFile({ name: 'report.pdf', extension: 'pdf' });
+  const mvrPdfBefore = lot2Win.MediaViewerRegistry.findViewer({ name: 'report.pdf', extension: 'pdf' });
+  // User picks pdfcraft as personal default for .pdf -> overrides BOTH AppManager and MediaViewerRegistry!
+  amLot2.setDefaultAppForExtension('pdf', 'pdfcraft');
+  const pdfAfter = amLot2.getAppForFile({ name: 'report.pdf', extension: 'pdf' });
+  const mvrPdfAfter = lot2Win.MediaViewerRegistry.findViewer({ name: 'report.pdf', extension: 'pdf' });
+  // User picks doc-viewer as personal default for .xls -> maps to generic-doc in MediaViewerRegistry!
+  amLot2.setDefaultAppForExtension('xls', 'doc-viewer');
+  const xlsAfter = amLot2.getAppForFile({ name: 'budget.xls', extension: 'xls' });
+  const mvrXlsAfter = lot2Win.MediaViewerRegistry.findViewer({ name: 'budget.xls', extension: 'xls' });
+  // Reset restores automatic priority (gridcraft beats doc-viewer fallback for .xls)
+  amLot2.setDefaultAppForExtension('xls', null);
+  const xlsReset = amLot2.getAppForFile({ name: 'budget.xls', extension: 'xls' });
+
+  assert("Lot 2: Préférences default_apps par utilisateur prioritaires dans AppManager et MediaViewerRegistry (avec reset auto)",
+    pdfBefore && pdfBefore.manifest.id === 'doc-viewer' &&
+    mvrPdfBefore && mvrPdfBefore.id === 'generic-doc' &&
+    pdfAfter && pdfAfter.manifest.id === 'pdfcraft' &&
+    mvrPdfAfter && mvrPdfAfter.id === 'pdfcraft' &&
+    xlsAfter && xlsAfter.manifest.id === 'doc-viewer' &&
+    mvrXlsAfter && mvrXlsAfter.id === 'generic-doc' &&
+    xlsReset && xlsReset.manifest.id === 'gridcraft'
+  );
+
+  assert("Lot 2 UI: Control Panel External Apps Manager + Explorer étoile par défaut + sync default_apps",
+    settingsUiCode.includes('settingsExternalAppsHost') &&
+    settingsUiCode.includes('renderExternalAppsSection') &&
+    usersPanelUiCode.includes('install_external_app_zip') &&
+    usersPanelUiCode.includes('install_external_app_url') &&
+    usersPanelUiCode.includes('check_external_app_updates') &&
+    usersPanelUiCode.includes('approve_external_app_update') &&
+    usersPanelUiCode.includes('dismiss_external_app_update') &&
+    usersPanelUiCode.includes('save_external_app_override') &&
+    usersPanelUiCode.includes('uninstall_external_app') &&
+    explorerCodeLot2.includes('explorer-open-with-default-btn') &&
+    explorerCodeLot2.includes('setDefaultAppForExtension') &&
+    webosServicesCode.includes("'default_apps'") &&
+    adminGuideText.includes('ExternalAppManager')
+  );
+
   // Verify users-panel.js registers custom section cleanly without syntax errors
   const usersPanelCode = fs.readFileSync(usersPanelPath, 'utf8');
   const registeredSections = [];

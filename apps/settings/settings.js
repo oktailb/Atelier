@@ -268,6 +268,14 @@
         }
       }
 
+      // If Plugins tab is active, populate User Default File Associations & Admin External Apps Manager
+      if (this.currentTab === 'plugins' && window.AtelierUsersPanel && typeof window.AtelierUsersPanel.renderExternalAppsSection === 'function') {
+        const extHost = container.querySelector('#settingsExternalAppsHost');
+        if (extHost) {
+          window.AtelierUsersPanel.renderExternalAppsSection(extHost, this);
+        }
+      }
+
       this.bindAutostartEvents(container);
     }
 
@@ -1125,7 +1133,7 @@
         </div>
       `;
 
-      return window.sys.ui.card({
+      return `<div id="settingsExternalAppsHost" style="display:flex;flex-direction:column;gap:14px;margin-bottom:16px;"></div>` + window.sys.ui.card({
         title: 'settings.tab_plugins',
         icon: '🧩',
         content: appsContent

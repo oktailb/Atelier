@@ -11,7 +11,7 @@
   // =========================================================================
   // 1. Storage Service (`sys.storage`) — User-Scoped Multi-User Isolation
   // =========================================================================
-  const SYNCABLE_PREFS = ['theme', 'wallpaper', 'window_style', 'locale', 'explorer_view_mode'];
+  const SYNCABLE_PREFS = ['theme', 'wallpaper', 'window_style', 'locale', 'explorer_view_mode', 'default_apps'];
   let _prefSyncTimer = null;
   let _prefSyncQueue = {};
 
@@ -85,17 +85,31 @@
     getPref(key, defaultValue = null, legacyLocalKey = null) {
       try {
         const scope = this.getUserScope();
+        const expectsObject = defaultValue !== null && typeof defaultValue === 'object';
         if (this.isNamedUserScope(scope) && window.SG_USER_PREFERENCES && typeof window.SG_USER_PREFERENCES === 'object') {
           const serverVal = window.SG_USER_PREFERENCES[key];
           if (serverVal !== undefined && serverVal !== null && serverVal !== '') {
+            if (expectsObject && typeof serverVal === 'string') {
+              try { return JSON.parse(serverVal); } catch (e) { return defaultValue; }
+            }
             return serverVal;
           }
         }
         const scopedVal = localStorage.getItem(`sg_pref_${scope}_${key}`);
-        if (scopedVal !== null) return scopedVal;
+        if (scopedVal !== null) {
+          if (expectsObject) {
+            try { return JSON.parse(scopedVal); } catch (e) { return defaultValue; }
+          }
+          return scopedVal;
+        }
         if (!this.isNamedUserScope(scope) && legacyLocalKey) {
           const legacyVal = localStorage.getItem(legacyLocalKey);
-          if (legacyVal !== null) return legacyVal;
+          if (legacyVal !== null) {
+            if (expectsObject) {
+              try { return JSON.parse(legacyVal); } catch (e) { return defaultValue; }
+            }
+            return legacyVal;
+          }
         }
         return defaultValue;
       } catch (e) {
@@ -105,16 +119,17 @@
     setPref(key, value, opts = {}) {
       try {
         const scope = this.getUserScope();
-        const strVal = (value === null || value === undefined) ? '' : String(value);
+        const isObj = value !== null && typeof value === 'object';
+        const strVal = (value === null || value === undefined) ? '' : (isObj ? JSON.stringify(value) : String(value));
         localStorage.setItem(`sg_pref_${scope}_${key}`, strVal);
         if (!this.isNamedUserScope(scope) && opts.legacyLocalKey) {
           localStorage.setItem(opts.legacyLocalKey, strVal);
         }
         if (this.isNamedUserScope(scope)) {
           window.SG_USER_PREFERENCES = window.SG_USER_PREFERENCES || {};
-          window.SG_USER_PREFERENCES[key] = strVal;
+          window.SG_USER_PREFERENCES[key] = isObj ? value : strVal;
           if (opts.sync !== false && SYNCABLE_PREFS.includes(key)) {
-            _prefSyncQueue[key] = strVal;
+            _prefSyncQueue[key] = isObj ? value : strVal;
             if (_prefSyncTimer) clearTimeout(_prefSyncTimer);
             _prefSyncTimer = setTimeout(flushUserPrefsSync, 250);
           }

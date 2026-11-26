@@ -138,10 +138,30 @@ class StandaloneWebAppManifestSynthesizer {
      * (has index.html/index.htm and no native SimpleGallery manifest.json / app.js).
      */
     public static function isStandaloneWebApp(string $app_path, string $folder): bool {
-        if (file_exists($app_path . '/manifest.json') || file_exists($app_path . '/app.js') || file_exists($app_path . '/' . $folder . '.js')) {
+        if (file_exists($app_path . '/manifest.json')) {
             return false;
         }
-        return self::detectHtmlEntryFile($app_path) !== null;
+        $htmlEntry = self::detectHtmlEntryFile($app_path);
+        if ($htmlEntry === null) {
+            return false;
+        }
+        $normPath = str_replace('\\', '/', $app_path);
+        // Anything installed inside `apps/external/` with an HTML entry is always a standalone web app,
+        // even if its frontend bundle happens to be named `app.js`.
+        if (stripos($normPath, '/apps/external/') !== false) {
+            return true;
+        }
+        // Outside `apps/external/`, preserve backward compatibility with manifest-less native WebOS apps
+        // only when `app.js` / `<folder>.js` actually registers with WebOSApp / appManager.
+        foreach ([$app_path . '/app.js', $app_path . '/' . $folder . '.js'] as $nativeJs) {
+            if (file_exists($nativeJs)) {
+                $head = @file_get_contents($nativeJs, false, null, 0, 8192) ?: '';
+                if (preg_match('/\b(extends\s+(?:window\.)?WebOSApp|appManager\.register|SG_APP_REGISTRY)\b/', $head)) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     /**

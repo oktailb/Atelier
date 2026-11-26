@@ -57,6 +57,19 @@
         return pb - pa;
       });
 
+      // 0. Honor explicit per-user default application preference for this extension
+      if (ext && window.sys && window.sys.appManager && typeof window.sys.appManager.getUserDefaultAppId === 'function') {
+        const prefAppId = window.sys.appManager.getUserDefaultAppId(ext);
+        if (prefAppId) {
+          const viewerKey = (prefAppId === 'doc-viewer') ? 'generic-doc' : prefAppId;
+          const prefViewer = this.viewers.get(viewerKey) || this.viewers.get(prefAppId);
+          if (prefViewer) {
+            this.loadPluginStyles(prefViewer);
+            return prefViewer;
+          }
+        }
+      }
+
       // 1. Check exact extension match
       if (ext) {
         const byExt = all.find(v => Array.isArray(v.extensions) && v.extensions.map(e => String(e).toLowerCase()).includes(ext));

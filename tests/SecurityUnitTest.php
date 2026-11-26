@@ -2102,6 +2102,188 @@ HTACCESS;
             count($pub_idx_search['data']['results'] ?? []) >= 1
         );
 
+        // =========================================================================
+        // 10.12 Lot 2: Admin-Only External Web App Manager, ZIP/SSRF Audit,
+        //       GitHub Update Queue (Admin Approval), Overrides & User Default Apps
+        // =========================================================================
+        // 1. All 7 mutating external app actions must be CSRF-protected in ActionRouter
+        $lot2_mutating = [
+            'install_external_app_zip',
+            'install_external_app_url',
+            'check_external_app_updates',
+            'approve_external_app_update',
+            'dismiss_external_app_update',
+            'save_external_app_override',
+            'uninstall_external_app'
+        ];
+        $all_lot2_csrf = true;
+        foreach ($lot2_mutating as $actName) {
+            if (!\SimpleGallery\Kernel\Actions\ActionRouter::isMutatingAction($actName, $p1_root)) {
+                $all_lot2_csrf = false;
+            }
+        }
+        $this->assert("Lot 2: Toutes les actions mutantes ExternalAppManager sont protégées par CSRF (MUTATING_ACTIONS)",
+            $all_lot2_csrf
+        );
+
+        // 2. Standard non-admin user (Bob) must receive HTTP 403 on EVERY external app action
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
+        $bob_denied_all = true;
+        foreach (array_merge(['list_external_apps'], $lot2_mutating) as $actName) {
+            $r = \SimpleGallery\Kernel\Actions\SystemActions::handle($actName, [], [
+                'base_dir' => $p1_root,
+                'project_root' => $p1_root,
+                'raw_body' => ['app_id' => 'demoapp', 'url' => 'https://example.com/a.zip']
+            ]);
+            if (($r['status'] ?? 0) !== 403) {
+                $bob_denied_all = false;
+            }
+        }
+        $this->assert("Lot 2: Un utilisateur non-admin reçoit HTTP 403 sur toutes les routes ExternalAppManager",
+            $bob_denied_all
+        );
+
+        // 3. Per-user default_apps preferences persist cleanly and reject invalid keys
+        $def_save = \SimpleGallery\Kernel\Actions\UserActions::handle('save_user_preferences', [], [
+            'base_dir' => $p1_root,
+            'project_root' => $p1_root,
+            'raw_body' => [
+                'preferences' => [
+                    'default_apps' => [
+                        '.XLS' => 'gridcraft',
+                        'pdf'  => 'pdfcraft',
+                        '../bad' => 'evil',
+                        'ok' => 'bad/app'
+                    ]
+                ]
+            ]
+        ]);
+        $bob_prefs_after = \SimpleGallery\Kernel\Auth\UserManager::getUserPreferences($p1_root, (int)$desk_b['user']['id']);
+        $this->assert("Lot 2: Préférences utilisateur default_apps sanitisées et persistées par compte",
+            ($def_save['status'] ?? 0) === 200 &&
+            ($bob_prefs_after['default_apps']['xls'] ?? '') === 'gridcraft' &&
+            ($bob_prefs_after['default_apps']['pdf'] ?? '') === 'pdfcraft' &&
+            !isset($bob_prefs_after['default_apps']['../bad']) &&
+            !isset($bob_prefs_after['default_apps']['ok'])
+        );
+
+        // 4. Switch to Admin session & run ZIP security audit (Zip-Slip + PHP shell) & SSRF URL blocking
+        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        $_SESSION['is_admin'] = true;
+        $_SESSION['sg_admin_logged'] = true;
+
+        if (class_exists('ZipArchive')) {
+            $slip_zip = $p1_root . '/slip_test.zip';
+            $z1 = new \ZipArchive();
+            $z1->open($slip_zip, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+            $z1->addFromString('../escape.html', '<h1>bad</h1>');
+            $z1->close();
+            $res_slip = \SimpleGallery\Kernel\ExternalAppManager::installFromZipFile($p1_root, $slip_zip, 'slip.zip');
+
+            $php_zip = $p1_root . '/php_test.zip';
+            $z2 = new \ZipArchive();
+            $z2->open($php_zip, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+            $z2->addFromString('myapp/index.html', '<!doctype html><title>Bad</title>');
+            $z2->addFromString('myapp/shell.php', '<?php system($_GET["c"]); ?>');
+            $z2->close();
+            $res_php = \SimpleGallery\Kernel\ExternalAppManager::installFromZipFile($p1_root, $php_zip, 'badphp.zip');
+
+            $res_ssrf = \SimpleGallery\Kernel\ExternalAppManager::installFromUrl($p1_root, 'http://127.0.0.1/evil.zip');
+
+            $this->assert("Lot 2: Audit ZIP bloque Zip-Slip + exécutables .php et anti-SSRF bloque 127.0.0.1",
+                empty($res_slip['success']) &&
+                ($res_slip['status'] ?? 0) === 400 &&
+                empty($res_php['success']) &&
+                ($res_php['status'] ?? 0) === 400 &&
+                empty($res_ssrf['success']) &&
+                ($res_ssrf['status'] ?? 0) === 403
+            );
+
+            // 5. Valid standalone ZIP installs into apps/external/, supports update queue (no auto-install), overrides & safe uninstall
+            $good_zip = $p1_root . '/demo-studio-web-1.0.0.zip';
+            $z3 = new \ZipArchive();
+            $z3->open($good_zip, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+            $z3->addFromString('demo-studio-web-1.0.0/index.html', '<!doctype html><html><head><title>Demo Studio</title></head><body><script src="app.js"></script></body></html>');
+            $z3->addFromString('demo-studio-web-1.0.0/app.js', 'console.log("Demo Studio v1.0.0 ready");');
+            $z3->addFromString('demo-studio-web-1.0.0/README.md', "# Demo Studio\nRepo: https://github.com/gallustech/demo-studio\nSupports `.csv` and `.tsv` files.\n");
+            $z3->close();
+
+            $res_ok = \SimpleGallery\Kernel\ExternalAppManager::installFromZipFile($p1_root, $good_zip, 'demo-studio-web-1.0.0.zip');
+            $installed_id = (string)($res_ok['app']['id'] ?? '');
+            $ext_list_res = \SimpleGallery\Kernel\ExternalAppManager::listExternalApps($p1_root);
+            $found_app = null;
+            foreach (($ext_list_res['apps'] ?? []) as $item) {
+                if (($item['id'] ?? '') === $installed_id) {
+                    $found_app = $item;
+                    break;
+                }
+            }
+
+            // Mock upstream GitHub Release v2.4.0 -> must queue pending_update WITHOUT auto-installing!
+            $mockFetcher = function (string $apiUrl) {
+                return [
+                    'tag_name' => 'v2.4.0',
+                    'html_url' => 'https://github.com/gallustech/demo-studio/releases/tag/v2.4.0',
+                    'published_at' => '2026-11-26T10:00:00Z',
+                    'body' => 'Added faster WASM kernel.',
+                    'assets' => [
+                        [
+                            'name' => 'demo-studio-web-2.4.0.zip',
+                            'browser_download_url' => 'https://github.com/gallustech/demo-studio/releases/download/v2.4.0/demo-studio-web-2.4.0.zip',
+                            'size' => 1048576
+                        ]
+                    ]
+                ];
+            };
+            $upd_check = \SimpleGallery\Kernel\ExternalAppManager::checkUpdates($p1_root, $installed_id, $mockFetcher);
+            $reg_after_check = \SimpleGallery\Kernel\ExternalAppManager::loadRegistry($p1_root);
+            $pending = $reg_after_check[$installed_id]['pending_update'] ?? null;
+
+            // Dismiss pending update
+            $upd_dismiss = \SimpleGallery\Kernel\ExternalAppManager::dismissUpdate($p1_root, $installed_id);
+            $reg_after_dismiss = \SimpleGallery\Kernel\ExternalAppManager::loadRegistry($p1_root);
+
+            // Save override into config/external_apps.json
+            $ov_res = \SimpleGallery\Kernel\ExternalAppManager::saveOverride($p1_root, $installed_id, [
+                'icon' => '🧪',
+                'category' => 'productivity',
+                'extensions' => ['csv', 'tsv', 'xls'],
+                'github_repo' => 'gallustech/demo-studio',
+                'vfsBridge' => true
+            ]);
+            $ov_loaded = \SimpleGallery\Kernel\ExternalAppManager::loadOverrides($p1_root);
+
+            // Create fake native app (with manifest.json) -> uninstallApp must refuse to remove it
+            @mkdir($p1_root . '/apps/native-guard', 0755, true);
+            file_put_contents($p1_root . '/apps/native-guard/manifest.json', json_encode(['id' => 'native-guard', 'name' => 'Native Guard']));
+            $refuse_native = \SimpleGallery\Kernel\ExternalAppManager::uninstallApp($p1_root, 'native-guard');
+
+            // Uninstall external app cleanly
+            $uninst_ok = \SimpleGallery\Kernel\ExternalAppManager::uninstallApp($p1_root, $installed_id);
+            $dir_gone = !is_dir($p1_root . '/apps/external/' . ($res_ok['app']['folder'] ?? '__none__'));
+
+            $this->assert("Lot 2: Install ZIP -> apps/external/, détection MAJ GitHub en file d'attente (sans auto-install), overrides & désinstallation sécurisée",
+                !empty($res_ok['success']) &&
+                $installed_id !== '' &&
+                $found_app !== null &&
+                !empty($found_app['managed']) &&
+                !empty($found_app['health']['ok']) &&
+                ($found_app['github_repo'] ?? '') === 'gallustech/demo-studio' &&
+                !empty($upd_check['success']) &&
+                ($upd_check['updates_found'] ?? 0) === 1 &&
+                is_array($pending) &&
+                ($pending['version'] ?? '') === '2.4.0' &&
+                ($found_app['version'] ?? '') === '1.0.0' &&
+                !empty($upd_dismiss['success']) &&
+                empty($reg_after_dismiss[$installed_id]['pending_update']) &&
+                !empty($ov_res['success']) &&
+                ($ov_loaded[$installed_id]['icon'] ?? '') === '🧪' &&
+                empty($refuse_native['success']) &&
+                !empty($uninst_ok['success']) &&
+                $dir_gone === true
+            );
+        }
+
         $_SESSION = $saved_sess;
         \SimpleGallery\Kernel\Security\RateLimiter::reset('register_' . $cli_ip);
         \SimpleGallery\Kernel\Security\RateLimiter::reset('login_' . $cli_ip);
