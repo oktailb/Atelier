@@ -2000,7 +2000,9 @@ HTACCESS;
             ($gd_start_ok['status'] ?? 0) === 200 &&
             strpos((string)($gd_start_ok['data']['auth_url'] ?? ''), 'code_challenge_method=S256') !== false &&
             strpos((string)($gd_start_ok['data']['auth_url'] ?? ''), 'drive.readonly') !== false &&
-            ($gd_cb_bad_state['status'] ?? 0) === 403
+            ($gd_cb_bad_state['status'] ?? 0) === 403 &&
+            \SimpleGallery\Kernel\Storage\GoogleDriveStorageDriver::normalizeFolderId('https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOp?usp=sharing') === '1AbCdEfGhIjKlMnOp' &&
+            \SimpleGallery\Kernel\Storage\GoogleDriveStorageDriver::normalizeFolderId('') === 'root'
         );
 
         // Chunked resumable upload (both rejected dangerous extension & valid 2-chunk reassembly into ext://)

@@ -380,7 +380,20 @@ class GalleryActions {
         $prefix = 'ext://' . $mountId;
         $currentPath = $rel === '' ? $prefix : ($prefix . '/' . $rel);
 
-        $listing = $driver->listDir($rel);
+        try {
+            $listing = $driver->listDir($rel);
+        } catch (\Throwable $e) {
+            return ['status' => 502, 'data' => [
+                'success' => false,
+                'error'   => 'External storage error: ' . $e->getMessage()
+            ]];
+        }
+        if (!empty($listing['error'])) {
+            return ['status' => 502, 'data' => [
+                'success' => false,
+                'error'   => (string)$listing['error']
+            ]];
+        }
         $directories = [];
         foreach ($listing['directories'] ?? [] as $d) {
             $dPath = $prefix . '/' . ltrim((string)$d['path'], '/');

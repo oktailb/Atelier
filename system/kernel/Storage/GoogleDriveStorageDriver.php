@@ -34,8 +34,49 @@ class GoogleDriveStorageDriver implements StorageDriverInterface {
         $this->clientId = (string)($config['client_id'] ?? '');
         $this->clientSecret = (string)($config['client_secret'] ?? '');
         $this->expiresAt = (int)($config['expires_at'] ?? 0);
-        $this->rootFolderId = trim((string)($config['root_folder_id'] ?? 'root')) ?: 'root';
+        $this->rootFolderId = self::normalizeFolderId((string)($config['root_folder_id'] ?? 'root'));
         $this->onTokenRefresh = $onTokenRefresh;
+    }
+
+    /**
+     * Accepts 'root', a raw Google Drive folder ID, or a full Drive folder URL (`.../folders/<ID>`).
+     */
+    public static function normalizeFolderId(string $raw): string {
+        $val = trim($raw);
+        if ($val === '' || strtolower($val) === 'root') {
+            return 'root';
+        }
+        if (preg_match('#/folders/([a-zA-Z0-9_-]+)#', $val, $m)) {
+            return $m[1];
+        }
+        if (preg_match('#[?&]id=([a-zA-Z0-9_-]+)#', $val, $m)) {
+            return $m[1];
+        }
+        return $val;
+    }
+
+    private static function formatApiError(array $res): string {
+        $status = (int)($res['status'] ?? 0);
+        $curlErr = trim((string)($res['curl_error'] ?? ''));
+        if ($status === 0 && $curlErr !== '') {
+            return 'Google Drive network/SSL error: ' . $curlErr;
+        }
+        $json = @json_decode((string)($res['body'] ?? ''), true);
+        $msg = (string)($json['error']['message'] ?? '');
+        $reason = (string)($json['error']['errors'][0]['reason'] ?? '');
+        if ($reason === 'accessNotConfigured' || stripos($msg, 'has not been used in project') !== false || stripos($msg, 'is disabled') !== false) {
+            return 'Google Drive API is disabled in your Google Cloud project. Enable "Google Drive API" in Google Cloud Console → APIs & Services → Library. (' . $msg . ')';
+        }
+        if ($reason === 'insufficientPermissions' || stripos($msg, 'Insufficient Permission') !== false) {
+            return 'Google Drive permission denied (insufficient scope). Unmount and reconnect while checking the Google Drive access box on the Google consent screen.';
+        }
+        if ($status === 401) {
+            return 'Google Drive token expired or revoked (HTTP 401). ' . ($msg !== '' ? $msg : 'Please reconnect Google Drive.');
+        }
+        if ($msg !== '') {
+            return 'Google Drive API (HTTP ' . $status . '): ' . $msg;
+        }
+        return 'Google Drive API returned HTTP ' . $status;
     }
 
     public function getDriverName(): string {
@@ -80,7 +121,7 @@ class GoogleDriveStorageDriver implements StorageDriverInterface {
     private function apiRequest(string $method, string $url, array $headers = [], ?string $body = null): array {
         $this->ensureValidToken();
         if ($this->accessToken === '' || !function_exists('curl_init')) {
-            return ['status' => 401, 'body' => ''];
+            return ['status' => 401, 'body' => '', 'curl_error' => !function_exists('curl_init') ? 'PHP cURL extension is not enabled.' : 'Missing OAuth2 access token.'];
         }
         $headers[] = 'Authorization: Bearer ' . $this->accessToken;
         $ch = curl_init($url);
@@ -92,12 +133,13 @@ class GoogleDriveStorageDriver implements StorageDriverInterface {
             curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
         }
         $resp = curl_exec($ch);
+        $curlErr = $resp === false ? (string)curl_error($ch) : '';
         $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
-        return ['status' => $status, 'body' => is_string($resp) ? $resp : ''];
+        return ['status' => $status, 'body' => is_string($resp) ? $resp : '', 'curl_error' => $curlErr];
     }
 
-    private function resolveItemByPath(string $relPath): ?array {
+    private function resolveItemByPath(string $relPath, ?string &$errorOut = null): ?array {
         $clean = trim(str_replace('\\', '/', $relPath), '/');
         if ($clean === '' || $clean === '.') {
             return ['id' => $this->rootFolderId, 'name' => 'Google Drive', 'mimeType' => self::FOLDER_MIME, 'size' => 0, 'modifiedTime' => ''];
@@ -109,14 +151,24 @@ class GoogleDriveStorageDriver implements StorageDriverInterface {
             $escaped = str_replace(["\\", "'"], ["\\\\", "\\'"], $seg);
             $q = "'{$parentId}' in parents and name = '{$escaped}' and trashed = false";
             $url = self::API_BASE . '/files?' . http_build_query([
-                'q'        => $q,
-                'fields'   => 'files(id,name,mimeType,size,modifiedTime)',
-                'pageSize' => 1
+                'q'                         => $q,
+                'fields'                    => 'files(id,name,mimeType,size,modifiedTime,shortcutDetails)',
+                'pageSize'                  => 1,
+                'supportsAllDrives'         => 'true',
+                'includeItemsFromAllDrives' => 'true'
             ]);
             $res = $this->apiRequest('GET', $url);
+            if ($res['status'] < 200 || $res['status'] >= 300) {
+                $errorOut = self::formatApiError($res);
+                return null;
+            }
             $json = @json_decode($res['body'], true);
             $item = $json['files'][0] ?? null;
             if (!$item) return null;
+            if (($item['mimeType'] ?? '') === 'application/vnd.google-apps.shortcut' && !empty($item['shortcutDetails']['targetId'])) {
+                $item['id'] = (string)$item['shortcutDetails']['targetId'];
+                $item['mimeType'] = (string)($item['shortcutDetails']['targetMimeType'] ?? $item['mimeType']);
+            }
             $current = $item;
             $parentId = (string)$item['id'];
         }
@@ -125,18 +177,27 @@ class GoogleDriveStorageDriver implements StorageDriverInterface {
 
     public function listDir(string $relPath = ''): array {
         $rel = trim(str_replace('\\', '/', $relPath), '/');
-        $folder = $this->resolveItemByPath($rel);
+        $resolveErr = null;
+        $folder = $this->resolveItemByPath($rel, $resolveErr);
+        if ($resolveErr !== null) {
+            return ['directories' => [], 'files' => [], 'error' => $resolveErr];
+        }
         if (!$folder || ($folder['mimeType'] ?? '') !== self::FOLDER_MIME) {
             return ['directories' => [], 'files' => []];
         }
         $parentId = (string)$folder['id'];
         $url = self::API_BASE . '/files?' . http_build_query([
-            'q'        => "'{$parentId}' in parents and trashed = false",
-            'fields'   => 'files(id,name,mimeType,size,modifiedTime)',
-            'pageSize' => 200,
-            'orderBy'  => 'folder,name'
+            'q'                         => "'{$parentId}' in parents and trashed = false",
+            'fields'                    => 'files(id,name,mimeType,size,modifiedTime,shortcutDetails)',
+            'pageSize'                  => 500,
+            'orderBy'                   => 'folder,name',
+            'supportsAllDrives'         => 'true',
+            'includeItemsFromAllDrives' => 'true'
         ]);
         $res = $this->apiRequest('GET', $url);
+        if ($res['status'] < 200 || $res['status'] >= 300) {
+            return ['directories' => [], 'files' => [], 'error' => self::formatApiError($res)];
+        }
         $json = @json_decode($res['body'], true);
         $items = is_array($json['files'] ?? null) ? $json['files'] : [];
 
@@ -145,9 +206,13 @@ class GoogleDriveStorageDriver implements StorageDriverInterface {
         foreach ($items as $it) {
             $name = (string)($it['name'] ?? '');
             if ($name === '') continue;
+            $mime = (string)($it['mimeType'] ?? '');
+            if ($mime === 'application/vnd.google-apps.shortcut' && !empty($it['shortcutDetails']['targetMimeType'])) {
+                $mime = (string)$it['shortcutDetails']['targetMimeType'];
+            }
             $childPath = $rel === '' ? $name : ($rel . '/' . $name);
             $mtime = !empty($it['modifiedTime']) ? (int)@strtotime((string)$it['modifiedTime']) : 0;
-            if (($it['mimeType'] ?? '') === self::FOLDER_MIME) {
+            if ($mime === self::FOLDER_MIME) {
                 $dirs[] = ['name' => $name, 'path' => $childPath, 'mtime' => $mtime];
             } else {
                 $files[] = [
@@ -155,7 +220,7 @@ class GoogleDriveStorageDriver implements StorageDriverInterface {
                     'path'  => $childPath,
                     'size'  => (int)($it['size'] ?? 0),
                     'mtime' => $mtime,
-                    'mime'  => (string)($it['mimeType'] ?? '')
+                    'mime'  => $mime
                 ];
             }
         }
@@ -179,7 +244,18 @@ class GoogleDriveStorageDriver implements StorageDriverInterface {
     public function readContent(string $relPath): ?string {
         $item = $this->resolveItemByPath($relPath);
         if (!$item || ($item['mimeType'] ?? '') === self::FOLDER_MIME) return null;
-        $url = self::API_BASE . '/files/' . rawurlencode((string)$item['id']) . '?alt=media';
+        $mime = (string)($item['mimeType'] ?? '');
+        $exportMap = [
+            'application/vnd.google-apps.document'     => 'application/pdf',
+            'application/vnd.google-apps.spreadsheet'  => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.google-apps.presentation' => 'application/pdf',
+            'application/vnd.google-apps.drawing'      => 'image/png'
+        ];
+        if (isset($exportMap[$mime])) {
+            $url = self::API_BASE . '/files/' . rawurlencode((string)$item['id']) . '/export?mimeType=' . rawurlencode($exportMap[$mime]);
+        } else {
+            $url = self::API_BASE . '/files/' . rawurlencode((string)$item['id']) . '?alt=media&supportsAllDrives=true';
+        }
         $res = $this->apiRequest('GET', $url);
         return ($res['status'] >= 200 && $res['status'] < 300) ? $res['body'] : null;
     }
@@ -250,12 +326,28 @@ class GoogleDriveStorageDriver implements StorageDriverInterface {
         if ($this->accessToken === '' && $this->refreshToken === '') {
             return ['success' => false, 'message' => 'OAuth2 access_token or refresh_token required.'];
         }
-        $res = $this->apiRequest('GET', self::API_BASE . '/about?fields=user(emailAddress,displayName)');
-        if ($res['status'] === 200) {
-            $json = @json_decode($res['body'], true);
-            $email = $json['user']['emailAddress'] ?? 'Google Drive';
-            return ['success' => true, 'message' => 'Connected to Google Drive (' . $email . ').'];
+        $aboutRes = $this->apiRequest('GET', self::API_BASE . '/about?fields=user(emailAddress,displayName)');
+        if ($aboutRes['status'] !== 200) {
+            return ['success' => false, 'message' => self::formatApiError($aboutRes)];
         }
-        return ['success' => false, 'message' => 'Google Drive API returned HTTP ' . $res['status']];
+        $listUrl = self::API_BASE . '/files?' . http_build_query([
+            'q'                         => "'" . $this->rootFolderId . "' in parents and trashed = false",
+            'fields'                    => 'files(id,name)',
+            'pageSize'                  => 5,
+            'supportsAllDrives'         => 'true',
+            'includeItemsFromAllDrives' => 'true'
+        ]);
+        $listRes = $this->apiRequest('GET', $listUrl);
+        if ($listRes['status'] !== 200) {
+            return ['success' => false, 'message' => self::formatApiError($listRes)];
+        }
+        $aboutJson = @json_decode($aboutRes['body'], true);
+        $listJson = @json_decode($listRes['body'], true);
+        $email = $aboutJson['user']['emailAddress'] ?? 'Google Drive';
+        $sampleCount = is_array($listJson['files'] ?? null) ? count($listJson['files']) : 0;
+        return [
+            'success' => true,
+            'message' => 'Connected to Google Drive (' . $email . ', root="' . $this->rootFolderId . '", ' . $sampleCount . '+ item(s) visible).'
+        ];
     }
 }

@@ -71,8 +71,8 @@
         </summary>
         <div class="perm-overrides-grid" data-ov-type="${targetType}" data-ov-id="${targetId}" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px;margin-top:8px;">
           ${PERM_OVERRIDE_KEYS.map(p => {
-            const cur = ov[p.key] === 'allow' || ov[p.key] === 'deny' ? ov[p.key] : 'inherit';
-            return `
+      const cur = ov[p.key] === 'allow' || ov[p.key] === 'deny' ? ov[p.key] : 'inherit';
+      return `
               <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:0.76rem;padding:4px 8px;border-radius:6px;background:var(--bg-main);border:1px solid var(--border-color);">
                 <span style="color:var(--text-main);">${esc(t(p.labelKey))}</span>
                 <select class="perm-ov-select" data-perm-key="${p.key}" style="padding:3px 6px;border-radius:5px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-main);font-size:0.74rem;">
@@ -82,7 +82,7 @@
                 </select>
               </label>
             `;
-          }).join('')}
+    }).join('')}
         </div>
         <div style="display:flex;justify-content:flex-end;margin-top:8px;">
           <button type="button" class="perm-ov-save-btn" data-ov-type="${targetType}" data-ov-id="${targetId}" style="padding:4px 12px;border-radius:6px;border:none;background:var(--accent-primary,#6366f1);color:#fff;cursor:pointer;font-size:0.75rem;font-weight:600;">
@@ -225,9 +225,9 @@
       ? `<div style="font-size:0.84rem;color:var(--text-muted);padding:6px 0;">${esc(t('users.empty_users'))}</div>`
       : `<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
           ${users.map(u => {
-            const active = Boolean(u.is_active);
-            const roleColor = (u.role === 'admin' || u.role === 'superadmin') ? '#f59e0b' : '#38bdf8';
-            return `
+        const active = Boolean(u.is_active);
+        const roleColor = (u.role === 'admin' || u.role === 'superadmin') ? '#f59e0b' : '#38bdf8';
+        return `
               <div style="${rowStyle}">
                 <div style="display:flex;flex-direction:column;gap:3px;">
                   <div style="font-weight:600;font-size:0.88rem;color:var(--text-main);display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
@@ -260,7 +260,7 @@
                 ${(u.role !== 'admin' && u.role !== 'superadmin') ? renderOverridesEditor('user', u.id, u.permission_overrides, t) : ''}
               </div>
             `;
-          }).join('')}
+      }).join('')}
         </div>`;
 
     const usersSectionHtml = `
@@ -294,8 +294,8 @@
       ? `<div style="font-size:0.84rem;color:var(--text-muted);padding:6px 0;">${esc(t('users.empty_groups'))}</div>`
       : `<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
           ${groups.map(g => {
-            const memberIds = Array.isArray(g.member_ids) ? g.member_ids.map(Number) : [];
-            return `
+        const memberIds = Array.isArray(g.member_ids) ? g.member_ids.map(Number) : [];
+        return `
               <div style="${rowStyle};flex-direction:column;align-items:stretch;">
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
                   <div style="font-weight:600;font-size:0.88rem;color:var(--text-main);">
@@ -323,7 +323,7 @@
                 ${renderOverridesEditor('group', g.id, g.permission_overrides, t)}
               </div>
             `;
-          }).join('')}
+      }).join('')}
         </div>`;
 
     const groupsSectionHtml = `
@@ -656,8 +656,8 @@
       <div id="lastCreatedInviteBox" style="display:none;margin-top:8px;padding:8px 10px;border-radius:8px;border:1px solid rgba(99,102,241,0.4);background:rgba(99,102,241,0.1);font-size:0.8rem;"></div>
       <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px;">
         ${invites.length === 0
-          ? `<div style="font-size:0.83rem;color:var(--text-muted);">${esc(t('users.empty_invites'))}</div>`
-          : invites.map(inv => `
+        ? `<div style="font-size:0.83rem;color:var(--text-muted);">${esc(t('users.empty_invites'))}</div>`
+        : invites.map(inv => `
             <div style="${rowStyle}">
               <div style="font-size:0.8rem;color:var(--text-main);">
                 🎟️ <strong>${esc(inv.target_email || t('users.invite_any_email'))}</strong>
@@ -932,8 +932,8 @@
     const sharesHtml = `
       <div style="display:flex;flex-direction:column;gap:8px;">
         ${shares.length === 0
-          ? `<div style="font-size:0.84rem;color:var(--text-muted);">${esc(t('users.empty_shares'))}</div>`
-          : shares.map(s => `
+        ? `<div style="font-size:0.84rem;color:var(--text-muted);">${esc(t('users.empty_shares'))}</div>`
+        : shares.map(s => `
             <div style="${rowStyle}">
               <div style="font-size:0.83rem;color:var(--text-main);">
                 ${esc(s.mount_icon || '💽')} <strong>${esc(s.mount_name)}</strong>
@@ -952,10 +952,10 @@
     const linksHtml = `
       <div style="display:flex;flex-direction:column;gap:8px;">
         ${links.length === 0
-          ? `<div style="font-size:0.84rem;color:var(--text-muted);">${esc(t('users.empty_links'))}</div>`
-          : links.map(l => {
-            const shortUrl = `${baseOrigin}/s/${encodeURIComponent(l.token || '')}`;
-            return `
+        ? `<div style="font-size:0.84rem;color:var(--text-muted);">${esc(t('users.empty_links'))}</div>`
+        : links.map(l => {
+          const shortUrl = `${baseOrigin}/s/${encodeURIComponent(l.token || '')}`;
+          return `
               <div style="${rowStyle}">
                 <div style="font-size:0.82rem;color:var(--text-main);">
                   ${l.has_password ? '🔒' : '🔗'} <code>/s/${esc(String(l.token || '').slice(0, 14))}…</code>
@@ -971,7 +971,7 @@
                 </div>
               </div>
             `;
-          }).join('')}
+        }).join('')}
       </div>
     `;
 
@@ -1070,8 +1070,8 @@
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border-color);">
         <div style="${sectionHeaderStyle}">${esc(t('storage.mounted_list_title'))} (${mounts.length})</div>
         ${mounts.length === 0
-          ? `<div style="font-size:0.82rem;color:var(--text-muted);padding:4px 0;">${esc(t('storage.empty_mounts'))}</div>`
-          : `<div style="display:flex;flex-direction:column;gap:8px;">
+        ? `<div style="font-size:0.82rem;color:var(--text-muted);padding:4px 0;">${esc(t('storage.empty_mounts'))}</div>`
+        : `<div style="display:flex;flex-direction:column;gap:8px;">
               ${mounts.map(m => `
                 <div style="${rowStyle}">
                   <div style="display:flex;flex-direction:column;gap:2px;font-size:0.82rem;">
@@ -1102,7 +1102,7 @@
 
     const driverCards = [
       { id: 'webdav', icon: '🌐', title: 'WebDAV', sub: t('storage.driver_webdav_sub') },
-      { id: 's3',     icon: '🪣', title: 'S3 / R2 / MinIO', sub: t('storage.driver_s3_sub') },
+      { id: 's3', icon: '🪣', title: 'S3 / R2 / MinIO', sub: t('storage.driver_s3_sub') },
       { id: 'gdrive', icon: '🔺', title: 'Google Drive', sub: t('storage.driver_gdrive_sub') }
     ];
     if (settingsApp.isAdmin) {
@@ -1232,9 +1232,9 @@
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
           <div style="font-size:0.82rem;color:var(--text-muted);">
             ${esc(t('storage.index_summary', {
-              count: idxStats ? Number(idxStats.total_files) || 0 : 0,
-              last: idxStats && idxStats.last_indexed ? formatTs(idxStats.last_indexed) : '—'
-            }))}
+        count: idxStats ? Number(idxStats.total_files) || 0 : 0,
+        last: idxStats && idxStats.last_indexed ? formatTs(idxStats.last_indexed) : '—'
+      }))}
           </div>
           <button type="button" id="storageRebuildIndexBtn" class="sysmon-action-btn" style="padding:6px 14px;background:var(--accent-primary,#6366f1);color:#fff;font-weight:600;font-size:0.8rem;">
             ⚡ ${esc(t('storage.rebuild_index_btn'))}
@@ -1461,7 +1461,7 @@
           });
           btn.disabled = false;
           if (!res || !res.success || !res.auth_url) {
-            try { popup.close(); } catch (_) {}
+            try { popup.close(); } catch (_) { }
             settingsApp.toast.error((res && res.error) || t('users.action_error'));
             return;
           }
@@ -1630,11 +1630,11 @@
   function renderSection(sectionId, container, settingsApp) {
     switch (sectionId) {
       case 'registration': return renderRegistrationSection(container, settingsApp);
-      case 'mail':         return renderMailSection(container, settingsApp);
-      case 'shares':       return renderSharesAndAuditSection(container, settingsApp);
-      case 'storage':      return renderStorageSection(container, settingsApp);
+      case 'mail': return renderMailSection(container, settingsApp);
+      case 'shares': return renderSharesAndAuditSection(container, settingsApp);
+      case 'storage': return renderStorageSection(container, settingsApp);
       case 'users':
-      default:             return renderUsersAndGroupsSection(container, settingsApp);
+      default: return renderUsersAndGroupsSection(container, settingsApp);
     }
   }
 
@@ -1780,8 +1780,8 @@
     const activeExportsHtml = exportsList.length > 0 ? `
       <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
         ${exportsList.map(ex => {
-          const completed = Boolean(ex.download_completed_at);
-          return `
+      const completed = Boolean(ex.download_completed_at);
+      return `
             <div style="${rowStyle}">
               <div style="display:flex;flex-direction:column;gap:2px;font-size:0.79rem;">
                 <div style="font-weight:600;color:var(--text-main);">
@@ -1806,7 +1806,7 @@
               </div>
             </div>
           `;
-        }).join('')}
+    }).join('')}
       </div>
     ` : '';
 
