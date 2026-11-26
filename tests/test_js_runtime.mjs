@@ -1583,6 +1583,8 @@ try {
   const pwaManifestPath = path.join(rootDir, 'manifest.webmanifest');
   const swPath = path.join(rootDir, 'sw.js');
   const dockerfilePath = path.join(rootDir, 'Dockerfile');
+  const dockerignorePath = path.join(rootDir, '.dockerignore');
+  const ghDockerWorkflowPath = path.join(rootDir, '.github', 'workflows', 'docker-publish.yml');
   const composePath = path.join(rootDir, 'docker-compose.yml');
   const nginxConfPath = path.join(rootDir, 'docker', 'nginx.conf');
   const workerPath = path.join(rootDir, 'bin', 'worker.php');
@@ -1595,6 +1597,8 @@ try {
 
   assert("Phase C: Packaging Prod (Dockerfile, docker-compose, nginx sécurisé, worker.php, dav.php, setup.php), PWA & Control Panel UI",
     fs.existsSync(dockerfilePath) &&
+    fs.existsSync(dockerignorePath) &&
+    fs.existsSync(ghDockerWorkflowPath) &&
     fs.existsSync(composePath) &&
     fs.existsSync(workerPath) &&
     fs.existsSync(davEndpointPath) &&

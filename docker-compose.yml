@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: atelier-cloud:latest
+    image: ${ATELIER_IMAGE:-ghcr.io/oktailb/simplegallery:latest}
     container_name: atelier-cloud
     restart: unless-stopped
     ports:

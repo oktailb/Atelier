@@ -204,8 +204,9 @@ Depuis **Panneau de configuration → Plugins & Applications** :
 2. **Moteur de Jobs Asynchrones (`bin/worker.php`) & Sauvegardes d'Instance** :
    - Depuis **Panneau de configuration → Système**, les administrateurs peuvent planifier des tâches d'arrière-plan (`generate_thumbnails`, `rebuild_file_index`, `build_zip_archive`, `video_preview` FFmpeg, `clamav_scan`, `instance_backup`), exécuter un job immédiatement ou laisser tourner `php bin/worker.php --daemon --sleep=3` (lancé automatiquement par Supervisor dans Docker, ou via cron `php bin/worker.php --once`).
    - Les sauvegardes d'instance ZIP (`InstanceBackupService`) sont stockées dans `storage/backups/` (protégé `.htaccess` `Deny from all`) avec manifeste SHA-256.
-3. **Déploiement Docker 1-clic, Assistant `/setup` & PWA** :
-   - Lancez `docker compose up -d --build` avec [Dockerfile](../Dockerfile), [docker-compose.yml](../docker-compose.yml) et [docker/nginx.conf](../docker/nginx.conf) (prêt derrière Traefik ou Caddy HTTPS).
+3. **Déploiement Docker 1-clic, CI GitHub Actions (GHCR), Assistant `/setup` & PWA** :
+   - **Build automatique via GitHub Actions** : le workflow [.github/workflows/docker-publish.yml](../.github/workflows/docker-publish.yml) exécute d'abord l'intégralité de la suite de tests (`php tests/run_tests.php`), puis publie automatiquement sur **GitHub Container Registry (`ghcr.io/<owner>/<repo>`)** une image multi-architecture (`linux/amd64` + `linux/arm64`) avec `.dockerignore` durci, cache Buildx et SBOM/provenance OCI (à chaque push sur `main`/`master`, tag SemVer `vX.Y.Z` ou déclenchement manuel).
+   - **Lancement sur serveur** : utilisez `docker compose pull && docker compose up -d` (ou `docker compose up -d --build` en local) avec [Dockerfile](../Dockerfile), [docker-compose.yml](../docker-compose.yml) et [docker/nginx.conf](../docker/nginx.conf) (prêt derrière Traefik ou Caddy HTTPS).
    - Sur une instance vierge (aucun `.admin_password_hash` ni admin actif), ouvrez `/setup` pour diagnostiquer l'environnement PHP et créer le premier SuperAdmin ; l'assistant se **verrouille définitivement (`HTTP 403`)** dès qu'un administrateur existe.
    - L'application expose [manifest.webmanifest](../manifest.webmanifest) et [sw.js](../sw.js) pour une installation **PWA** sur mobile/tablette sans jamais mettre en cache d'API ni de médias privés.
 

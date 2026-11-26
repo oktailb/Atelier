@@ -16,6 +16,16 @@
 /storage/atelier.sqlite-shm
 /storage/atelier_db/
 /storage/users/
+/storage/backups/
+/storage/chunks/
+/storage/exports/
+/storage/trash/
+/storage/versions/
+/storage/.vault_master.key
+/storage/desktop_admin.json
+/storage/auth_settings.json
+/storage/external_apps_registry.json
+/storage/outbox.log.json
 scratch/
 # Fichiers sensibles & authentification
 .admin_password_hash

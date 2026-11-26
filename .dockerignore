@@ -1,0 +1,39 @@
+# Version control & editor/agent files
+.git
+.gitignore
+.gitattributes
+.github
+.agents
+.idea
+.vscode
+scratch
+
+# Tests & local dev artifacts
+tests
+*.log
+*.tmp
+*.bak
+*~
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Runtime storage, secrets & local user data (created fresh via volumes)
+.admin_password_hash
+.permissions.json
+.thumbnails
+storage/*
+!storage/.htaccess
+
+# Private / manually deployed third-party external apps (mounted via volume)
+apps/external
+apps/*-web-*
+apps/ffs-apps
+apps/ffs
+apps/sim-*
+
+# Archives
+*.zip
+*.7z
+*.tar.gz
+*.tgz
