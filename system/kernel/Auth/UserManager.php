@@ -313,6 +313,8 @@ class UserManager {
         $store->delete('user_shares', ['target_type' => 'user', 'target_id' => $userId]);
         $store->delete('share_links', ['owner_user_id' => $userId]);
         $store->delete('auth_tokens', ['user_id' => $userId]);
+        $store->delete('external_mounts', ['owner_user_id' => $userId]);
+        $store->delete('external_mounts', ['target_type' => 'user', 'target_id' => $userId]);
         $store->delete('users', ['id' => $userId]);
 
         AuditLogger::log($projectRoot, 'user_delete', (string)$existing['home_dir'], 'ok', ['username' => $existing['username']]);

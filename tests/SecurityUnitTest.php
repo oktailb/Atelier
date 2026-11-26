@@ -1965,6 +1965,51 @@ HTACCESS;
         \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
         $bob_ext_gal = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => $ext_path], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
 
+        // Strict isolation: when Alice logs out and Legacy Root Admin OR another Multi-User Admin logs in,
+        // Alice's personal external mount MUST NOT appear in listAccessibleMounts() and MUST return 403 on access!
+        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        $_SESSION['is_admin'] = true;
+        $_SESSION['sg_admin_logged'] = true;
+        $legacy_admin_mounts = \SimpleGallery\Kernel\Storage\ExternalMountManager::listAccessibleMounts($p1_root);
+        $legacy_admin_sees_alice_mount = false;
+        foreach ($legacy_admin_mounts as $mItem) {
+            if ((int)($mItem['id'] ?? 0) === $ext_id) $legacy_admin_sees_alice_mount = true;
+        }
+        $legacy_admin_ext_gal = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => $ext_path], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
+
+        // Also test a multi-user admin account (separate user ID) -> must NOT see or open Alice's personal mount!
+        $adm_iso = \SimpleGallery\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
+            'username' => 'admin_iso_test',
+            'password' => 'AdminIsoPass99!',
+            'role' => 'admin',
+            'display_name' => 'Admin Iso'
+        ]);
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($adm_iso['user'], $p1_root);
+        $multi_admin_mounts = \SimpleGallery\Kernel\Storage\ExternalMountManager::listAccessibleMounts($p1_root);
+        $multi_admin_sees_alice_mount = false;
+        foreach ($multi_admin_mounts as $mItem) {
+            if ((int)($mItem['id'] ?? 0) === $ext_id) $multi_admin_sees_alice_mount = true;
+        }
+        $multi_admin_ext_gal = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => $ext_path], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
+
+        // Meanwhile a global mount IS visible to both Admin and Alice
+        $global_mount_create = \SimpleGallery\Kernel\Actions\StorageActions::handle('create_external_mount', [], [
+            'base_dir' => $p1_root,
+            'raw_body' => [
+                'driver'      => 'local',
+                'mount_name'  => 'Shared Global Drive',
+                'permission'  => 'read',
+                'target_type' => 'global',
+                'config'      => ['root_dir' => $ext_disk]
+            ]
+        ]);
+        $global_ext_id = (int)($global_mount_create['data']['mount']['id'] ?? 0);
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
+        $alice_sees_global = false;
+        foreach (\SimpleGallery\Kernel\Storage\ExternalMountManager::listAccessibleMounts($p1_root) as $mItem) {
+            if ((int)($mItem['id'] ?? 0) === $global_ext_id) $alice_sees_global = true;
+        }
+
         $this->assert("Phase B: Volume externe ext://<id> transparent pour Alice (list/mkdir/save) et refusé à Bob (403)",
             ($non_admin_local['status'] ?? 0) === 403 &&
             ($ext_create['status'] ?? 0) === 200 && $ext_id > 0 &&
@@ -1974,6 +2019,15 @@ HTACCESS;
             ($alice_ext_save['status'] ?? 0) === 200 &&
             @file_get_contents($ext_disk . '/exports/note.txt') === 'Saved via ext:// VFS' &&
             ($bob_ext_gal['status'] ?? 0) === 403
+        );
+
+        $this->assert("Phase B Sécurité: Un montage cloud personnel (user) est invisible et bloqué (403) pour l'admin legacy et tout autre admin, contrairement à un montage global",
+            $legacy_admin_sees_alice_mount === false &&
+            ($legacy_admin_ext_gal['status'] ?? 0) === 403 &&
+            $multi_admin_sees_alice_mount === false &&
+            ($multi_admin_ext_gal['status'] ?? 0) === 403 &&
+            $global_ext_id > 0 &&
+            $alice_sees_global === true
         );
 
         // Pre-mount config test & Google Drive OAuth2 wizard (PKCE state + anti-CSRF callback guard)

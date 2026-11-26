@@ -125,6 +125,81 @@ class ExternalMountManager {
     }
 
     /**
+     * Evaluates strict per-session visibility & write rights for an external mount row.
+     *
+     * Isolation rules:
+     *  - `target_type = 'user'` with `target_id > 0` (or `owner_user_id > 0`): STRICTLY PRIVATE to that user.
+     *    Neither other users, nor legacy root admin, nor another admin account can list or open it.
+     *  - `target_type = 'user'` with `target_id = 0` and `owner_user_id = null`: STRICTLY PRIVATE to legacy root admin.
+     *  - `target_type = 'group'`: visible to members of that group and to the mount creator.
+     *  - `target_type = 'global'`: visible to all authenticated users and admins.
+     *
+     * @return array{authorized: bool, can_write: bool}
+     */
+    public static function evaluateMountAccess(
+        string $projectRoot,
+        array $row,
+        ?array $user,
+        bool $isAdmin,
+        ?array $preloadedGroupIds = null
+    ): array {
+        if (empty($row['is_active'])) {
+            return ['authorized' => false, 'can_write' => false];
+        }
+        if (!$isAdmin && !$user) {
+            return ['authorized' => false, 'can_write' => false];
+        }
+
+        $uid = ($user && !empty($user['id'])) ? (int)$user['id'] : 0;
+        $ownerId = (isset($row['owner_user_id']) && $row['owner_user_id'] !== null && (int)$row['owner_user_id'] > 0)
+            ? (int)$row['owner_user_id']
+            : null;
+        $tType = strtolower((string)($row['target_type'] ?? 'user'));
+        $tId = (int)($row['target_id'] ?? 0);
+        $permWrite = strtolower((string)($row['permission'] ?? 'read')) === 'write';
+
+        if ($tType === 'global') {
+            return [
+                'authorized' => true,
+                'can_write'  => $permWrite || $isAdmin
+            ];
+        }
+
+        if ($tType === 'user') {
+            // Personal user mount: strictly isolated to its target user (or owner if target_id was 0)
+            $effectiveUserId = $tId > 0 ? $tId : ($ownerId ?? 0);
+            if ($effectiveUserId > 0) {
+                $isMatch = ($uid > 0 && $uid === $effectiveUserId);
+                return [
+                    'authorized' => $isMatch,
+                    'can_write'  => $isMatch && $permWrite
+                ];
+            }
+            // Legacy root admin private mount (`owner_user_id = null`, `target_id = 0`)
+            $isLegacyAdmin = ($isAdmin && $uid === 0);
+            return [
+                'authorized' => $isLegacyAdmin,
+                'can_write'  => $isLegacyAdmin && $permWrite
+            ];
+        }
+
+        if ($tType === 'group' && $tId > 0) {
+            $isCreator = ($uid > 0 && $ownerId === $uid) || ($isAdmin && $uid === 0 && $ownerId === null);
+            if ($isCreator) {
+                return ['authorized' => true, 'can_write' => $permWrite || $isAdmin];
+            }
+            if ($uid > 0) {
+                $groupIds = is_array($preloadedGroupIds) ? $preloadedGroupIds : UserManager::getUserGroupIds($projectRoot, $uid);
+                if (in_array($tId, $groupIds, true)) {
+                    return ['authorized' => true, 'can_write' => $permWrite];
+                }
+            }
+        }
+
+        return ['authorized' => false, 'can_write' => false];
+    }
+
+    /**
      * Resolves an external mount if the current user is authorized to access it.
      * Returns ['mount' => array, 'driver' => StorageDriverInterface, 'can_write' => bool] or null.
      */
@@ -137,37 +212,8 @@ class ExternalMountManager {
 
         $isAdmin = AuthManager::isAdminLoggedIn();
         $user = AuthManager::getCurrentUser();
-        $authorized = false;
-        $canWrite = false;
-
-        if ($isAdmin) {
-            $authorized = true;
-            $canWrite = true;
-        } elseif ($user && !empty($user['id'])) {
-            $uid = (int)$user['id'];
-            $ownerId = isset($row['owner_user_id']) && $row['owner_user_id'] !== null ? (int)$row['owner_user_id'] : null;
-            $tType = (string)($row['target_type'] ?? 'user');
-            $tId = (int)($row['target_id'] ?? 0);
-
-            if ($ownerId === $uid) {
-                $authorized = true;
-                $canWrite = ((string)($row['permission'] ?? 'write')) === 'write';
-            } elseif ($tType === 'global') {
-                $authorized = true;
-                $canWrite = ((string)($row['permission'] ?? 'read')) === 'write';
-            } elseif ($tType === 'user' && $tId === $uid) {
-                $authorized = true;
-                $canWrite = ((string)($row['permission'] ?? 'read')) === 'write';
-            } elseif ($tType === 'group' && $tId > 0) {
-                $groupIds = UserManager::getUserGroupIds($projectRoot, $uid);
-                if (in_array($tId, $groupIds, true)) {
-                    $authorized = true;
-                    $canWrite = ((string)($row['permission'] ?? 'read')) === 'write';
-                }
-            }
-        }
-
-        if (!$authorized) {
+        $access = self::evaluateMountAccess($projectRoot, $row, $user, $isAdmin);
+        if (empty($access['authorized'])) {
             return null;
         }
 
@@ -180,7 +226,7 @@ class ExternalMountManager {
             'mount'     => self::sanitizeMountForOutput($projectRoot, $row),
             'raw'       => $row,
             'driver'    => $driver,
-            'can_write' => $canWrite
+            'can_write' => !empty($access['can_write'])
         ];
     }
 
@@ -201,18 +247,8 @@ class ExternalMountManager {
         $out = [];
 
         foreach ($rows as $row) {
-            if (empty($row['is_active'])) continue;
-            $ownerId = isset($row['owner_user_id']) && $row['owner_user_id'] !== null ? (int)$row['owner_user_id'] : null;
-            $tType = (string)($row['target_type'] ?? 'user');
-            $tId = (int)($row['target_id'] ?? 0);
-
-            $visible = $isAdmin
-                || ($uid > 0 && $ownerId === $uid)
-                || ($tType === 'global')
-                || ($tType === 'user' && $uid > 0 && $tId === $uid)
-                || ($tType === 'group' && in_array($tId, $groupIds, true));
-
-            if ($visible) {
+            $access = self::evaluateMountAccess($projectRoot, $row, $user, $isAdmin, $groupIds);
+            if (!empty($access['authorized'])) {
                 $out[] = self::sanitizeMountForOutput($projectRoot, $row);
             }
         }
@@ -255,6 +291,8 @@ class ExternalMountManager {
         } elseif (!in_array($targetType, ['user', 'group', 'global'], true)) {
             $targetType = 'global';
             $targetId = 0;
+        } elseif ($targetType === 'user' && $targetId <= 0 && $user && !empty($user['id'])) {
+            $targetId = (int)$user['id'];
         }
 
         $defaultIcons = ['webdav' => '🌐', 's3' => '🪣', 'gdrive' => '🔺', 'local' => '💾'];

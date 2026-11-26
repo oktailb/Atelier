@@ -2815,13 +2815,25 @@
             inst.loadDirectory(inst.state.currentPath);
           });
         });
-        const refreshVolumes = () => {
+        const refreshVolumes = (evtPayload) => {
+          const vols = (window.sys && window.sys.shares && typeof window.sys.shares.getVolumes === 'function')
+            ? window.sys.shares.getVolumes()
+            : [];
+          const mountedPaths = vols.map(v => String(v.path || '').replace(/^\/+|\/+$/g, ''));
           this.instances.forEach(inst => {
             if (typeof inst.loadSavedPreferences === 'function') {
               inst.loadSavedPreferences();
             }
             if (typeof inst.renderVolumesBar === 'function') {
               inst.renderVolumesBar();
+            }
+            const cur = String(inst.state.currentPath || '').replace(/^\/+|\/+$/g, '');
+            const isScopedPath = cur.startsWith('ext://') || cur.startsWith('users/');
+            if (isScopedPath) {
+              const stillMounted = mountedPaths.some(mp => mp && (cur === mp || cur.startsWith(mp + '/')));
+              if (!stillMounted && typeof inst.loadDirectory === 'function') {
+                inst.loadDirectory('');
+              }
             }
           });
         };
