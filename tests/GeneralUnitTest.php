@@ -715,12 +715,14 @@ class GeneralUnitTestSuite {
         $this->assert("Application tribune intègre le calculateur de Trollabilité (computePostTrollScore)", strpos($app_js, 'computePostTrollScore') !== false);
         $this->assert("Application tribune intègre le support du protocole Miaoli", strpos($app_js, 'miaoli') !== false);
 
-        // 5. Storage file check
+        // 5. Storage file check (accepts runtime tribune_messages.json or clean-checkout template tribune_messages.example.json)
         $storage_file = $this->base_dir . '/storage/tribune_messages.json';
-        $this->assert("Fichier de stockage storage/tribune_messages.json présent", file_exists($storage_file));
-        $content = @file_get_contents($storage_file);
+        $template_file = $this->base_dir . '/storage/tribune_messages.example.json';
+        $active_tribune_file = file_exists($storage_file) ? $storage_file : $template_file;
+        $this->assert("Fichier de stockage storage/tribune_messages(.example).json présent", file_exists($active_tribune_file));
+        $content = @file_get_contents($active_tribune_file);
         $json = @json_decode($content, true);
-        $this->assert("Fichier storage/tribune_messages.json contient une liste valide", is_array($json) && count($json) >= 1);
+        $this->assert("Fichier storage/tribune_messages(.example).json contient une liste valide", is_array($json) && count($json) >= 1);
 
         // 6. Test direct de stockage et récupération anonymisée de fichier
         $test_upload_dir = $this->base_dir . '/storage/tribune_uploads';
