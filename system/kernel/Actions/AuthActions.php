@@ -265,7 +265,11 @@ class AuthActions {
         if ($action === 'logout') {
             AuditLogger::log($project_root, 'logout', '', 'ok');
             AuthManager::logoutSession($project_root);
-            return ['status' => 200, 'data' => ['success' => true, 'message' => __t('api.msg_logged_out')]];
+            return ['status' => 200, 'data' => [
+                'success'    => true,
+                'message'    => __t('api.msg_logged_out'),
+                'csrf_token' => get_csrf_token()
+            ]];
         }
 
         // ---------------------------------------------------------------------

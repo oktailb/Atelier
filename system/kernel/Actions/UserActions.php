@@ -38,7 +38,8 @@ class UserActions {
                 'preferences'           => $user ? UserManager::getUserPreferences($project_root, (int)$user['id']) : [],
                 'desktop_config'        => UserManager::getEffectiveDesktopConfig($project_root, $user, $isAdmin),
                 'effective_permissions' => \SimpleGallery\Kernel\FS\PermissionsManager::resolveEffectivePermissions($project_root, $user, $isAdmin),
-                'mounted_volumes'       => ShareManager::getMountedVolumesForCurrentUser($base_dir)
+                'mounted_volumes'       => ShareManager::getMountedVolumesForCurrentUser($base_dir),
+                'csrf_token'            => get_csrf_token()
             ]];
         }
 

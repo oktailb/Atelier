@@ -1390,8 +1390,10 @@ try {
 
   // Verify Phase B frontend integration (SyscallClient.uploadChunked + Control Panel Storage/Cloud/Trash/Index tab)
   const syscallCode = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'core', 'SyscallClient.js'), 'utf8');
-  assert("Phase B UI & Client: SyscallClient.uploadChunked + onglet Stockage & Cloud (montages guidés, OAuth2 Drive, pré-test, corbeille 30j, index SQLite)",
+  assert("Phase B UI & Client: SyscallClient.uploadChunked + CSRF auto-resync + onglet Stockage & Cloud (montages guidés, OAuth2 Drive, pré-test, corbeille 30j, index SQLite)",
     syscallCode.includes('async uploadChunked(') &&
+    syscallCode.includes('syncCsrfToken(') &&
+    syscallCode.includes("code === 'invalid_csrf'") &&
     syscallCode.includes('upload_chunk_init') &&
     syscallCode.includes('upload_chunk_complete') &&
     settingsUiCode.includes("id: 'storage'") &&

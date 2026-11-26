@@ -85,6 +85,9 @@
       if (!window.sys || !window.sys.api) return null;
       const res = await window.sys.api.get('get_current_user');
       if (res && res.success) {
+        if (res.csrf_token && window.sys && window.sys.api && typeof window.sys.api.syncCsrfToken === 'function') {
+          window.sys.api.syncCsrfToken(res.csrf_token);
+        }
         this.currentUser = res.user || null;
         this.volumes = Array.isArray(res.mounted_volumes) ? res.mounted_volumes : [];
         this.quota = res.quota || null;

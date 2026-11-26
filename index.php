@@ -67,7 +67,7 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
   <!-- Userland System Runtime (Core OS Bus, WindowManager, MenuBar, Registries, Syscalls, AppManager, I18n, WebOSToolkit) -->
   <script src="system/userland/core/IconHelper.js?v=<?php echo filemtime(__DIR__ . '/system/userland/core/IconHelper.js'); ?>" defer></script>
   <script src="system/userland/core/EventBus.js" defer></script>
-  <script src="system/userland/core/SyscallClient.js" defer></script>
+  <script src="system/userland/core/SyscallClient.js?v=<?php echo filemtime(__DIR__ . '/system/userland/core/SyscallClient.js'); ?>" defer></script>
   <script src="system/userland/core/MenuBarManager.js?v=<?php echo filemtime(__DIR__ . '/system/userland/core/MenuBarManager.js'); ?>" defer></script>
   <script src="system/userland/core/WindowManager.js?v=<?php echo filemtime(__DIR__ . '/system/userland/core/WindowManager.js'); ?>" defer></script>
   <script src="system/userland/core/GalleryViewRegistry.js" defer></script>

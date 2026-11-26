@@ -20,6 +20,19 @@ class SyscallClient {
     )) || '';
   }
 
+  syncCsrfToken(token) {
+    if (!token || typeof token !== 'string' || typeof window === 'undefined') return;
+    window.SG_CSRF_TOKEN = token;
+    window.CSRF_TOKEN = token;
+    if (window.desktop && window.desktop.state) {
+      window.desktop.state.csrfToken = token;
+    }
+    if (typeof document !== 'undefined') {
+      const meta = document.querySelector('meta[name="csrf-token"]');
+      if (meta) meta.setAttribute('content', token);
+    }
+  }
+
   /**
    * Build complete API URL for action and parameters
    */
@@ -65,7 +78,9 @@ class SyscallClient {
       });
       const text = await res.text();
       try {
-        return JSON.parse(text);
+        const parsed = JSON.parse(text);
+        if (parsed && parsed.csrf_token) this.syncCsrfToken(parsed.csrf_token);
+        return parsed;
       } catch (e) {
         console.warn(`[SyscallClient] Non-JSON payload received for GET "${action}":`, text);
         return { success: false, error: text || `HTTP ${res.status}` };
@@ -79,7 +94,7 @@ class SyscallClient {
   /**
    * Perform HTTP POST request to API with JSON payload & CSRF token
    */
-  async post(action, payload = {}) {
+  async post(action, payload = {}, options = {}) {
     const csrfToken = this.getCsrfToken();
     const bodyData = {
       action,
@@ -99,12 +114,41 @@ class SyscallClient {
         body: JSON.stringify(bodyData)
       });
       const text = await res.text();
+      let parsed;
       try {
-        return JSON.parse(text);
+        parsed = JSON.parse(text);
       } catch (e) {
         console.warn(`[SyscallClient] Non-JSON payload received for POST "${action}":`, text);
         return { success: false, error: text || `HTTP ${res.status}` };
       }
+
+      if (parsed && parsed.csrf_token) {
+        this.syncCsrfToken(parsed.csrf_token);
+      }
+
+      // Same-origin automatic CSRF resync & single transparent retry if token went stale
+      const isCsrfError = res.status === 403 && parsed && (
+        parsed.code === 'invalid_csrf' || parsed.error === 'api.err_invalid_csrf'
+      );
+      if (isCsrfError && !options._csrfRetried && this.endpoint.includes('api.php')) {
+        const fresh = await this.get('get_current_user');
+        if (fresh && fresh.success && fresh.csrf_token) {
+          this.syncCsrfToken(fresh.csrf_token);
+          const publicActions = ['login', 'verify_2fa_login', 'register_account', 'verify_email', 'resend_verification', 'request_password_reset', 'confirm_password_reset', 'access_share_link', 'unlock_folder'];
+          if (fresh.is_logged_in || publicActions.includes(action)) {
+            return this.post(action, payload, { ...options, _csrfRetried: true });
+          }
+          if (typeof window !== 'undefined' && window.sys && window.sys.shares && typeof window.sys.shares.refreshIdentity === 'function') {
+            window.sys.shares.refreshIdentity();
+          }
+          const expiredMsg = (typeof window !== 'undefined' && window.I18nEngine && typeof window.I18nEngine.t === 'function')
+            ? window.I18nEngine.t('api.err_session_expired')
+            : parsed.error;
+          return { success: false, code: 'session_expired', error: expiredMsg };
+        }
+      }
+
+      return parsed;
     } catch (err) {
       console.error(`[SyscallClient] POST ${action} failed:`, err);
       return { success: false, error: err.message };

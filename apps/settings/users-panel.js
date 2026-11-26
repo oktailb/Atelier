@@ -1443,6 +1443,12 @@
         fieldsBox.querySelector('#extGdriveOauthBtn')?.addEventListener('click', async (e) => {
           const btn = e.currentTarget;
           const payload = collectMountPayload();
+          // Pre-open popup synchronously on user gesture so browsers do not block it after await
+          const popup = window.open('about:blank', 'atelier_gdrive_oauth', 'width=540,height=660,menubar=no,toolbar=no');
+          if (!popup) {
+            settingsApp.toast.error(t('storage.gdrive_popup_blocked'));
+            return;
+          }
           btn.disabled = true;
           const res = await settingsApp.api.post('gdrive_oauth_start', {
             client_id: payload.config.client_id || '',
@@ -1455,14 +1461,11 @@
           });
           btn.disabled = false;
           if (!res || !res.success || !res.auth_url) {
+            try { popup.close(); } catch (_) {}
             settingsApp.toast.error((res && res.error) || t('users.action_error'));
             return;
           }
-          const popup = window.open(res.auth_url, 'atelier_gdrive_oauth', 'width=540,height=660,menubar=no,toolbar=no');
-          if (!popup) {
-            settingsApp.toast.error(t('storage.gdrive_popup_blocked'));
-            return;
-          }
+          popup.location.href = res.auth_url;
           const onMsg = async (ev) => {
             if (ev.origin !== window.location.origin) return;
             if (!ev.data || ev.data.type !== 'atelier_gdrive_oauth_result') return;

@@ -22,6 +22,7 @@ class AuthManager {
                 || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
 
             if (!headers_sent()) {
+                @ini_set('session.gc_maxlifetime', '86400');
                 session_set_cookie_params([
                     'lifetime' => 0,
                     'path'     => '/',

@@ -39,7 +39,11 @@ if (ActionRouter::isMutatingAction($action, $project_root)) {
         if (!headers_sent()) {
             header('Content-Type: application/json; charset=utf-8');
         }
-        echo json_encode(['success' => false, 'error' => __t('api.err_invalid_csrf', [], null, $real_base_dir)]);
+        echo json_encode([
+            'success' => false,
+            'code'    => 'invalid_csrf',
+            'error'   => __t('api.err_invalid_csrf', [], null, $project_root)
+        ]);
         exit;
     }
 }
