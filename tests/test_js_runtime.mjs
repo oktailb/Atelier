@@ -1510,6 +1510,75 @@ try {
     adminGuideText.includes('ExternalAppManager')
   );
 
+  // Verify Exit/Quit hooks (cw.close(), webos:quit/exit/close, <prefix>:quit) & Unsaved Changes Guard (dirty + beforeunload + WindowManager.onBeforeClose)
+  const wmCodeExit = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'core', 'WindowManager.js'), 'utf8');
+  const vfsBridgeCodeExit = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'core', 'WebAppVfsBridge.js'), 'utf8');
+  const webAppHostCodeExit = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'core', 'WebAppHost.js'), 'utf8');
+
+  // Test WebAppVfsBridge cw.close() interception + beforeunload probe in sandbox
+  const exitWin = {
+    location: { origin: 'https://atelier.local' },
+    Event: class MockEvent {
+      constructor(type, opts = {}) { this.type = type; this.cancelable = !!opts.cancelable; this.defaultPrevented = false; }
+      preventDefault() { if (this.cancelable) this.defaultPrevented = true; }
+    },
+    sys: {}
+  };
+  new Function('window', vfsBridgeCodeExit)(exitWin);
+  const exitBridge = exitWin.sys.webAppVfsBridge;
+
+  let appCloseRequested = 0;
+  let beforeUnloadHandlers = [];
+  const fakeCw = {
+    location: { origin: 'https://atelier.local' },
+    document: { addEventListener: () => {} },
+    Event: exitWin.Event,
+    close: () => {},
+    addEventListener: (t, fn) => { if (t === 'beforeunload') beforeUnloadHandlers.push(fn); },
+    removeEventListener: (t, fn) => { if (t === 'beforeunload') beforeUnloadHandlers = beforeUnloadHandlers.filter(f => f !== fn); },
+    dispatchEvent: (ev) => { beforeUnloadHandlers.forEach(fn => fn(ev)); }
+  };
+  const fakeIframe = { contentWindow: fakeCw };
+  const fakeAppInst = {
+    id: 'wordcraft',
+    windowId: 'webapp-wordcraft',
+    isDirty: false,
+    manifest: {},
+    getAppTitle: () => 'WordCraft',
+    getIframeElement: () => fakeIframe,
+    requestCloseFromApp: () => { appCloseRequested++; }
+  };
+  exitBridge.attachToIframe(fakeIframe, fakeAppInst);
+
+  // 1. Clean state -> probeUnsavedChanges is false
+  const probeClean = exitBridge.probeUnsavedChanges(fakeIframe, fakeAppInst);
+  // 2. App registers beforeunload guard calling preventDefault + returnValue (like WordCraft/PhotoCraft)
+  fakeCw.addEventListener('beforeunload', (e) => { e.preventDefault(); e.returnValue = 'Unsaved edits'; });
+  const probeBeforeUnload = exitBridge.probeUnsavedChanges(fakeIframe, fakeAppInst);
+  // 3. Explicit host-bridge dirty flag
+  beforeUnloadHandlers = [];
+  fakeAppInst.isDirty = true;
+  const probeDirtyFlag = exitBridge.probeUnsavedChanges(fakeIframe, fakeAppInst);
+  // 4. App invokes window.close() inside iframe -> routes to requestCloseFromApp()
+  fakeCw.close();
+  // 5. postMessage webos:quit from authenticated iframe routes to requestCloseFromApp()
+  await exitBridge.handlePostMessage(
+    { source: fakeCw, origin: 'https://atelier.local', data: { type: 'webos:quit' } },
+    { instances: new Map([['wordcraft', fakeAppInst]]) }
+  );
+
+  assert("Exit/Quit & Unsaved Guard: cw.close() + webos:quit + probeUnsavedChanges (beforeunload & host dirty) + WindowManager onBeforeClose",
+    probeClean.dirty === false &&
+    probeBeforeUnload.dirty === true && probeBeforeUnload.source === 'beforeunload' &&
+    probeDirtyFlag.dirty === true && probeDirtyFlag.source === 'host-bridge' &&
+    appCloseRequested === 2 &&
+    wmCodeExit.includes('onBeforeClose') &&
+    wmCodeExit.includes('_closingInProgress') &&
+    webAppHostCodeExit.includes('confirmCloseIfDirty') &&
+    webAppHostCodeExit.includes('requestCloseFromApp') &&
+    webAppHostCodeExit.includes("sub === 'close' || sub === 'quit' || sub === 'exit'")
+  );
+
   // Verify users-panel.js registers custom section cleanly without syntax errors
   const usersPanelCode = fs.readFileSync(usersPanelPath, 'utf8');
   const registeredSections = [];

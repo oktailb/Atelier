@@ -225,6 +225,8 @@
         } else if (sub === 'dirty') {
           this.isDirty = Boolean(msg.dirty);
           this.updateWindowTitle();
+        } else if (sub === 'close' || sub === 'quit' || sub === 'exit') {
+          this.requestCloseFromApp({ force: Boolean(msg.force), source: type });
         } else if (sub === 'failed') {
           this.showBootOverlay(String(msg.error || 'App initialization failed'));
         }
@@ -613,6 +615,58 @@
       return null;
     }
 
+    hasUnsavedChanges() {
+      if (this.isDirty) return true;
+      const bridge = window.sys && window.sys.webAppVfsBridge;
+      if (bridge && typeof bridge.probeUnsavedChanges === 'function') {
+        const probe = bridge.probeUnsavedChanges(this.getIframeElement(), this);
+        if (probe && probe.dirty) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    async confirmCloseIfDirty(opts = {}) {
+      if (opts && opts.force) return true;
+      if (!this.hasUnsavedChanges()) return true;
+
+      const appTitle = this.getAppTitle();
+      const targetLabel = (this.activeFile && this.activeFile.name)
+        ? `${appTitle} (${this.activeFile.name})`
+        : appTitle;
+
+      const title = this.t('webapp.unsaved_close_title');
+      const message = this.t('webapp.unsaved_close_msg', { app: targetLabel });
+      const confirmText = this.t('webapp.unsaved_close_confirm');
+      const cancelText = this.t('webapp.unsaved_close_cancel');
+
+      if (window.sys && window.sys.dialog && typeof window.sys.dialog.confirm === 'function') {
+        return Boolean(await window.sys.dialog.confirm({
+          title,
+          message,
+          danger: true,
+          confirmText,
+          cancelText
+        }));
+      }
+      if (typeof window.confirm === 'function') {
+        return Boolean(window.confirm(message));
+      }
+      return true;
+    }
+
+    requestCloseFromApp(opts = {}) {
+      const wm = window.WindowManager;
+      if (wm && typeof wm.closeWindow === 'function') {
+        wm.closeWindow(this.windowId, {
+          force: Boolean(opts && opts.force),
+          fromApp: true,
+          source: (opts && opts.source) || 'app'
+        });
+      }
+    }
+
     open(fileOrParams = {}, options = {}) {
       const file = this.extractFileArg(fileOrParams, options);
       if (file) {
@@ -704,6 +758,7 @@
             window.MenuBarManager.setActiveApp(this.id, { windowId: this.windowId });
           }
         },
+        onBeforeClose: (win, opts) => this.confirmCloseIfDirty(opts),
         onClose: () => {
           if (this._slowTimer) clearTimeout(this._slowTimer);
           if (this._bootPollTimer) clearInterval(this._bootPollTimer);
@@ -724,9 +779,15 @@
       return this.win;
     }
 
-    reload() {
+    async reload(force = false) {
       const iframe = this.getIframeElement();
       if (!iframe) return;
+      if (!force) {
+        const ok = await this.confirmCloseIfDirty({ force: false });
+        if (!ok) return;
+      }
+      this.isDirty = false;
+      this.updateWindowTitle();
       this.iframeLoaded = false;
       this.showBootOverlay('');
       const filePassedViaQuery = !!(this.activeFile && this.manifest && this.manifest.openFileParam);
@@ -1024,6 +1085,18 @@
   const hostManager = new WebAppHostManager();
   if (window.sys && window.sys.webAppVfsBridge && typeof window.sys.webAppVfsBridge.bindPostMessageProtocol === 'function') {
     window.sys.webAppVfsBridge.bindPostMessageProtocol(hostManager);
+  }
+  // Protect against accidental browser tab reload/close while any embedded web app has unsaved changes
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('beforeunload', (evt) => {
+      for (const inst of hostManager.instances.values()) {
+        if (inst && inst.win && typeof inst.hasUnsavedChanges === 'function' && inst.hasUnsavedChanges()) {
+          evt.preventDefault();
+          evt.returnValue = '';
+          return '';
+        }
+      }
+    });
   }
   window.StandaloneWebAppInstance = StandaloneWebAppInstance;
   window.WebAppHost = hostManager;

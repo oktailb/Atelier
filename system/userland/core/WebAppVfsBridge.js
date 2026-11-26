@@ -595,7 +595,112 @@
         }, true);
       }
 
+      // 7. EXIT / QUIT HOOK: Intercept window.close() inside the embedded iframe
+      // Browsers normally ignore window.close() inside iframes; route it cleanly to WebAppHost / WindowManager.
+      try {
+        const origClose = typeof cw.close === 'function' ? cw.close.bind(cw) : null;
+        cw.close = function () {
+          if (appInstance && typeof appInstance.requestCloseFromApp === 'function') {
+            appInstance.requestCloseFromApp({ source: 'window.close' });
+            return;
+          }
+          if (window.WindowManager && appInstance && appInstance.windowId && typeof window.WindowManager.closeWindow === 'function') {
+            window.WindowManager.closeWindow(appInstance.windowId, { fromApp: true });
+            return;
+          }
+          if (origClose) {
+            try { origClose(); } catch (e) {}
+          }
+        };
+      } catch (e) {}
+
+      // 8. BEFOREUNLOAD LISTENER TRACKER: Track apps that register beforeunload guards (e.g. WordCraft, PhotoCraft)
+      try {
+        cw.__sgBeforeUnloadCount = cw.__sgBeforeUnloadCount || 0;
+        if (typeof cw.addEventListener === 'function' && typeof cw.removeEventListener === 'function') {
+          const origAdd = cw.addEventListener.bind(cw);
+          const origRemove = cw.removeEventListener.bind(cw);
+          const trackedListeners = new Set();
+          cw.addEventListener = function (type, listener, options) {
+            if (String(type).toLowerCase() === 'beforeunload' && listener) {
+              trackedListeners.add(listener);
+              cw.__sgBeforeUnloadCount = trackedListeners.size;
+            }
+            return origAdd(type, listener, options);
+          };
+          cw.removeEventListener = function (type, listener, options) {
+            if (String(type).toLowerCase() === 'beforeunload' && listener) {
+              trackedListeners.delete(listener);
+              cw.__sgBeforeUnloadCount = trackedListeners.size;
+            }
+            return origRemove(type, listener, options);
+          };
+        }
+      } catch (e) {}
+
       return true;
+    }
+
+    /**
+     * Probes whether an embedded app currently has unsaved changes by checking:
+     *   1. Explicit `?host=parent` dirty flag (`appInstance.isDirty`)
+     *   2. Same-origin iframe `beforeunload` listeners / `onbeforeunload` handler
+     *      (works automatically for WASM/HTML5 editors such as WordCraft, PhotoCraft, etc.)
+     */
+    probeUnsavedChanges(iframe, appInstance = null) {
+      if (appInstance && appInstance.isDirty === true) {
+        return { dirty: true, source: 'host-bridge', message: '' };
+      }
+      if (!iframe || !this.isSameOriginIframe(iframe)) {
+        return { dirty: false, source: 'none', message: '' };
+      }
+      try {
+        const cw = iframe.contentWindow;
+        if (!cw) return { dirty: false, source: 'none', message: '' };
+
+        let returnVal;
+        let defaultPrevented = false;
+        const EventCtor = cw.Event || window.Event;
+        if (typeof EventCtor === 'function' && typeof cw.dispatchEvent === 'function') {
+          const ev = new EventCtor('beforeunload', { cancelable: true });
+          try {
+            Object.defineProperty(ev, 'returnValue', {
+              configurable: true,
+              get() { return returnVal; },
+              set(v) { returnVal = v; }
+            });
+          } catch (e) {}
+          cw.dispatchEvent(ev);
+          defaultPrevented = Boolean(ev.defaultPrevented);
+        }
+
+        let handlerRet;
+        if (typeof cw.onbeforeunload === 'function') {
+          try {
+            const ev2 = {
+              type: 'beforeunload',
+              defaultPrevented: false,
+              returnValue: undefined,
+              preventDefault() { this.defaultPrevented = true; }
+            };
+            handlerRet = cw.onbeforeunload(ev2);
+            if (ev2.defaultPrevented) defaultPrevented = true;
+            if (ev2.returnValue !== undefined && returnVal === undefined) {
+              returnVal = ev2.returnValue;
+            }
+          } catch (e) {}
+        }
+
+        const hasReturnVal = (returnVal !== undefined && returnVal !== null && returnVal !== '' && returnVal !== false);
+        const hasHandlerRet = (handlerRet !== undefined && handlerRet !== null && handlerRet !== '' && handlerRet !== false);
+        if (defaultPrevented || hasReturnVal || hasHandlerRet) {
+          const msg = typeof returnVal === 'string' && returnVal.trim()
+            ? returnVal.trim()
+            : (typeof handlerRet === 'string' && handlerRet.trim() ? handlerRet.trim() : '');
+          return { dirty: true, source: 'beforeunload', message: msg };
+        }
+      } catch (e) {}
+      return { dirty: false, source: 'none', message: '' };
     }
 
     splitVfsPath(fullPath) {
@@ -621,7 +726,8 @@
     async handlePostMessage(event, hostManager) {
       const msg = event && event.data;
       if (!msg || typeof msg !== 'object') return;
-      if (msg.type !== 'webos:vfs-pick' && msg.type !== 'webos:vfs-save') return;
+      const isCloseMsg = (msg.type === 'webos:close' || msg.type === 'webos:quit' || msg.type === 'webos:exit');
+      if (msg.type !== 'webos:vfs-pick' && msg.type !== 'webos:vfs-save' && !isCloseMsg) return;
 
       // Match event.source strictly against a known mounted iframe instance
       let matchedInstance = null;
@@ -641,6 +747,15 @@
       // For same-origin apps, strictly verify origin matches our own origin
       const targetOrigin = event.origin && event.origin !== 'null' ? event.origin : window.location.origin;
       if (this.isSameOriginIframe(matchedIframe) && window.location && event.origin && event.origin !== window.location.origin) {
+        return;
+      }
+
+      if (isCloseMsg) {
+        if (typeof matchedInstance.requestCloseFromApp === 'function') {
+          matchedInstance.requestCloseFromApp({ force: Boolean(msg.force), source: msg.type });
+        } else if (window.WindowManager && matchedInstance.windowId && typeof window.WindowManager.closeWindow === 'function') {
+          window.WindowManager.closeWindow(matchedInstance.windowId, { force: Boolean(msg.force), fromApp: true });
+        }
         return;
       }
 

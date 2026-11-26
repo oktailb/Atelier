@@ -532,6 +532,7 @@
         headerEl: null,
         bodyEl: null,
         taskbarEl: null,
+        onBeforeClose: config.onBeforeClose || null,
         onClose: config.onClose || null,
         onResize: config.onResize || null,
         onFocus: config.onFocus || null
@@ -946,13 +947,41 @@
       this.restore(id);
     }
 
-    closeWindow(id) {
+    closeWindow(id, options = {}) {
       const win = this.windows.get(id);
-      if (!win) return;
+      if (!win) return false;
+
+      const force = Boolean(options && options.force);
+      if (!force && win._closingInProgress) {
+        return false;
+      }
+
+      if (!force && typeof win.onBeforeClose === 'function') {
+        let decision;
+        try {
+          decision = win.onBeforeClose(win, options);
+        } catch (err) {
+          console.warn(`[WindowManager] onBeforeClose error for ${id}:`, err);
+          decision = true;
+        }
+        if (decision === false) return false;
+        if (decision && typeof decision.then === 'function') {
+          win._closingInProgress = true;
+          decision.then((allowed) => {
+            win._closingInProgress = false;
+            if (allowed !== false && this.windows.has(id)) {
+              this.closeWindow(id, { ...options, force: true });
+            }
+          }).catch(() => {
+            win._closingInProgress = false;
+          });
+          return false;
+        }
+      }
 
       if (typeof win.onClose === 'function') {
-        const res = win.onClose(win);
-        if (res === false) return;
+        const res = win.onClose(win, options);
+        if (!force && res === false) return false;
       }
 
       if (win.element && win.element.parentNode) {
@@ -979,6 +1008,7 @@
           window.MenuBarManager.restoreDefaultMenu();
         }
       }
+      return true;
     }
 
     setTitle(id, title) {
