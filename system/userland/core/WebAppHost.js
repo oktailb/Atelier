@@ -102,7 +102,7 @@
         if (this.hostBridge.supportsChrome) {
           params.push('chrome=notitlebar');
         }
-        if (this.hostBridge.supportsBlank && (startupFile || this.activeFile)) {
+        if (this.hostBridge.supportsBlank && (startupFile || this.activeFile || this._launchBlank)) {
           params.push('blank');
         }
         if (this.hostBridge.supportsAuthor) {
@@ -679,6 +679,7 @@
       if (fileOrParams && typeof fileOrParams === 'object' && typeof fileOrParams.renderer === 'string') {
         this.activeRendererFlag = fileOrParams.renderer;
       }
+      this._launchBlank = Boolean(fileOrParams && typeof fileOrParams === 'object' && fileOrParams.blank);
 
       const appTitle = this.getAppTitle();
       const winTitle = this.activeFile && this.activeFile.name

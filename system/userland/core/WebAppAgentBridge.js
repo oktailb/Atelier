@@ -17,7 +17,7 @@
   'use strict';
 
   const MAX_RESULT_CHARS = 28000;
-  const MAX_BATCH_STEPS = 40;
+  const MAX_BATCH_STEPS = 120;
   const MAX_SCREENSHOT_BASE64 = 1800000; // ~1.35 MB binary PNG max
   const RPC_TIMEOUT_MS = 20000;
 
@@ -332,6 +332,51 @@
     }
 
     /**
+     * Dismisses Start Screen / Backstage overlay if still open after `file.new` / `file.open`
+     * and wakes egui/eframe canvas rendering so edits appear immediately on screen.
+     */
+    async _revealAndRepaintCraftApp(target, ranDocOpen = false) {
+      if (!target) return;
+      // 1. If a document was just created/opened, check if Backstage/Start Screen is still covering it
+      if (ranDocOpen && target.api && typeof target.api.uiInspect === 'function') {
+        try {
+          const uiRaw = await withTimeout(target.api.uiInspect({}), 2500, `${target.prefix}.uiInspect`);
+          const uiUnwrapped = unwrapCraftResult(uiRaw);
+          const uiStr = JSON.stringify(uiUnwrapped.result || '').toLowerCase();
+          const backstageOpen = /"backstage"\s*:\s*(true|"|\{)/.test(uiStr) || /"startscreen"\s*:\s*true/.test(uiStr);
+          if (backstageOpen) {
+            try {
+              const cw = target.iframe && target.iframe.contentWindow;
+              const doc = target.iframe && target.iframe.contentDocument;
+              const canvas = (doc && doc.querySelector('canvas')) || (doc && doc.body);
+              if (cw && canvas && typeof cw.KeyboardEvent === 'function') {
+                canvas.dispatchEvent(new cw.KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+                canvas.dispatchEvent(new cw.KeyboardEvent('keyup', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+              }
+            } catch (e) {}
+          }
+        } catch (e) {}
+      }
+
+      // 2. Wake eframe/egui reactive rendering so the updated canvas repaints immediately
+      try {
+        const cw = target.iframe && target.iframe.contentWindow;
+        const doc = target.iframe && target.iframe.contentDocument;
+        const canvas = doc && doc.querySelector('canvas');
+        if (cw && canvas) {
+          if (typeof cw.PointerEvent === 'function') {
+            canvas.dispatchEvent(new cw.PointerEvent('pointermove', { clientX: 20, clientY: 20, bubbles: true }));
+          } else if (typeof cw.MouseEvent === 'function') {
+            canvas.dispatchEvent(new cw.MouseEvent('mousemove', { clientX: 20, clientY: 20, bubbles: true }));
+          }
+          if (typeof cw.Event === 'function') {
+            cw.dispatchEvent(new cw.Event('resize'));
+          }
+        }
+      } catch (e) {}
+    }
+
+    /**
      * Captures a PNG screenshot from a Craft app (`api.screenshot()` with same-origin `<canvas>` fallback).
      */
     async _captureCraftScreenshot(target, params = {}) {
@@ -607,6 +652,7 @@
             );
             const unwrapped = unwrapCraftResult(raw);
             if (!unwrapped.success) return unwrapped;
+            await this._revealAndRepaintCraftApp(t, /^file\.(new|open|newFromTemplate)$/i.test(cmd));
             const bounded = truncateValue(unwrapped.result, 12000);
             return { success: true, app_id: t.appId, command: cmd, result: bounded.data };
           }
@@ -639,12 +685,14 @@
           handler: async (args, ctx) => {
             const resolved = this._resolveCraftTarget(args.app_id, ctx.disabledApps);
             if (resolved.error) return { success: false, error: resolved.error };
-            const steps = Array.isArray(args.steps) ? args.steps.slice(0, MAX_BATCH_STEPS) : [];
+            const rawSteps = Array.isArray(args.steps) ? args.steps : [];
+            const steps = rawSteps.slice(0, MAX_BATCH_STEPS);
             if (steps.length === 0) return { success: false, error: 'steps array must contain at least 1 command.' };
             const t = resolved.target;
             const continueOnErr = Boolean(args.continue_on_error);
             const results = [];
             let allOk = true;
+            let ranDocOpen = false;
 
             for (let i = 0; i < steps.length; i++) {
               const s = steps[i] || {};
@@ -655,6 +703,7 @@
                 if (!continueOnErr) break;
                 continue;
               }
+              if (/^file\.(new|open|newFromTemplate)$/i.test(cmd)) ranDocOpen = true;
               try {
                 const raw = await withTimeout(
                   t.api.execute(cmd, plainObject(s.params)),
@@ -676,11 +725,14 @@
               }
             }
 
+            await this._revealAndRepaintCraftApp(t, ranDocOpen);
+
             return {
               success: allOk,
               app_id: t.appId,
               executed: results.length,
-              total_requested: steps.length,
+              total_requested: rawSteps.length,
+              truncated: rawSteps.length > MAX_BATCH_STEPS,
               results
             };
           }

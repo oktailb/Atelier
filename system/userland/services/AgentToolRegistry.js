@@ -124,7 +124,7 @@
           if (c && typeof c === 'object') {
             Object.assign(appContexts, c);
           }
-        } catch (e) {}
+        } catch (e) { }
       });
 
       return {
@@ -166,7 +166,7 @@
             if (autonomyLevel === 'read_only' && t.risk !== 'read') continue;
             all.push(t);
           }
-        } catch (e) {}
+        } catch (e) { }
       });
 
       return all;
@@ -333,7 +333,7 @@
           if (!appMgr || typeof appMgr.launchApp !== 'function') {
             return { success: false, error: 'AppManager unavailable.' };
           }
-          appMgr.launchApp(appId);
+          appMgr.launchApp(appId, { blank: true });
 
           const host = (window.sys && window.sys.webAppHost) || window.WebAppHost;
           const agentBridge = window.sys && window.sys.webAppAgentBridge;
