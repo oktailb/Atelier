@@ -921,9 +921,9 @@
     "api.msg_password_required": "パスワードが必要です。",
     "settings.autostart_save_error": "自動起動設定の保存に失敗しました。",
     "settings.autostart_saved": "自動起動設定を保存しました。",
-    "copilot.title": "Atelier Copilot",
-    "copilot.toggle_title": "Atelier Copilot を開く (Ctrl+K)",
-    "copilot.quick_placeholder": "エージェントに質問… (Ctrl+K)",
+    "copilot.title": "Compagnon",
+    "copilot.toggle_title": "Compagnon を開く (Ctrl+K)",
+    "copilot.quick_placeholder": "Compagnon に質問… (Ctrl+K)",
     "copilot.shared_label": "共有インスタンス",
     "copilot.running": "実行中",
     "copilot.new_chat": "新しい会話",
@@ -931,7 +931,7 @@
     "copilot.pin_popup": "ポップアップを固定",
     "copilot.desktop_context": "Atelier デスクトップ",
     "copilot.context_label": "コンテキスト",
-    "copilot.login_required": "Atelier Copilot を利用するにはログインしてください。",
+    "copilot.login_required": "Compagnon を利用するにはログインしてください。",
     "copilot.disabled_notice": "お使いのアカウントでは AI エージェントが有効になっていません。",
     "copilot.no_provider_notice": "LLM プロバイダーがまだ設定されていません。",
     "copilot.configure_btn": "モデルを設定",
@@ -952,6 +952,9 @@
     "copilot.stop_btn": "停止",
     "copilot.send_btn": "送信",
     "copilot.error_generic": "AI プロバイダーとの通信中にエラーが発生しました。",
-    "copilot.max_steps_reached": "ステップ上限に達しました（{max}/{max}）。続けるには「continue」と送信するか、設定 → AI・エージェント で上限を上げてください。"
+    "copilot.max_steps_reached": "ステップ上限に達しました（{max}/{max}）。続けるには「continue」と送信するか、設定 → AI・エージェント で上限を上げてください。",
+    "copilot.model_family_title": "モデルファミリー / バージョン",
+    "copilot.model_variant_title": "モデルバリエーション",
+    "copilot.variant_default": "標準"
   }
 }

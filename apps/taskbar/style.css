@@ -405,6 +405,9 @@ body.no-taskbar #webosDesktop {
   align-items: center;
   gap: 6px;
 }
+.copilot-models-row {
+  gap: 6px;
+}
 .copilot-select {
   flex: 1;
   min-width: 0;
@@ -417,9 +420,22 @@ body.no-taskbar #webosDesktop {
   font-size: 0.73rem;
   outline: none;
 }
+.copilot-select-family {
+  flex: 1 1 52%;
+}
+.copilot-select-variant {
+  flex: 1 1 48%;
+}
 .copilot-select-autonomy {
-  flex: 0 0 auto;
-  max-width: 128px;
+  flex: 1 1 auto;
+}
+.taskbar-copilot-bar.needs-approval {
+  border-color: rgba(245, 158, 11, 0.9);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.35);
+}
+.taskbar-copilot-popup.needs-approval {
+  border-color: rgba(245, 158, 11, 0.75);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.45), 0 0 0 2px rgba(245, 158, 11, 0.35);
 }
 .copilot-send-btn {
   width: 32px;

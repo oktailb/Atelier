@@ -26,12 +26,47 @@
   }
 
   /**
-   * Repairs common LLM tool-call serialization quirks before dispatching to Craft WASM engines
-   * (e.g. GridCraft `range.setValues` receiving JSON-stringified rows or 1D arrays instead of `[[...]]`).
+   * Repairs common LLM tool-call serialization quirks before dispatching to Craft WASM engines:
+   *  - GridCraft `range.setValues` receiving JSON-stringified rows or 1D arrays instead of `[[...]]`
+   *  - Hex color format mismatch (`#RRGGBB` required by DeckCraft/GridCraft vs bare `RRGGBB` in WordCraft)
    */
-  function normalizeCraftCommandParams(cmd, rawParams) {
+  function normalizeHexColorForApp(appId, val) {
+    if (typeof val !== 'string') return val;
+    const s = val.trim();
+    const id = String(appId || '').toLowerCase();
+    if (id === 'wordcraft') {
+      return /^#[0-9a-f]{6}$/i.test(s) ? s.slice(1).toUpperCase() : val;
+    }
+    if (id === 'deckcraft' || id === 'gridcraft') {
+      return /^[0-9a-f]{6}$/i.test(s) ? ('#' + s.toUpperCase()) : val;
+    }
+    return val;
+  }
+
+  function normalizeCraftCommandParams(appId, cmd, rawParams) {
     const params = Object.assign({}, plainObject(rawParams));
-    if (String(cmd || '').toLowerCase() === 'range.setvalues' && params.values !== undefined) {
+    const cmdLow = String(cmd || '').toLowerCase();
+
+    // Auto-normalize hex color fields (`#RRGGBB` vs `RRGGBB`) per Craft app conventions
+    if (typeof params.color === 'string') {
+      params.color = normalizeHexColorForApp(appId, params.color);
+    }
+    if (params.colors && typeof params.colors === 'object' && !Array.isArray(params.colors)) {
+      const fixedColors = {};
+      for (const [k, v] of Object.entries(params.colors)) {
+        fixedColors[k] = normalizeHexColorForApp(appId, v);
+      }
+      params.colors = fixedColors;
+    }
+    if (params.gradient && typeof params.gradient === 'object' && Array.isArray(params.gradient.stops)) {
+      params.gradient = Object.assign({}, params.gradient, {
+        stops: params.gradient.stops.map((st) =>
+          (Array.isArray(st) && st.length >= 2) ? [st[0], normalizeHexColorForApp(appId, st[1])] : st
+        )
+      });
+    }
+
+    if (cmdLow === 'range.setvalues' && params.values !== undefined) {
       let v = params.values;
 
       // Case 1: LLM sent `values` as a JSON string (e.g. '[["a","b"]]' or '["a","b"],["c","d"]')
@@ -758,7 +793,7 @@
             if (!cmd) return { success: false, error: 'Command name is required.' };
             const t = resolved.target;
             const raw = await withTimeout(
-              t.api.execute(cmd, normalizeCraftCommandParams(cmd, args.params)),
+              t.api.execute(cmd, normalizeCraftCommandParams(t.appId, cmd, args.params)),
               RPC_TIMEOUT_MS,
               `${t.prefix}.execute(${cmd})`
             );
@@ -818,7 +853,7 @@
               if (/^file\.(new|open|newFromTemplate)$/i.test(cmd)) ranDocOpen = true;
               try {
                 const raw = await withTimeout(
-                  t.api.execute(cmd, normalizeCraftCommandParams(cmd, s.params)),
+                  t.api.execute(cmd, normalizeCraftCommandParams(t.appId, cmd, s.params)),
                   RPC_TIMEOUT_MS,
                   `${t.prefix}.execute(${cmd})`
                 );

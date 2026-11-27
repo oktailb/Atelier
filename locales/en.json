@@ -921,9 +921,9 @@
     "api.msg_password_required": "A password is required.",
     "settings.autostart_save_error": "Failed to save autostart configuration.",
     "settings.autostart_saved": "Autostart configuration saved.",
-    "copilot.title": "Atelier Copilot",
-    "copilot.toggle_title": "Open Atelier Copilot (Ctrl+K)",
-    "copilot.quick_placeholder": "Ask the agent… (Ctrl+K)",
+    "copilot.title": "Compagnon",
+    "copilot.toggle_title": "Open Compagnon (Ctrl+K)",
+    "copilot.quick_placeholder": "Ask Compagnon… (Ctrl+K)",
     "copilot.shared_label": "Shared instance",
     "copilot.running": "Running",
     "copilot.new_chat": "New conversation",
@@ -931,7 +931,7 @@
     "copilot.pin_popup": "Pin popup",
     "copilot.desktop_context": "Atelier Desktop",
     "copilot.context_label": "Context",
-    "copilot.login_required": "Sign in to use Atelier Copilot.",
+    "copilot.login_required": "Sign in to use Compagnon.",
     "copilot.disabled_notice": "AI Agent access is not enabled for your account.",
     "copilot.no_provider_notice": "No LLM provider is configured for your account yet.",
     "copilot.configure_btn": "Configure a model",
@@ -952,6 +952,9 @@
     "copilot.stop_btn": "Stop",
     "copilot.send_btn": "Send",
     "copilot.error_generic": "Error communicating with the AI provider.",
-    "copilot.max_steps_reached": "Step limit reached ({max}/{max}). Send \"continue\" to proceed or raise the limit in Settings → AI & Agent."
+    "copilot.max_steps_reached": "Step limit reached ({max}/{max}). Send \"continue\" to proceed or raise the limit in Settings → AI & Agent.",
+    "copilot.model_family_title": "Model family / version",
+    "copilot.model_variant_title": "Model variant",
+    "copilot.variant_default": "standard"
   }
 }

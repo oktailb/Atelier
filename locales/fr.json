@@ -921,9 +921,9 @@
     "api.msg_password_required": "Un mot de passe est requis.",
     "settings.autostart_save_error": "Erreur lors de l'enregistrement du démarrage automatique.",
     "settings.autostart_saved": "Configuration du démarrage automatique enregistrée.",
-    "copilot.title": "Atelier Copilot",
-    "copilot.toggle_title": "Ouvrir Atelier Copilot (Ctrl+K)",
-    "copilot.quick_placeholder": "Demander à l'agent… (Ctrl+K)",
+    "copilot.title": "Compagnon",
+    "copilot.toggle_title": "Ouvrir Compagnon (Ctrl+K)",
+    "copilot.quick_placeholder": "Demander au Compagnon… (Ctrl+K)",
     "copilot.shared_label": "Instance partagée",
     "copilot.running": "Exécution en cours",
     "copilot.new_chat": "Nouvelle conversation",
@@ -931,7 +931,7 @@
     "copilot.pin_popup": "Épingler la fenêtre",
     "copilot.desktop_context": "Bureau Atelier",
     "copilot.context_label": "Contexte",
-    "copilot.login_required": "Connectez-vous pour utiliser Atelier Copilot.",
+    "copilot.login_required": "Connectez-vous pour utiliser Compagnon.",
     "copilot.disabled_notice": "L'accès à l'agent IA n'est pas activé pour votre compte.",
     "copilot.no_provider_notice": "Aucun fournisseur LLM n'est encore configuré pour votre compte.",
     "copilot.configure_btn": "Configurer un modèle",
@@ -952,6 +952,9 @@
     "copilot.stop_btn": "Arrêter",
     "copilot.send_btn": "Envoyer",
     "copilot.error_generic": "Erreur lors de la communication avec le fournisseur IA.",
-    "copilot.max_steps_reached": "Limite d'étapes atteinte ({max}/{max}). Envoyez « continue » pour poursuivre ou augmentez le plafond dans Paramètres → IA & Agent."
+    "copilot.max_steps_reached": "Limite d'étapes atteinte ({max}/{max}). Envoyez « continue » pour poursuivre ou augmentez le plafond dans Paramètres → IA & Agent.",
+    "copilot.model_family_title": "Famille / version du modèle",
+    "copilot.model_variant_title": "Variante du modèle",
+    "copilot.variant_default": "standard"
   }
 }

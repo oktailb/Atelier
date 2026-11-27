@@ -48,7 +48,7 @@ Atelier by GallusTech dispose déjà d'un ADN unique que les clouds classiques n
 | **Jobs asynchrones** | Miniatures, ZIP, FFmpeg synchrones en PHP | File de tâches en arrière-plan (miniatures, transcodage HLS, archives lourdes, scan antivirus, purge) | **Moyenne** |
 | **Déploiement & Exploitation** | Installation manuelle PHP / Apache | Image **Docker** officielle, Docker Compose 1-clic, installateur web, mises à jour automatisées, métriques/backups | **Critique** |
 | **Marque Blanche & Galeries Clients** | Thèmes + titre configurables | Logo/domaine/thème par tenant, galeries de livraison clients (favoris, validation, filigrane, export HD) | **Élevée** |
-| **Assistant & Agent IA WebOS** | Aucun pont IA intégré | **Agent IA universel (« Atelier Copilot »)** configurable par utilisateur (cloud ou Ollama local), accès rapide bas-gauche et pilotage unifié des apps natives, jeux et WASM (`craft-web-api` / `webos:agent-*`) | **Élevée** |
+| **Assistant & Agent IA WebOS** | Aucun pont IA intégré | **Agent IA universel (« Compagnon »)** configurable par utilisateur (cloud ou Ollama local), accès rapide bas-gauche et pilotage unifié des apps natives, jeux et WASM (`craft-web-api` / `webos:agent-*`) | **Élevée** |
 
 ---
 
@@ -254,7 +254,7 @@ flowchart TB
 
 ---
 
-### 🟪 Phase E — Agent IA Universel & Automatisation WebOS (« Atelier Copilot »)
+### 🟪 Phase E — Agent IA Universel & Automatisation WebOS (« Compagnon »)
 *Objectif : transformer Atelier en un véritable bureau assisté par IA, souverain et agnostique du fournisseur (cloud ou LLM local), capable d'assister l'utilisateur et de manipuler **toute application existante ou future** — native (y compris les jeux), ArtCraft WASM ou externe tierce — dans le respect strict des droits de session.*
 
 #### 1. Point d'Entrée UX dans la Barre des Tâches (Bas-Gauche)
@@ -307,7 +307,7 @@ flowchart TB
 
 #### 5. Découpage de Livraison (Lots Incrémentaux)
 - [x] **Lot 1 — Socle Backend LLM, Coffre Clés & Page Settings (`IA & Agent`)** *(Livré & Testé)* : `AiSettings.php`, `LlmGateway.php` (OpenAI-compatible/Ollama, Anthropic, Gemini), `AiAgentActions.php` (CSRF + SSRF + rate-limit), page de configuration utilisateur & politique admin dans `apps/settings/ai-panel.js`, permission RBAC `can_use_ai_agent`, parité i18n FR/EN/JA et tests unitaires sécurité.
-- [x] **Lot 2 — Accès Rapide Bas-Gauche (Taskbar), Popup Copilot & Outils OS/VFS** *(Livré & Testé)* : remplacement du logo redondant « Atelier » en bas à gauche de `apps/taskbar/` par le lanceur/popup Copilot (champ extensible, sélecteur modèle/niveau, contexte actif, Stop, cartes de confirmation Human-in-the-Loop) + `AgentToolRegistry.js` + `AiCopilotService.js` + outils système (`WindowManager`, `AppManager`, VFS) + aide contextuelle clés API par fournisseur.
+- [x] **Lot 2 — Accès Rapide Bas-Gauche (Taskbar), Popup Compagnon & Outils OS/VFS** *(Livré & Testé)* : remplacement du logo redondant « Atelier » en bas à gauche de `apps/taskbar/` par le lanceur/popup Compagnon (champ extensible, double combobox famille/variante, niveau d'autonomie, contexte actif, Stop, cartes de confirmation Human-in-the-Loop) + `AgentToolRegistry.js` + `AiCopilotService.js` + outils système (`WindowManager`, `AppManager`, VFS) + aide contextuelle clés API par fournisseur.
 - [x] **Lot 3 — Pont Dynamique `craft-web-api` & Protocole Ouvert `webos:agent-*`** *(Livré & Testé)* : `WebAppAgentBridge.js` — auto-découverte à chaud dans `WebAppHost` des apps Craft WASM (`craft_commands`, `craft_doc_inspect`, `craft_ui_inspect`, `craft_execute`, `craft_execute_batch`, `craft_request`, `craft_screenshot`), attente d'initialisation WASM dans `os_launch_app`, transport multimodal des captures vers Gemini/Anthropic/OpenAI (soumis à `allow_vision`), et protocole `postMessage` origin-locked (`webos:agent-*`) pour toute future app externe tierce.
 - [ ] **Lot 4 — Contrat Universel `WebOSApp` (Apps Natives & Jeux)** : hooks standards `getAgentContext()` / `getAgentTools()` / `executeAgentTool()` dans `WebOSApp.js` + intégrations pilotes sur Explorateur, Visionneuse Image, Doc Viewer, Calculatrice/Traceur, Maps et les jeux `apps/games/` (mode coach, explication de règles et adversaire IA) + documentation développeur dans `docs/apps-guide.md`.
 
@@ -379,5 +379,5 @@ Grâce au déport du calcul lourd en **WebAssembly côté client**, la marge bru
 Les **Phases A, B, C** et les **Lots 1–2 de la Phase D (Studio Créatif & Apps Externes)** étant livrés et couverts par la suite de tests (981+ tests), l'ordre de plus fort retour sur investissement pour la suite est :
 
 1. **Phase D (fin)** : **Galeries de Livraison Client (proofing, filigrane, sélection) + Marque Blanche** *(effort `M` — différenciateur commercial immédiat)*.
-2. **Phase E (Lots 1 → 4)** : **Agent IA Universel (« Atelier Copilot »)** — accès rapide bas-gauche, réglages multi-fournisseurs par utilisateur, pont `craft-web-api` et contrat universel `WebOSApp` pour apps natives et jeux *(effort `M–L` — avantage produit unique sur le marché WebOS)*.
+2. **Phase E (Lots 1 → 4)** : **Agent IA Universel (« Compagnon »)** — accès rapide bas-gauche, réglages multi-fournisseurs par utilisateur, pont `craft-web-api` et contrat universel `WebOSApp` pour apps natives et jeux *(effort `M–L` — avantage produit unique sur le marché WebOS)*.
 3. **Phase F** : **Démo live publique + Control Plane SaaS (« Atelier Cloud »)** *(effort `L` — monétisation récurrente en silos isolés)*.
