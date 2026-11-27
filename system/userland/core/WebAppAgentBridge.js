@@ -25,6 +25,94 @@
     return (val && typeof val === 'object' && !Array.isArray(val)) ? val : {};
   }
 
+  /**
+   * Repairs common LLM tool-call serialization quirks before dispatching to Craft WASM engines
+   * (e.g. GridCraft `range.setValues` receiving JSON-stringified rows or 1D arrays instead of `[[...]]`).
+   */
+  function normalizeCraftCommandParams(cmd, rawParams) {
+    const params = Object.assign({}, plainObject(rawParams));
+    if (String(cmd || '').toLowerCase() === 'range.setvalues' && params.values !== undefined) {
+      let v = params.values;
+
+      // Case 1: LLM sent `values` as a JSON string (e.g. '[["a","b"]]' or '["a","b"],["c","d"]')
+      if (typeof v === 'string') {
+        const trimmed = v.trim();
+        let parsed = null;
+        try { parsed = JSON.parse(trimmed); } catch (e) {}
+        if (parsed === null && trimmed.startsWith('[')) {
+          try { parsed = JSON.parse('[' + trimmed + ']'); } catch (e) {}
+        }
+        if (Array.isArray(parsed)) {
+          v = parsed;
+        }
+      }
+
+      // Case 2: LLM sent array whose elements are JSON-stringified rows (or multi-row fragments)
+      if (Array.isArray(v)) {
+        const repairedRows = [];
+        let changed = false;
+        let allPrimitives = v.length > 0 && v.every((item) => !Array.isArray(item) && (item === null || typeof item !== 'object'));
+
+        if (allPrimitives) {
+          // Check whether elements are actually JSON-stringified row arrays like '["a","b"]' or '["a"],["b"]'
+          const hasJsonArrayStr = v.some((item) => typeof item === 'string' && /^\s*\[/.test(item));
+          if (hasJsonArrayStr) {
+            for (const item of v) {
+              if (typeof item === 'string' && /^\s*\[/.test(item)) {
+                const t = item.trim();
+                let parsed = null;
+                try { parsed = JSON.parse(t); } catch (e) {}
+                if (parsed === null) {
+                  try { parsed = JSON.parse('[' + t + ']'); } catch (e) {}
+                }
+                if (Array.isArray(parsed)) {
+                  if (parsed.length > 0 && parsed.every((sub) => Array.isArray(sub))) {
+                    parsed.forEach((sub) => repairedRows.push(sub));
+                  } else {
+                    repairedRows.push(parsed);
+                  }
+                  changed = true;
+                  continue;
+                }
+              }
+              repairedRows.push([item]);
+            }
+          } else {
+            // Plain 1D row like ["Header 1", "Header 2"] -> wrap as 1-row 2D matrix
+            repairedRows.push(v);
+            changed = true;
+          }
+        } else {
+          for (const row of v) {
+            if (Array.isArray(row) && row.length === 1 && typeof row[0] === 'string' && /^\s*\[/.test(row[0])) {
+              const t = row[0].trim();
+              let parsed = null;
+              try { parsed = JSON.parse(t); } catch (e) {}
+              if (parsed === null) {
+                try { parsed = JSON.parse('[' + t + ']'); } catch (e) {}
+              }
+              if (Array.isArray(parsed)) {
+                if (parsed.length > 0 && parsed.every((sub) => Array.isArray(sub))) {
+                  parsed.forEach((sub) => repairedRows.push(sub));
+                } else {
+                  repairedRows.push(parsed);
+                }
+                changed = true;
+                continue;
+              }
+            }
+            repairedRows.push(Array.isArray(row) ? row : [row]);
+          }
+        }
+
+        if (changed || repairedRows.length > 0) {
+          params.values = repairedRows;
+        }
+      }
+    }
+    return params;
+  }
+
   function withTimeout(promise, ms, label) {
     return new Promise((resolve, reject) => {
       let settled = false;
@@ -670,7 +758,7 @@
             if (!cmd) return { success: false, error: 'Command name is required.' };
             const t = resolved.target;
             const raw = await withTimeout(
-              t.api.execute(cmd, plainObject(args.params)),
+              t.api.execute(cmd, normalizeCraftCommandParams(cmd, args.params)),
               RPC_TIMEOUT_MS,
               `${t.prefix}.execute(${cmd})`
             );
@@ -730,7 +818,7 @@
               if (/^file\.(new|open|newFromTemplate)$/i.test(cmd)) ranDocOpen = true;
               try {
                 const raw = await withTimeout(
-                  t.api.execute(cmd, plainObject(s.params)),
+                  t.api.execute(cmd, normalizeCraftCommandParams(cmd, s.params)),
                   RPC_TIMEOUT_MS,
                   `${t.prefix}.execute(${cmd})`
                 );

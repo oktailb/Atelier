@@ -1850,7 +1850,8 @@ try {
     app_id: 'wordcraft',
     steps: [
       { command: 'format.heading', params: { level: 1 } },
-      { command: 'edit.insertText', params: { text: 'Le Marchand de Choucroute' } }
+      { command: 'edit.insertText', params: { text: 'Le Marchand de Choucroute' } },
+      { command: 'range.setValues', params: { range: 'A1', values: '["Col1","Col2"],["Item",1200]' } }
     ]
   }, { autonomyLevel: 'assisted', disabledApps: [] });
   const shotRes = await l3Reg.executeTool('craft_screenshot', { app_id: 'wordcraft' }, { autonomyLevel: 'assisted', disabledApps: [] });
@@ -1892,7 +1893,9 @@ try {
     l3Reg.requiresConfirmation({ risk: 'mutate_app' }, 'autonomous_app', 'explorer', { app_id: 'wordcraft' }) === true &&
     cmdCatalog && cmdCatalog.success && cmdCatalog.mode === 'compact_catalog' && cmdCatalog.namespaces && Array.isArray(cmdCatalog.namespaces.edit) &&
     cmdRes && cmdRes.success && Array.isArray(cmdRes.commands) && cmdRes.commands.length === 1 && cmdRes.commands[0].id === 'edit.insertText' &&
-    batchRes && batchRes.success && batchRes.executed === 2 && craftExecCalls.length === 2 &&
+    batchRes && batchRes.success && batchRes.executed === 3 && craftExecCalls.length === 3 &&
+    Array.isArray(craftExecCalls[2].params.values) && craftExecCalls[2].params.values.length === 2 &&
+    craftExecCalls[2].params.values[0][0] === 'Col1' && craftExecCalls[2].params.values[1][1] === 1200 &&
     shotRes && shotRes.success && shotRes._vision_image && shotRes._vision_image.data === fakePngB64 &&
     !evilRegistered &&
     pmCallRes && pmCallRes.success && pmCallRes.result && pmCallRes.result.pong === 'hello' &&
