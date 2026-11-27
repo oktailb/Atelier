@@ -269,14 +269,20 @@ class LlmGateway {
                     continue;
                 }
                 if ($role === 'tool') {
-                    $anthMsgs[] = [
-                        'role'    => 'user',
-                        'content' => [[
-                            'type'        => 'tool_result',
-                            'tool_use_id' => (string)($m['tool_call_id'] ?? 'tool_1'),
-                            'content'     => $content
-                        ]]
+                    $block = [
+                        'type'        => 'tool_result',
+                        'tool_use_id' => (string)($m['tool_call_id'] ?? 'tool_1'),
+                        'content'     => $content
                     ];
+                    $lastIdx = count($anthMsgs) - 1;
+                    if ($lastIdx >= 0 && ($anthMsgs[$lastIdx]['role'] ?? '') === 'user'
+                        && is_array($anthMsgs[$lastIdx]['content'] ?? null)
+                        && (($anthMsgs[$lastIdx]['content'][0]['type'] ?? '') === 'tool_result')
+                    ) {
+                        $anthMsgs[$lastIdx]['content'][] = $block;
+                    } else {
+                        $anthMsgs[] = ['role' => 'user', 'content' => [$block]];
+                    }
                     continue;
                 }
                 if ($role === 'assistant' && !empty($m['tool_calls']) && is_array($m['tool_calls'])) {
@@ -289,7 +295,7 @@ class LlmGateway {
                             'type'  => 'tool_use',
                             'id'    => (string)($tc['id'] ?? ('tc_' . bin2hex(random_bytes(4)))),
                             'name'  => (string)($tc['name'] ?? ''),
-                            'input' => is_array($tc['arguments'] ?? null) ? $tc['arguments'] : new \stdClass()
+                            'input' => self::ensureJsonObject($tc['arguments'] ?? null)
                         ];
                     }
                     $anthMsgs[] = ['role' => 'assistant', 'content' => $blocks];
@@ -328,7 +334,7 @@ class LlmGateway {
                     $anthTools[] = [
                         'name'         => (string)$t['name'],
                         'description'  => (string)($t['description'] ?? ''),
-                        'input_schema' => is_array($t['parameters'] ?? null) ? $t['parameters'] : ['type' => 'object', 'properties' => new \stdClass()]
+                        'input_schema' => self::normalizeToolParameters($t['parameters'] ?? null, false)
                     ];
                 }
                 if (!empty($anthTools)) {
@@ -364,27 +370,36 @@ class LlmGateway {
                 }
                 if ($role === 'tool') {
                     $decodedResp = @json_decode($content, true);
-                    $contents[] = [
-                        'role'  => 'user',
-                        'parts' => [[
-                            'functionResponse' => [
-                                'name'     => (string)($m['name'] ?? 'tool'),
-                                'response' => is_array($decodedResp) ? $decodedResp : ['result' => $content]
-                            ]
-                        ]]
+                    $fnPart = [
+                        'functionResponse' => [
+                            'name'     => (string)($m['name'] ?? 'tool'),
+                            'response' => self::isAssocArray($decodedResp) ? $decodedResp : ['result' => $content]
+                        ]
                     ];
+                    $lastIdx = count($contents) - 1;
+                    if ($lastIdx >= 0 && ($contents[$lastIdx]['role'] ?? '') === 'user'
+                        && isset($contents[$lastIdx]['parts'][0]['functionResponse'])
+                    ) {
+                        $contents[$lastIdx]['parts'][] = $fnPart;
+                    } else {
+                        $contents[] = ['role' => 'user', 'parts' => [$fnPart]];
+                    }
                     continue;
                 }
                 if ($role === 'assistant' && !empty($m['tool_calls']) && is_array($m['tool_calls'])) {
                     $parts = [];
                     if ($content !== '') $parts[] = ['text' => $content];
                     foreach ($m['tool_calls'] as $tc) {
-                        $parts[] = [
+                        $fcPart = [
                             'functionCall' => [
                                 'name' => (string)($tc['name'] ?? ''),
-                                'args' => is_array($tc['arguments'] ?? null) ? $tc['arguments'] : new \stdClass()
+                                'args' => self::ensureJsonObject($tc['arguments'] ?? null)
                             ]
                         ];
+                        if (!empty($tc['thought_signature']) && is_string($tc['thought_signature'])) {
+                            $fcPart['thoughtSignature'] = $tc['thought_signature'];
+                        }
+                        $parts[] = $fcPart;
                     }
                     $contents[] = ['role' => 'model', 'parts' => $parts];
                     continue;
@@ -420,11 +435,15 @@ class LlmGateway {
                 $decls = [];
                 foreach ($tools as $t) {
                     if (!is_array($t) || empty($t['name'])) continue;
-                    $decls[] = [
+                    $decl = [
                         'name'        => (string)$t['name'],
-                        'description' => (string)($t['description'] ?? ''),
-                        'parameters'  => is_array($t['parameters'] ?? null) ? $t['parameters'] : ['type' => 'object', 'properties' => new \stdClass()]
+                        'description' => (string)($t['description'] ?? '')
                     ];
+                    $normParams = self::normalizeToolParameters($t['parameters'] ?? null, true);
+                    if ($normParams !== null) {
+                        $decl['parameters'] = $normParams;
+                    }
+                    $decls[] = $decl;
                 }
                 if (!empty($decls)) {
                     $body['tools'] = [['functionDeclarations' => $decls]];
@@ -464,7 +483,7 @@ class LlmGateway {
                         'type'     => 'function',
                         'function' => [
                             'name'      => (string)($tc['name'] ?? ''),
-                            'arguments' => json_encode(is_array($tc['arguments'] ?? null) ? $tc['arguments'] : new \stdClass(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+                            'arguments' => json_encode(self::ensureJsonObject($tc['arguments'] ?? null), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
                         ]
                     ];
                 }
@@ -503,7 +522,7 @@ class LlmGateway {
                     'function' => [
                         'name'        => (string)$t['name'],
                         'description' => (string)($t['description'] ?? ''),
-                        'parameters'  => is_array($t['parameters'] ?? null) ? $t['parameters'] : ['type' => 'object', 'properties' => new \stdClass()]
+                        'parameters'  => self::normalizeToolParameters($t['parameters'] ?? null, false)
                     ]
                 ];
             }
@@ -569,14 +588,18 @@ class LlmGateway {
             $toolCalls = [];
             foreach ($parts as $idx => $p) {
                 if (!is_array($p)) continue;
-                if (isset($p['text'])) {
+                if (isset($p['text']) && empty($p['thought'])) {
                     $textParts[] = (string)$p['text'];
                 } elseif (!empty($p['functionCall']) && is_array($p['functionCall'])) {
-                    $toolCalls[] = [
+                    $call = [
                         'id'        => 'gcall_' . $idx . '_' . bin2hex(random_bytes(3)),
                         'name'      => (string)($p['functionCall']['name'] ?? ''),
                         'arguments' => is_array($p['functionCall']['args'] ?? null) ? $p['functionCall']['args'] : []
                     ];
+                    if (!empty($p['thoughtSignature']) && is_string($p['thoughtSignature'])) {
+                        $call['thought_signature'] = $p['thoughtSignature'];
+                    }
+                    $toolCalls[] = $call;
                 }
             }
             return [
@@ -619,6 +642,82 @@ class LlmGateway {
             ],
             'usage'   => $json['usage'] ?? null
         ];
+    }
+
+    private static function isAssocArray($val): bool {
+        if (!is_array($val) || empty($val)) return false;
+        return array_keys($val) !== range(0, count($val) - 1);
+    }
+
+    /**
+     * Ensures PHP empty arrays `[]` serialize as JSON objects `{}` instead of JSON lists `[]`.
+     */
+    private static function ensureJsonObject($val) {
+        if ($val instanceof \stdClass) return $val;
+        if (self::isAssocArray($val)) return $val;
+        return new \stdClass();
+    }
+
+    /**
+     * Recursively normalizes JSON Schema tool parameter objects so `properties` never encodes as `[]`.
+     * For Google Gemini, omits `parameters` on zero-argument functions and strips unsupported schema keys.
+     */
+    public static function normalizeToolParameters($params, bool $forGemini = false, bool $isRoot = true) {
+        if (!is_array($params) || empty($params)) {
+            return $forGemini && $isRoot ? null : ['type' => 'object', 'properties' => new \stdClass()];
+        }
+
+        $out = [];
+        $geminiDrop = ['$schema', 'additionalProperties', 'default', 'title', '$defs', 'definitions', 'examples'];
+        foreach ($params as $k => $v) {
+            if ($forGemini && in_array((string)$k, $geminiDrop, true)) {
+                continue;
+            }
+            if ($k === 'properties') {
+                if (!is_array($v) || empty($v)) {
+                    $out['properties'] = new \stdClass();
+                } else {
+                    $normProps = [];
+                    foreach ($v as $propName => $propSchema) {
+                        $normProps[(string)$propName] = is_array($propSchema)
+                            ? self::normalizeToolParameters($propSchema, $forGemini, false)
+                            : $propSchema;
+                    }
+                    $out['properties'] = empty($normProps) ? new \stdClass() : $normProps;
+                }
+                continue;
+            }
+            if ($k === 'items' && is_array($v)) {
+                $out['items'] = self::normalizeToolParameters($v, $forGemini, false);
+                continue;
+            }
+            if ($k === 'required' && is_array($v)) {
+                $req = array_values(array_filter(array_map('strval', $v), function ($s) { return $s !== ''; }));
+                if (!empty($req)) {
+                    $out['required'] = $req;
+                }
+                continue;
+            }
+            $out[$k] = $v;
+        }
+
+        if ($isRoot) {
+            if (empty($out['type'])) {
+                $out['type'] = 'object';
+            }
+            if (($out['type'] ?? '') === 'object') {
+                $hasProps = isset($out['properties']) && is_array($out['properties']) && !empty($out['properties']);
+                if (!$hasProps) {
+                    if ($forGemini) {
+                        // Gemini v1beta FunctionDeclaration requires omitting `parameters` for zero-arg tools
+                        return null;
+                    }
+                    $out['properties'] = new \stdClass();
+                }
+            }
+        }
+
+        return $out;
     }
 
     public static function extractDiscoveredModels(string $type, array $json): array {

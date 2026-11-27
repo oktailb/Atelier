@@ -2823,6 +2823,45 @@ HTACCESS;
             'models' => [['name' => 'llama3.2:latest'], ['name' => 'qwen2.5-coder:7b']]
         ]);
 
+        // Regression test: PHP json_decode turns empty `{}` into `[]`; verify Gemini/OpenAI/Anthropic never emit `"properties":[]` or `"args":[]`
+        $sampleTools = [
+            ['name' => 'os_list_windows', 'description' => 'List windows', 'parameters' => ['type' => 'object', 'properties' => []]],
+            ['name' => 'vfs_list_dir', 'description' => 'List dir', 'parameters' => ['type' => 'object', 'properties' => ['dir' => ['type' => 'string']], 'additionalProperties' => false]]
+        ];
+        $multiTurnMsgs = [
+            ['role' => 'user', 'content' => 'Check desktop'],
+            ['role' => 'assistant', 'content' => '', 'tool_calls' => [
+                ['id' => 'c1', 'name' => 'os_list_windows', 'arguments' => [], 'thought_signature' => 'sig_abc'],
+                ['id' => 'c2', 'name' => 'vfs_list_dir', 'arguments' => ['dir' => '']]
+            ]],
+            ['role' => 'tool', 'tool_call_id' => 'c1', 'name' => 'os_list_windows', 'content' => '[UNTRUSTED_TOOL_OUTPUT]{"windows":[]}[/UNTRUSTED_TOOL_OUTPUT]'],
+            ['role' => 'tool', 'tool_call_id' => 'c2', 'name' => 'vfs_list_dir', 'content' => '[UNTRUSTED_TOOL_OUTPUT]{"files":[]}[/UNTRUSTED_TOOL_OUTPUT]']
+        ];
+        $gemReq = \SimpleGallery\Kernel\AI\LlmGateway::buildProviderRequest('gemini', 'https://generativelanguage.googleapis.com', 'k', 'gemini-2.5-flash', $multiTurnMsgs, $sampleTools);
+        $gemJson = json_encode($gemReq['body'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $oaReq = \SimpleGallery\Kernel\AI\LlmGateway::buildProviderRequest('openai_compat', 'https://api.openai.com/v1', 'k', 'gpt-4o-mini', $multiTurnMsgs, $sampleTools);
+        $oaJson = json_encode($oaReq['body'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $anthReq = \SimpleGallery\Kernel\AI\LlmGateway::buildProviderRequest('anthropic', 'https://api.anthropic.com', 'k', 'claude-sonnet-4', $multiTurnMsgs, $sampleTools);
+        $anthJson = json_encode($anthReq['body'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $gemDecls = $gemReq['body']['tools'][0]['functionDeclarations'] ?? [];
+        $gemToolTurnParts = $gemReq['body']['contents'][2]['parts'] ?? [];
+
+        $this->assert("Phase E: Normalisation JSON Schema outils (Gemini omet parameters vides, args/properties jamais encodés en [], fusion tool_results)",
+            strpos($gemJson, '"properties":[]') === false &&
+            strpos($gemJson, '"args":[]') === false &&
+            strpos($gemJson, '"args":{}') !== false &&
+            strpos($gemJson, '"thoughtSignature":"sig_abc"') !== false &&
+            strpos($gemJson, 'additionalProperties') === false &&
+            !array_key_exists('parameters', $gemDecls[0] ?? ['parameters' => 1]) &&
+            isset($gemDecls[1]['parameters']['properties']['dir']) &&
+            count($gemToolTurnParts) === 2 &&
+            strpos($oaJson, '"properties":{}') !== false &&
+            strpos($oaJson, '"properties":[]') === false &&
+            strpos($oaJson, '"arguments":"{}"') !== false &&
+            strpos($anthJson, '"properties":{}') !== false &&
+            strpos($anthJson, '"input":{}') !== false
+        );
+
         $this->assert("Phase E (Lot 1): Agent IA — CSRF, chiffrement AES-256-GCM des clés, isolation inter-utilisateurs, anti-SSRF/metadata & normalisation multi-LLM",
             $all_ai_csrf &&
             ($ai_guest_403['status'] ?? 0) === 403 &&
