@@ -237,16 +237,49 @@ class TrashAndVersioningManager {
             return ['success' => false, 'status' => 400, 'error' => 'Invalid restore destination.'];
         }
 
+        $baseName = basename($origRel);
+        if ($baseName === '' || $baseName[0] === '.') {
+            return ['success' => false, 'status' => 403, 'error' => 'Forbidden restore filename.'];
+        }
+        if (empty($meta['is_dir'])) {
+            $ext = strtolower(pathinfo($baseName, PATHINFO_EXTENSION));
+            if (\SimpleGallery\Kernel\Media\FormatRegistry::isForbiddenExtension($ext) || \SimpleGallery\Kernel\Media\FormatRegistry::hasForbiddenDoubleExtension($baseName)) {
+                return ['success' => false, 'status' => 403, 'error' => 'Forbidden restore file type.'];
+            }
+        }
+
         $parentRel = strpos($origRel, '/') !== false ? dirname($origRel) : '';
         $parentAbs = PathValidator::sanitizePath($parentRel, $mediaDir, false);
         if (!$parentAbs) {
             return ['success' => false, 'status' => 403, 'error' => 'Restore destination outside sandbox.'];
         }
+
+        // Re-verify write permissions & folder visibility at restore time (prevents post-revocation restore)
+        if (!$isAdmin) {
+            if (!PermissionsManager::hasPermission('can_upload', $mediaDir, $parentRel)) {
+                return ['success' => false, 'status' => 403, 'error' => 'Write permission revoked on restore destination.'];
+            }
+            if (is_dir($parentAbs) && !DotfileManager::isDirAccessible($parentAbs, $mediaDir)) {
+                return ['success' => false, 'status' => 403, 'error' => 'Access denied on restore destination.'];
+            }
+        }
+
+        // Enforce personal disk quota when restoring inside `users/<username>`
+        if (preg_match('#^users/([^/]+)(?:/|$)#i', $origRel, $um)) {
+            $owner = \SimpleGallery\Kernel\Auth\UserManager::findByUsername($projectRoot, $um[1]);
+            if ($owner && (int)($owner['quota_bytes'] ?? 0) > 0) {
+                $qinfo = \SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo($projectRoot, $mediaDir, $owner);
+                $restoreBytes = max(0, (int)($meta['size_bytes'] ?? (is_file($payloadPath) ? @filesize($payloadPath) : 0)));
+                if (($qinfo['used_bytes'] + $restoreBytes) > $qinfo['quota_bytes']) {
+                    return ['success' => false, 'status' => 413, 'error' => 'Disk quota exceeded: unable to restore item from trash.'];
+                }
+            }
+        }
+
         if (!is_dir($parentAbs)) {
             @mkdir($parentAbs, 0755, true);
         }
 
-        $baseName = basename($origRel);
         $destAbs = $parentAbs . '/' . $baseName;
         if (file_exists($destAbs)) {
             $ext = pathinfo($baseName, PATHINFO_EXTENSION);
@@ -404,6 +437,20 @@ class TrashAndVersioningManager {
         $bakPath = $bucketDir . '/' . basename((string)$match['bak_file']);
         if (!is_file($bakPath)) {
             return ['success' => false, 'status' => 404, 'error' => 'Version backup missing on disk.'];
+        }
+
+        // Enforce personal disk quota delta when restoring a larger version inside `users/<username>`
+        if (preg_match('#^users/([^/]+)(?:/|$)#i', $norm, $um)) {
+            $owner = \SimpleGallery\Kernel\Auth\UserManager::findByUsername($projectRoot, $um[1]);
+            if ($owner && (int)($owner['quota_bytes'] ?? 0) > 0) {
+                $qinfo = \SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo($projectRoot, $mediaDir, $owner);
+                $curSize = is_file($absTarget) ? (int)@filesize($absTarget) : 0;
+                $bakSize = (int)@filesize($bakPath);
+                $delta = max(0, $bakSize - $curSize);
+                if (($qinfo['used_bytes'] + $delta) > $qinfo['quota_bytes']) {
+                    return ['success' => false, 'status' => 413, 'error' => 'Disk quota exceeded: unable to restore file version.'];
+                }
+            }
         }
 
         // Non-destructive: snapshot current state before restoring older revision

@@ -217,8 +217,12 @@ class S3StorageDriver implements StorageDriverInterface {
         $signed = $this->signRequest($method, $target['host'], $target['uri'], $query, $payloadHash, $extraHeaders);
         $url = "{$target['scheme']}://{$target['host']}{$target['uri']}" . ($signed['canonical_query'] !== '' ? ('?' . $signed['canonical_query']) : '');
 
-        if (!$this->allowPrivateLan && UrlValidator::resolveAndValidateUrl($url) === null) {
-            throw new \RuntimeException('S3 endpoint blocked by SSRF policy (enable allow_private_lan for LAN MinIO).');
+        $validated = null;
+        if (!$this->allowPrivateLan) {
+            $validated = UrlValidator::resolveAndValidateUrl($url);
+            if ($validated === null) {
+                throw new \RuntimeException('S3 endpoint blocked by SSRF policy (enable allow_private_lan for LAN MinIO).');
+            }
         }
         if (!function_exists('curl_init')) {
             return ['status' => 0, 'body' => '', 'error' => 'cURL extension required.'];
@@ -230,6 +234,15 @@ class S3StorageDriver implements StorageDriverInterface {
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
         curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+        if (defined('CURLPROTO_HTTP') && defined('CURLPROTO_HTTPS')) {
+            curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+        }
+        if (is_array($validated) && !empty($validated['ips'][0]) && !filter_var($validated['host'], FILTER_VALIDATE_IP) && defined('CURLOPT_RESOLVE')) {
+            $rip = (strpos($validated['ips'][0], ':') !== false) ? "[{$validated['ips'][0]}]" : $validated['ips'][0];
+            curl_setopt($ch, CURLOPT_RESOLVE, ["{$validated['host']}:{$validated['port']}:{$rip}"]);
+        }
         curl_setopt($ch, CURLOPT_HTTPHEADER, $signed['headers']);
         if ($method === 'HEAD') {
             curl_setopt($ch, CURLOPT_NOBODY, true);

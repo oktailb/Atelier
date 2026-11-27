@@ -444,9 +444,10 @@ class StandaloneWebAppManifestSynthesizer {
             return $html_content;
         }
         // Replace quoted or unquoted attribute/JS references to `/<prefix>/`
+        $escapedTarget = str_replace(['\\', '$'], ['\\\\', '\\$'], $cleanTarget);
         $rewritten = preg_replace(
             '/(["\'=,\(\s])' . preg_quote($cleanBase, '/') . '/i',
-            '$1' . $cleanTarget,
+            '$1' . $escapedTarget,
             $html_content
         );
         if (!is_string($rewritten)) {

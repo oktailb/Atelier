@@ -190,6 +190,7 @@ class InstanceBackupService {
             if ($item === '.' || $item === '..') continue;
             if (in_array($item, $skipDirs, true)) continue;
             $abs = $dir . '/' . $item;
+            if (is_link($abs)) continue;
             $arc = $arcPrefix . '/' . $item;
             if (is_dir($abs)) {
                 self::addDirectoryRecursive($abs, $arc, $skipDirs, $addFile);

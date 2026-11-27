@@ -541,17 +541,17 @@
         if (json.success) {
           input.value = '';
           if (msgEl) {
-            msgEl.innerHTML = '<div class="admin-success-msg">✅ ' + (json.message || this.t('admin.password_changed_success')) + '</div>';
+            msgEl.innerHTML = '<div class="admin-success-msg">✅ ' + this.escapeHtml(json.message || this.t('admin.password_changed_success')) + '</div>';
             setTimeout(() => { msgEl.innerHTML = ''; }, 4000);
           }
         } else {
           if (msgEl) {
-            msgEl.innerHTML = '<div class="admin-error-msg">❌ ' + (json.error || this.t('admin.password_change_error')) + '</div>';
+            msgEl.innerHTML = '<div class="admin-error-msg">❌ ' + this.escapeHtml(json.error || this.t('admin.password_change_error')) + '</div>';
           }
         }
       } catch (err) {
         if (msgEl) {
-          msgEl.innerHTML = `<div class="admin-error-msg">❌ ${this.t('admin.password_change_error')}: ${err.message}</div>`;
+          msgEl.innerHTML = `<div class="admin-error-msg">❌ ${this.escapeHtml(this.t('admin.password_change_error'))}: ${this.escapeHtml(err && err.message ? err.message : '')}</div>`;
         }
       }
     }
@@ -956,7 +956,7 @@
         }
       } catch (err) {
         if (reportContainer) {
-          reportContainer.innerHTML = `<div class="admin-error-msg">❌ ${this.t('settings.tests_error')}: ${err.message}</div>`;
+          reportContainer.innerHTML = `<div class="admin-error-msg">❌ ${this.escapeHtml(this.t('settings.tests_error'))}: ${this.escapeHtml(err && err.message ? err.message : '')}</div>`;
         }
       } finally {
         this.state.isTesting = false;

@@ -186,6 +186,11 @@ class StorageActions {
                 curl_setopt($ch, CURLOPT_POST, true);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+                if (defined('CURLPROTO_HTTPS')) {
+                    curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
+                }
                 curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postFields));
                 $resp = curl_exec($ch);
                 $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -244,7 +249,7 @@ class StorageActions {
                 ? $_FILES['chunk']['tmp_name']
                 : (isset($_FILES['file']['tmp_name']) && is_string($_FILES['file']['tmp_name']) ? $_FILES['file']['tmp_name'] : null);
             $rawData = ($tmpFile === null && isset($in['chunk_base64'])) ? base64_decode((string)$in['chunk_base64'], true) : null;
-            $res = ChunkedUploadManager::storeChunk($project_root, $uploadId, $chunkIndex, $tmpFile, is_string($rawData) ? $rawData : null);
+            $res = ChunkedUploadManager::storeChunk($project_root, $uploadId, $chunkIndex, $tmpFile, is_string($rawData) ? $rawData : null, $base_dir);
             return ['status' => $res['status'], 'data' => $res];
         }
 
@@ -430,7 +435,7 @@ class StorageActions {
             $uid = $curUser ? (int)$curUser['id'] : null;
             return ['status' => 200, 'data' => [
                 'success' => true,
-                'stats'   => JobQueueManager::getStats($project_root),
+                'stats'   => JobQueueManager::getStats($project_root, $uid, $isAdmin),
                 'jobs'    => JobQueueManager::listJobs($project_root, $uid, $isAdmin, 50)
             ]];
         }
@@ -441,6 +446,7 @@ class StorageActions {
             }
             $isAdmin = AuthManager::isAdminLoggedIn();
             $curUser = AuthManager::getCurrentUser();
+            $uid = $curUser ? (int)$curUser['id'] : null;
             $jobType = strtolower(trim((string)($in['job_type'] ?? '')));
             if (in_array($jobType, JobQueueManager::ADMIN_ONLY_TYPES, true) && !$isAdmin) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
@@ -449,14 +455,57 @@ class StorageActions {
             if (isset($in['dir']) && !isset($payload['dir'])) {
                 $payload['dir'] = (string)$in['dir'];
             }
+            if (isset($in['file']) && !isset($payload['file'])) {
+                $payload['file'] = (string)$in['file'];
+            }
             if (isset($in['include_media']) && !isset($payload['include_media'])) {
                 $payload['include_media'] = !empty($in['include_media']);
             }
+
+            // Enforce strict read ACLs on target dir/file before enqueuing background jobs (anti-IDOR)
+            if (in_array($jobType, ['generate_thumbnails', 'build_zip_archive'], true)) {
+                $reqDir = trim(str_replace('\\', '/', (string)($payload['dir'] ?? '')), '/');
+                if ($reqDir === '') {
+                    if (!$isAdmin) {
+                        return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+                    }
+                    $payload['dir'] = '';
+                } else {
+                    $targetAbs = PathValidator::sanitizeDirectory($reqDir, $base_dir);
+                    if (!$targetAbs || !is_dir($targetAbs)) {
+                        return ['status' => 404, 'data' => ['success' => false, 'error' => __t('api.err_folder_not_found')]];
+                    }
+                    if (!$isAdmin && !DotfileManager::isDirAccessible($targetAbs, $base_dir)) {
+                        return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+                    }
+                    $payload['dir'] = PathValidator::getRelativePath($targetAbs, $base_dir);
+                }
+            } elseif ($jobType === 'video_preview') {
+                $reqFile = trim(str_replace('\\', '/', (string)($payload['file'] ?? '')), '/');
+                $targetFile = PathValidator::sanitizeFile($reqFile, $base_dir);
+                if (!$targetFile || !is_file($targetFile)) {
+                    return ['status' => 404, 'data' => ['success' => false, 'error' => __t('api.err_file_not_found')]];
+                }
+                if (!$isAdmin && !DotfileManager::isDirAccessible(dirname($targetFile), $base_dir)) {
+                    return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+                }
+                $payload['file'] = PathValidator::getRelativePath($targetFile, $base_dir);
+            }
+
+            // Prevent queue-flooding DoS by non-admin users
+            if (!$isAdmin && $uid !== null) {
+                $userStats = JobQueueManager::getStats($project_root, $uid, false);
+                if (((int)$userStats['pending'] + (int)$userStats['running']) >= 15) {
+                    return ['status' => 429, 'data' => ['success' => false, 'error' => 'Too many active background jobs. Please wait for current jobs to finish.']];
+                }
+            }
+
+            $payload['_owner_is_admin'] = $isAdmin;
             $res = JobQueueManager::enqueue(
                 $project_root,
                 $jobType,
                 $payload,
-                $curUser ? (int)$curUser['id'] : null,
+                $uid,
                 (int)($in['priority'] ?? 50)
             );
             return ['status' => (int)($res['status'] ?? 200), 'data' => $res];
@@ -542,6 +591,8 @@ class StorageActions {
         if (!headers_sent()) {
             header('Content-Type: text/html; charset=utf-8');
             header('Cache-Control: no-store');
+            header('X-Content-Type-Options: nosniff');
+            header('Referrer-Policy: no-referrer');
         }
         echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '</title>'
             . '<style>body{font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#f8fafc;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;text-align:center}.card{max-width:420px;padding:24px;border-radius:14px;border:1px solid rgba(255,255,255,0.14);background:rgba(30,41,59,0.9)}</style></head><body>'

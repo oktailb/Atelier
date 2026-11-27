@@ -78,9 +78,9 @@ class SecurityManager {
         $content = preg_replace('/<script\b[^>]*>([\s\S]*?)<\/script>/is', '', $content);
         $content = preg_replace('/<script\b[^>]*\/>/is', '', $content);
 
-        // 3. Remove iframe tags
-        $content = preg_replace('/<iframe\b[^>]*>([\s\S]*?)<\/iframe>/is', '', $content);
-        $content = preg_replace('/<iframe\b[^>]*\/>/is', '', $content);
+        // 3. Remove iframe, object & embed tags
+        $content = preg_replace('/<(iframe|object|embed)\b[^>]*>([\s\S]*?)<\/\1>/is', '', $content);
+        $content = preg_replace('/<(iframe|object|embed)\b[^>]*\/?>/is', '', $content);
 
         // 4. Remove foreignObject tags
         $content = preg_replace('/<foreignobject\b[^>]*>([\s\S]*?)<\/foreignobject>/is', '', $content);
@@ -89,8 +89,8 @@ class SecurityManager {
         // 5. Remove on* event handlers
         $content = preg_replace('/\bon[a-zA-Z0-9_-]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $content);
 
-        // 6. Remove javascript: URIs in href and xlink:href
-        $content = preg_replace('/(href|xlink:href)\s*=\s*["\']\s*javascript:[^"\']*["\']/is', '$1="#"', $content);
+        // 6. Remove javascript:, vbscript:, and active data: URIs in href and xlink:href
+        $content = preg_replace('/(href|xlink:href)\s*=\s*["\']\s*(?:javascript|vbscript|data\s*:\s*(?:text\/html|application\/xhtml|image\/svg))[^"\']*["\']/is', '$1="#"', $content);
 
         $result = @file_put_contents($filepath, $content, LOCK_EX);
         return ($result !== false);

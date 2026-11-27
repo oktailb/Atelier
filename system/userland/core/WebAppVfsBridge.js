@@ -744,11 +744,14 @@
       }
       if (!matchedInstance || !matchedIframe) return;
 
-      // For same-origin apps, strictly verify origin matches our own origin
-      const targetOrigin = event.origin && event.origin !== 'null' ? event.origin : window.location.origin;
-      if (this.isSameOriginIframe(matchedIframe) && window.location && event.origin && event.origin !== window.location.origin) {
+      // Strictly require same-origin (defeats cross-origin iframe navigation hijacking)
+      const expectedOrigin = (window.location && window.location.origin && window.location.origin !== 'null')
+        ? window.location.origin
+        : null;
+      if (!expectedOrigin || !event.origin || event.origin !== expectedOrigin) {
         return;
       }
+      const targetOrigin = expectedOrigin;
 
       if (isCloseMsg) {
         if (typeof matchedInstance.requestCloseFromApp === 'function') {

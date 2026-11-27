@@ -371,8 +371,23 @@ if ($ext_parsed !== null) {
             echo "File not found.";
             exit;
         }
+        // Re-verify resolved extension AFTER driver metadata inference (e.g. Google Drive files without filename extension)
+        if (\SimpleGallery\Kernel\Media\FormatRegistry::isForbiddenExtension($effective_ext)) {
+            http_response_code(403);
+            header('Content-Type: text/plain; charset=utf-8');
+            header('X-Content-Type-Options: nosniff');
+            echo "403 Forbidden: Access denied.";
+            exit;
+        }
         if ($content_type === '' || $content_type === 'application/octet-stream') {
             $content_type = get_full_mime_type($effective_ext);
+        }
+        $is_active_web_mime = (bool)preg_match('/^\s*(text\/html|application\/xhtml\+xml|text\/javascript|application\/(?:x-)?javascript|text\/xml|application\/xml)/i', $content_type);
+        if ($is_active_web_mime) {
+            // Never render untrusted remote HTML/JS/XML inline on Atelier's origin (prevents Stored XSS via shared cloud files)
+            $content_type = 'application/octet-stream';
+            $is_dl = true;
+            header("Content-Security-Policy: default-src 'none'; sandbox;");
         }
         header('Content-Type: ' . $content_type);
         header('Content-Disposition: ' . ($is_dl ? 'attachment' : 'inline') . '; filename="' . rawurlencode($dl_name) . '"');
@@ -380,7 +395,7 @@ if ($ext_parsed !== null) {
         header('Cache-Control: private, no-store, max-age=0');
         header('X-Content-Type-Options: nosniff');
         if ($effective_ext === 'svg' || stripos($content_type, 'svg') !== false) {
-            header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; script-src 'none';");
+            header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; sandbox;");
         }
         echo $content;
         exit;

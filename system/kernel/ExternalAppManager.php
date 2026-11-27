@@ -21,7 +21,9 @@ use SimpleGallery\Kernel\Security\UrlValidator;
 
 class ExternalAppManager {
 
-    private const MAX_ZIP_BYTES = 262144000; // 250 MB safety cap
+    private const MAX_ZIP_BYTES = 262144000; // 250 MB safety cap (compressed)
+    private const MAX_UNCOMPRESSED_BYTES = 536870912; // 512 MB safety cap (anti-Zip-Bomb)
+    private const MAX_SINGLE_ENTRY_BYTES = 134217728; // 128 MB max per extracted entry
     private const MAX_ZIP_ENTRIES = 5000;
 
     /** Server-side executable extensions strictly forbidden inside extracted web app bundles */
@@ -255,9 +257,20 @@ class ExternalAppManager {
 
         // Security audit of all ZIP entries before extracting a single byte
         $topSegments = [];
+        $declaredUncompressed = 0;
         for ($i = 0; $i < $numFiles; $i++) {
             $stat = $zip->statIndex($i);
             if (!is_array($stat)) continue;
+            $entrySize = max(0, (int)($stat['size'] ?? 0));
+            if ($entrySize > self::MAX_SINGLE_ENTRY_BYTES) {
+                $zip->close();
+                return ['success' => false, 'status' => 400, 'error' => 'Archive entry exceeds maximum allowed uncompressed size (Zip-Bomb blocked).'];
+            }
+            $declaredUncompressed += $entrySize;
+            if ($declaredUncompressed > self::MAX_UNCOMPRESSED_BYTES) {
+                $zip->close();
+                return ['success' => false, 'status' => 400, 'error' => 'Archive uncompressed size exceeds 512 MB safety limit (Zip-Bomb blocked).'];
+            }
             $name = str_replace('\\', '/', (string)($stat['name'] ?? ''));
             if ($name === '' || strpos($name, "\0") !== false) {
                 $zip->close();
@@ -284,9 +297,9 @@ class ExternalAppManager {
 
             if (substr($name, -1) !== '/') {
                 $bn = strtolower(basename($name));
-                if ($bn === '.user.ini') {
+                if (in_array($bn, ['.user.ini', '.htaccess', '.htpasswd'], true)) {
                     $zip->close();
-                    return ['success' => false, 'status' => 400, 'error' => 'Forbidden configuration file (.user.ini) inside archive.'];
+                    return ['success' => false, 'status' => 400, 'error' => "Forbidden web server configuration file ({$bn}) inside archive."];
                 }
                 $ext = strtolower(pathinfo($bn, PATHINFO_EXTENSION));
                 if (in_array($ext, self::FORBIDDEN_BUNDLE_EXTS, true)) {
@@ -307,7 +320,8 @@ class ExternalAppManager {
             return ['success' => false, 'status' => 500, 'error' => 'Failed to create temporary staging directory.'];
         }
 
-        // Extract safely entry by entry (never trust extractTo blindly)
+        // Extract safely entry by entry with real-time decompressed byte accounting (never trust ZIP header sizes alone)
+        $totalExtractedBytes = 0;
         for ($i = 0; $i < $numFiles; $i++) {
             $name = str_replace('\\', '/', (string)$zip->getNameIndex($i));
             if ($name === '' || strpos($name, '__MACOSX/') === 0) continue;
@@ -320,17 +334,32 @@ class ExternalAppManager {
             if (!is_dir($parent)) @mkdir($parent, 0755, true);
             $stream = $zip->getStream($zip->getNameIndex($i));
             if ($stream === false) continue;
-            $contents = stream_get_contents($stream);
-            fclose($stream);
-            if ($contents === false) continue;
-
-            // Sanitize any bundled .htaccess against PHP execution / dangerous directives
-            if (strtolower(basename($destPath)) === '.htaccess') {
-                if (preg_match('/\b(AddHandler|SetHandler|AddType\s+application\/x-httpd-php|php_value|php_flag|Options\s+\+?ExecCGI)\b/i', $contents)) {
-                    continue;
-                }
+            $outFp = @fopen($destPath, 'wb');
+            if (!$outFp) {
+                fclose($stream);
+                continue;
             }
-            @file_put_contents($destPath, $contents);
+            $entryBytes = 0;
+            $bombDetected = false;
+            while (!feof($stream)) {
+                $chunk = fread($stream, 65536);
+                if ($chunk === false || $chunk === '') break;
+                $len = strlen($chunk);
+                $entryBytes += $len;
+                $totalExtractedBytes += $len;
+                if ($entryBytes > self::MAX_SINGLE_ENTRY_BYTES || $totalExtractedBytes > self::MAX_UNCOMPRESSED_BYTES) {
+                    $bombDetected = true;
+                    break;
+                }
+                fwrite($outFp, $chunk);
+            }
+            fclose($outFp);
+            fclose($stream);
+            if ($bombDetected) {
+                $zip->close();
+                self::rrmdir($stagingDir);
+                return ['success' => false, 'status' => 400, 'error' => 'Archive exceeded maximum allowed uncompressed size during extraction (Zip-Bomb blocked).'];
+            }
         }
         $zip->close();
 
@@ -390,7 +419,9 @@ class ExternalAppManager {
         // Clean up older versions of the same app inside apps/external/ (never touches root apps/)
         $registry = self::loadRegistry($root);
         $prevFolder = (string)($registry[$appId]['folder'] ?? '');
-        if ($prevFolder !== '' && $prevFolder !== $safeFolder && is_dir($externalDir . '/' . $prevFolder)) {
+        if ($prevFolder !== '' && $prevFolder !== $safeFolder
+            && strpos($prevFolder, '/') === false && strpos($prevFolder, '\\') === false && strpos($prevFolder, '..') === false
+            && is_dir($externalDir . '/' . $prevFolder)) {
             self::rrmdir($externalDir . '/' . $prevFolder);
         }
 
@@ -459,7 +490,8 @@ class ExternalAppManager {
         $downloaded = false;
         $httpErr = '';
         for ($hop = 0; $hop < 6; $hop++) {
-            if (UrlValidator::resolveAndValidateUrl($currentUrl) === null) {
+            $validated = UrlValidator::resolveAndValidateUrl($currentUrl);
+            if ($validated === null) {
                 @unlink($tmpZip);
                 return ['success' => false, 'status' => 403, 'error' => 'Redirect target blocked by SSRF policy.'];
             }
@@ -468,24 +500,51 @@ class ExternalAppManager {
                 return ['success' => false, 'status' => 500, 'error' => 'Unable to open temporary download file.'];
             }
             $locationHeader = '';
+            $downloadedBytes = 0;
+            $sizeLimitExceeded = false;
             $ch = curl_init($currentUrl);
-            curl_setopt($ch, CURLOPT_FILE, $fp);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
             curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
             curl_setopt($ch, CURLOPT_TIMEOUT, 180);
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
             curl_setopt($ch, CURLOPT_USERAGENT, 'Atelier-WebOS/1.0');
+            if (defined('CURLPROTO_HTTP') && defined('CURLPROTO_HTTPS')) {
+                curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+            }
+            // Pin hostname -> validated public IP to defeat DNS-rebinding TOCTOU
+            $host = (string)$validated['host'];
+            $port = (int)$validated['port'];
+            $pinnedIp = (string)$validated['ips'][0];
+            if (!filter_var($host, FILTER_VALIDATE_IP) && defined('CURLOPT_RESOLVE')) {
+                $resolveIp = (strpos($pinnedIp, ':') !== false) ? "[{$pinnedIp}]" : $pinnedIp;
+                curl_setopt($ch, CURLOPT_RESOLVE, ["{$host}:{$port}:{$resolveIp}"]);
+            }
             curl_setopt($ch, CURLOPT_HEADERFUNCTION, function ($ch, $line) use (&$locationHeader) {
                 if (stripos($line, 'Location:') === 0) {
                     $locationHeader = trim(substr($line, 9));
                 }
                 return strlen($line);
             });
+            curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($ch, $chunk) use ($fp, &$downloadedBytes, &$sizeLimitExceeded) {
+                $len = strlen($chunk);
+                $downloadedBytes += $len;
+                if ($downloadedBytes > self::MAX_ZIP_BYTES) {
+                    $sizeLimitExceeded = true;
+                    return 0;
+                }
+                return (int)fwrite($fp, $chunk);
+            });
             $ok = curl_exec($ch);
             $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $cerr = (string)curl_error($ch);
             curl_close($ch);
             fclose($fp);
+
+            if ($sizeLimitExceeded) {
+                @unlink($tmpZip);
+                return ['success' => false, 'status' => 413, 'error' => 'Remote archive exceeds 250 MB safety cap.'];
+            }
 
             if ($code >= 300 && $code < 400 && $locationHeader !== '') {
                 $nextUrl = UrlValidator::resolveRedirectUrl($currentUrl, $locationHeader);

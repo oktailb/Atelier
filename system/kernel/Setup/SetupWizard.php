@@ -42,7 +42,10 @@ class SetupWizard {
                 }
             }
         } catch (\Throwable $e) {
-            // If DB cannot be queried yet, still allow diagnostics
+            // Fail-closed if an existing database could not be read (prevents transient SQLite lock unlocking /setup)
+            if (is_file($storageDir . '/atelier.sqlite') || is_file($storageDir . '/atelier_db/users.json')) {
+                return false;
+            }
         }
 
         return true;
@@ -94,47 +97,65 @@ class SetupWizard {
      * Strictly refuses execution (HTTP 403) if an admin already exists.
      */
     public static function completeSetup(string $projectRoot, string $mediaDir, array $input): array {
-        if (!self::isSetupRequired($projectRoot)) {
-            return ['success' => false, 'status' => 403, 'error' => 'Initial setup is already completed and locked.'];
+        $storageDir = ConfigStore::getStorageDir($projectRoot);
+        if (!is_dir($storageDir)) {
+            @mkdir($storageDir, 0755, true);
+        }
+        $lockFp = @fopen($storageDir . '/.setup.lock', 'c+');
+        if ($lockFp) {
+            @flock($lockFp, LOCK_EX);
         }
 
-        $username = strtolower(trim((string)($input['username'] ?? 'admin')));
-        $password = (string)($input['password'] ?? '');
-        $displayName = trim((string)($input['display_name'] ?? 'Administrator'));
-        $email = trim((string)($input['email'] ?? ''));
-        $publicBaseUrl = trim((string)($input['public_base_url'] ?? ''));
+        try {
+            if (!self::isSetupRequired($projectRoot)) {
+                return ['success' => false, 'status' => 403, 'error' => 'Initial setup is already completed and locked.'];
+            }
 
-        if (strlen($password) < 10) {
-            return ['success' => false, 'status' => 400, 'error' => 'SuperAdmin password must be at least 10 characters.'];
-        }
+            $username = strtolower(trim((string)($input['username'] ?? 'admin')));
+            $password = (string)($input['password'] ?? '');
+            $displayName = trim((string)($input['display_name'] ?? 'Administrator'));
+            $email = trim((string)($input['email'] ?? ''));
+            $publicBaseUrl = trim((string)($input['public_base_url'] ?? ''));
 
-        $created = UserManager::createUser($projectRoot, $mediaDir, [
-            'username'     => $username,
-            'password'     => $password,
-            'display_name' => $displayName !== '' ? $displayName : $username,
-            'email'        => $email,
-            'role'         => 'superadmin',
-            'is_active'    => true
-        ]);
+            if (strlen($password) < 10) {
+                return ['success' => false, 'status' => 400, 'error' => 'SuperAdmin password must be at least 10 characters.'];
+            }
 
-        if (empty($created['success'])) {
-            return $created;
-        }
-
-        if ($publicBaseUrl !== '' && preg_match('#^https?://#i', $publicBaseUrl)) {
-            AuthSettings::save($projectRoot, [
-                'public_base_url' => rtrim($publicBaseUrl, '/')
+            $created = UserManager::createUser($projectRoot, $mediaDir, [
+                'username'     => $username,
+                'password'     => $password,
+                'display_name' => $displayName !== '' ? $displayName : $username,
+                'email'        => $email,
+                'role'         => 'superadmin',
+                'is_active'    => true
             ]);
+
+            if (empty($created['success'])) {
+                return $created;
+            }
+
+            if ($publicBaseUrl !== '' && preg_match('#^https?://#i', $publicBaseUrl)
+                && !preg_match('/[\x00-\x1f\x7f]/', $publicBaseUrl)
+                && filter_var($publicBaseUrl, FILTER_VALIDATE_URL) !== false) {
+                AuthSettings::save($projectRoot, [
+                    'public_base_url' => rtrim($publicBaseUrl, '/')
+                ]);
+            }
+
+            AuditLogger::log($projectRoot, 'setup_wizard_complete', 'system', 'ok', [
+                'superadmin' => $username
+            ]);
+
+            return [
+                'success' => true,
+                'status'  => 200,
+                'user'    => $created['user'] ?? null
+            ];
+        } finally {
+            if ($lockFp) {
+                @flock($lockFp, LOCK_UN);
+                @fclose($lockFp);
+            }
         }
-
-        AuditLogger::log($projectRoot, 'setup_wizard_complete', 'system', 'ok', [
-            'superadmin' => $username
-        ]);
-
-        return [
-            'success' => true,
-            'status'  => 200,
-            'user'    => $created['user'] ?? null
-        ];
     }
 }

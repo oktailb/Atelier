@@ -90,13 +90,14 @@ class JobQueueManager {
         return array_map([self::class, 'formatJob'], $rows);
     }
 
-    public static function getStats(string $projectRoot): array {
+    public static function getStats(string $projectRoot, ?int $ownerUserId = null, bool $allForAdmin = true): array {
         $store = AtelierStore::forRoot($projectRoot);
+        $baseWhere = (!$allForAdmin && $ownerUserId !== null) ? ['owner_user_id' => $ownerUserId] : [];
         return [
-            'pending'   => $store->count('background_jobs', ['status' => 'pending']),
-            'running'   => $store->count('background_jobs', ['status' => 'running']),
-            'completed' => $store->count('background_jobs', ['status' => 'completed']),
-            'failed'    => $store->count('background_jobs', ['status' => 'failed'])
+            'pending'   => $store->count('background_jobs', array_merge($baseWhere, ['status' => 'pending'])),
+            'running'   => $store->count('background_jobs', array_merge($baseWhere, ['status' => 'running'])),
+            'completed' => $store->count('background_jobs', array_merge($baseWhere, ['status' => 'completed'])),
+            'failed'    => $store->count('background_jobs', array_merge($baseWhere, ['status' => 'failed']))
         ];
     }
 
@@ -163,7 +164,8 @@ class JobQueueManager {
         if (!is_array($payload)) $payload = [];
 
         try {
-            $result = self::executeJob($projectRoot, $mediaDir, $mediaTypes, $jobId, $type, $payload);
+            $ownerUid = isset($job['owner_user_id']) && $job['owner_user_id'] !== null ? (int)$job['owner_user_id'] : null;
+            $result = self::executeJob($projectRoot, $mediaDir, $mediaTypes, $jobId, $type, $payload, $ownerUid);
             $store->update('background_jobs', [
                 'status'       => 'completed',
                 'progress'     => 100,
@@ -186,8 +188,36 @@ class JobQueueManager {
         return self::formatJob($updated ?: $job);
     }
 
-    private static function executeJob(string $projectRoot, string $mediaDir, array $mediaTypes, int $jobId, string $type, array $payload): array {
+    private static function buildSafeTreeIterator(string $targetAbs, bool $skipRestrictedDirs): \RecursiveIteratorIterator {
+        $dirIter = new \RecursiveDirectoryIterator(
+            $targetAbs,
+            \FilesystemIterator::SKIP_DOTS
+        );
+        $filter = new \RecursiveCallbackFilterIterator(
+            $dirIter,
+            function (\SplFileInfo $current) use ($skipRestrictedDirs): bool {
+                if ($current->isLink()) {
+                    return false;
+                }
+                $bn = $current->getFilename();
+                if ($bn === '' || $bn[0] === '.') {
+                    return false;
+                }
+                if ($current->isDir() && $skipRestrictedDirs) {
+                    $p = $current->getPathname();
+                    if (file_exists($p . '/.private') || file_exists($p . '/.password') || strcasecmp($bn, 'private') === 0 || strcasecmp($bn, 'users') === 0) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        );
+        return new \RecursiveIteratorIterator($filter, \RecursiveIteratorIterator::LEAVES_ONLY);
+    }
+
+    private static function executeJob(string $projectRoot, string $mediaDir, array $mediaTypes, int $jobId, string $type, array $payload, ?int $ownerUserId = null): array {
         $store = AtelierStore::forRoot($projectRoot);
+        $ownerIsAdmin = ($ownerUserId === null) || !empty($payload['_owner_is_admin']);
 
         switch ($type) {
             case 'rebuild_file_index':
@@ -215,11 +245,9 @@ class JobQueueManager {
                 $thumbCache = ConfigStore::getStorageDir($projectRoot) . '/.thumbnails';
                 if (!is_dir($thumbCache)) @mkdir($thumbCache, 0755, true);
 
-                $iter = new \RecursiveIteratorIterator(
-                    new \RecursiveDirectoryIterator($targetAbs, \FilesystemIterator::SKIP_DOTS)
-                );
+                $iter = self::buildSafeTreeIterator($targetAbs, !$ownerIsAdmin);
                 foreach ($iter as $fInfo) {
-                    if (!$fInfo->isFile()) continue;
+                    if (!$fInfo->isFile() || $fInfo->isLink()) continue;
                     $bn = $fInfo->getFilename();
                     if ($bn[0] === '.') continue;
                     $ext = strtolower($fInfo->getExtension());
@@ -277,17 +305,23 @@ class JobQueueManager {
                     throw new \RuntimeException('Unable to open output ZIP archive.');
                 }
                 $count = 0;
+                $totalSourceBytes = 0;
+                $maxFiles = 10000;
+                $maxSourceBytes = 2147483648; // 2 GB cap per async ZIP job
                 $normRoot = rtrim(str_replace('\\', '/', $targetAbs), '/');
-                $iter = new \RecursiveIteratorIterator(
-                    new \RecursiveDirectoryIterator($targetAbs, \FilesystemIterator::SKIP_DOTS)
-                );
+                $iter = self::buildSafeTreeIterator($targetAbs, !$ownerIsAdmin);
                 foreach ($iter as $fInfo) {
-                    if (!$fInfo->isFile()) continue;
+                    if (!$fInfo->isFile() || $fInfo->isLink()) continue;
                     $p = str_replace('\\', '/', $fInfo->getPathname());
-                    if (strpos($p, '/.') !== false) continue;
                     $rel = ltrim(substr($p, strlen($normRoot)), '/');
+                    if ($rel === '' || strpos('/' . $rel, '/.') !== false) continue;
+                    $fSize = (int)$fInfo->getSize();
+                    if ($count >= $maxFiles || ($totalSourceBytes + $fSize) > $maxSourceBytes) {
+                        break;
+                    }
                     $zip->addFile($p, $rel);
                     $count++;
+                    $totalSourceBytes += $fSize;
                 }
                 $zip->close();
                 return [

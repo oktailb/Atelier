@@ -26,6 +26,7 @@ use SimpleGallery\Kernel\FS\PermissionsManager;
 use SimpleGallery\Kernel\FS\TrashAndVersioningManager;
 use SimpleGallery\Kernel\Media\FormatRegistry;
 use SimpleGallery\Kernel\Security\PathValidator;
+use SimpleGallery\Kernel\Security\SecurityManager;
 
 class WebDavServer {
 
@@ -290,8 +291,11 @@ class WebDavServer {
             ? $subRel
             : ($subRel === '' ? $matchedMount['rel_root'] : ($matchedMount['rel_root'] . '/' . $subRel));
 
-        // Verify public gallery folder ACLs (prevent reading locked/private dirs without access)
+        // Verify public gallery folder ACLs (prevent reading locked/private dirs or users/ homes via /dav/public/)
         if (!empty($matchedMount['is_public'])) {
+            if (strcasecmp($subRel, 'users') === 0 || stripos($subRel, 'users/') === 0) {
+                return ['kind' => 'forbidden', 'dav_path' => $davPath];
+            }
             $checkDir = is_dir($absTarget) ? $absTarget : dirname($absTarget);
             if (is_dir($checkDir) && !DotfileManager::isDirAccessible($checkDir, $mediaDir)) {
                 return ['kind' => 'forbidden', 'dav_path' => $davPath];
@@ -374,6 +378,7 @@ class WebDavServer {
                     foreach ($items as $item) {
                         if ($item === '.' || $item === '..' || $item[0] === '.') continue;
                         $childAbs = $abs . '/' . $item;
+                        if (is_link($childAbs)) continue;
                         // Hide system users/ inside public root if ever present
                         if (!empty($resolved['mount']['is_public']) && $resolved['sub_rel'] === '' && strtolower($item) === 'users') {
                             continue;
@@ -427,15 +432,20 @@ class WebDavServer {
         $mime = FormatRegistry::getMimeType($ext) ?: 'application/octet-stream';
         $etag = '"' . md5($abs . '|' . $size . '|' . $mtime) . '"';
 
+        $headers = [
+            'Content-Type'           => $mime,
+            'Content-Length'         => (string)$size,
+            'Last-Modified'          => gmdate('D, d M Y H:i:s', $mtime) . ' GMT',
+            'ETag'                   => $etag,
+            'X-Content-Type-Options' => 'nosniff'
+        ];
+        if (preg_match('/(svg|html|xhtml|xml|javascript)/i', $mime) || in_array($ext, ['svg', 'svgz', 'html', 'htm', 'xhtml', 'xml'], true)) {
+            $headers['Content-Security-Policy'] = "default-src 'none'; sandbox;";
+        }
+
         return [
             'status'    => 200,
-            'headers'   => [
-                'Content-Type'           => $mime,
-                'Content-Length'         => (string)$size,
-                'Last-Modified'          => gmdate('D, d M Y H:i:s', $mtime) . ' GMT',
-                'ETag'                   => $etag,
-                'X-Content-Type-Options' => 'nosniff'
-            ],
+            'headers'   => $headers,
             'body'      => '',
             'file_path' => $headOnly ? null : $abs
         ];
@@ -509,6 +519,9 @@ class WebDavServer {
 
         if (@file_put_contents($abs, $bodyBytes, LOCK_EX) === false) {
             return self::textResponse(500, 'Failed to write file.');
+        }
+        if ($ext === 'svg') {
+            SecurityManager::sanitizeSvgContent($abs);
         }
 
         CacheManager::invalidateDirCache(dirname($abs), $mediaDir, '.thumbnails');
@@ -593,6 +606,30 @@ class WebDavServer {
 
         if (!is_dir(dirname($dst['abs_target']))) {
             return self::textResponse(409, 'Destination parent collection missing.');
+        }
+
+        // Prevent moving/copying a collection into itself or a descendant (infinite recursion DoS)
+        $normSrcAbs = rtrim(str_replace('\\', '/', $src['abs_target']), '/');
+        $normDstAbs = rtrim(str_replace('\\', '/', $dst['abs_target']), '/');
+        if (is_dir($src['abs_target']) && ($normDstAbs === $normSrcAbs || strpos($normDstAbs . '/', $normSrcAbs . '/') === 0)) {
+            return self::textResponse(409, 'Cannot move or copy a collection into itself.');
+        }
+
+        // Enforce user disk quota when COPYing into `/dav/home/` or cross-mount MOVEing into `/dav/home/`
+        $needsQuotaCheck = !empty($dst['mount']['is_home']) && (!$isMove || empty($src['mount']['is_home']));
+        if ($needsQuotaCheck) {
+            $freshUser = UserManager::findById($projectRoot, (int)$user['id']);
+            if ($freshUser) {
+                $qinfo = UserManager::getUserQuotaInfo($projectRoot, $mediaDir, $freshUser);
+                if (!empty($qinfo['is_limited'])) {
+                    $srcBytes = self::computeTreeBytes($src['abs_target']);
+                    $existingDstBytes = file_exists($dst['abs_target']) ? self::computeTreeBytes($dst['abs_target']) : 0;
+                    $delta = max(0, $srcBytes - $existingDstBytes);
+                    if (((int)$qinfo['used_bytes'] + $delta) > (int)$qinfo['quota_bytes']) {
+                        return self::textResponse(507, 'Insufficient Storage: user disk quota exceeded.');
+                    }
+                }
+            }
         }
 
         $existed = file_exists($dst['abs_target']);
@@ -692,24 +729,40 @@ class WebDavServer {
     }
 
     private static function rrmdir(string $dir): void {
-        if (!is_dir($dir)) return;
+        if (!is_dir($dir) || is_link($dir)) return;
         foreach ((@scandir($dir) ?: []) as $item) {
             if ($item === '.' || $item === '..') continue;
             $p = $dir . '/' . $item;
-            if (is_dir($p)) self::rrmdir($p);
+            if (is_dir($p) && !is_link($p)) self::rrmdir($p);
             else @unlink($p);
         }
         @rmdir($dir);
     }
 
     private static function rcopy(string $src, string $dst): void {
+        if (is_link($src)) return;
         if (!is_dir($dst)) @mkdir($dst, 0755, true);
         foreach ((@scandir($src) ?: []) as $item) {
             if ($item === '.' || $item === '..' || $item[0] === '.') continue;
             $sp = $src . '/' . $item;
+            if (is_link($sp)) continue;
             $dp = $dst . '/' . $item;
             if (is_dir($sp)) self::rcopy($sp, $dp);
             else @copy($sp, $dp);
         }
+    }
+
+    private static function computeTreeBytes(string $absPath): int {
+        if (is_link($absPath)) return 0;
+        if (is_file($absPath)) return max(0, (int)@filesize($absPath));
+        if (!is_dir($absPath)) return 0;
+        $total = 0;
+        foreach ((@scandir($absPath) ?: []) as $item) {
+            if ($item === '.' || $item === '..') continue;
+            $p = $absPath . '/' . $item;
+            if (is_link($p)) continue;
+            $total += is_dir($p) ? self::computeTreeBytes($p) : max(0, (int)@filesize($p));
+        }
+        return $total;
     }
 }

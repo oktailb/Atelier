@@ -31,6 +31,11 @@ if ($request_method === 'POST') {
 
 $action = $action ?? 'get_gallery';
 
+if (!headers_sent()) {
+    header('X-Content-Type-Options: nosniff');
+    header('Cache-Control: no-store, private');
+}
+
 // CSRF Verification on modifying actions (kernel + plugin-declared mutating actions)
 if (ActionRouter::isMutatingAction($action, $project_root)) {
     $csrf = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? $_POST['csrf_token'] ?? $raw_body['csrf_token'] ?? '';

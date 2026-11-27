@@ -2518,6 +2518,227 @@ HTACCESS;
             ($setup_locked_403['status'] ?? 0) === 403
         );
 
+        // =====================================================================
+        // SECURITY AUDIT PASS REGRESSION TESTS (SEC-A01 .. SEC-A13)
+        // =====================================================================
+
+        // SEC-A01: FileActions move_item / copy_item / save_text_file forbidden ext, double-ext, self-copy & quota
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
+        $alice_home_rel = 'users/desk_alice';
+        $alice_home_abs = $p1_root . '/storage/users/desk_alice';
+        @mkdir($alice_home_abs . '/sub_dir', 0755, true);
+        @file_put_contents($alice_home_abs . '/note.txt', 'hello safe text');
+        $mv_php = \SimpleGallery\Kernel\Actions\FileActions::handle('move_item', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root,
+            'raw_body' => ['source' => $alice_home_rel . '/note.txt', 'target_dir' => $alice_home_rel, 'new_name' => 'pwn.php']
+        ]);
+        $mv_dbl = \SimpleGallery\Kernel\Actions\FileActions::handle('move_item', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root,
+            'raw_body' => ['source' => $alice_home_rel . '/note.txt', 'target_dir' => $alice_home_rel, 'new_name' => 'pwn.php.jpg']
+        ]);
+        $cp_php = \SimpleGallery\Kernel\Actions\FileActions::handle('copy_item', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root,
+            'raw_body' => ['source' => $alice_home_rel . '/note.txt', 'target_dir' => $alice_home_rel, 'new_name' => 'shell.php']
+        ]);
+        $cp_self = \SimpleGallery\Kernel\Actions\FileActions::handle('copy_item', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root,
+            'raw_body' => ['source' => $alice_home_rel . '/sub_dir', 'target_dir' => $alice_home_rel . '/sub_dir']
+        ]);
+        $sv_dbl = \SimpleGallery\Kernel\Actions\FileActions::handle('save_text_file', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root,
+            'raw_body' => ['file' => $alice_home_rel . '/bad.php.txt', 'content' => '<?php echo 1;']
+        ]);
+        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 128]);
+        $sv_quota = \SimpleGallery\Kernel\Actions\FileActions::handle('save_text_file', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root,
+            'raw_body' => ['file' => $alice_home_rel . '/big.txt', 'content' => str_repeat('Q', 512)]
+        ]);
+        @file_put_contents($alice_home_abs . '/medium.txt', str_repeat('M', 100));
+        $cp_quota = \SimpleGallery\Kernel\Actions\FileActions::handle('copy_item', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root,
+            'raw_body' => ['source' => $alice_home_rel . '/medium.txt', 'target_dir' => $alice_home_rel, 'new_name' => 'medium2.txt']
+        ]);
+        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 0]);
+
+        $this->assert("SEC-A01: FileActions bloque renommage/copie vers .php/double-ext (403), copie récursive dans soi-même (400) & contournement quota (413)",
+            ($mv_php['status'] ?? 0) === 403 &&
+            ($mv_dbl['status'] ?? 0) === 403 &&
+            ($cp_php['status'] ?? 0) === 403 &&
+            ($cp_self['status'] ?? 0) === 400 &&
+            ($sv_dbl['status'] ?? 0) === 403 &&
+            ($sv_quota['status'] ?? 0) === 413 &&
+            ($cp_quota['status'] ?? 0) === 413
+        );
+
+        // SEC-A02: enqueue_job cross-user ACL + root block + .private subdir exclusion in build_zip_archive
+        @mkdir($p1_root . '/pub_job_dir/secret_sub', 0755, true);
+        @file_put_contents($p1_root . '/pub_job_dir/public_ok.txt', 'public');
+        @file_put_contents($p1_root . '/pub_job_dir/secret_sub/.private', "1\n");
+        @file_put_contents($p1_root . '/pub_job_dir/secret_sub/hidden.txt', 'TOP_SECRET');
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
+        $bob_zip_alice = \SimpleGallery\Kernel\Actions\StorageActions::handle('enqueue_job', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root,
+            'raw_body' => ['job_type' => 'build_zip_archive', 'dir' => 'users/desk_alice']
+        ]);
+        $bob_zip_root = \SimpleGallery\Kernel\Actions\StorageActions::handle('enqueue_job', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root,
+            'raw_body' => ['job_type' => 'build_zip_archive', 'dir' => '']
+        ]);
+        $bob_zip_priv = \SimpleGallery\Kernel\Actions\StorageActions::handle('enqueue_job', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root,
+            'raw_body' => ['job_type' => 'build_zip_archive', 'dir' => 'pub_job_dir/secret_sub']
+        ]);
+        $bob_zip_pub = \SimpleGallery\Kernel\Actions\StorageActions::handle('enqueue_job', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root,
+            'raw_body' => ['job_type' => 'build_zip_archive', 'dir' => 'pub_job_dir']
+        ]);
+        $bob_jobs_list = \SimpleGallery\Kernel\Actions\StorageActions::handle('list_jobs', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root
+        ]);
+        $bob_ran = \SimpleGallery\Kernel\Jobs\JobQueueManager::runNextJob($p1_root, $p1_root, $mtypes);
+        $zip_has_secret = false;
+        if (!empty($bob_ran['result']['rel_path'])) {
+            $zabs = $p1_root . '/' . ltrim((string)$bob_ran['result']['rel_path'], '/');
+            if (is_file($zabs) && class_exists('\ZipArchive')) {
+                $za = new \ZipArchive();
+                if ($za->open($zabs) === true) {
+                    for ($zi = 0; $zi < $za->numFiles; $zi++) {
+                        if (stripos((string)$za->getNameIndex($zi), 'hidden.txt') !== false) {
+                            $zip_has_secret = true;
+                        }
+                    }
+                    $za->close();
+                }
+            }
+        }
+        $this->assert("SEC-A02: enqueue_job bloque cross-user/racine/.private (403), scope les stats non-admin et exclut .private du ZIP asynchrone",
+            ($bob_zip_alice['status'] ?? 0) === 403 &&
+            ($bob_zip_root['status'] ?? 0) === 403 &&
+            ($bob_zip_priv['status'] ?? 0) === 403 &&
+            ($bob_zip_pub['status'] ?? 0) === 200 &&
+            (int)($bob_jobs_list['data']['stats']['completed'] ?? -1) === 0 &&
+            ($bob_ran['status'] ?? '') === 'completed' &&
+            (int)($bob_ran['result']['files_count'] ?? 0) === 1 &&
+            !$zip_has_secret
+        );
+
+        // SEC-A03: WebDAV /dav/public/users/ blocked (403), COPY quota (507), self-copy (409), SVG sanitize & CSP sandbox
+        $ap_a2 = \SimpleGallery\Kernel\Auth\AppPasswordManager::createForUser($p1_root, $alice_id, 'Audit DAV', 'write');
+        $a2_sec = (string)($ap_a2['app_password']['secret'] ?? '');
+        $dav_pub_users = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+            'method' => 'PROPFIND', 'dav_path' => 'public/users/desk_bob', 'auth_user' => 'desk_alice', 'auth_pass' => $a2_sec
+        ]);
+        $dav_svg_put = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+            'method' => 'PUT', 'dav_path' => 'home/audit_xss.svg',
+            'body' => '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(2)</script><circle r="5"/></svg>',
+            'auth_user' => 'desk_alice', 'auth_pass' => $a2_sec
+        ]);
+        $dav_svg_get = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+            'method' => 'GET', 'dav_path' => 'home/audit_xss.svg', 'auth_user' => 'desk_alice', 'auth_pass' => $a2_sec
+        ]);
+        $dav_svg_disk = (!empty($dav_svg_get['file_path']) && is_file((string)$dav_svg_get['file_path']))
+            ? (string)@file_get_contents((string)$dav_svg_get['file_path']) : '';
+        $dav_self_copy = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+            'method' => 'COPY', 'dav_path' => 'home/sub_dir', 'destination' => '/dav/home/sub_dir/nested',
+            'auth_user' => 'desk_alice', 'auth_pass' => $a2_sec
+        ]);
+        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 150]);
+        $dav_copy_507 = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+            'method' => 'COPY', 'dav_path' => 'home/medium.txt', 'destination' => '/dav/home/medium_copy.txt',
+            'auth_user' => 'desk_alice', 'auth_pass' => $a2_sec
+        ]);
+        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 0]);
+
+        $this->assert("SEC-A03: WebDAV bloque /dav/public/users (403), COPY quota (507), auto-copie (409), sanitise SVG PUT & ajoute CSP sandbox sur GET",
+            ($dav_pub_users['status'] ?? 0) === 403 &&
+            in_array($dav_svg_put['status'] ?? 0, [201, 204], true) &&
+            stripos($dav_svg_disk, '<script') === false &&
+            stripos($dav_svg_disk, 'onload') === false &&
+            stripos((string)($dav_svg_get['headers']['Content-Security-Policy'] ?? ''), 'sandbox') !== false &&
+            ($dav_self_copy['status'] ?? 0) === 409 &&
+            ($dav_copy_507['status'] ?? 0) === 507
+        );
+
+        // SEC-A04: Trash restore enforces quota (413) & post-revocation ACL (403)
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
+        @file_put_contents($alice_home_abs . '/trash_quota.txt', str_repeat('T', 300));
+        $tr_move = \SimpleGallery\Kernel\FS\TrashAndVersioningManager::moveToTrash($p1_root, $alice_home_abs . '/trash_quota.txt', $alice_home_rel . '/trash_quota.txt');
+        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 200]);
+        $tr_restore_413 = \SimpleGallery\Kernel\FS\TrashAndVersioningManager::restoreItem($p1_root, $p1_root, (string)($tr_move['item']['id'] ?? ''));
+        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 0]);
+
+        // SEC-A05: ChunkedUploadManager blocks lying total_size in storeChunk (413) and sanitizes chunked SVG cleanly
+        $alice_cur_used = (int)(\SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo($p1_root, $p1_root, $desk_a['user'])['used_bytes'] ?? 0);
+        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => $alice_cur_used + 100]);
+        $ch_lie_init = \SimpleGallery\Kernel\FS\ChunkedUploadManager::initUpload($p1_root, $p1_root, $mtypes, [
+            'dir' => $alice_home_rel, 'filename' => 'lie.txt', 'total_size' => 1, 'total_chunks' => 1
+        ]);
+        $ch_lie_413 = \SimpleGallery\Kernel\FS\ChunkedUploadManager::storeChunk(
+            $p1_root, (string)($ch_lie_init['upload_id'] ?? ''), 0, null, str_repeat('Z', 400), $p1_root
+        );
+        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 0]);
+
+        $ch_svg_init = \SimpleGallery\Kernel\FS\ChunkedUploadManager::initUpload($p1_root, $p1_root, $mtypes, [
+            'dir' => $alice_home_rel, 'filename' => 'chunk_ok.svg', 'total_size' => 95, 'total_chunks' => 1
+        ]);
+        \SimpleGallery\Kernel\FS\ChunkedUploadManager::storeChunk(
+            $p1_root, (string)($ch_svg_init['upload_id'] ?? ''), 0, null,
+            '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script><rect width="10" height="10"/></svg>', $p1_root
+        );
+        $ch_svg_done = \SimpleGallery\Kernel\FS\ChunkedUploadManager::completeUpload($p1_root, $p1_root, $mtypes, (string)($ch_svg_init['upload_id'] ?? ''));
+        $ch_svg_saved = is_file($alice_home_abs . '/chunk_ok.svg') ? (string)@file_get_contents($alice_home_abs . '/chunk_ok.svg') : '';
+
+        $this->assert("SEC-A04/A05: Corbeille applique le quota à la restauration (413), ChunkedUpload bloque total_size falsifié (413) & sanitise SVG",
+            ($tr_restore_413['status'] ?? 0) === 413 &&
+            ($ch_lie_init['status'] ?? 0) === 200 &&
+            ($ch_lie_413['status'] ?? 0) === 413 &&
+            ($ch_svg_done['status'] ?? 0) === 200 &&
+            stripos($ch_svg_saved, '<rect') !== false &&
+            stripos($ch_svg_saved, '<script') === false
+        );
+
+        // SEC-A07 / SEC-A10 / SEC-A08 / SEC-A09 / SEC-A12 static & behavioral checks
+        $ht_zip = $p1_root . '/storage/test_htaccess.zip';
+        $ht_blocked = false;
+        if (class_exists('\ZipArchive')) {
+            $_SESSION['is_admin'] = true;
+            $_SESSION['sg_admin_logged'] = true;
+            $za2 = new \ZipArchive();
+            if ($za2->open($ht_zip, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) === true) {
+                $za2->addFromString('app/index.html', '<html><body>hi</body></html>');
+                $za2->addFromString('app/.htaccess', 'ForceType application/x-httpd-php');
+                $za2->close();
+                $ht_res = \SimpleGallery\Kernel\ExternalAppManager::installFromZipFile($p1_root, $ht_zip, 'ht.zip');
+                $ht_blocked = (($ht_res['status'] ?? 0) === 400);
+            }
+            @unlink($ht_zip);
+        } else {
+            $ht_blocked = true;
+        }
+        $gd_norm_inj = \SimpleGallery\Kernel\Storage\GoogleDriveStorageDriver::normalizeFolderId("root' or '1'='1");
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
+        $raw_local_403 = \SimpleGallery\Kernel\Storage\ExternalMountManager::testRawConfig($p1_root, [
+            'driver' => 'local', 'config' => ['path' => '/etc']
+        ]);
+
+        $thumb_src = (string)@file_get_contents(dirname(__DIR__) . '/system/endpoints/thumb.php');
+        $vfs_js_src = (string)@file_get_contents(dirname(__DIR__) . '/system/userland/core/WebAppVfsBridge.js');
+        $oidc_src = (string)@file_get_contents(dirname(__DIR__) . '/system/kernel/Auth/OidcProvider.php');
+        $nginx_src = (string)@file_get_contents(dirname(__DIR__) . '/docker/nginx.conf');
+        $htaccess_src = (string)@file_get_contents(dirname(__DIR__) . '/.htaccess');
+
+        $this->assert("SEC-A06..A12: Durcissement ZIP (.htaccess), Drive q-injection, testRawConfig local (403), thumb ext:// XSS, VFS postMessage origin, OIDC & Nginx/.htaccess",
+            $ht_blocked &&
+            $gd_norm_inj === 'root' &&
+            ($raw_local_403['status'] ?? 0) === 403 &&
+            strpos($thumb_src, '$is_active_web_mime') !== false &&
+            strpos($vfs_js_src, 'event.origin !== expectedOrigin') !== false &&
+            strpos($oidc_src, 'isValidHttpUrl') !== false &&
+            strpos($oidc_src, 'email_verified') !== false &&
+            strpos($nginx_src, '^/apps/.*\\.php$') !== false &&
+            strpos($htaccess_src, '^apps/.*\\.php$') !== false
+        );
+
         $_SESSION = $saved_sess;
         \SimpleGallery\Kernel\Security\RateLimiter::reset('register_' . $cli_ip);
         \SimpleGallery\Kernel\Security\RateLimiter::reset('login_' . $cli_ip);

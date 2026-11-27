@@ -12,6 +12,16 @@ require_once $project_root . '/system/boot/bootstrap.php';
 require_once $project_root . '/system/kernel/functions.php';
 
 use SimpleGallery\Kernel\Auth\AccountExportService;
+use SimpleGallery\Kernel\Auth\AuthManager;
+use SimpleGallery\Kernel\Security\CsrfManager;
+
+if (!headers_sent()) {
+    header('Referrer-Policy: no-referrer');
+    header('X-Content-Type-Options: nosniff');
+}
+
+AuthManager::ensureSessionStarted();
+$exportCsrfToken = CsrfManager::getToken();
 
 $token = trim((string)($_GET['token'] ?? $_POST['token'] ?? ''));
 $isDownload = !empty($_GET['download']);
@@ -33,18 +43,23 @@ function format_export_size(int $bytes): string {
 $postNotice = null;
 $postError = null;
 if ($method === 'POST' && ($_POST['action'] ?? '') === 'confirm_receipt') {
-    $discard = !empty($_POST['discard_without_download']);
-    $res = AccountExportService::confirmReceipt($project_root, $token, null, null, $discard);
-    if ($wantsJson) {
-        http_response_code($res['status'] ?? 200);
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode($res, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-    if (!empty($res['success'])) {
-        $postNotice = 'Réception confirmée : votre archive temporaire a été définitivement supprimée du serveur.';
+    $postedCsrf = (string)($_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+    if (!$wantsJson && !CsrfManager::verifyToken($postedCsrf)) {
+        $postError = 'Jeton de sécurité invalide. Actualisez la page et réessayez.';
     } else {
-        $postError = (string)($res['error'] ?? 'Impossible de confirmer la réception.');
+        $discard = !empty($_POST['discard_without_download']);
+        $res = AccountExportService::confirmReceipt($project_root, $token, null, null, $discard);
+        if ($wantsJson) {
+            http_response_code($res['status'] ?? 200);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($res, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        if (!empty($res['success'])) {
+            $postNotice = 'Réception confirmée : votre archive temporaire a été définitivement supprimée du serveur.';
+        } else {
+            $postError = (string)($res['error'] ?? 'Impossible de confirmer la réception.');
+        }
     }
 }
 
@@ -180,6 +195,7 @@ $canConfirm = is_array($exp) && !empty($exp['download_completed_at']);
           ✅ Un téléchargement complet a été détecté par le serveur. Confirmez la réception pour supprimer immédiatement cette copie du serveur.
         </div>
         <form method="POST">
+          <input type="hidden" name="csrf_token" value="<?php echo esc_html_export($exportCsrfToken); ?>">
           <input type="hidden" name="token" value="<?php echo esc_html_export($token); ?>">
           <input type="hidden" name="action" value="confirm_receipt">
           <button type="submit" class="btn btn-success">✅ Confirmer la réception complète &amp; purger du serveur</button>

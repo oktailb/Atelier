@@ -11,6 +11,11 @@ Options -Indexes
 # Transparently route legacy root endpoints to system/endpoints/ without leaving stub files at root
 <IfModule mod_rewrite.c>
     RewriteEngine On
+
+    # Block direct HTTP access to internal backend, config, tests, CLI workers, and PHP files inside apps/
+    RewriteRule ^(config|tests|bin|docker|system/kernel|system/boot)(/|$) - [F,L,NC]
+    RewriteRule ^apps/.*\.php$ - [F,L,NC]
+
     RewriteRule ^api\.php$ system/endpoints/api.php [L,QSA]
     RewriteRule ^thumb\.php$ system/endpoints/thumb.php [L,QSA]
     RewriteRule ^archive\.php$ system/endpoints/archive.php [L,QSA]

@@ -109,6 +109,16 @@ class OidcProvider {
         $claims = [];
         if (!empty($tokenResp['id_token'])) {
             $claims = self::decodeJwtPayload((string)$tokenResp['id_token']);
+            if (!empty($claims['exp']) && time() > ((int)$claims['exp'] + 60)) {
+                return ['success' => false, 'status' => 401, 'error' => 'OIDC ID token has expired.'];
+            }
+            if (isset($claims['aud'])) {
+                $expectedClient = (string)($cfg['oidc_client_id'] ?? '');
+                $audList = is_array($claims['aud']) ? $claims['aud'] : [(string)$claims['aud']];
+                if ($expectedClient !== '' && !in_array($expectedClient, $audList, true)) {
+                    return ['success' => false, 'status' => 401, 'error' => 'OIDC token audience mismatch.'];
+                }
+            }
             if (!empty($claims['nonce']) && !hash_equals((string)$saved['nonce'], (string)$claims['nonce'])) {
                 return ['success' => false, 'status' => 401, 'error' => 'OIDC nonce mismatch.'];
             }
@@ -121,15 +131,21 @@ class OidcProvider {
         }
 
         $email = strtolower(trim((string)($claims['email'] ?? '')));
+        // Reject linking by unverified email when IdP explicitly marks email_verified = false
+        $emailVerified = !array_key_exists('email_verified', $claims) || !empty($claims['email_verified']);
         $preferred = (string)($claims['preferred_username'] ?? $claims['nickname'] ?? '');
         if ($preferred === '' && $email !== '') {
             $preferred = explode('@', $email)[0];
         }
         $displayName = trim((string)($claims['name'] ?? $preferred));
 
-        $user = $email !== '' ? UserManager::findByEmail($projectRoot, $email) : null;
-        if (!$user && $preferred !== '') {
-            $user = UserManager::findByUsername($projectRoot, $preferred);
+        $user = ($email !== '' && $emailVerified) ? UserManager::findByEmail($projectRoot, $email) : null;
+        if (!$user && $email === '' && $preferred !== '') {
+            // Only fall back to username matching when IdP provided no email claim, and never auto-hijack an admin with a different email
+            $candidate = UserManager::findByUsername($projectRoot, $preferred);
+            if ($candidate && empty($candidate['email'])) {
+                $user = $candidate;
+            }
         }
 
         if (!$user) {
@@ -204,12 +220,30 @@ class OidcProvider {
         return is_array($data) ? $data : [];
     }
 
+    private static function isValidHttpUrl(string $url): bool {
+        if ($url === '' || preg_match('/[\x00-\x1f\x7f]/', $url)) {
+            return false;
+        }
+        if (!preg_match('#^https?://#i', $url)) {
+            return false;
+        }
+        return filter_var($url, FILTER_VALIDATE_URL) !== false;
+    }
+
     private static function httpJsonGet(string $url, array $headers = []): ?array {
+        if (!self::isValidHttpUrl($url)) {
+            return null;
+        }
         $ctx = stream_context_create([
             'http' => [
-                'method'  => 'GET',
-                'timeout' => 10,
-                'header'  => implode("\r\n", array_merge(['Accept: application/json'], $headers))
+                'method'          => 'GET',
+                'timeout'         => 10,
+                'follow_location' => 0,
+                'header'          => implode("\r\n", array_merge(['Accept: application/json'], $headers))
+            ],
+            'ssl' => [
+                'verify_peer'      => true,
+                'verify_peer_name' => true
             ]
         ]);
         $raw = @file_get_contents($url, false, $ctx);
@@ -219,12 +253,20 @@ class OidcProvider {
     }
 
     private static function httpJsonPost(string $url, array $fields): ?array {
+        if (!self::isValidHttpUrl($url)) {
+            return null;
+        }
         $ctx = stream_context_create([
             'http' => [
-                'method'  => 'POST',
-                'timeout' => 10,
-                'header'  => "Content-Type: application/x-www-form-urlencoded\r\nAccept: application/json",
-                'content' => http_build_query($fields)
+                'method'          => 'POST',
+                'timeout'         => 10,
+                'follow_location' => 0,
+                'header'          => "Content-Type: application/x-www-form-urlencoded\r\nAccept: application/json",
+                'content'         => http_build_query($fields)
+            ],
+            'ssl' => [
+                'verify_peer'      => true,
+                'verify_peer_name' => true
             ]
         ]);
         $raw = @file_get_contents($url, false, $ctx);

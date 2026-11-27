@@ -101,6 +101,10 @@ class GoogleDriveStorageDriver implements StorageDriverInterface {
         if (preg_match('#[?&]id=([a-zA-Z0-9_-]+)#', $val, $m)) {
             return $m[1];
         }
+        // Strictly validate folder ID charset to prevent Google Drive `q=` query injection
+        if (!preg_match('/^[a-zA-Z0-9_-]{1,128}$/', $val)) {
+            return 'root';
+        }
         return $val;
     }
 
@@ -143,6 +147,11 @@ class GoogleDriveStorageDriver implements StorageDriverInterface {
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+        if (defined('CURLPROTO_HTTPS')) {
+            curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
+        }
         curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
             'client_id'     => $this->clientId,
             'client_secret' => $this->clientSecret,
@@ -177,6 +186,11 @@ class GoogleDriveStorageDriver implements StorageDriverInterface {
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 45);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+        if (defined('CURLPROTO_HTTPS')) {
+            curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
+        }
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         if ($body !== null) {
             curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
@@ -343,6 +357,13 @@ class GoogleDriveStorageDriver implements StorageDriverInterface {
             return null;
         }
         $thumbUrl = (string)$item['thumbnailLink'];
+        // Restrict thumbnail fetches strictly to HTTPS Google static/thumbnail origins (prevents SSRF & Bearer token leak)
+        $thumbParts = parse_url($thumbUrl);
+        $thumbScheme = strtolower((string)($thumbParts['scheme'] ?? ''));
+        $thumbHost = strtolower((string)($thumbParts['host'] ?? ''));
+        if ($thumbScheme !== 'https' || !preg_match('/(^|\.)(googleusercontent\.com|google\.com|gstatic\.com)$/i', $thumbHost)) {
+            return null;
+        }
         $size = max(120, min(800, $maxSize));
         $thumbUrl = preg_replace('/=s\d+$/', '=s' . $size, $thumbUrl);
 
@@ -350,9 +371,13 @@ class GoogleDriveStorageDriver implements StorageDriverInterface {
         $fetch = function (bool $withAuth) use ($thumbUrl): array {
             $ch = curl_init($thumbUrl);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-            curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
             curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+            if (defined('CURLPROTO_HTTPS')) {
+                curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
+            }
             if ($withAuth && $this->accessToken !== '') {
                 curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $this->accessToken]);
             }

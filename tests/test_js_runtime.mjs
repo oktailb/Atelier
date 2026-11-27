@@ -1603,7 +1603,9 @@ try {
     fs.existsSync(workerPath) &&
     fs.existsSync(davEndpointPath) &&
     fs.existsSync(setupEndpointPath) &&
-    nginxConf.includes('location ~ ^/(storage|config|tests|bin|docker)/') &&
+    nginxConf.includes('location ~* ^/(storage|config|tests|bin|docker|system/kernel|system/boot)/') &&
+    nginxConf.includes('location ~* ^/apps/.*\\.php$') &&
+    nginxConf.includes('try_files $uri =404;') &&
     nginxConf.includes('HTTP_AUTHORIZATION') &&
     pwaManifest && pwaManifest.display === 'standalone' &&
     swCode.includes("p.includes('api.php')") &&

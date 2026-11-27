@@ -522,6 +522,29 @@ class FileActions {
                     return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_invalid_name')]];
                 }
 
+                // Prevent renaming a benign file into a server-executable or active forbidden extension
+                if (!is_dir($source_full)) {
+                    $dest_ext = strtolower(pathinfo($dest_name, PATHINFO_EXTENSION));
+                    if (FormatRegistry::isForbiddenExtension($dest_ext) || FormatRegistry::hasForbiddenDoubleExtension($dest_name)) {
+                        return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_forbidden_file_type')]];
+                    }
+                }
+
+                // Enforce personal disk quota if moving an item from outside a user's home into `users/<username>`
+                if (preg_match('#^users/([^/]+)(?:/|$)#i', $target_dir_rel, $um_dst)) {
+                    $same_home = preg_match('#^users/' . preg_quote($um_dst[1], '#') . '(?:/|$)#i', $source_rel);
+                    if (!$same_home) {
+                        $owner = \SimpleGallery\Kernel\Auth\UserManager::findByUsername($project_root, $um_dst[1]);
+                        if ($owner && (int)($owner['quota_bytes'] ?? 0) > 0) {
+                            $quotaInfo = \SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo($project_root, $base_dir, $owner);
+                            $movingBytes = is_dir($source_full) ? self::computePathBytes($source_full) : max(0, (int)@filesize($source_full));
+                            if (($quotaInfo['used_bytes'] + $movingBytes) > $quotaInfo['quota_bytes']) {
+                                return ['status' => 413, 'data' => ['success' => false, 'error' => 'Quota disque dépassé pour cet espace personnel.']];
+                            }
+                        }
+                    }
+                }
+
                 $destination = $target_dir_full . '/' . $dest_name;
                 if ($destination === $source_full) {
                     return ['status' => 200, 'data' => ['success' => true, 'message' => __t('api.msg_item_moved')]];
@@ -531,6 +554,9 @@ class FileActions {
                 }
 
                 if (@rename($source_full, $destination)) {
+                    if (is_file($destination) && strtolower(pathinfo($destination, PATHINFO_EXTENSION)) === 'svg') {
+                        SecurityManager::sanitizeSvgContent($destination);
+                    }
                     CacheManager::invalidateDirCache(dirname($source_full), $base_dir, $thumb_dir_name);
                     CacheManager::invalidateDirCache($target_dir_full, $base_dir, $thumb_dir_name);
                     return ['status' => 200, 'data' => ['success' => true, 'message' => __t('api.msg_item_moved')]];
@@ -628,9 +654,31 @@ class FileActions {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
             }
 
+            if (is_dir($source_full) && ($source_full === $target_dir_full || strpos($target_dir_full . '/', $source_full . '/') === 0)) {
+                return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_move_into_self')]];
+            }
+
             $dest_name = $new_name_param !== null ? basename($new_name_param) : basename($source_full);
             if (empty($dest_name) || $dest_name[0] === '.' || preg_match('/[\/\\\\:\*\?"<>\|]/', $dest_name)) {
                 return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_invalid_name')]];
+            }
+            if (!is_dir($source_full)) {
+                $dest_ext = strtolower(pathinfo($dest_name, PATHINFO_EXTENSION));
+                if (FormatRegistry::isForbiddenExtension($dest_ext) || FormatRegistry::hasForbiddenDoubleExtension($dest_name)) {
+                    return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_forbidden_file_type')]];
+                }
+            }
+
+            // Enforce personal disk quota when copying inside `users/<username>`
+            if (preg_match('#^users/([^/]+)(?:/|$)#i', $target_dir_rel, $um_cp)) {
+                $owner = \SimpleGallery\Kernel\Auth\UserManager::findByUsername($project_root, $um_cp[1]);
+                if ($owner && (int)($owner['quota_bytes'] ?? 0) > 0) {
+                    $quotaInfo = \SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo($project_root, $base_dir, $owner);
+                    $copyBytes = is_dir($source_full) ? self::computePathBytes($source_full) : max(0, (int)@filesize($source_full));
+                    if (($quotaInfo['used_bytes'] + $copyBytes) > $quotaInfo['quota_bytes']) {
+                        return ['status' => 413, 'data' => ['success' => false, 'error' => 'Quota disque dépassé pour cet espace personnel.']];
+                    }
+                }
             }
 
             $destination = $target_dir_full . '/' . $dest_name;
@@ -646,6 +694,9 @@ class FileActions {
             }
 
             $copy_recursive = function(string $src, string $dst) use (&$copy_recursive): bool {
+                if (is_link($src)) {
+                    return true; // Never follow symlinks during recursive copy
+                }
                 if (is_dir($src)) {
                     @mkdir($dst, 0755, true);
                     $files = @scandir($src) ?: [];
@@ -659,6 +710,9 @@ class FileActions {
             };
 
             if ($copy_recursive($source_full, $destination)) {
+                if (is_file($destination) && strtolower(pathinfo($destination, PATHINFO_EXTENSION)) === 'svg') {
+                    SecurityManager::sanitizeSvgContent($destination);
+                }
                 CacheManager::invalidateDirCache($target_dir_full, $base_dir, $thumb_dir_name);
                 return ['status' => 200, 'data' => [
                     'success'     => true,
@@ -732,7 +786,7 @@ class FileActions {
                         foreach ($items as $item) {
                             if ($item === '.' || $item === '..') continue;
                             $path = $dir . '/' . $item;
-                            if (is_dir($path)) {
+                            if (is_dir($path) && !is_link($path)) {
                                 if (!$recursive_delete($path)) return false;
                             } else {
                                 if (!@unlink($path)) return false;
@@ -795,8 +849,8 @@ class FileActions {
 
             if (preg_match('/^data:image\/(\w+);base64,/', $image_data, $type_match)) {
                 $data_substr = substr($image_data, strpos($image_data, ',') + 1);
-                $decoded_image = base64_decode($data_substr);
-                if ($decoded_image === false) {
+                $decoded_image = base64_decode($data_substr, true);
+                if ($decoded_image === false || $decoded_image === '') {
                     return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_invalid_image_data')]];
                 }
             } else {
@@ -810,6 +864,19 @@ class FileActions {
 
             $dest_file = $target_file;
             $is_copy = ($save_mode === 'copy');
+
+            // Enforce user disk quota when saving edited image inside `users/<username>`
+            if (preg_match('#^users/([^/]+)(?:/|$)#i', $target_rel, $um_ed)) {
+                $owner = \SimpleGallery\Kernel\Auth\UserManager::findByUsername($project_root, $um_ed[1]);
+                if ($owner && (int)($owner['quota_bytes'] ?? 0) > 0) {
+                    $quotaInfo = \SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo($project_root, $base_dir, $owner);
+                    $existingSz = (!$is_copy && is_file($target_file)) ? (int)@filesize($target_file) : 0;
+                    $delta = max(0, strlen($decoded_image) - $existingSz);
+                    if (($quotaInfo['used_bytes'] + $delta) > $quotaInfo['quota_bytes']) {
+                        return ['status' => 413, 'data' => ['success' => false, 'error' => 'Quota disque dépassé pour cet espace personnel.']];
+                    }
+                }
+            }
 
             if ($is_copy) {
                 $info = pathinfo($target_file);
@@ -872,8 +939,9 @@ class FileActions {
                 if (!$resolved || empty($resolved['can_write']) || $ext_save['rel_path'] === '') {
                     return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_save_denied')]];
                 }
-                $ext = strtolower(pathinfo($ext_save['rel_path'], PATHINFO_EXTENSION));
-                if (FormatRegistry::isForbiddenExtension($ext)) {
+                $ext_bn = basename($ext_save['rel_path']);
+                $ext = strtolower(pathinfo($ext_bn, PATHINFO_EXTENSION));
+                if ($ext_bn === '' || $ext_bn[0] === '.' || FormatRegistry::isForbiddenExtension($ext) || FormatRegistry::hasForbiddenDoubleExtension($ext_bn)) {
                     return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_forbidden_file_type')]];
                 }
                 $mime = FormatRegistry::getHttpContentType($ext, $project_root, $media_types);
@@ -902,8 +970,22 @@ class FileActions {
             }
 
             $ext = strtolower(pathinfo($file_full, PATHINFO_EXTENSION));
-            if (FormatRegistry::isForbiddenExtension($ext) || in_array($ext, ['user.ini', 'admin_password_hash'], true)) {
+            if (FormatRegistry::isForbiddenExtension($ext) || FormatRegistry::hasForbiddenDoubleExtension($filename) || in_array($ext, ['user.ini', 'admin_password_hash'], true)) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_forbidden_file_type')]];
+            }
+
+            // Enforce user disk quota when saving inside `users/<username>`
+            $rel_save = PathValidator::getRelativePath($file_full, $base_dir);
+            if (preg_match('#^users/([^/]+)(?:/|$)#i', $rel_save, $um_sv)) {
+                $owner = \SimpleGallery\Kernel\Auth\UserManager::findByUsername($project_root, $um_sv[1]);
+                if ($owner && (int)($owner['quota_bytes'] ?? 0) > 0) {
+                    $quotaInfo = \SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo($project_root, $base_dir, $owner);
+                    $existingSz = is_file($file_full) ? (int)@filesize($file_full) : 0;
+                    $delta = max(0, strlen((string)$content) - $existingSz);
+                    if (($quotaInfo['used_bytes'] + $delta) > $quotaInfo['quota_bytes']) {
+                        return ['status' => 413, 'data' => ['success' => false, 'error' => 'Quota disque dépassé pour cet espace personnel.']];
+                    }
+                }
             }
 
             if ($is_allowed_dotfile) {
@@ -939,5 +1021,22 @@ class FileActions {
         }
 
         return null;
+    }
+
+    /**
+     * Computes recursive disk size of a file or directory without following symlinks.
+     */
+    private static function computePathBytes(string $absPath): int {
+        if (is_link($absPath)) return 0;
+        if (is_file($absPath)) return max(0, (int)@filesize($absPath));
+        if (!is_dir($absPath)) return 0;
+        $total = 0;
+        foreach ((@scandir($absPath) ?: []) as $it) {
+            if ($it === '.' || $it === '..') continue;
+            $p = $absPath . '/' . $it;
+            if (is_link($p)) continue;
+            $total += is_dir($p) ? self::computePathBytes($p) : max(0, (int)@filesize($p));
+        }
+        return $total;
     }
 }

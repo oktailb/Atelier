@@ -54,19 +54,22 @@ class WebDavStorageDriver implements StorageDriverInterface {
         return $this->baseUrl . '/' . $encoded . ($trailingSlash ? '/' : '');
     }
 
-    private function assertSafeEndpoint(string $url): void {
+    private function assertSafeEndpoint(string $url): ?array {
         if ($this->baseUrl === '' || !preg_match('#^https?://#i', $url)) {
             throw new \RuntimeException('Invalid WebDAV URL.');
         }
         if (!$this->allowPrivateLan) {
-            if (UrlValidator::resolveAndValidateUrl($url) === null) {
+            $validated = UrlValidator::resolveAndValidateUrl($url);
+            if ($validated === null) {
                 throw new \RuntimeException('WebDAV URL blocked by SSRF policy (enable allow_private_lan for LAN NAS).');
             }
+            return $validated;
         }
+        return null;
     }
 
     private function request(string $method, string $url, array $headers = [], ?string $body = null): array {
-        $this->assertSafeEndpoint($url);
+        $validated = $this->assertSafeEndpoint($url);
         if (!function_exists('curl_init')) {
             return ['status' => 0, 'body' => '', 'error' => 'cURL extension required.'];
         }
@@ -78,6 +81,14 @@ class WebDavStorageDriver implements StorageDriverInterface {
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
         curl_setopt($ch, CURLOPT_TIMEOUT, 45);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+        if (defined('CURLPROTO_HTTP') && defined('CURLPROTO_HTTPS')) {
+            curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+        }
+        if (is_array($validated) && !empty($validated['ips'][0]) && !filter_var($validated['host'], FILTER_VALIDATE_IP) && defined('CURLOPT_RESOLVE')) {
+            $rip = (strpos($validated['ips'][0], ':') !== false) ? "[{$validated['ips'][0]}]" : $validated['ips'][0];
+            curl_setopt($ch, CURLOPT_RESOLVE, ["{$validated['host']}:{$validated['port']}:{$rip}"]);
+        }
 
         if ($this->bearerToken !== '') {
             $headers[] = 'Authorization: Bearer ' . $this->bearerToken;

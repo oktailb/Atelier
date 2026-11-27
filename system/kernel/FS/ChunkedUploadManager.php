@@ -19,6 +19,8 @@ class ChunkedUploadManager {
 
     public const STALE_TTL_SECONDS = 86400; // 24h
     public const MAX_CHUNKS = 5000;
+    public const MAX_CHUNK_BYTES = 52428800; // 50 MB max per chunk
+    public const MAX_SESSION_BYTES = 4294967296; // 4 GB max total session size
 
     public static function getChunksRoot(string $projectRoot): string {
         $dir = rtrim(str_replace('\\', '/', ConfigStore::getStorageDir($projectRoot)), '/') . '/chunks';
@@ -108,10 +110,14 @@ class ChunkedUploadManager {
             if (!$targetDir || !is_dir($targetDir)) {
                 return ['success' => false, 'status' => 404, 'error' => 'Target directory not found.'];
             }
-            // Enforce user disk quota upfront before accepting chunks
+            if (!DotfileManager::isDirAccessible($targetDir, $mediaDir)) {
+                return ['success' => false, 'status' => 403, 'error' => 'Access denied on target directory.'];
+            }
+            // Enforce user disk quota upfront before accepting chunks (always read fresh quota from store)
             $curUser = AuthManager::getCurrentUser();
             if ($curUser && !AuthManager::isAdminLoggedIn()) {
-                $quota = UserManager::getUserQuotaInfo($projectRoot, $mediaDir, $curUser);
+                $freshUser = !empty($curUser['id']) ? (UserManager::findById($projectRoot, (int)$curUser['id']) ?: $curUser) : $curUser;
+                $quota = UserManager::getUserQuotaInfo($projectRoot, $mediaDir, $freshUser);
                 if (!empty($quota['is_limited']) && ($quota['used_bytes'] + $totalSize) > $quota['quota_bytes']) {
                     return ['success' => false, 'status' => 413, 'error' => 'Disk quota exceeded.'];
                 }
@@ -163,7 +169,8 @@ class ChunkedUploadManager {
         string $uploadId,
         int $chunkIndex,
         ?string $tmpFilePath = null,
-        ?string $rawBinaryData = null
+        ?string $rawBinaryData = null,
+        string $mediaDir = ''
     ): array {
         $sess = self::loadSession($projectRoot, $uploadId);
         if (!$sess) {
@@ -172,6 +179,41 @@ class ChunkedUploadManager {
         $totalChunks = (int)$sess['meta']['total_chunks'];
         if ($chunkIndex < 0 || $chunkIndex >= $totalChunks) {
             return ['success' => false, 'status' => 400, 'error' => 'Invalid chunk index.'];
+        }
+
+        $incomingSize = 0;
+        if ($tmpFilePath !== null && is_file($tmpFilePath)) {
+            $incomingSize = max(0, (int)@filesize($tmpFilePath));
+        } elseif ($rawBinaryData !== null) {
+            $incomingSize = strlen($rawBinaryData);
+        }
+        if ($incomingSize > self::MAX_CHUNK_BYTES) {
+            return ['success' => false, 'status' => 413, 'error' => 'Chunk exceeds maximum allowed size.'];
+        }
+
+        // Compute existing cumulative bytes in this upload session (excluding the chunk being overwritten)
+        $existingSessionBytes = 0;
+        for ($i = 0; $i < $totalChunks; $i++) {
+            if ($i === $chunkIndex) continue;
+            $p = $sess['dir'] . '/chunk_' . $i . '.part';
+            if (is_file($p)) {
+                $existingSessionBytes += max(0, (int)@filesize($p));
+            }
+        }
+        $projectedSessionBytes = $existingSessionBytes + $incomingSize;
+        if ($projectedSessionBytes > self::MAX_SESSION_BYTES) {
+            return ['success' => false, 'status' => 413, 'error' => 'Upload exceeds maximum allowed session size.'];
+        }
+
+        // Enforce live user disk quota on every chunk (prevents lying about `total_size` in initUpload)
+        $curUser = AuthManager::getCurrentUser();
+        $dirParam = (string)($sess['meta']['dir'] ?? '');
+        if ($curUser && !AuthManager::isAdminLoggedIn() && $mediaDir !== '' && ExternalMountManager::parseExternalPath($dirParam) === null) {
+            $freshUser = !empty($curUser['id']) ? (UserManager::findById($projectRoot, (int)$curUser['id']) ?: $curUser) : $curUser;
+            $quota = UserManager::getUserQuotaInfo($projectRoot, $mediaDir, $freshUser);
+            if (!empty($quota['is_limited']) && ((int)$quota['used_bytes'] + $projectedSessionBytes) > (int)$quota['quota_bytes']) {
+                return ['success' => false, 'status' => 413, 'error' => 'Disk quota exceeded.'];
+            }
         }
 
         $destPart = $sess['dir'] . '/chunk_' . $chunkIndex . '.part';
@@ -240,8 +282,7 @@ class ChunkedUploadManager {
         $filename = (string)$meta['filename'];
         $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
         if ($ext === 'svg') {
-            $rawSvg = (string)@file_get_contents($assembledTmp);
-            @file_put_contents($assembledTmp, SecurityManager::sanitizeSvgContent($rawSvg), LOCK_EX);
+            SecurityManager::sanitizeSvgContent($assembledTmp);
             $totalBytes = (int)@filesize($assembledTmp);
         }
 
@@ -269,15 +310,24 @@ class ChunkedUploadManager {
             ];
         }
 
-        // Local VFS destination
+        // Local VFS destination — re-verify permissions & ACLs at completion time (anti-TOCTOU)
+        if (!PermissionsManager::hasPermission('can_upload', $mediaDir, $dirParam)) {
+            self::rrmdir($sess['dir']);
+            return ['success' => false, 'status' => 403, 'error' => 'Upload permission denied.'];
+        }
         $targetDir = PathValidator::sanitizeDirectory($dirParam, $mediaDir);
         if (!$targetDir || !is_dir($targetDir)) {
             self::rrmdir($sess['dir']);
             return ['success' => false, 'status' => 404, 'error' => 'Target directory not found.'];
         }
+        if (!DotfileManager::isDirAccessible($targetDir, $mediaDir)) {
+            self::rrmdir($sess['dir']);
+            return ['success' => false, 'status' => 403, 'error' => 'Access denied on target directory.'];
+        }
         $curUser = AuthManager::getCurrentUser();
         if ($curUser && !AuthManager::isAdminLoggedIn()) {
-            $quota = UserManager::getUserQuotaInfo($projectRoot, $mediaDir, $curUser);
+            $freshUser = !empty($curUser['id']) ? (UserManager::findById($projectRoot, (int)$curUser['id']) ?: $curUser) : $curUser;
+            $quota = UserManager::getUserQuotaInfo($projectRoot, $mediaDir, $freshUser);
             if (!empty($quota['is_limited']) && ($quota['used_bytes'] + $totalBytes) > $quota['quota_bytes']) {
                 self::rrmdir($sess['dir']);
                 return ['success' => false, 'status' => 413, 'error' => 'Disk quota exceeded.'];
