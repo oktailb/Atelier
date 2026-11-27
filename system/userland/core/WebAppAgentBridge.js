@@ -332,37 +332,61 @@
     }
 
     /**
-     * Dismisses Start Screen / Backstage overlay if still open after `file.new` / `file.open`
-     * and wakes egui/eframe canvas rendering so edits appear immediately on screen.
+     * Dismisses Start Screen / Backstage overlay if still open after `file.new` / `file.open`,
+     * ensures the newly created document is active, and wakes egui/eframe canvas rendering.
      */
     async _revealAndRepaintCraftApp(target, ranDocOpen = false) {
       if (!target) return;
-      // 1. If a document was just created/opened, check if Backstage/Start Screen is still covering it
-      if (ranDocOpen && target.api && typeof target.api.uiInspect === 'function') {
+      const cw = target.iframe && target.iframe.contentWindow;
+      const doc = target.iframe && target.iframe.contentDocument;
+      const canvas = doc && doc.querySelector('canvas');
+
+      if (ranDocOpen && target.api) {
+        // 1. Ensure the newest open document is active in the root window
         try {
-          const uiRaw = await withTimeout(target.api.uiInspect({}), 2500, `${target.prefix}.uiInspect`);
-          const uiUnwrapped = unwrapCraftResult(uiRaw);
-          const uiStr = JSON.stringify(uiUnwrapped.result || '').toLowerCase();
-          const backstageOpen = /"backstage"\s*:\s*(true|"|\{)/.test(uiStr) || /"startscreen"\s*:\s*true/.test(uiStr);
-          if (backstageOpen) {
-            try {
-              const cw = target.iframe && target.iframe.contentWindow;
-              const doc = target.iframe && target.iframe.contentDocument;
-              const canvas = (doc && doc.querySelector('canvas')) || (doc && doc.body);
-              if (cw && canvas && typeof cw.KeyboardEvent === 'function') {
-                canvas.dispatchEvent(new cw.KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
-                canvas.dispatchEvent(new cw.KeyboardEvent('keyup', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
-              }
-            } catch (e) {}
+          const swRaw = await withTimeout(target.api.execute('view.switchWindows', {}), 2500, `${target.prefix}.switchWindows`);
+          const sw = unwrapCraftResult(swRaw);
+          const docs = sw.success && sw.result && Array.isArray(sw.result.documents) ? sw.result.documents : [];
+          if (docs.length > 0) {
+            const targetDoc = docs.find((d) => d && d.active) || docs[docs.length - 1];
+            if (targetDoc && targetDoc.id !== undefined) {
+              await withTimeout(target.api.execute('view.switchWindows', { id: targetDoc.id }), 2000, `${target.prefix}.switchWindows.id`).catch(() => {});
+            }
           }
         } catch (e) {}
+
+        // 2. Dismiss Backstage / Start Screen if still covering the document
+        let backstageOpen = false;
+        if (typeof target.api.uiInspect === 'function') {
+          try {
+            const uiRaw = await withTimeout(target.api.uiInspect({}), 2500, `${target.prefix}.uiInspect`);
+            const uiUnwrapped = unwrapCraftResult(uiRaw);
+            const uiStr = JSON.stringify(uiUnwrapped.result || '').toLowerCase();
+            backstageOpen = /"backstage"\s*:\s*(true|"[^"]+"|\{)/.test(uiStr)
+              || /"start_?screen"\s*:\s*true/.test(uiStr)
+              || /"screen"\s*:\s*"(start|backstage|welcome)"/.test(uiStr);
+          } catch (e) {}
+        }
+
+        if (backstageOpen) {
+          // Try explicit UI command if supported, then dispatch Escape on window + document + canvas (eframe listens on window)
+          try { await withTimeout(target.api.execute('ui.backstage', { page: null }), 1500, 'ui.backstage'); } catch (e) {}
+          try {
+            if (cw && typeof cw.KeyboardEvent === 'function') {
+              const mkEsc = (type) => new cw.KeyboardEvent(type, { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true, cancelable: true });
+              if (typeof cw.focus === 'function') cw.focus();
+              if (canvas && typeof canvas.focus === 'function') canvas.focus();
+              [cw, doc, canvas].filter(Boolean).forEach((el) => {
+                el.dispatchEvent(mkEsc('keydown'));
+                el.dispatchEvent(mkEsc('keyup'));
+              });
+            }
+          } catch (e) {}
+        }
       }
 
-      // 2. Wake eframe/egui reactive rendering so the updated canvas repaints immediately
+      // 3. Wake eframe/egui reactive rendering so the updated canvas repaints immediately
       try {
-        const cw = target.iframe && target.iframe.contentWindow;
-        const doc = target.iframe && target.iframe.contentDocument;
-        const canvas = doc && doc.querySelector('canvas');
         if (cw && canvas) {
           if (typeof cw.PointerEvent === 'function') {
             canvas.dispatchEvent(new cw.PointerEvent('pointermove', { clientX: 20, clientY: 20, bubbles: true }));
