@@ -31,6 +31,9 @@ class AiSettings {
             'type'             => 'openai_compat',
             'base_url'         => 'https://api.openai.com/v1',
             'default_model'    => 'gpt-4o-mini',
+            'suggested_models' => ['gpt-4o-mini', 'gpt-4o', 'o4-mini'],
+            'docs_url'         => 'https://platform.openai.com/api-keys',
+            'help_key'         => 'ai.help_openai',
             'requires_api_key' => true
         ],
         'anthropic' => [
@@ -38,6 +41,9 @@ class AiSettings {
             'type'             => 'anthropic',
             'base_url'         => 'https://api.anthropic.com',
             'default_model'    => 'claude-sonnet-4-20250514',
+            'suggested_models' => ['claude-sonnet-4-20250514', 'claude-3-5-haiku-latest'],
+            'docs_url'         => 'https://console.anthropic.com/settings/keys',
+            'help_key'         => 'ai.help_anthropic',
             'requires_api_key' => true
         ],
         'gemini' => [
@@ -45,6 +51,9 @@ class AiSettings {
             'type'             => 'gemini',
             'base_url'         => 'https://generativelanguage.googleapis.com',
             'default_model'    => 'gemini-2.5-flash',
+            'suggested_models' => ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
+            'docs_url'         => 'https://aistudio.google.com/apikey',
+            'help_key'         => 'ai.help_gemini',
             'requires_api_key' => true
         ],
         'openrouter' => [
@@ -52,6 +61,9 @@ class AiSettings {
             'type'             => 'openai_compat',
             'base_url'         => 'https://openrouter.ai/api/v1',
             'default_model'    => 'google/gemini-2.5-flash',
+            'suggested_models' => ['google/gemini-2.5-flash', 'anthropic/claude-sonnet-4', 'openai/gpt-4o-mini'],
+            'docs_url'         => 'https://openrouter.ai/keys',
+            'help_key'         => 'ai.help_openrouter',
             'requires_api_key' => true
         ],
         'mistral' => [
@@ -59,6 +71,9 @@ class AiSettings {
             'type'             => 'openai_compat',
             'base_url'         => 'https://api.mistral.ai/v1',
             'default_model'    => 'mistral-small-latest',
+            'suggested_models' => ['mistral-small-latest', 'mistral-large-latest', 'codestral-latest'],
+            'docs_url'         => 'https://console.mistral.ai/api-keys',
+            'help_key'         => 'ai.help_mistral',
             'requires_api_key' => true
         ],
         'ollama' => [
@@ -66,6 +81,9 @@ class AiSettings {
             'type'             => 'ollama',
             'base_url'         => 'http://127.0.0.1:11434',
             'default_model'    => 'llama3.2',
+            'suggested_models' => ['llama3.2', 'qwen2.5-coder:7b', 'mistral'],
+            'docs_url'         => 'https://ollama.com/download',
+            'help_key'         => 'ai.help_ollama',
             'requires_api_key' => false
         ],
         'openai_compat' => [
@@ -73,6 +91,9 @@ class AiSettings {
             'type'             => 'openai_compat',
             'base_url'         => '',
             'default_model'    => '',
+            'suggested_models' => [],
+            'docs_url'         => '',
+            'help_key'         => 'ai.help_openai_compat',
             'requires_api_key' => false
         ]
     ];

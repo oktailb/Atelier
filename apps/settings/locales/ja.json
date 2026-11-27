@@ -396,5 +396,16 @@
   "ai.admin_max_steps_label": "ツール実行数のグローバル上限",
   "ai.admin_shared_enable_label": "インスタンス共有 LLM プロバイダーを有効化",
   "ai.admin_save_btn": "AI ポリシーを保存",
-  "ai.admin_saved_toast": "管理者 AI ポリシーを保存しました"
+  "ai.admin_saved_toast": "管理者 AI ポリシーを保存しました",
+  "ai.help_auth_title": "API キーが必要または無効です",
+  "ai.help_ssrf_title": "SSRF ポリシーによりローカル/LAN 接続がブロックされました",
+  "ai.help_ssrf_desc": "ローカルサーバー（Ollama、LM Studio、vLLM）へ接続するには、管理者が下のポリシー設定で「プライベート LAN エンドポイントを許可」を有効にする必要があります。",
+  "ai.help_open_portal": "API キー取得ポータルを開く",
+  "ai.help_openai": "OpenAI Platform → API Keys でキー（sk-…）を作成し、上の欄に貼り付けてからテストしてください。",
+  "ai.help_anthropic": "Anthropic Console → Settings → API Keys でキー（sk-ant-…）を作成し、上に貼り付けてください。",
+  "ai.help_gemini": "Google AI Studio → Get API Key で Gemini API キーを作成し、上に貼り付けてください。",
+  "ai.help_openrouter": "OpenRouter → Keys でキー（sk-or-…）を作成してください（モデル一覧取得はキーなしでも動作します）。",
+  "ai.help_mistral": "Mistral Console（console.mistral.ai）→ API Keys でキーを作成し、上に貼り付けてください。",
+  "ai.help_ollama": "Ollama はキー不要で http://127.0.0.1:11434（または LAN IP）で動作します。管理者設定でプライベート LAN 許可を有効にしてください。",
+  "ai.help_openai_compat": "OpenAI 互換 API（LM Studio、vLLM 等）のベース URL と必要な場合は Bearer トークンを入力してください。"
 }

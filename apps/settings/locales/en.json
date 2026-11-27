@@ -396,5 +396,16 @@
   "ai.admin_max_steps_label": "Global max tool steps cap",
   "ai.admin_shared_enable_label": "Enable shared instance LLM provider",
   "ai.admin_save_btn": "Save AI policy",
-  "ai.admin_saved_toast": "Admin AI policy saved"
+  "ai.admin_saved_toast": "Admin AI policy saved",
+  "ai.help_auth_title": "API key required or invalid",
+  "ai.help_ssrf_title": "Local/LAN connection blocked by SSRF policy",
+  "ai.help_ssrf_desc": "To reach a local server (Ollama, LM Studio, vLLM), an administrator must enable 'Allow private LAN endpoints' in the Admin AI Policy card below.",
+  "ai.help_open_portal": "Open API key portal",
+  "ai.help_openai": "Create an OpenAI API key (sk-…) in OpenAI Platform → API Keys, then paste it above before testing.",
+  "ai.help_anthropic": "Generate an Anthropic key (sk-ant-…) in Anthropic Console → Settings → API Keys, then paste it above.",
+  "ai.help_gemini": "Create a Google Gemini API key in Google AI Studio → Get API Key, then paste it above.",
+  "ai.help_openrouter": "Create an OpenRouter key (sk-or-…) in OpenRouter → Keys (/models discovery also works without a key).",
+  "ai.help_mistral": "Generate a Mistral AI key in Mistral Console (console.mistral.ai) → API Keys, then paste it above.",
+  "ai.help_ollama": "Ollama runs keyless on http://127.0.0.1:11434 (or your LAN NAS IP). Make sure an admin enables 'Allow private LAN endpoints'.",
+  "ai.help_openai_compat": "Enter your OpenAI-compatible API base URL (e.g. LM Studio, vLLM, Scaleway) and Bearer token if required."
 }

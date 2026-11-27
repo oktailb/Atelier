@@ -1667,7 +1667,91 @@ try {
     aiPanelCode.includes('ai_save_user_config') &&
     aiPanelCode.includes('ai_save_admin_policy') &&
     aiPanelCode.includes('ai_test_profile') &&
+    aiPanelCode.includes('aiProviderHelpBox') &&
+    aiPanelCode.includes('ai.help_auth_title') &&
+    aiPanelCode.includes('ai.help_ssrf_title') &&
     !/\bfetch\s*\(/.test(aiPanelCode)
+  );
+
+  // Phase E (Lot 2): AgentToolRegistry, AiCopilotService & Taskbar Copilot Popup
+  const agentRegPath = path.join(rootDir, 'system', 'userland', 'services', 'AgentToolRegistry.js');
+  const copilotSvcPath = path.join(rootDir, 'system', 'userland', 'services', 'AiCopilotService.js');
+  const taskbarTplPath = path.join(appsDir, 'taskbar', 'template.php');
+  const taskbarAppPath = path.join(appsDir, 'taskbar', 'app.js');
+  const taskbarCssPath = path.join(appsDir, 'taskbar', 'style.css');
+  const agentRegCode = fs.existsSync(agentRegPath) ? fs.readFileSync(agentRegPath, 'utf8') : '';
+  const copilotSvcCode = fs.existsSync(copilotSvcPath) ? fs.readFileSync(copilotSvcPath, 'utf8') : '';
+  const taskbarTplCode = fs.existsSync(taskbarTplPath) ? fs.readFileSync(taskbarTplPath, 'utf8') : '';
+  const taskbarAppCode = fs.existsSync(taskbarAppPath) ? fs.readFileSync(taskbarAppPath, 'utf8') : '';
+  const taskbarCssCode = fs.existsSync(taskbarCssPath) ? fs.readFileSync(taskbarCssPath, 'utf8') : '';
+
+  assert("Phase E (Lot 2): Fichiers Copilot, chargement index.php, Taskbar popup & zéro fetch() brut",
+    fs.existsSync(agentRegPath) &&
+    fs.existsSync(copilotSvcPath) &&
+    indexHtmlPhaseC.includes('AgentToolRegistry.js') &&
+    indexHtmlPhaseC.includes('AiCopilotService.js') &&
+    taskbarTplCode.includes('taskbarCopilotBar') &&
+    taskbarTplCode.includes('taskbarCopilotQuickInput') &&
+    taskbarTplCode.includes('taskbarCopilotPopup') &&
+    taskbarTplCode.includes('openCookieSettingsBtn') &&
+    taskbarAppCode.includes('window.sys.copilot') &&
+    taskbarCssCode.includes('.taskbar-copilot-popup') &&
+    copilotSvcCode.includes('[UNTRUSTED_TOOL_OUTPUT]') &&
+    !/\bfetch\s*\(/.test(agentRegCode) &&
+    !/\bfetch\s*\(/.test(copilotSvcCode)
+  );
+
+  // Runtime verification of AgentToolRegistry risk policy, disabled_apps, and soft-delete invariant
+  const postedApiCalls = [];
+  const launchedApps = [];
+  const regMockWin = {
+    SG_CURRENT_USER: { username: 'alice', display_name: 'Alice', home_dir: 'users/alice' },
+    SG_DISCOVERED_APPS: {
+      explorer: { name: 'Explorer', category: 'system', manifest: { extensions: [] } },
+      secretapp: { name: 'SecretApp', category: 'other', manifest: { extensions: [] } },
+      taskbar: { name: 'Taskbar', category: 'system', manifest: {} }
+    },
+    WindowManager: {
+      activeWindowId: 'win_exp',
+      windows: new Map([
+        ['win_exp', { id: 'win_exp', appId: 'explorer', title: 'Explorer', state: 'normal' }],
+        ['win_sec', { id: 'win_sec', appId: 'secretapp', title: 'Secret', state: 'normal' }]
+      ])
+    },
+    sys: {
+      appManager: { launchApp: (id) => launchedApps.push(id) },
+      api: {
+        post: async (action, body) => {
+          postedApiCalls.push({ action, body });
+          return { success: true };
+        },
+        get: async () => ({ success: true, directories: [], files: [] })
+      }
+    }
+  };
+  new Function('window', agentRegCode)(regMockWin);
+  const reg = regMockWin.sys && regMockWin.sys.agentTools;
+  const readOnlyTools = reg ? reg.getAvailableTools('read_only', []) : [];
+  const assistedTools = reg ? reg.getAvailableTools('assisted', []) : [];
+  const listAppsRes = reg ? await reg.executeTool('os_list_apps', {}, { autonomyLevel: 'assisted', disabledApps: ['secretapp'] }) : null;
+  const launchBlocked = reg ? await reg.executeTool('os_launch_app', { app_id: 'secretapp' }, { autonomyLevel: 'assisted', disabledApps: ['secretapp'] }) : null;
+  const delRes = reg ? await reg.executeTool('vfs_delete_item', { path: 'users/alice/demo.txt' }, { autonomyLevel: 'assisted', disabledApps: [] }) : null;
+  const lastDelCall = postedApiCalls.find(c => c.action === 'delete_item');
+
+  assert("Phase E (Lot 2): AgentToolRegistry (read_only, Human-in-the-Loop, disabled_apps, soft-delete strict)",
+    Boolean(reg) &&
+    readOnlyTools.length >= 5 &&
+    readOnlyTools.every(t => t.risk === 'read') &&
+    assistedTools.length > readOnlyTools.length &&
+    reg.requiresConfirmation({ risk: 'read' }, 'assisted', 'explorer') === false &&
+    reg.requiresConfirmation({ risk: 'mutate_fs' }, 'autonomous_app', 'explorer') === true &&
+    reg.requiresConfirmation({ risk: 'destructive' }, 'autonomous_app', 'explorer') === true &&
+    reg.requiresConfirmation({ risk: 'mutate_app', appId: 'explorer' }, 'assisted', 'explorer') === true &&
+    reg.requiresConfirmation({ risk: 'mutate_app', appId: 'explorer' }, 'autonomous_app', 'explorer') === false &&
+    reg.requiresConfirmation({ risk: 'mutate_app', appId: 'other' }, 'autonomous_app', 'explorer') === true &&
+    listAppsRes && listAppsRes.success && !listAppsRes.apps.some(a => a.id === 'secretapp' || a.id === 'taskbar') &&
+    launchBlocked && launchBlocked.success === false && launchedApps.length === 0 &&
+    delRes && delRes.success === true && lastDelCall && lastDelCall.body.target === 'users/alice/demo.txt' && !('permanent' in lastDelCall.body)
   );
 } catch (e) {
   assert("Phase 1 exécution runtime UI", false, e.stack);

@@ -60,6 +60,10 @@
       this.startClock();
       this.colonizeTopMenuBar();
 
+      if (window.sys && window.sys.copilot && typeof window.sys.copilot.init === 'function') {
+        window.sys.copilot.init();
+      }
+
       if (window.WindowManager) {
         this.updateWindows(window.WindowManager.windows, window.WindowManager.activeWindowId);
       }
@@ -399,6 +403,9 @@
       }
       this.hidePreview();
       this.hideCalendar();
+      if (window.sys && window.sys.copilot && typeof window.sys.copilot.close === 'function') {
+        window.sys.copilot.close();
+      }
       if (this.taskbarEl) {
         this.taskbarEl.style.display = 'none';
       }

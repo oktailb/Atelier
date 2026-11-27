@@ -185,6 +185,7 @@
               <span>${esc(t('ai.models_list_field'))}</span>
               <input type="text" id="aiProfModels" value="${esc(curModelsStr)}" placeholder="model-a, model-b" style="${inputStyle}" />
             </label>
+            <div id="aiProviderHelpBox" style="grid-column:1 / -1;display:none;padding:8px 10px;border-radius:7px;font-size:0.76rem;line-height:1.45;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.35);color:var(--text-main);"></div>
             <div style="grid-column:1 / -1;display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
               ${editingProfile && editingProfile.has_api_key ? `
                 <label style="margin-right:auto;display:flex;align-items:center;gap:6px;font-size:0.76rem;color:#ef4444;">
@@ -393,12 +394,61 @@
     // EVENT BINDINGS
     // -------------------------------------------------------------------------
     const profStatusEl = container.querySelector('#aiProfileStatusMsg');
-    const setProfStatus = (msg, isError = false) => {
+    const helpBoxEl = container.querySelector('#aiProviderHelpBox');
+
+    const detectPresetInfo = (type, baseUrl) => {
+      const urlLower = String(baseUrl || '').toLowerCase();
+      if (type === 'gemini' || urlLower.includes('generativelanguage.googleapis.com')) return presets.gemini || null;
+      if (type === 'anthropic' || urlLower.includes('anthropic.com')) return presets.anthropic || null;
+      if (type === 'ollama' || urlLower.includes('11434')) return presets.ollama || null;
+      if (urlLower.includes('openrouter.ai')) return presets.openrouter || null;
+      if (urlLower.includes('mistral.ai')) return presets.mistral || null;
+      if (urlLower.includes('openai.com')) return presets.openai || null;
+      return presets.openai_compat || null;
+    };
+
+    const renderProviderHelp = (presetInfo, extraErr = '') => {
+      if (!helpBoxEl) return;
+      if (!presetInfo && !extraErr) {
+        helpBoxEl.style.display = 'none';
+        helpBoxEl.innerHTML = '';
+        return;
+      }
+      const errLower = String(extraErr || '').toLowerCase();
+      const isSsrfErr = errLower.includes('ssrf') || errLower.includes('blocked');
+      const isAuthErr = errLower.includes('401') || errLower.includes('403') || errLower.includes('key') || errLower.includes('auth') || errLower.includes('permission denied');
+      let lines = [];
+      if (isSsrfErr) {
+        lines.push(`🛡️ <strong>${esc(t('ai.help_ssrf_title'))}</strong> — ${esc(t('ai.help_ssrf_desc'))}`);
+      } else if (isAuthErr && presetInfo) {
+        lines.push(`🔑 <strong>${esc(t('ai.help_auth_title'))}</strong> — ${esc(t(presetInfo.help_key || 'ai.help_openai_compat'))}`);
+      } else if (presetInfo && presetInfo.help_key) {
+        lines.push(`💡 ${esc(t(presetInfo.help_key))}`);
+      }
+      if (presetInfo && presetInfo.docs_url && /^https?:\/\//i.test(presetInfo.docs_url)) {
+        lines.push(`<a href="${esc(presetInfo.docs_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent-primary,#6366f1);font-weight:600;text-decoration:underline;">🔗 ${esc(t('ai.help_open_portal'))} (${esc(presetInfo.label || '')})</a>`);
+      }
+      if (lines.length === 0) {
+        helpBoxEl.style.display = 'none';
+        return;
+      }
+      helpBoxEl.innerHTML = lines.join('<br>');
+      helpBoxEl.style.display = 'block';
+    };
+
+    const setProfStatus = (msg, isError = false, ctxInfo = null) => {
       if (!profStatusEl) return;
       profStatusEl.textContent = msg;
       profStatusEl.style.display = msg ? 'block' : 'none';
       profStatusEl.style.color = isError ? '#ef4444' : '#22c55e';
       profStatusEl.style.borderColor = isError ? 'rgba(239,68,68,0.45)' : 'rgba(34,197,94,0.45)';
+      if (isError && msg) {
+        const pInfo = ctxInfo || detectPresetInfo(
+          container.querySelector('#aiProfType')?.value || '',
+          container.querySelector('#aiProfBaseUrl')?.value || ''
+        );
+        renderProviderHelp(pInfo, msg);
+      }
     };
 
     const presetSel = container.querySelector('#aiPresetSelect');
@@ -406,16 +456,25 @@
       presetSel.addEventListener('change', () => {
         const key = presetSel.value;
         const p = presets[key];
-        if (!p) return;
+        if (!p) {
+          renderProviderHelp(null);
+          return;
+        }
         const lbl = container.querySelector('#aiProfLabel');
         const typ = container.querySelector('#aiProfType');
         const url = container.querySelector('#aiProfBaseUrl');
         const mdl = container.querySelector('#aiProfDefaultModel');
+        const mdls = container.querySelector('#aiProfModels');
         if (lbl) lbl.value = p.label || '';
         if (typ) typ.value = p.type || 'openai_compat';
         if (url) url.value = p.base_url || '';
         if (mdl) mdl.value = p.default_model || '';
+        if (mdls && Array.isArray(p.suggested_models)) mdls.value = p.suggested_models.join(', ');
+        renderProviderHelp(p);
       });
+    }
+    if (editingProfile) {
+      renderProviderHelp(detectPresetInfo(editingProfile.type, editingProfile.base_url));
     }
 
     const cancelEditBtn = container.querySelector('#aiCancelEditBtn');

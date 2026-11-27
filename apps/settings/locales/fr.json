@@ -396,5 +396,16 @@
   "ai.admin_max_steps_label": "Plafond global d'étapes d'outils",
   "ai.admin_shared_enable_label": "Activer un fournisseur LLM partagé pour l'instance",
   "ai.admin_save_btn": "Enregistrer la politique IA",
-  "ai.admin_saved_toast": "Politique administrateur IA enregistrée"
+  "ai.admin_saved_toast": "Politique administrateur IA enregistrée",
+  "ai.help_auth_title": "Clé API requise ou invalide",
+  "ai.help_ssrf_title": "Connexion LAN/locale bloquée par politique SSRF",
+  "ai.help_ssrf_desc": "Pour contacter un serveur local (Ollama, LM Studio, vLLM), un administrateur doit activer « Autoriser les endpoints LAN privés » dans la carte Politique Administrateur IA ci-dessous.",
+  "ai.help_open_portal": "Ouvrir le portail de gestion des clés",
+  "ai.help_openai": "Créez une clé API OpenAI (format sk-…) dans Platform OpenAI → API Keys, puis collez-la ci-dessus avant de tester.",
+  "ai.help_anthropic": "Générez une clé Anthropic (format sk-ant-…) dans Anthropic Console → Settings → API Keys, puis collez-la ci-dessus.",
+  "ai.help_gemini": "Créez une clé gratuite ou payante Google Gemini dans Google AI Studio → Get API Key, puis collez-la ci-dessus.",
+  "ai.help_openrouter": "Créez une clé OpenRouter (format sk-or-…) dans OpenRouter → Keys (le catalogue /models répond aussi sans clé).",
+  "ai.help_mistral": "Générez une clé Mistral AI dans La Plateforme (console.mistral.ai) → API Keys, puis collez-la ci-dessus.",
+  "ai.help_ollama": "Ollama fonctionne sans clé API sur http://127.0.0.1:11434 (ou l'IP LAN de votre NAS). Pensez à activer l'option admin « Autoriser les endpoints LAN privés ».",
+  "ai.help_openai_compat": "Indiquez l'URL de base de votre API compatible OpenAI (ex. LM Studio, vLLM, Scaleway) ainsi que le jeton Bearer si le serveur l'exige."
 }
