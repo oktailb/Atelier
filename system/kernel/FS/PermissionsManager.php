@@ -24,7 +24,8 @@ class PermissionsManager {
         'can_create_folder'     => false,
         'can_download_archive'  => false,
         'can_download_item'     => false,
-        'can_use_browser_proxy' => false
+        'can_use_browser_proxy' => false,
+        'can_use_ai_agent'      => false
     ];
 
     public const MATRIX_ROLES = ['anonymous', 'guest', 'user'];

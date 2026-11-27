@@ -23,7 +23,8 @@
     "css": "settings.css"
   },
   "scripts": [
-    "users-panel.js"
+    "users-panel.js",
+    "ai-panel.js"
   ],
   "capabilities": [
     "admin_auth",

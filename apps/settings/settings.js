@@ -11,7 +11,8 @@
     { key: 'can_create_folder', labelKey: 'admin.perm_create_folder' },
     { key: 'can_download_archive', labelKey: 'admin.perm_download_archive' },
     { key: 'can_download_item', labelKey: 'admin.perm_download_item' },
-    { key: 'can_use_browser_proxy', labelKey: 'settings.perm_browser_proxy' }
+    { key: 'can_use_browser_proxy', labelKey: 'settings.perm_browser_proxy' },
+    { key: 'can_use_ai_agent', labelKey: 'settings.perm_ai_agent' }
   ];
 
   const MATRIX_ROLES = [
@@ -41,6 +42,7 @@
           { id: 'appearance', label: 'settings.tab_appearance', icon: '🎨', group: 'settings.group_interface' },
           { id: 'autostart', label: 'settings.tab_autostart', icon: '🚀', group: 'settings.group_interface' },
           { id: 'storage', label: 'settings.tab_storage', icon: '☁️', group: 'settings.group_system' },
+          { id: 'ai_agent', label: 'settings.tab_ai_agent', icon: '✨', group: 'settings.group_system' },
           { id: 'plugins', label: 'settings.tab_plugins', icon: '🧩', group: 'settings.group_system' },
           { id: 'system', label: 'settings.tab_system', icon: '⚙️', group: 'settings.group_system' },
           { id: 'privacy', label: 'settings.tab_privacy', icon: '🍪', group: 'settings.group_system' }
@@ -159,6 +161,7 @@
         case 'mail':
         case 'shares':
         case 'storage':
+        case 'ai_agent':
           return `<div id="settingsCustomSection_${tabId}"></div>`;
         case 'appearance': return this.renderAppearanceTab();
         case 'autostart': return this.renderAutostartTab();
@@ -239,9 +242,14 @@
         }
       });
 
-      // Bind modular Users/Registration/Mail/Shares/Storage panels & custom plugin sections if active
+      // Bind modular Users/Registration/Mail/Shares/Storage & AI Agent panels if active
       const modularPanelSections = ['users', 'registration', 'mail', 'shares', 'storage'];
-      if (modularPanelSections.includes(this.currentTab) && window.AtelierUsersPanel && typeof window.AtelierUsersPanel.renderSection === 'function') {
+      if (this.currentTab === 'ai_agent' && window.AtelierAiPanel && typeof window.AtelierAiPanel.render === 'function') {
+        const panelArea = container.querySelector('#settingsCustomSection_ai_agent');
+        if (panelArea) {
+          window.AtelierAiPanel.render(panelArea, this);
+        }
+      } else if (modularPanelSections.includes(this.currentTab) && window.AtelierUsersPanel && typeof window.AtelierUsersPanel.renderSection === 'function') {
         const panelArea = container.querySelector(`#settingsCustomSection_${this.currentTab}`);
         if (panelArea) {
           window.AtelierUsersPanel.renderSection(this.currentTab, panelArea, this);

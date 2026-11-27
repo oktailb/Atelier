@@ -48,6 +48,7 @@ Atelier by GallusTech dispose déjà d'un ADN unique que les clouds classiques n
 | **Jobs asynchrones** | Miniatures, ZIP, FFmpeg synchrones en PHP | File de tâches en arrière-plan (miniatures, transcodage HLS, archives lourdes, scan antivirus, purge) | **Moyenne** |
 | **Déploiement & Exploitation** | Installation manuelle PHP / Apache | Image **Docker** officielle, Docker Compose 1-clic, installateur web, mises à jour automatisées, métriques/backups | **Critique** |
 | **Marque Blanche & Galeries Clients** | Thèmes + titre configurables | Logo/domaine/thème par tenant, galeries de livraison clients (favoris, validation, filigrane, export HD) | **Élevée** |
+| **Assistant & Agent IA WebOS** | Aucun pont IA intégré | **Agent IA universel (« Atelier Copilot »)** configurable par utilisateur (cloud ou Ollama local), accès rapide bas-gauche et pilotage unifié des apps natives, jeux et WASM (`craft-web-api` / `webos:agent-*`) | **Élevée** |
 
 ---
 
@@ -65,6 +66,7 @@ flowchart TB
     subgraph Kernel["Noyau PHP Atelier by GallusTech"]
         Auth["Auth & RBAC (Users, Groups, 2FA, OIDC, Share Links)"]
         Api["API Gateway + AppEndpoint + ActionRouter"]
+        AiGw["AI Gateway (Multi-LLM Proxy, CredentialVault, Anti-SSRF)"]
         WebDav["Passerelle WebDAV"]
         Vfs["Couche VFS Unifiée (Quotas, Trash, Versioning, ACL)"]
         Worker["Worker Asynchrone (Miniatures, FFmpeg, ZIP, Indexation)"]
@@ -81,6 +83,7 @@ flowchart TB
     Auth --> Api
     Auth --> WebDav
     Api --> Vfs
+    Api --> AiGw
     WebDav --> Vfs
     Api --> Worker
     Vfs --> Db
@@ -251,7 +254,66 @@ flowchart TB
 
 ---
 
-### 🟥 Phase E — Infrastructure SaaS Hébergée (« Atelier Cloud »)
+### 🟪 Phase E — Agent IA Universel & Automatisation WebOS (« Atelier Copilot »)
+*Objectif : transformer Atelier en un véritable bureau assisté par IA, souverain et agnostique du fournisseur (cloud ou LLM local), capable d'assister l'utilisateur et de manipuler **toute application existante ou future** — native (y compris les jeux), ArtCraft WASM ou externe tierce — dans le respect strict des droits de session.*
+
+#### 1. Point d'Entrée UX dans la Barre des Tâches (Bas-Gauche)
+- **Remplacement du logo redondant « Atelier » en bas à gauche** (`apps/taskbar/`) :
+  - Le menu principal *Atelier by GallusTech* étant déjà ancré en haut à gauche dans la barre de menus, l'emplacement bas-gauche de la barre des tâches est dédié à l'**accès rapide Agent IA** (raccourci clavier global `Ctrl+K` / `Alt+Space`).
+  - **Accès double mode** (compact → étendu) :
+    - *Entrée rapide en barre des tâches* : bouton / champ prompt compact invitant à saisir une demande en 1 clic.
+    - *Popup ancrée en bas à gauche* (façon *Antigravity* : ouverte juste au-dessus de l'emplacement, redimensionnable et épinglable sans bloquer le bureau) :
+      - **Champ texte multiligne extensible** (`textarea` auto-grow, `Entrée` pour envoyer, `Shift+Entrée` nouvelle ligne) + bouton **Stop / Annuler** en temps réel.
+      - **Barre d'options rapides intégrée** directement dans le pied de la popup :
+        - **Sélecteur de modèle / profil** (bascule instantanée entre les modèles configurés par l'utilisateur : ex. Gemini, Claude, GPT, Mistral ou Ollama local).
+        - **Sélecteur de niveau d'autonomie / mode** :
+          - `💬 Lecture / Conseil` : l'agent inspecte le contexte et répond sans exécuter aucune mutation.
+          - `🛡️ Assisté (Recommandé)` : exécute les lectures librement et demande une validation visuelle avant toute action modifiante.
+          - `⚡ Autonome (App active)` : exécute les commandes métier dans la fenêtre active sans friction, tout en conservant une confirmation obligatoire pour les actions destructrices ou d'écriture disque/VFS.
+        - **Indicateur de contexte actif** : puces cliquables montrant la fenêtre focalisée, le fichier ouvert ou la sélection Explorateur (désactivables d'un clic) + attachement optionnel d'une capture d'écran (`screenshot()`).
+      - **Fil d'exécution transparent** : affichage pliable des appels d'outils exécutés (*« Inspection GridCraft… »*, *« Exécution `cell.set`… »*), cartes de confirmation *Approuver / Refuser* (Human-in-the-Loop) et bouton *Nouvelle conversation*.
+
+#### 2. Page de Configuration Dédiée dans les Paramètres (`Control Panel → IA & Agent`)
+- **Volet Utilisateur** *(cloisonné par compte dans `users.preferences_json`, clés API chiffrées au repos via `CredentialVault` AES-256-GCM)* :
+  - **Gestion multi-profils / fournisseurs** : OpenAI, Anthropic, Google Gemini, OpenRouter, Mistral, et tout **endpoint compatible OpenAI auto-hébergé** (**Ollama**, LM Studio, vLLM, llama.cpp).
+  - **Test de connexion & découverte automatique des modèles** (`/v1/models` ou `/api/tags` Ollama) afin d'alimenter le menu rapide de la popup bas-gauche.
+  - **Préférences comportementales** : modèle par défaut, niveau d'autonomie par défaut, prompt système personnel, plafond d'itérations d'outils par tour (ex. 10), activation de la vision multimodale (`screenshot`), et **matrice par application** (autoriser/interdire à l'agent de piloter individuellement chaque app native, jeu ou app externe).
+  - **Historique isolé par utilisateur** dans `sys.storage` (effaçable en 1 clic, purgé sur `clearUserScope()`).
+- **Volet Administrateur** *(`storage/ai_settings.json`)* :
+  - Activation globale et permission RBAC `can_use_ai_agent` dans la matrice 3 niveaux (`PermissionsManager` : Rôle → Groupe → Utilisateur).
+  - Politique fournisseurs : liste blanche de domaines autorisés, interrupteur explicite `allow_private_lan` (pour autoriser un serveur Ollama/vLLM sur le LAN privé sans affaiblir la protection SSRF par défaut), et mode optionnel **« Modèle par défaut de l'instance »** (clé serveur administrateur mutualisée avec plafond de requêtes par utilisateur).
+  - Rate-limiting par utilisateur/IP et consultation des traces d'appels d'outils dans l'`AuditLogger`.
+
+#### 3. Architecture Universelle d'Intégration Applicative (« WebOS Agent Bus »)
+*Principe directeur : **toute application existante ou future** — native, jeu ou externe/WASM — s'intègre dans le même registre d'outils côté client (`AgentToolRegistry.js`) selon ses capacités :*
+
+| Famille d'applications | Mécanisme d'intégration | Capacités exposées à l'agent |
+|---|---|---|
+| **1. Noyau OS & VFS** *(toujours actif)* | Syscalls Atelier + `WindowManager` + `AppManager` | Lister/chercher/lire/créer/déplacer des fichiers (dans les ACLs & quotas utilisateur), lancer/focaliser/organiser/fermer des fenêtres, ouvrir un fichier dans une app, déclencher une sauvegarde `?host=parent`. |
+| **2. Applications Natives & Jeux** (`apps/*`, `apps/games/*`) | **Contrat standard `WebOSApp`** (`getAgentContext()`, `getAgentTools()`, `executeAgentTool(name, args)`) + déclaration optionnelle `capabilities: ["agent-tools"]` dans `manifest.json` | Chaque app native existante ou future expose ses propres commandes métier : Explorateur (filtrage, tri, sélection, batch), Visionneuse Image/EXIF (rotation, recadrage, métadonnées), Doc Viewer (recherche, édition), Graphing Calc (tracer fonctions, calculs), Maps (navigation, mesures), Tribune (lecture, brouillon), **et les Jeux (`apps/games/`)** (lecture du plateau/score/règles, mode *Coach* suggérant un coup, mode *Adversaire IA* jouant un coup, commentaire de partie). |
+| **3. Apps Externes ArtCraft WASM** (`apps/external/*craft*`) | **Auto-découverte dynamique `craft-web-api`** via `iframe.contentWindow.<prefix>` dans `WebAppHost` | Accès natif au même canal de contrôle que le serveur MCP desktop : `commands()` (découverte dynamique des schémas), `docInspect()`, `uiInspect()`, `execute(command, params)`, `request(method, params)` et `screenshot()` (PNG base64). *Déjà embarqué dans le `.wasm` de 6 apps déployées (`cadcraft`, `deckcraft`, `gridcraft`, `pdfcraft`, `filmcraft`, `wordcraft`) et activé automatiquement sur les autres dès leur mise à jour amont.* |
+| **4. Toute Future App Externe Tierce** (non-Craft) | **Protocole coopératif ouvert `postMessage`** (`webos:agent-register-tools`, `webos:agent-context`, `webos:agent-call`, `webos:agent-result`) strictement `same-origin` | Permet à n'importe quelle WebApp tierce (React, Vue, Rust/WASM, Godot, etc.) de déclarer ses propres outils JSON Schema et son contexte vivant à l'agent Atelier. |
+| **5. Fallback Universel** (apps sans API dédiée : DOSBox, EPUB Reader…) | Cycle de vie `WebAppHost` + `WindowManager` | Même sans API interne, l'agent peut lancer l'app, y ouvrir un document du VFS, surveiller l'état non sauvegardé, basculer le focus ou fermer la fenêtre. |
+
+#### 4. Architecture Backend & Garde-fous Sécurité (Zero-Trust Agent)
+- **Relais LLM 100 % côté serveur (`system/kernel/AI/LlmGateway.php` + `AiAgentActions.php`)** :
+  - Adaptateurs zéro-dépendance (PHP cURL) pour les formats **OpenAI-compatible** (OpenAI, Ollama, LM Studio, OpenRouter, Mistral), **Anthropic Messages API** et **Google Gemini API** avec support streaming **SSE** et *function/tool calling* normalisé.
+  - Les clés API chiffrées par `CredentialVault` sont déchiffrées uniquement côté PHP le temps de la requête sortante et ne transitent **jamais** vers le DOM ou le `localStorage`.
+  - Requêtes sortantes protégées par `UrlValidator::safeCurlFetch()` (anti-SSRF, pinning IP `CURLOPT_RESOLVE`, contrôle redirections, exception contrôlée pour `allow_private_lan` admin).
+- **Invariants de sécurité non négociables** :
+  - **Zéro élévation de privilèges** : l'agent s'exécute strictement avec la session active de l'utilisateur (mêmes ACL `ShareManager`/`DotfileManager`, isolation `users/` et `ext://`, quotas disque `413`).
+  - **Cloisonnement des actions critiques** : les routes d'administration, gestion des comptes, clés/App Passwords, paramètres sécurité/IA et suppressions définitives sont **strictement hors-scope** (jamais exposées comme outils).
+  - **Human-in-the-Loop & anti-Prompt Injection** : les données lues dans les fichiers VFS, emails ou retours `docInspect()` sont systématiquement encapsulées comme *données non fiables* ; toute action classée `destructive` ou `mutate_fs` exige une approbation manuelle explicite de l'utilisateur dans la popup (avec aperçu exact des arguments) et est journalisée dans `AuditLogger`.
+
+#### 5. Découpage de Livraison (Lots Incrémentaux)
+- [x] **Lot 1 — Socle Backend LLM, Coffre Clés & Page Settings (`IA & Agent`)** *(Livré & Testé)* : `AiSettings.php`, `LlmGateway.php` (OpenAI-compatible/Ollama, Anthropic, Gemini), `AiAgentActions.php` (CSRF + SSRF + rate-limit), page de configuration utilisateur & politique admin dans `apps/settings/ai-panel.js`, permission RBAC `can_use_ai_agent`, parité i18n FR/EN/JA et tests unitaires sécurité.
+- [ ] **Lot 2 — Accès Rapide Bas-Gauche (Taskbar), Popup Copilot & Outils OS/VFS** : remplacement du logo redondant « Atelier » en bas à gauche de `apps/taskbar/` par le lanceur/popup Copilot (champ extensible, sélecteur modèle/niveau, contexte actif, Stop, cartes de confirmation Human-in-the-Loop) + `AgentToolRegistry.js` + outils système (`WindowManager`, `AppManager`, VFS).
+- [ ] **Lot 3 — Pont Dynamique `craft-web-api` & Protocole Ouvert `webos:agent-*`** : auto-découverte à chaud dans `WebAppHost` des apps Craft WASM (`commands()`, `docInspect()`, `execute()`, `screenshot()`), support multimodal des captures canvas, et protocole `postMessage` origin-locked pour toute future app externe tierce.
+- [ ] **Lot 4 — Contrat Universel `WebOSApp` (Apps Natives & Jeux)** : hooks standards `getAgentContext()` / `getAgentTools()` / `executeAgentTool()` dans `WebOSApp.js` + intégrations pilotes sur Explorateur, Visionneuse Image, Doc Viewer, Calculatrice/Traceur, Maps et les jeux `apps/games/` (mode coach, explication de règles et adversaire IA) + documentation développeur dans `docs/apps-guide.md`.
+
+---
+
+### 🟥 Phase F — Infrastructure SaaS Hébergée (« Atelier Cloud »)
 *Objectif : proposer un service hébergé clé en main, rentable dès les premiers clients et sécurisé par isolation stricte.*
 
 - **Stratégie d'hébergement pragmatique : « Silo par Client » au démarrage** :
@@ -312,11 +374,10 @@ Grâce au déport du calcul lourd en **WebAssembly côté client**, la marge bru
 
 ---
 
-## 9. Prochain Jalon Concret Recommandé
+## 9. Prochains Jalons Concrets Recommandés
 
-Si la décision est prise d'engager cette trajectoire produit, l'ordre de plus fort retour sur investissement est :
+Les **Phases A, B, C** et les **Lots 1–2 de la Phase D (Studio Créatif & Apps Externes)** étant livrés et couverts par la suite de tests (981+ tests), l'ordre de plus fort retour sur investissement pour la suite est :
 
-1. **D'abord** : **Image Docker officielle + Démo live** *(effort `S` — rend le projet immédiatement testable et partageable)*.
-2. **Ensuite** : **Phase A (SQLite WAL + Multi-Utilisateurs + Liens de partage signés)** *(effort `L` — débloque l'usage familial, studio et pro)*.
-3. **Puis** : **Phase B (`StorageDriver` Local/S3 + Uploads fragmentés)** *(effort `L` — rend l'hébergement SaaS viable économiquement)*.
-4. **Enfin** : **Phase D (Galeries Clients + Marque Blanche)** *(effort `M` — le déclencheur d'achat différenciant)*.
+1. **Phase D (fin)** : **Galeries de Livraison Client (proofing, filigrane, sélection) + Marque Blanche** *(effort `M` — différenciateur commercial immédiat)*.
+2. **Phase E (Lots 1 → 4)** : **Agent IA Universel (« Atelier Copilot »)** — accès rapide bas-gauche, réglages multi-fournisseurs par utilisateur, pont `craft-web-api` et contrat universel `WebOSApp` pour apps natives et jeux *(effort `M–L` — avantage produit unique sur le marché WebOS)*.
+3. **Phase F** : **Démo live publique + Control Plane SaaS (« Atelier Cloud »)** *(effort `L` — monétisation récurrente en silos isolés)*.

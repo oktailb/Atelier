@@ -55,7 +55,8 @@
     { key: 'can_create_folder', labelKey: 'admin.perm_create_folder' },
     { key: 'can_download_archive', labelKey: 'admin.perm_download_archive' },
     { key: 'can_download_item', labelKey: 'admin.perm_download_item' },
-    { key: 'can_use_browser_proxy', labelKey: 'settings.perm_browser_proxy' }
+    { key: 'can_use_browser_proxy', labelKey: 'settings.perm_browser_proxy' },
+    { key: 'can_use_ai_agent', labelKey: 'settings.perm_ai_agent' }
   ];
 
   function renderOverridesEditor(targetType, targetId, overrides, t) {

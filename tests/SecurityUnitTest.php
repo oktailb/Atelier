@@ -2739,6 +2739,110 @@ HTACCESS;
             strpos($htaccess_src, '^apps/.*\\.php$') !== false
         );
 
+        // =====================================================================
+        // PHASE E (LOT 1): AI AGENT GATEWAY, VAULT ENCRYPTION & POLICY TESTS
+        // =====================================================================
+        $ai_mutating = ['ai_save_user_config', 'ai_save_admin_policy', 'ai_test_profile', 'ai_chat'];
+        $all_ai_csrf = true;
+        foreach ($ai_mutating as $am) {
+            if (!\SimpleGallery\Kernel\Actions\ActionRouter::isMutatingAction($am, $p1_root)) {
+                $all_ai_csrf = false;
+            }
+        }
+        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        $ai_guest_403 = \SimpleGallery\Kernel\Actions\AiAgentActions::handle('ai_get_config', [], ['base_dir' => $p1_root, 'project_root' => $p1_root]);
+
+        // Alice saves an encrypted LLM profile; verify AES-256-GCM at rest & zero plaintext leak
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
+        $ai_alice_adm_403 = \SimpleGallery\Kernel\Actions\AiAgentActions::handle('ai_save_admin_policy', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root,
+            'raw_body' => ['policy' => ['allow_private_lan' => true]]
+        ]);
+        $ai_secret = 'sk-super-secret-alice-token-987654';
+        $ai_alice_save = \SimpleGallery\Kernel\Actions\AiAgentActions::handle('ai_save_user_config', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root,
+            'raw_body' => [
+                'config' => [
+                    'profiles' => [[
+                        'id' => 'p_alice_1', 'label' => 'Alice OpenAI', 'type' => 'openai_compat',
+                        'base_url' => 'https://api.openai.com/v1', 'api_key' => $ai_secret, 'default_model' => 'gpt-4o-mini'
+                    ]],
+                    'active_profile_id' => 'p_alice_1',
+                    'autonomy_level' => 'assisted',
+                    'disabled_apps' => ['dosbox']
+                ]
+            ]
+        ]);
+        $ai_alice_get = \SimpleGallery\Kernel\Actions\AiAgentActions::handle('ai_get_config', [], ['base_dir' => $p1_root, 'project_root' => $p1_root]);
+        $ai_disk_raw = @file_get_contents($p1_root . '/storage/ai_profiles/u_' . $alice_id . '.enc.json') ?: '';
+        $ai_ui_json = json_encode($ai_alice_get['data'] ?? []);
+        $ai_ht = @file_get_contents($p1_root . '/storage/ai_profiles/.htaccess') ?: '';
+
+        // Update profile label without sending api_key -> existing encrypted key must be preserved
+        \SimpleGallery\Kernel\Actions\AiAgentActions::handle('ai_save_user_config', [], [
+            'base_dir' => $p1_root, 'project_root' => $p1_root,
+            'raw_body' => ['config' => ['profiles' => [['id' => 'p_alice_1', 'label' => 'Alice OpenAI v2']]]]
+        ]);
+        $ai_resolved = \SimpleGallery\Kernel\AI\AiSettings::resolveProfileForExecution($p1_root, 'p_alice_1');
+
+        // Cross-user isolation: Bob must see 0 profiles
+        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
+        $ai_bob_get = \SimpleGallery\Kernel\Actions\AiAgentActions::handle('ai_get_config', [], ['base_dir' => $p1_root, 'project_root' => $p1_root]);
+
+        // SSRF, cloud metadata, LAN opt-in & domain allowlist checks
+        $ssrf_lan_blocked = \SimpleGallery\Kernel\AI\LlmGateway::validateEndpointUrl('http://127.0.0.1:11434/api/tags', false, []) === null;
+        $ssrf_lan_allowed = \SimpleGallery\Kernel\AI\LlmGateway::validateEndpointUrl('http://127.0.0.1:11434/api/tags', true, []) !== null;
+        $ssrf_meta_blocked = \SimpleGallery\Kernel\AI\LlmGateway::validateEndpointUrl('http://169.254.169.254/latest/meta-data', true, []) === null;
+        $ssrf_file_blocked = \SimpleGallery\Kernel\AI\LlmGateway::validateEndpointUrl('file:///etc/passwd', true, []) === null;
+        $ssrf_dom_blocked = \SimpleGallery\Kernel\AI\LlmGateway::validateEndpointUrl('https://evil.example.org/v1/chat', true, ['api.openai.com']) === null;
+
+        // Multi-provider request/response normalization (OpenAI, Anthropic, Gemini, Ollama)
+        $mockAnth = function ($m, $u, $h, $b) {
+            return ['success' => true, 'status' => 200, 'json' => [
+                'model' => 'claude-sonnet-4',
+                'content' => [
+                    ['type' => 'text', 'text' => 'Setting cell A1'],
+                    ['type' => 'tool_use', 'id' => 'tu_1', 'name' => 'craft_execute', 'input' => ['command' => 'cell.set']]
+                ]
+            ]];
+        };
+        $chat_anth = \SimpleGallery\Kernel\AI\LlmGateway::chat(
+            ['type' => 'anthropic', 'base_url' => 'https://api.anthropic.com', 'api_key' => 'k', 'model' => 'claude-sonnet-4'],
+            [['role' => 'system', 'content' => 'Be helpful'], ['role' => 'user', 'content' => 'Set A1']],
+            [['name' => 'craft_execute', 'description' => 'Run Craft command', 'parameters' => ['type' => 'object']]],
+            [],
+            true,
+            ['api.anthropic.com'],
+            $mockAnth
+        );
+        $parsed_gem = \SimpleGallery\Kernel\AI\LlmGateway::parseProviderResponse('gemini', [
+            'modelVersion' => 'gemini-2.5-flash',
+            'candidates' => [['content' => ['parts' => [['functionCall' => ['name' => 'vfs_list', 'args' => ['dir' => '']]]]]]]
+        ], 'gemini-2.5-flash');
+        $disc_ollama = \SimpleGallery\Kernel\AI\LlmGateway::extractDiscoveredModels('ollama', [
+            'models' => [['name' => 'llama3.2:latest'], ['name' => 'qwen2.5-coder:7b']]
+        ]);
+
+        $this->assert("Phase E (Lot 1): Agent IA — CSRF, chiffrement AES-256-GCM des clés, isolation inter-utilisateurs, anti-SSRF/metadata & normalisation multi-LLM",
+            $all_ai_csrf &&
+            ($ai_guest_403['status'] ?? 0) === 403 &&
+            ($ai_alice_adm_403['status'] ?? 0) === 403 &&
+            ($ai_alice_save['status'] ?? 0) === 200 &&
+            strpos($ai_disk_raw, $ai_secret) === false &&
+            strpos($ai_ui_json, $ai_secret) === false &&
+            !empty($ai_alice_get['data']['config']['profiles'][0]['has_api_key']) &&
+            stripos($ai_ht, 'Deny from all') !== false &&
+            ($ai_resolved['api_key'] ?? '') === $ai_secret &&
+            ($ai_resolved['label'] ?? '') === 'Alice OpenAI v2' &&
+            count($ai_bob_get['data']['config']['profiles'] ?? [1]) === 0 &&
+            $ssrf_lan_blocked && $ssrf_lan_allowed && $ssrf_meta_blocked && $ssrf_file_blocked && $ssrf_dom_blocked &&
+            !empty($chat_anth['success']) &&
+            ($chat_anth['message']['tool_calls'][0]['name'] ?? '') === 'craft_execute' &&
+            !empty($parsed_gem['success']) &&
+            ($parsed_gem['message']['tool_calls'][0]['name'] ?? '') === 'vfs_list' &&
+            in_array('llama3.2:latest', $disc_ollama, true)
+        );
+
         $_SESSION = $saved_sess;
         \SimpleGallery\Kernel\Security\RateLimiter::reset('register_' . $cli_ip);
         \SimpleGallery\Kernel\Security\RateLimiter::reset('login_' . $cli_ip);

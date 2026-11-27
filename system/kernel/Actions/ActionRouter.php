@@ -100,6 +100,11 @@ class ActionRouter {
         'cancel_job',
         'create_instance_backup',
         'delete_instance_backup',
+        // Phase E (Lot 1): Universal AI Agent Gateway & Settings
+        'ai_save_user_config',
+        'ai_save_admin_policy',
+        'ai_test_profile',
+        'ai_chat',
         // Legacy plugin mutating actions (also auto-discovered dynamically from apps/*/manifest.json)
         'tribune_clear_history',
         'tribune_boards_save',
@@ -198,6 +203,12 @@ class ActionRouter {
         'list_instance_backups'   => StorageActions::class,
         'create_instance_backup'  => StorageActions::class,
         'delete_instance_backup'  => StorageActions::class,
+        // Phase E (Lot 1): Universal AI Agent Gateway & Settings
+        'ai_get_config'           => AiAgentActions::class,
+        'ai_save_user_config'     => AiAgentActions::class,
+        'ai_save_admin_policy'    => AiAgentActions::class,
+        'ai_test_profile'         => AiAgentActions::class,
+        'ai_chat'                 => AiAgentActions::class,
         'get_mounted_volumes'     => UserActions::class,
         'list_users'              => UserActions::class,
         'create_user'             => UserActions::class,

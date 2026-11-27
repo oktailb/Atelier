@@ -1648,6 +1648,27 @@ try {
   assert("Phase 1: Parité stricte FR/EN/JA sur locales/ système",
     JSON.stringify(rFr) === JSON.stringify(rEn) && JSON.stringify(rEn) === JSON.stringify(rJa)
   );
+
+  // Phase E (Lot 1): AI Agent Settings Panel & Manifest wiring
+  const aiPanelPath = path.join(appsDir, 'settings', 'ai-panel.js');
+  const aiPanelCode = fs.existsSync(aiPanelPath) ? fs.readFileSync(aiPanelPath, 'utf8') : '';
+  const settingsManifestJson = JSON.parse(fs.readFileSync(path.join(appsDir, 'settings', 'manifest.json'), 'utf8'));
+  const aiWin = {};
+  if (aiPanelCode) {
+    new Function('window', aiPanelCode)(aiWin);
+  }
+  assert("Phase E (Lot 1): Panneau Settings IA & Agent (ai-panel.js, manifest, zéro fetch() brut, API ai_*)",
+    fs.existsSync(aiPanelPath) &&
+    Array.isArray(settingsManifestJson.scripts) && settingsManifestJson.scripts.includes('ai-panel.js') &&
+    settingsUiCode.includes("id: 'ai_agent'") &&
+    settingsUiCode.includes('can_use_ai_agent') &&
+    typeof (aiWin.AtelierAiPanel && aiWin.AtelierAiPanel.render) === 'function' &&
+    aiPanelCode.includes('ai_get_config') &&
+    aiPanelCode.includes('ai_save_user_config') &&
+    aiPanelCode.includes('ai_save_admin_policy') &&
+    aiPanelCode.includes('ai_test_profile') &&
+    !/\bfetch\s*\(/.test(aiPanelCode)
+  );
 } catch (e) {
   assert("Phase 1 exécution runtime UI", false, e.stack);
 }
