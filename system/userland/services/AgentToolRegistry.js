@@ -347,7 +347,7 @@
                 agent_protocol: readyInfo.protocol,
                 craft_prefix: readyInfo.prefix || undefined,
                 hint: readyInfo.protocol === 'craft-web-api'
-                  ? `Application '${appId}' is ready with craft-web-api. Call craft_commands to discover its commands, then craft_execute or craft_execute_batch to edit directly inside the app.`
+                  ? `Application '${appId}' is ready with craft-web-api. Call craft_commands once (supports comma-separated filter like "text,font,color,para") then craft_execute_batch (include file.new first if no document is open yet).`
                   : `Application '${appId}' registered dynamic agent tools.`
               };
             }

@@ -17,9 +17,13 @@
   'use strict';
 
   const MAX_RESULT_CHARS = 28000;
-  const MAX_BATCH_STEPS = 30;
+  const MAX_BATCH_STEPS = 40;
   const MAX_SCREENSHOT_BASE64 = 1800000; // ~1.35 MB binary PNG max
   const RPC_TIMEOUT_MS = 20000;
+
+  function plainObject(val) {
+    return (val && typeof val === 'object' && !Array.isArray(val)) ? val : {};
+  }
 
   function withTimeout(promise, ms, label) {
     return new Promise((resolve, reject) => {
@@ -397,7 +401,7 @@
             type: 'object',
             properties: {
               app_id: { type: 'string', description: idsDesc },
-              filter: { type: 'string', description: 'Optional case-insensitive substring filter (e.g. "text", "font", "color", "paragraph", "style", "cell", "slide") to get full parameter schemas for matching commands.' },
+              filter: { type: 'string', description: 'Optional case-insensitive filter; supports comma-separated keywords (e.g. "text,font,color,para,file") to fetch multiple categories in one call.' },
               ids: {
                 type: 'array',
                 description: 'Optional list of exact command IDs (e.g. ["text.insert", "font.color"]) to inspect their exact parameter schemas.',
@@ -461,36 +465,40 @@
                 return wantedIds.has(id);
               });
             } else if (filter) {
+              const terms = filter.split(/[,|]+/).map((s) => s.trim()).filter(Boolean);
               // Prioritize matches on id/label/location before matching verbose params prose
               const byMeta = enabledList.filter((item) => {
                 const hay = `${item.id || item.name || ''} ${item.label || ''} ${item.description || ''} ${item.location || ''}`.toLowerCase();
-                return hay.includes(filter);
+                return terms.some((term) => hay.includes(term));
               });
               matched = byMeta.length > 0 ? byMeta : enabledList.filter((item) => {
-                try { return JSON.stringify(item).toLowerCase().includes(filter); } catch (e) { return false; }
+                try {
+                  const rawStr = JSON.stringify(item).toLowerCase();
+                  return terms.some((term) => rawStr.includes(term));
+                } catch (e) { return false; }
               });
             }
 
-            const compactMatched = matched.slice(0, 30).map((item) => {
+            const compactMatched = matched.slice(0, 45).map((item) => {
               const entry = {
                 id: item.id || item.name,
                 label: item.label || item.description || ''
               };
               if (item.params !== undefined && item.params !== '{}') {
                 const pStr = typeof item.params === 'string' ? item.params : JSON.stringify(item.params);
-                entry.params = pStr.length > 420 ? (pStr.slice(0, 420) + '…') : item.params;
+                entry.params = pStr.length > 360 ? (pStr.slice(0, 360) + '…') : item.params;
               }
               return entry;
             });
 
-            const bounded = truncateValue(compactMatched, 11000);
+            const bounded = truncateValue(compactMatched, 13000);
             return {
               success: true,
               app_id: t.appId,
               prefix: t.prefix,
               total_matched: matched.length,
               returned: Array.isArray(bounded.data) ? bounded.data.length : 0,
-              truncated: bounded.truncated || matched.length > 30,
+              truncated: bounded.truncated || matched.length > 45,
               commands: bounded.data
             };
           }
@@ -515,7 +523,7 @@
               return { success: false, error: `'${t.appId}' does not expose docInspect().` };
             }
             const raw = await withTimeout(
-              t.api.docInspect(args.params && typeof args.params === 'object' ? args.params : {}),
+              t.api.docInspect(plainObject(args.params)),
               RPC_TIMEOUT_MS,
               `${t.prefix}.docInspect`
             );
@@ -545,7 +553,7 @@
               return { success: false, error: `'${t.appId}' does not expose uiInspect().` };
             }
             const raw = await withTimeout(
-              t.api.uiInspect(args.params && typeof args.params === 'object' ? args.params : {}),
+              t.api.uiInspect(plainObject(args.params)),
               RPC_TIMEOUT_MS,
               `${t.prefix}.uiInspect`
             );
@@ -593,7 +601,7 @@
             if (!cmd) return { success: false, error: 'Command name is required.' };
             const t = resolved.target;
             const raw = await withTimeout(
-              t.api.execute(cmd, args.params && typeof args.params === 'object' ? args.params : {}),
+              t.api.execute(cmd, plainObject(args.params)),
               RPC_TIMEOUT_MS,
               `${t.prefix}.execute(${cmd})`
             );
@@ -649,7 +657,7 @@
               }
               try {
                 const raw = await withTimeout(
-                  t.api.execute(cmd, s.params && typeof s.params === 'object' ? s.params : {}),
+                  t.api.execute(cmd, plainObject(s.params)),
                   RPC_TIMEOUT_MS,
                   `${t.prefix}.execute(${cmd})`
                 );
@@ -701,7 +709,7 @@
             const method = String(args.method || '').trim();
             if (!method) return { success: false, error: 'RPC method is required.' };
             const raw = await withTimeout(
-              t.api.request(method, args.params && typeof args.params === 'object' ? args.params : {}),
+              t.api.request(method, plainObject(args.params)),
               RPC_TIMEOUT_MS,
               `${t.prefix}.request(${method})`
             );

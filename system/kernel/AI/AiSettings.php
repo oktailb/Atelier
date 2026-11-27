@@ -104,7 +104,7 @@ class AiSettings {
         'allow_private_lan'         => false,
         'allowed_domains'           => [],
         'rate_limit_per_minute'     => 30,
-        'max_tool_steps'            => 10,
+        'max_tool_steps'            => 15,
         'shared_provider_enabled'   => false,
         'shared_provider'           => [
             'label'         => 'Instance Default LLM',
@@ -122,7 +122,7 @@ class AiSettings {
         'active_model'      => '',
         'autonomy_level'    => 'assisted',
         'system_prompt'     => '',
-        'max_tool_steps'    => 8,
+        'max_tool_steps'    => 12,
         'vision_enabled'    => true,
         'disabled_apps'     => []
     ];

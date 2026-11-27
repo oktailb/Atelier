@@ -951,6 +951,7 @@
     "copilot.mode_autonomous": "Autonomous (active app)",
     "copilot.stop_btn": "Stop",
     "copilot.send_btn": "Send",
-    "copilot.error_generic": "Error communicating with the AI provider."
+    "copilot.error_generic": "Error communicating with the AI provider.",
+    "copilot.max_steps_reached": "Step limit reached ({max}/{max}). Send \"continue\" to proceed or raise the limit in Settings → AI & Agent."
   }
 }

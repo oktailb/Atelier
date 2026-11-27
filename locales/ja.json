@@ -951,6 +951,7 @@
     "copilot.mode_autonomous": "自律（アクティブアプリ）",
     "copilot.stop_btn": "停止",
     "copilot.send_btn": "送信",
-    "copilot.error_generic": "AI プロバイダーとの通信中にエラーが発生しました。"
+    "copilot.error_generic": "AI プロバイダーとの通信中にエラーが発生しました。",
+    "copilot.max_steps_reached": "ステップ上限に達しました（{max}/{max}）。続けるには「continue」と送信するか、設定 → AI・エージェント で上限を上げてください。"
   }
 }
