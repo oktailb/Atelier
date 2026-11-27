@@ -26,7 +26,7 @@ class MediaActions {
             if (!AuthManager::isDirAccessible(dirname($file_full), $base_dir)) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied', [], null, $base_dir)]];
             }
-            header('Location: system/endpoints/thumb.php?file=' . rawurlencode($file_param) . '&raw=1', true, 302);
+            header('Location: thumb.php?file=' . rawurlencode($file_param) . '&raw=1', true, 302);
             exit;
         }
 

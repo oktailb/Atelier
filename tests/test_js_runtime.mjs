@@ -1753,6 +1753,151 @@ try {
     launchBlocked && launchBlocked.success === false && launchedApps.length === 0 &&
     delRes && delRes.success === true && lastDelCall && lastDelCall.body.target === 'users/alice/demo.txt' && !('permanent' in lastDelCall.body)
   );
+
+  // Phase E (Lot 3): WebAppAgentBridge — dynamic craft-web-api + origin-locked webos:agent-* protocol + multimodal screenshot
+  const agentBridgePath = path.join(rootDir, 'system', 'userland', 'core', 'WebAppAgentBridge.js');
+  const agentBridgeCode = fs.existsSync(agentBridgePath) ? fs.readFileSync(agentBridgePath, 'utf8') : '';
+  const webAppHostSrc = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'core', 'WebAppHost.js'), 'utf8');
+
+  assert("Phase E (Lot 3): WebAppAgentBridge.js présent, chargé dans index.php, hooké dans WebAppHost & zéro fetch() brut",
+    fs.existsSync(agentBridgePath) &&
+    indexHtmlPhaseC.includes('WebAppAgentBridge.js') &&
+    webAppHostSrc.includes('webAppAgentBridge.detachApp') &&
+    !/\bfetch\s*\(/.test(agentBridgeCode)
+  );
+
+  const craftExecCalls = [];
+  const pmListeners = [];
+  const fakePngB64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+  const wordcraftCw = {
+    location: { origin: 'https://atelier.local' },
+    wordcraft: {
+      commands: async () => ({
+        ok: true,
+        result: [
+          { name: 'edit.insertText', description: 'Insert text at cursor' },
+          { name: 'format.heading', description: 'Apply heading style' },
+          { name: 'view.zoom', description: 'Zoom viewport' }
+        ]
+      }),
+      docInspect: async (p) => ({ ok: true, result: { paragraphs: 1, includeText: Boolean(p && p.text) } }),
+      uiInspect: async () => ({ ok: true, result: { activeTab: 'Home' } }),
+      execute: async (cmd, params) => {
+        craftExecCalls.push({ cmd, params });
+        return { ok: true, result: { applied: cmd } };
+      },
+      screenshot: async () => ({ ok: true, result: { png_base64: fakePngB64 } }),
+      request: async (method, params) => ({ ok: true, result: { method, params } })
+    }
+  };
+  const thirdPartySent = [];
+  const thirdPartyCw = {
+    location: { origin: 'https://atelier.local' },
+    postMessage: (msg, origin) => {
+      thirdPartySent.push({ msg, origin });
+      if (msg && msg.type === 'webos:agent-call') {
+        pmListeners.forEach(fn => fn({
+          origin: 'https://atelier.local',
+          source: thirdPartyCw,
+          data: { type: 'webos:agent-result', callId: msg.callId, success: true, result: { pong: msg.args.val } }
+        }));
+      }
+    }
+  };
+  const wordcraftInst = {
+    id: 'wordcraft',
+    windowId: 'webapp-wordcraft',
+    hostBridge: { prefix: 'wordcraft' },
+    activeFile: { name: 'poeme.docx' },
+    isDirty: false,
+    getIframeElement: () => ({ contentWindow: wordcraftCw, contentDocument: null })
+  };
+  const thirdPartyInst = {
+    id: 'myextapp',
+    windowId: 'webapp-myextapp',
+    getIframeElement: () => ({ contentWindow: thirdPartyCw, contentDocument: null })
+  };
+
+  const l3Win = {
+    location: { origin: 'https://atelier.local' },
+    addEventListener: (evt, fn) => { if (evt === 'message') pmListeners.push(fn); },
+    WindowManager: {
+      activeWindowId: 'webapp-wordcraft',
+      windows: new Map([
+        ['webapp-wordcraft', { id: 'webapp-wordcraft', appId: 'wordcraft', title: 'WordCraft', state: 'normal' }]
+      ])
+    },
+    WebAppHost: {
+      instances: new Map([['wordcraft', wordcraftInst], ['myextapp', thirdPartyInst]]),
+      get: (id) => (id === 'wordcraft' ? wordcraftInst : (id === 'myextapp' ? thirdPartyInst : null))
+    },
+    sys: {}
+  };
+  new Function('window', agentRegCode)(l3Win);
+  new Function('window', agentBridgeCode)(l3Win);
+  const l3Reg = l3Win.sys.agentTools;
+  const l3Bridge = l3Win.sys.webAppAgentBridge;
+
+  const l3Ctx = l3Reg.collectContext([]);
+  const l3ToolsAssisted = l3Reg.getAvailableTools('assisted', []);
+  const l3ToolsReadOnly = l3Reg.getAvailableTools('read_only', []);
+  const l3ToolsNoVision = l3Reg.getAvailableTools('assisted', [], { allowVision: false });
+  const l3ToolsDisabled = l3Reg.getAvailableTools('assisted', ['wordcraft']);
+
+  const cmdRes = await l3Reg.executeTool('craft_commands', { app_id: 'wordcraft', filter: 'insert' }, { autonomyLevel: 'assisted', disabledApps: [] });
+  const batchRes = await l3Reg.executeTool('craft_execute_batch', {
+    app_id: 'wordcraft',
+    steps: [
+      { command: 'format.heading', params: { level: 1 } },
+      { command: 'edit.insertText', params: { text: 'Le Marchand de Choucroute' } }
+    ]
+  }, { autonomyLevel: 'assisted', disabledApps: [] });
+  const shotRes = await l3Reg.executeTool('craft_screenshot', { app_id: 'wordcraft' }, { autonomyLevel: 'assisted', disabledApps: [] });
+
+  // Test origin-locked `webos:agent-*` postMessage protocol
+  pmListeners.forEach(fn => fn({
+    origin: 'https://evil.example',
+    source: thirdPartyCw,
+    data: { type: 'webos:agent-register-tools', tools: [{ name: 'evil_tool', description: 'Blocked' }] }
+  }));
+  const evilRegistered = l3Reg.getAvailableTools('assisted', []).some(t => t.name.includes('evil_tool'));
+
+  pmListeners.forEach(fn => fn({
+    origin: 'https://atelier.local',
+    source: thirdPartyCw,
+    data: {
+      type: 'webos:agent-register-tools',
+      tools: [{ name: 'ping', description: 'Ping external app', risk: 'read', parameters: { type: 'object', properties: { val: { type: 'string' } } } }]
+    }
+  }));
+  pmListeners.forEach(fn => fn({
+    origin: 'https://atelier.local',
+    source: thirdPartyCw,
+    data: { type: 'webos:agent-context', context: { scene: 'demo' } }
+  }));
+  const pmCallRes = await l3Reg.executeTool('extapp_myextapp_ping', { val: 'hello' }, { autonomyLevel: 'read_only', disabledApps: [] });
+  const pmCtx = l3Reg.collectContext([]);
+  l3Bridge.detachApp('myextapp');
+  const pmRemovedAfterDetach = !l3Reg.getAvailableTools('assisted', []).some(t => t.name === 'extapp_myextapp_ping');
+
+  assert("Phase E (Lot 3): Pont dynamique craft-web-api (commands/batch/screenshot/vision/autonomous_app) & protocole webos:agent-* origin-locked",
+    l3Ctx.app_contexts.wordcraft && l3Ctx.app_contexts.wordcraft.agent_protocol === 'craft-web-api' &&
+    l3ToolsAssisted.some(t => t.name === 'craft_execute_batch') &&
+    l3ToolsReadOnly.some(t => t.name === 'craft_commands') &&
+    !l3ToolsReadOnly.some(t => t.name === 'craft_execute') &&
+    !l3ToolsNoVision.some(t => t.name === 'craft_screenshot') &&
+    !l3ToolsDisabled.some(t => t.name === 'craft_commands') &&
+    l3Reg.requiresConfirmation({ risk: 'mutate_app' }, 'autonomous_app', 'wordcraft', { app_id: 'wordcraft' }) === false &&
+    l3Reg.requiresConfirmation({ risk: 'mutate_app' }, 'autonomous_app', 'explorer', { app_id: 'wordcraft' }) === true &&
+    cmdRes && cmdRes.success && Array.isArray(cmdRes.commands) && cmdRes.commands.length === 1 && cmdRes.commands[0].name === 'edit.insertText' &&
+    batchRes && batchRes.success && batchRes.executed === 2 && craftExecCalls.length === 2 &&
+    shotRes && shotRes.success && shotRes._vision_image && shotRes._vision_image.data === fakePngB64 &&
+    !evilRegistered &&
+    pmCallRes && pmCallRes.success && pmCallRes.result && pmCallRes.result.pong === 'hello' &&
+    thirdPartySent.length === 1 && thirdPartySent[0].origin === 'https://atelier.local' &&
+    pmCtx.app_contexts.myextapp && pmCtx.app_contexts.myextapp.context && pmCtx.app_contexts.myextapp.context.scene === 'demo' &&
+    pmRemovedAfterDetach
+  );
 } catch (e) {
   assert("Phase 1 exécution runtime UI", false, e.stack);
 }

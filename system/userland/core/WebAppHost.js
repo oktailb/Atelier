@@ -766,6 +766,9 @@
           if (this._slowTimer) clearTimeout(this._slowTimer);
           if (this._bootPollTimer) clearInterval(this._bootPollTimer);
           this.cleanupHostBridge();
+          if (window.sys && window.sys.webAppAgentBridge && typeof window.sys.webAppAgentBridge.detachApp === 'function') {
+            window.sys.webAppAgentBridge.detachApp(this.id);
+          }
           this.isDirty = false;
           this.iframeLoaded = false;
           this.win = null;
@@ -792,6 +795,9 @@
       this.isDirty = false;
       this.updateWindowTitle();
       this.iframeLoaded = false;
+      if (window.sys && window.sys.webAppAgentBridge && typeof window.sys.webAppAgentBridge.detachApp === 'function') {
+        window.sys.webAppAgentBridge.detachApp(this.id);
+      }
       this.showBootOverlay('');
       const filePassedViaQuery = !!(this.activeFile && this.manifest && this.manifest.openFileParam);
       iframe.src = this.getEffectiveSrc(filePassedViaQuery ? this.activeFile : null);

@@ -65,13 +65,14 @@
     /**
      * Evaluates whether executing `tool` requires explicit user confirmation (Human-in-the-Loop).
      */
-    requiresConfirmation(tool, autonomyLevel = 'assisted', activeAppId = null) {
+    requiresConfirmation(tool, autonomyLevel = 'assisted', activeAppId = null, toolArgs = null) {
       const risk = tool ? tool.risk : 'destructive';
       if (risk === 'read') return false;
       if (risk === 'destructive' || risk === 'mutate_fs') return true;
       // risk === 'mutate_app'
+      const targetAppId = (tool && tool.appId) || (toolArgs && typeof toolArgs === 'object' && toolArgs.app_id) || null;
       if (autonomyLevel === 'autonomous_app') {
-        if (!tool.appId || !activeAppId || tool.appId === activeAppId) {
+        if (!targetAppId || !activeAppId || targetAppId === activeAppId) {
           return false;
         }
         return true;
@@ -141,10 +142,11 @@
     }
 
     /**
-     * Returns all tools permitted under the current autonomy level and user `disabled_apps`.
+     * Returns all tools permitted under the current autonomy level, vision toggle, and user `disabled_apps`.
      */
-    getAvailableTools(autonomyLevel = 'assisted', disabledApps = []) {
+    getAvailableTools(autonomyLevel = 'assisted', disabledApps = [], opts = {}) {
       const disabled = new Set(Array.isArray(disabledApps) ? disabledApps : []);
+      const allowVision = !(opts && opts.allowVision === false);
       const all = [];
 
       for (const tool of this.tools.values()) {
@@ -156,10 +158,11 @@
       const ctx = this.collectContext(Array.from(disabled));
       this.dynamicProviders.forEach(prov => {
         try {
-          const list = prov.getTools({ autonomyLevel, disabledApps: disabled, context: ctx }) || [];
+          const list = prov.getTools({ autonomyLevel, disabledApps: disabled, context: ctx, allowVision }) || [];
           for (const t of list) {
             if (!t || !t.name || typeof t.handler !== 'function') continue;
             if (t.appId && disabled.has(t.appId)) continue;
+            if (!allowVision && t.name === 'craft_screenshot') continue;
             if (autonomyLevel === 'read_only' && t.risk !== 'read') continue;
             all.push(t);
           }
@@ -172,8 +175,8 @@
     /**
      * Converts permitted tools to the normalized JSON Schema format expected by `ai_chat`.
      */
-    getToolSchemas(autonomyLevel = 'assisted', disabledApps = []) {
-      return this.getAvailableTools(autonomyLevel, disabledApps).map(t => ({
+    getToolSchemas(autonomyLevel = 'assisted', disabledApps = [], opts = {}) {
+      return this.getAvailableTools(autonomyLevel, disabledApps, opts).map(t => ({
         name: t.name,
         description: t.description,
         parameters: t.parameters
@@ -183,15 +186,15 @@
     /**
      * Looks up a permitted tool by name and executes it with strict policy checks.
      */
-    findTool(name, autonomyLevel = 'assisted', disabledApps = []) {
-      const list = this.getAvailableTools(autonomyLevel, disabledApps);
+    findTool(name, autonomyLevel = 'assisted', disabledApps = [], opts = {}) {
+      const list = this.getAvailableTools(autonomyLevel, disabledApps, opts);
       return list.find(t => t.name === name) || null;
     }
 
     async executeTool(name, args = {}, opts = {}) {
       const autonomyLevel = opts.autonomyLevel || 'assisted';
       const disabledApps = Array.isArray(opts.disabledApps) ? opts.disabledApps : [];
-      const tool = this.findTool(name, autonomyLevel, disabledApps);
+      const tool = this.findTool(name, autonomyLevel, disabledApps, opts);
       if (!tool) {
         return { success: false, error: `Tool '${name}' is unavailable or disallowed in mode '${autonomyLevel}'.` };
       }
@@ -312,7 +315,7 @@
 
       this.registerTool({
         name: 'os_launch_app',
-        description: 'Launches an Atelier application by its app_id.',
+        description: 'Launches an Atelier application by its app_id and waits briefly for WASM/external apps to expose their agent API (e.g. craft-web-api).',
         risk: 'mutate_app',
         parameters: {
           type: 'object',
@@ -321,7 +324,7 @@
           },
           required: ['app_id']
         },
-        handler: (args, ctx) => {
+        handler: async (args, ctx) => {
           const appId = String(args.app_id || '').trim();
           if (!appId || FORBIDDEN_APP_IDS.has(appId) || ctx.disabledApps.has(appId)) {
             return { success: false, error: `Application '${appId}' is not allowed.` };
@@ -331,6 +334,24 @@
             return { success: false, error: 'AppManager unavailable.' };
           }
           appMgr.launchApp(appId);
+
+          const host = (window.sys && window.sys.webAppHost) || window.WebAppHost;
+          const agentBridge = window.sys && window.sys.webAppAgentBridge;
+          if (host && typeof host.get === 'function' && host.get(appId) && agentBridge && typeof agentBridge.waitForAppReady === 'function') {
+            const readyInfo = await agentBridge.waitForAppReady(appId, 8000);
+            if (readyInfo && readyInfo.ready) {
+              return {
+                success: true,
+                launched: appId,
+                ready: true,
+                agent_protocol: readyInfo.protocol,
+                craft_prefix: readyInfo.prefix || undefined,
+                hint: readyInfo.protocol === 'craft-web-api'
+                  ? `Application '${appId}' is ready with craft-web-api. Call craft_commands to discover its commands, then craft_execute or craft_execute_batch to edit directly inside the app.`
+                  : `Application '${appId}' registered dynamic agent tools.`
+              };
+            }
+          }
           return { success: true, launched: appId };
         }
       });
@@ -415,21 +436,22 @@
           required: ['path']
         },
         handler: async (args, ctx) => {
-          if (!ctx.api) return { success: false, error: 'Syscall API unavailable.' };
+          if (!ctx.api || typeof ctx.api.getText !== 'function') return { success: false, error: 'Syscall API unavailable.' };
           const path = String(args.path || '').trim();
           if (!path) return { success: false, error: 'File path required.' };
-          const res = await ctx.api.get('view_file', { file: path });
-          if (!res || !res.success) {
-            return { success: false, error: (res && res.error) || 'Unable to read file.' };
+          try {
+            const rawUrl = 'system/endpoints/thumb.php?file=' + encodeURIComponent(path) + '&raw=1';
+            const raw = String(await ctx.api.getText(rawUrl) || '');
+            const truncated = raw.length > 32768;
+            return {
+              success: true,
+              path,
+              truncated,
+              content: truncated ? raw.slice(0, 32768) : raw
+            };
+          } catch (err) {
+            return { success: false, error: err && err.message ? err.message : 'Unable to read file.' };
           }
-          const raw = String(res.content || '');
-          const truncated = raw.length > 32768;
-          return {
-            success: true,
-            path,
-            truncated,
-            content: truncated ? raw.slice(0, 32768) : raw
-          };
         }
       });
 

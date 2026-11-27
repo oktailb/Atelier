@@ -95,6 +95,7 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
   <script src="system/userland/core/WebAppVfsBridge.js?v=<?php echo filemtime(__DIR__ . '/system/userland/core/WebAppVfsBridge.js'); ?>" defer></script>
   <script src="system/userland/core/WebAppHost.js?v=<?php echo filemtime(__DIR__ . '/system/userland/core/WebAppHost.js'); ?>" defer></script>
   <script src="system/userland/services/AgentToolRegistry.js?v=<?php echo filemtime(__DIR__ . '/system/userland/services/AgentToolRegistry.js'); ?>" defer></script>
+  <script src="system/userland/core/WebAppAgentBridge.js?v=<?php echo filemtime(__DIR__ . '/system/userland/core/WebAppAgentBridge.js'); ?>" defer></script>
   <script src="system/userland/services/AiCopilotService.js?v=<?php echo filemtime(__DIR__ . '/system/userland/services/AiCopilotService.js'); ?>" defer></script>
 
 
