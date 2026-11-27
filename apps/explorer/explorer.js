@@ -3404,6 +3404,100 @@
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
     }
+
+    // -------------------------------------------------------------------------
+    // UNIVERSAL AI AGENT CONTRACT (Phase E — Lot 4)
+    // -------------------------------------------------------------------------
+    isWindowOpen() {
+      return Boolean(this.instances && this.instances.size > 0);
+    }
+
+    getAgentContext() {
+      const inst = typeof this.getActiveInstance === 'function' ? this.getActiveInstance() : null;
+      if (!inst || !inst.state) return null;
+      return {
+        current_path: inst.state.currentPath || '',
+        view_mode: inst.state.viewMode || 'polaroid',
+        sort_by: inst.state.sortBy || 'name',
+        sort_order: inst.state.sortOrder || 'asc',
+        filter_category: inst.state.filterCategory || 'all',
+        search_query: inst.state.searchQuery || '',
+        selected_count: inst.state.selectedPaths ? inst.state.selectedPaths.size : 0,
+        visible_files: Array.isArray(inst.state.filteredFiles) ? inst.state.filteredFiles.length : 0,
+        folders_count: Array.isArray(inst.state.directories) ? inst.state.directories.length : 0
+      };
+    }
+
+    getAgentTools() {
+      return [
+        {
+          name: 'navigate',
+          description: 'Navigates the active Gallery Explorer window to a VFS directory (e.g. "", "users/<me>", "vacances", or "ext://<id>").',
+          risk: 'mutate_app',
+          parameters: {
+            type: 'object',
+            properties: {
+              dir: { type: 'string', description: 'Target VFS directory path' }
+            },
+            required: ['dir']
+          }
+        },
+        {
+          name: 'set_view_options',
+          description: 'Changes the active Explorer view mode (polaroid, grid, mosaic, list), sort field/order, or category filter (all, image, video, audio, doc, archive).',
+          risk: 'mutate_app',
+          parameters: {
+            type: 'object',
+            properties: {
+              view_mode: { type: 'string', description: 'View mode: polaroid, grid, mosaic, or list' },
+              sort_by: { type: 'string', description: 'Sort key: name, date, mtime, size, or rating' },
+              sort_order: { type: 'string', description: 'Sort direction: asc or desc' },
+              filter_category: { type: 'string', description: 'Media filter: all, image, video, audio, doc, or archive' }
+            }
+          }
+        }
+      ];
+    }
+
+    async executeAgentTool(name, args = {}) {
+      const inst = typeof this.getActiveInstance === 'function' ? this.getActiveInstance() : null;
+      if (!inst) return { success: false, error: 'No active Explorer window.' };
+
+      if (name === 'navigate') {
+        const dir = String(args.dir || '');
+        if (typeof inst.loadDirectory === 'function') {
+          await inst.loadDirectory(dir);
+          return { success: true, current_path: inst.state.currentPath || dir };
+        }
+        return { success: false, error: 'Explorer.loadDirectory unavailable.' };
+      }
+
+      if (name === 'set_view_options') {
+        if (args.view_mode && ['polaroid', 'grid', 'mosaic', 'list'].includes(String(args.view_mode))) {
+          if (typeof inst.setViewMode === 'function') inst.setViewMode(String(args.view_mode));
+          else inst.state.viewMode = String(args.view_mode);
+        }
+        if (args.sort_by && ['name', 'date', 'mtime', 'size', 'rating'].includes(String(args.sort_by))) {
+          inst.state.sortBy = String(args.sort_by);
+        }
+        if (args.sort_order && ['asc', 'desc'].includes(String(args.sort_order))) {
+          inst.state.sortOrder = String(args.sort_order);
+        }
+        if (args.filter_category && ['all', 'image', 'video', 'audio', 'doc', 'archive'].includes(String(args.filter_category))) {
+          inst.state.filterCategory = String(args.filter_category);
+        }
+        if (typeof inst.applyFilterAndRender === 'function') inst.applyFilterAndRender();
+        return {
+          success: true,
+          view_mode: inst.state.viewMode,
+          sort_by: inst.state.sortBy,
+          sort_order: inst.state.sortOrder,
+          filter_category: inst.state.filterCategory
+        };
+      }
+
+      return { success: false, error: `Unknown explorer tool '${name}'.` };
+    }
   }
 
   // Instantiate Explorer Application Manager

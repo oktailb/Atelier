@@ -1029,6 +1029,151 @@
         this._keydownHandler = null;
       }
     }
+
+    // -------------------------------------------------------------------------
+    // UNIVERSAL AI AGENT CONTRACT (Phase E — Lot 4)
+    // -------------------------------------------------------------------------
+    getAgentContext() {
+      return {
+        tab: this.currentTab,
+        angle_mode: this.angleMode,
+        expression: this.expression,
+        last_result: this.lastResultText,
+        curves: (this.curves || []).map((c) => ({
+          id: c.id, label: c.label, expr: c.expr, color: c.color, visible: c.visible !== false
+        }))
+      };
+    }
+
+    getAgentTools() {
+      return [
+        {
+          name: 'evaluate',
+          description: 'Evaluates a scientific math expression in Graphing Calc (supports sin, cos, tan, ln, log, sqrt, pi, e, ^, !, etc.) and displays the result.',
+          risk: 'read',
+          parameters: {
+            type: 'object',
+            properties: {
+              expression: { type: 'string', description: 'Mathematical expression to evaluate (e.g. "sin(pi/4)^2 + cos(pi/4)^2")' },
+              angle_mode: { type: 'string', description: 'Optional angle unit: DEG, RAD, or GRAD' }
+            },
+            required: ['expression']
+          }
+        },
+        {
+          name: 'plot_curves',
+          description: 'Plots one or more 2D mathematical functions y = f(x) in the Graphing Calc 2D Plotter tab and displays them visually.',
+          risk: 'mutate_app',
+          parameters: {
+            type: 'object',
+            properties: {
+              curves: {
+                type: 'array',
+                description: 'List of functions of x to plot (e.g. [{"expr":"sin(x)"},{"expr":"0.2*x^2 - 1"}])',
+                items: {
+                  type: 'object',
+                  properties: {
+                    expr: { type: 'string', description: 'Function expression in x' },
+                    color: { type: 'string', description: 'Optional #RRGGBB curve color' },
+                    label: { type: 'string', description: 'Optional single-letter curve label' }
+                  },
+                  required: ['expr']
+                }
+              },
+              replace: { type: 'boolean', description: 'If true, replaces existing curves (default true)' }
+            },
+            required: ['curves']
+          }
+        },
+        {
+          name: 'set_angle_mode',
+          description: 'Switches the calculator angle mode between DEG, RAD, and GRAD.',
+          risk: 'mutate_app',
+          parameters: {
+            type: 'object',
+            properties: {
+              mode: { type: 'string', description: 'Angle unit: DEG, RAD, or GRAD' }
+            },
+            required: ['mode']
+          }
+        }
+      ];
+    }
+
+    executeAgentTool(name, args = {}) {
+      if (name === 'evaluate') {
+        const expr = String(args.expression || '').trim();
+        if (!expr) return { success: false, error: 'Expression is required.' };
+        const mode = ['DEG', 'RAD', 'GRAD'].includes(String(args.angle_mode || '').toUpperCase())
+          ? String(args.angle_mode).toUpperCase()
+          : this.angleMode;
+        try {
+          const val = this.engine.evaluate(expr, { ans: this.lastResult }, mode);
+          if (typeof val !== 'number' || Number.isNaN(val)) {
+            return { success: false, error: 'Expression evaluated to NaN.' };
+          }
+          const formatted = this.engine.formatNumber(val);
+          this.angleMode = mode;
+          this.expression = expr;
+          this.lastResult = val;
+          this.lastResultText = formatted;
+          this.lastError = '';
+          this.history.unshift({ expr, result: formatted });
+          this.history = this.history.slice(0, 30);
+          this.storage.set('history', this.history);
+          if (this.window && this.currentTab === 'scientific') this.render();
+          return { success: true, expression: expr, angle_mode: mode, value: val, formatted };
+        } catch (err) {
+          return { success: false, error: err && err.message ? err.message : 'Evaluation failed.' };
+        }
+      }
+
+      if (name === 'plot_curves') {
+        const rawList = Array.isArray(args.curves) ? args.curves : [];
+        if (rawList.length === 0) return { success: false, error: 'At least one curve expression is required.' };
+        const replace = args.replace !== false;
+        const base = replace ? [] : [...this.curves];
+        for (const item of rawList) {
+          const expr = String((item && item.expr) || '').trim();
+          if (!expr) continue;
+          const idx = base.length;
+          base.push({
+            id: `c_${Date.now()}_${idx}`,
+            label: (item && item.label) ? String(item.label).slice(0, 4) : (CURVE_LABELS[idx % CURVE_LABELS.length] || `f${idx + 1}`),
+            expr,
+            color: (item && /^#[0-9a-f]{6}$/i.test(String(item.color || ''))) ? String(item.color) : CURVE_COLORS[idx % CURVE_COLORS.length],
+            visible: true
+          });
+        }
+        if (base.length === 0) return { success: false, error: 'No valid curve expressions provided.' };
+        this.curves = base.slice(0, 8);
+        this.tableCurveId = this.curves[0].id;
+        this.storage.set('curves', this.curves);
+        if (!this.window) {
+          this.open('graph');
+        } else {
+          this.switchTab('graph');
+        }
+        return {
+          success: true,
+          tab: 'graph',
+          curves: this.curves.map((c) => ({ label: c.label, expr: c.expr, color: c.color }))
+        };
+      }
+
+      if (name === 'set_angle_mode') {
+        const mode = String(args.mode || '').toUpperCase();
+        if (!['DEG', 'RAD', 'GRAD'].includes(mode)) {
+          return { success: false, error: 'Mode must be DEG, RAD, or GRAD.' };
+        }
+        this.angleMode = mode;
+        this.storage.set('angleMode', mode);
+        if (this.window) this.render();
+        return { success: true, angle_mode: mode };
+      }
+
+      return { success: false, error: `Unknown graphing-calc tool '${name}'.` };
+    }
   }
 
   const instance = new GraphingCalcApp();

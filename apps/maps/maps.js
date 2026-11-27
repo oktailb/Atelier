@@ -862,6 +862,116 @@
           return false;
       }
     }
+
+    // -------------------------------------------------------------------------
+    // UNIVERSAL AI AGENT CONTRACT (Phase E — Lot 4)
+    // -------------------------------------------------------------------------
+    getAgentContext() {
+      const inst = this.activeInstance || Array.from(this.instances.values())[0];
+      if (!inst) return null;
+      const pos = typeof inst.whereIam === 'function' ? inst.whereIam() : null;
+      return {
+        current_path: inst.currentPath || '',
+        layer: inst.currentLayer || 'streets',
+        mode: inst.mode || 'folder',
+        center: pos,
+        files_count: Array.isArray(inst.currentFiles) ? inst.currentFiles.length : 0
+      };
+    }
+
+    getAgentTools() {
+      return [
+        {
+          name: 'get_view',
+          description: 'Returns the current Maps viewport coordinates (lat, lng, zoom), active layer, and geolocated photo markers.',
+          risk: 'read',
+          parameters: { type: 'object', properties: {} }
+        },
+        {
+          name: 'move_to',
+          description: 'Moves or flies the Maps viewport to specific GPS coordinates (latitude, longitude, zoom).',
+          risk: 'mutate_app',
+          parameters: {
+            type: 'object',
+            properties: {
+              lat: { type: 'number', description: 'Latitude (-90 to 90)' },
+              lng: { type: 'number', description: 'Longitude (-180 to 180)' },
+              zoom: { type: 'number', description: 'Optional zoom level (2 to 18, default 13)' }
+            },
+            required: ['lat', 'lng']
+          }
+        },
+        {
+          name: 'set_layer',
+          description: 'Changes the map tile layer (streets, dark, satellite) or recenters on photo markers.',
+          risk: 'mutate_app',
+          parameters: {
+            type: 'object',
+            properties: {
+              layer: { type: 'string', description: 'Tile layer: streets, dark, or satellite' },
+              recenter: { type: 'boolean', description: 'If true, recenters map to fit all markers' }
+            }
+          }
+        }
+      ];
+    }
+
+    executeAgentTool(name, args = {}) {
+      const inst = this.activeInstance || Array.from(this.instances.values())[0];
+      if (!inst) return { success: false, error: 'No open Maps window.' };
+
+      if (name === 'get_view') {
+        const pos = typeof inst.whereIam === 'function' ? inst.whereIam() : null;
+        const geoFiles = (inst.currentFiles || [])
+          .filter((f) => f && f.gps && Number.isFinite(Number(f.gps.lat)) && Number.isFinite(Number(f.gps.lng)))
+          .slice(0, 30)
+          .map((f) => ({ name: f.name, path: f.path, lat: Number(f.gps.lat), lng: Number(f.gps.lng) }));
+        return {
+          success: true,
+          current_path: inst.currentPath || '',
+          layer: inst.currentLayer || 'streets',
+          center: pos,
+          markers_count: geoFiles.length,
+          markers: geoFiles
+        };
+      }
+
+      if (name === 'move_to') {
+        const lat = Number(args.lat);
+        const lng = Number(args.lng);
+        const zoom = args.zoom !== undefined ? Number(args.zoom) : 13;
+        if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+          return { success: false, error: 'Valid lat (-90..90) and lng (-180..180) are required.' };
+        }
+        inst.moveTo({ lat, lng, zoom: Math.max(2, Math.min(18, Number.isFinite(zoom) ? zoom : 13)), animate: true });
+        return { success: true, moved_to: { lat, lng, zoom } };
+      }
+
+      if (name === 'set_layer') {
+        if (args.recenter) {
+          inst.recenterMap();
+        }
+        const layer = String(args.layer || '').toLowerCase();
+        if (['streets', 'dark', 'satellite'].includes(layer)) {
+          if (inst.leafletMap && inst.tileLayers && inst.tileLayers[layer]) {
+            Object.values(inst.tileLayers).forEach((l) => {
+              if (inst.leafletMap.hasLayer(l)) inst.leafletMap.removeLayer(l);
+            });
+            inst.tileLayers[layer].addTo(inst.leafletMap);
+            inst.currentLayer = layer;
+            const root = inst.win ? inst.win.element : document;
+            if (root) {
+              root.querySelectorAll('.map-layer-btn').forEach((btn) => {
+                btn.classList.toggle('active', btn.dataset.layer === layer);
+              });
+            }
+          }
+        }
+        return { success: true, layer: inst.currentLayer, recentered: Boolean(args.recenter) };
+      }
+
+      return { success: false, error: `Unknown maps tool '${name}'.` };
+    }
   }
 
   // Instantiate and mount Maps App

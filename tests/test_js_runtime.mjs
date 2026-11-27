@@ -1908,6 +1908,214 @@ try {
     pmCtx.app_contexts.myextapp && pmCtx.app_contexts.myextapp.context && pmCtx.app_contexts.myextapp.context.scene === 'demo' &&
     pmRemovedAfterDetach
   );
+
+  // Phase E (Lot 4): Universal WebOSApp Agent Contract, Native Apps Provider & Pilot Integrations
+  const webOSAppPath = path.join(rootDir, 'system', 'userland', 'core', 'WebOSApp.js');
+  const webOSAppCode = fs.readFileSync(webOSAppPath, 'utf8');
+  const appsGuidePath = path.join(rootDir, 'docs', 'apps-guide.md');
+  const appsGuideMd = fs.readFileSync(appsGuidePath, 'utf8');
+
+  const lot4Files = [
+    path.join(rootDir, 'system', 'userland', 'services', 'AgentToolRegistry.js'),
+    path.join(appsDir, 'graphing-calc', 'app.js'),
+    path.join(appsDir, 'maps', 'maps.js'),
+    path.join(appsDir, 'doc-viewer', 'viewer.js'),
+    path.join(appsDir, 'explorer', 'explorer.js'),
+    path.join(appsDir, 'games', 'hanoi', 'app.js'),
+    path.join(appsDir, 'games', '8queens', 'app.js')
+  ];
+  const lot4ZeroFetch = lot4Files.every(f => !/\bfetch\s*\(/.test(fs.readFileSync(f, 'utf8')));
+
+  // Verify WebOSApp base contract & AgentToolRegistry auto-discovery of native apps
+  const l4Doc = {
+    getElementById: () => null,
+    addEventListener: () => {},
+    removeEventListener: () => {}
+  };
+  const l4BaseWin = {
+    sys: {},
+    localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+    i18n: { t: (k) => k }
+  };
+  new Function('window', 'document', webOSAppCode)(l4BaseWin, l4Doc);
+  const WebOSAppBase = l4BaseWin.WebOSApp;
+  const protoOk = Boolean(
+    WebOSAppBase &&
+    typeof WebOSAppBase.prototype.isWindowOpen === 'function' &&
+    typeof WebOSAppBase.prototype.getAgentContext === 'function' &&
+    typeof WebOSAppBase.prototype.getAgentTools === 'function' &&
+    typeof WebOSAppBase.prototype.executeAgentTool === 'function'
+  );
+
+  // Load real GraphingCalcApp + math-engine, HanoiApp, and EightQueensApp in a clean sandbox
+  const mathEngineCode = fs.readFileSync(path.join(appsDir, 'graphing-calc', 'math-engine.js'), 'utf8');
+  const calcAppCode = fs.readFileSync(path.join(appsDir, 'graphing-calc', 'app.js'), 'utf8');
+  const hanoiAppCode = fs.readFileSync(path.join(appsDir, 'games', 'hanoi', 'app.js'), 'utf8');
+  const queensAppCode = fs.readFileSync(path.join(appsDir, 'games', '8queens', 'app.js'), 'utf8');
+
+  const l4AppMap = new Map();
+  const l4Store = {};
+  const l4Win = {
+    location: { origin: 'https://atelier.local' },
+    localStorage: {
+      getItem: (k) => (k in l4Store ? l4Store[k] : null),
+      setItem: (k, v) => { l4Store[k] = String(v); },
+      removeItem: (k) => { delete l4Store[k]; }
+    },
+    i18n: { t: (k) => k },
+    AppManager: {
+      apps: l4AppMap,
+      register: (inst) => l4AppMap.set(inst.id, inst),
+      registerInstance: (id, inst) => l4AppMap.set(id, inst),
+      launchApp: (id) => id
+    },
+    WindowManager: {
+      activeWindowId: null,
+      windows: new Map(),
+      setTitle: () => {}
+    },
+    sys: {
+      App: WebOSAppBase,
+      GameApp: WebOSAppBase,
+      appManager: {
+        apps: l4AppMap,
+        register: (inst) => l4AppMap.set(inst.id, inst),
+        registerInstance: (id, inst) => l4AppMap.set(id, inst),
+        launchApp: (id) => id
+      },
+      api: { get: async () => ({ success: true }), post: async () => ({ success: true }) }
+    }
+  };
+  new Function('window', agentRegCode)(l4Win);
+  new Function('window', mathEngineCode)(l4Win);
+  new Function('window', 'document', calcAppCode)(l4Win, l4Doc);
+  new Function('window', 'document', hanoiAppCode)(l4Win, l4Doc);
+  new Function('window', 'document', queensAppCode)(l4Win, l4Doc);
+
+  const l4Reg = l4Win.sys.agentTools;
+  const calcInst = l4Win.GraphingCalcApp;
+  const hanoiInstMgr = l4Win.HanoiApp;
+  const queensInstMgr = l4Win.EightQueensApp;
+
+  // Before opening calc, its tools should be hidden
+  const toolsBeforeOpen = l4Reg.getAvailableTools('assisted', []);
+  const calcHiddenWhenClosed = !toolsBeforeOpen.some(t => t.name === 'app_graphing_calc_evaluate');
+
+  // Simulate open calc window (no full DOM needed — render/switchTab stubbed cleanly)
+  calcInst.window = { id: 'win-calc' };
+  l4Win.WindowManager.activeWindowId = 'win-calc';
+  l4Win.WindowManager.windows.set('win-calc', { id: 'win-calc', appId: 'graphing-calc', title: 'Calc', state: 'normal' });
+  calcInst.render = () => {};
+  calcInst.switchTab = (tab) => { calcInst.currentTab = tab; };
+
+  // Simulate open Hanoi instance (3 disks on peg A)
+  const fakeHanoiInst = {
+    winId: 'win-hanoi',
+    diskCount: 3,
+    pegs: [[3, 2, 1], [], []],
+    movesCount: 0,
+    isWon: false,
+    selectedPeg: null,
+    getMinMoves: () => 7,
+    stopAutoSolve: () => {},
+    onPegClick: function (toIdx) {
+      const disk = this.pegs[this.selectedPeg].pop();
+      this.pegs[toIdx].push(disk);
+      this.movesCount++;
+      this.selectedPeg = null;
+    },
+    setDiskCount: function (n) { this.diskCount = n; },
+    resetPuzzle: function () { this.pegs = [[3, 2, 1], [], []]; this.movesCount = 0; },
+    showHint: () => {}
+  };
+  hanoiInstMgr.instances.set(1, fakeHanoiInst);
+
+  // Simulate open 8-Queens instance (4x4 board with exact 2 known solutions)
+  const fakeQueensInst = {
+    winId: 'win-queens',
+    boardSize: 4,
+    queens: [],
+    movesCount: 0,
+    isWon: false,
+    showSafeHints: false,
+    allSolutions: [[1, 3, 0, 2], [2, 0, 3, 1]],
+    getConflicts: function () {
+      const conflicts = [];
+      for (let i = 0; i < this.queens.length; i++) {
+        for (let j = i + 1; j < this.queens.length; j++) {
+          const q1 = this.queens[i], q2 = this.queens[j];
+          if (q1.r === q2.r || q1.c === q2.c || Math.abs(q1.r - q2.r) === Math.abs(q1.c - q2.c)) {
+            conflicts.push({ q1, q2, type: q1.c === q2.c ? 'col' : 'diag' });
+          }
+        }
+      }
+      return { count: conflicts.length, conflicts };
+    },
+    getSafeSpots: function () { return new Set(['0,1', '1,3']); },
+    onCellClick: function (r, c) {
+      const idx = this.queens.findIndex(q => q.r === r && q.c === c);
+      if (idx >= 0) this.queens.splice(idx, 1);
+      else this.queens.push({ r, c });
+      this.movesCount++;
+    }
+  };
+  queensInstMgr.instances.set(1, fakeQueensInst);
+
+  const l4ToolsAssisted = l4Reg.getAvailableTools('assisted', []);
+  const l4ToolsReadOnly = l4Reg.getAvailableTools('read_only', []);
+  const l4ToolsDisabled = l4Reg.getAvailableTools('assisted', ['graphing-calc', 'hanoi']);
+  const l4Context = l4Reg.collectContext([]);
+
+  // Execute Graphing Calc tools
+  const calcEvalRes = await l4Reg.executeTool('app_graphing_calc_evaluate', { expression: 'sin(90)^2 + cos(90)^2', angle_mode: 'DEG' }, { autonomyLevel: 'read_only', disabledApps: [] });
+  const calcPlotRes = await l4Reg.executeTool('app_graphing_calc_plot_curves', { curves: [{ expr: 'x^2', color: '#3b82f6' }, { expr: 'sin(x)' }] }, { autonomyLevel: 'assisted', disabledApps: [] });
+
+  // Execute Hanoi Coach & Move tools (optimal 3-disk move is A -> C disk 1; then A->C disk 2 must be rejected)
+  const hanoiStateRes = await l4Reg.executeTool('app_hanoi_get_state', {}, { autonomyLevel: 'read_only', disabledApps: [] });
+  const hanoiMoveOk = await l4Reg.executeTool('app_hanoi_move_disk', { from: 'A', to: 'C' }, { autonomyLevel: 'assisted', disabledApps: [] });
+  const hanoiMoveIllegal = await l4Reg.executeTool('app_hanoi_move_disk', { from: 'A', to: 'C' }, { autonomyLevel: 'assisted', disabledApps: [] });
+
+  // Execute 8-Queens Coach & Board tools
+  const queensBoardBefore = await l4Reg.executeTool('app_8queens_get_board', {}, { autonomyLevel: 'read_only', disabledApps: [] });
+  const queensPlace1 = await l4Reg.executeTool('app_8queens_toggle_queen', { square: 'B4' }, { autonomyLevel: 'assisted', disabledApps: [] });
+  const queensPlaceConflict = await l4Reg.executeTool('app_8queens_toggle_queen', { square: 'B3' }, { autonomyLevel: 'assisted', disabledApps: [] });
+
+  // Check static contracts for maps, doc-viewer, explorer & docs/apps-guide.md
+  const mapsCode = fs.readFileSync(path.join(appsDir, 'maps', 'maps.js'), 'utf8');
+  const docViewerCode = fs.readFileSync(path.join(appsDir, 'doc-viewer', 'viewer.js'), 'utf8');
+  const otherPilotsOk = [mapsCode, docViewerCode, explorerJs].every(src =>
+    src.includes('getAgentContext()') && src.includes('getAgentTools()') && src.includes('executeAgentTool(')
+  );
+  const guideDocsOk = (
+    appsGuideMd.includes('getAgentContext()') &&
+    appsGuideMd.includes('getAgentTools()') &&
+    appsGuideMd.includes('executeAgentTool(') &&
+    appsGuideMd.includes('webos:agent-register-tools')
+  );
+
+  assert("Phase E (Lot 4): Contrat universel WebOSApp, auto-découverte native, pilotes (Calc/Maps/DocViewer/Explorer/Hanoi/8Queens), docs & zéro fetch()",
+    protoOk &&
+    lot4ZeroFetch &&
+    calcHiddenWhenClosed &&
+    l4ToolsAssisted.some(t => t.name === 'app_graphing_calc_plot_curves') &&
+    l4ToolsAssisted.some(t => t.name === 'app_hanoi_move_disk') &&
+    l4ToolsAssisted.some(t => t.name === 'app_8queens_toggle_queen') &&
+    l4ToolsReadOnly.some(t => t.name === 'app_graphing_calc_evaluate') &&
+    !l4ToolsReadOnly.some(t => t.name === 'app_graphing_calc_plot_curves') &&
+    !l4ToolsDisabled.some(t => t.name.startsWith('app_graphing_calc_') || t.name.startsWith('app_hanoi_')) &&
+    l4Context.app_contexts['graphing-calc'] && l4Context.app_contexts.hanoi && l4Context.app_contexts['8queens'] &&
+    calcEvalRes && calcEvalRes.success && Math.abs(calcEvalRes.value - 1) < 1e-9 &&
+    calcPlotRes && calcPlotRes.success && calcPlotRes.tab === 'graph' && calcPlotRes.curves.length === 2 &&
+    hanoiStateRes && hanoiStateRes.success && hanoiStateRes.optimal_next_move &&
+      hanoiStateRes.optimal_next_move.from === 'A' && hanoiStateRes.optimal_next_move.to === 'C' && hanoiStateRes.optimal_next_move.disk === 1 &&
+    hanoiMoveOk && hanoiMoveOk.success && hanoiMoveOk.pegs.C.length === 1 && hanoiMoveOk.pegs.C[0] === 1 &&
+    hanoiMoveIllegal && hanoiMoveIllegal.success === false &&
+    queensBoardBefore && queensBoardBefore.success && queensBoardBefore.coach_suggestion && queensBoardBefore.coach_suggestion.solvable_from_current === true &&
+    queensPlace1 && queensPlace1.success && queensPlace1.square === 'B4' && queensPlace1.conflicts_count === 0 &&
+    queensPlaceConflict && queensPlaceConflict.success && queensPlaceConflict.conflicts_count === 1 &&
+    otherPilotsOk &&
+    guideDocsOk
+  );
 } catch (e) {
   assert("Phase 1 exécution runtime UI", false, e.stack);
 }

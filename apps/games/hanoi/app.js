@@ -564,6 +564,163 @@
     onLocaleChanged() {
       this.instances.forEach(inst => inst.updateLocale());
     }
+
+    _getActiveInstance() {
+      const wm = window.WindowManager;
+      if (wm && wm.activeWindowId) {
+        for (const inst of this.instances.values()) {
+          if (inst.winId === wm.activeWindowId) return inst;
+        }
+      }
+      const list = Array.from(this.instances.values());
+      return list.length > 0 ? list[list.length - 1] : null;
+    }
+
+    _computeOptimalNextMove(inst) {
+      // Exact recursive target-peg solver from ANY valid Hanoi state
+      const pegs = inst.pegs;
+      const findDiskPeg = (disk) => {
+        for (let p = 0; p < 3; p++) {
+          if (pegs[p].includes(disk)) return p;
+        }
+        return 0;
+      };
+      const stepToTarget = (disk, target) => {
+        if (disk <= 0) return null;
+        const cur = findDiskPeg(disk);
+        if (cur === target) return stepToTarget(disk - 1, target);
+        const aux = 3 - cur - target;
+        const sub = stepToTarget(disk - 1, aux);
+        if (sub) return sub;
+        return { from: cur, to: target, disk };
+      };
+      return stepToTarget(inst.diskCount, 2);
+    }
+
+    // -------------------------------------------------------------------------
+    // UNIVERSAL AI AGENT CONTRACT — GAME COACH & PLAYER (Phase E — Lot 4)
+    // -------------------------------------------------------------------------
+    getAgentContext() {
+      const inst = this._getActiveInstance();
+      if (!inst) return null;
+      return {
+        game: 'Towers of Hanoi',
+        disk_count: inst.diskCount,
+        pegs: { A: [...inst.pegs[0]], B: [...inst.pegs[1]], C: [...inst.pegs[2]] },
+        moves_count: inst.movesCount,
+        min_moves: inst.getMinMoves(),
+        is_won: Boolean(inst.isWon),
+        rules: 'Move all disks from peg A to peg C; move one top disk at a time; never place a larger disk onto a smaller disk.'
+      };
+    }
+
+    getAgentTools() {
+      return [
+        {
+          name: 'get_state',
+          description: 'Reads the current Towers of Hanoi board (pegs A, B, C from bottom to top), move count, and computes the exact optimal next move (Coach mode).',
+          risk: 'read',
+          parameters: { type: 'object', properties: {} }
+        },
+        {
+          name: 'move_disk',
+          description: 'Moves the top disk from source peg (A, B, or C) to destination peg (A, B, or C) following Hanoi rules.',
+          risk: 'mutate_app',
+          parameters: {
+            type: 'object',
+            properties: {
+              from: { type: 'string', description: 'Source peg: A, B, or C (or 0, 1, 2)' },
+              to: { type: 'string', description: 'Destination peg: A, B, or C (or 0, 1, 2)' }
+            },
+            required: ['from', 'to']
+          }
+        },
+        {
+          name: 'configure',
+          description: 'Resets the Towers of Hanoi puzzle, changes disk count (3 to 8), or displays a visual hint on the board.',
+          risk: 'mutate_app',
+          parameters: {
+            type: 'object',
+            properties: {
+              disk_count: { type: 'number', description: 'Optional number of disks (3 to 8)' },
+              reset: { type: 'boolean', description: 'If true, restarts the puzzle' },
+              show_hint: { type: 'boolean', description: 'If true, highlights the next hint on screen' }
+            }
+          }
+        }
+      ];
+    }
+
+    executeAgentTool(name, args = {}) {
+      const inst = this._getActiveInstance();
+      if (!inst) return { success: false, error: 'No open Towers of Hanoi game window.' };
+      const pegNames = ['A', 'B', 'C'];
+      const parsePeg = (val) => {
+        const s = String(val ?? '').trim().toUpperCase();
+        if (s === 'A' || s === '0') return 0;
+        if (s === 'B' || s === '1') return 1;
+        if (s === 'C' || s === '2') return 2;
+        return -1;
+      };
+
+      if (name === 'get_state') {
+        const next = inst.isWon ? null : this._computeOptimalNextMove(inst);
+        return {
+          success: true,
+          disk_count: inst.diskCount,
+          pegs: { A: [...inst.pegs[0]], B: [...inst.pegs[1]], C: [...inst.pegs[2]] },
+          moves_count: inst.movesCount,
+          min_moves: inst.getMinMoves(),
+          is_won: Boolean(inst.isWon),
+          optimal_next_move: next ? { from: pegNames[next.from], to: pegNames[next.to], disk: next.disk } : null
+        };
+      }
+
+      if (name === 'move_disk') {
+        if (inst.isWon) return { success: false, error: 'Puzzle is already solved.' };
+        const fromIdx = parsePeg(args.from);
+        const toIdx = parsePeg(args.to);
+        if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) {
+          return { success: false, error: 'Specify distinct pegs from and to (A, B, or C).' };
+        }
+        const fromStack = inst.pegs[fromIdx];
+        const toStack = inst.pegs[toIdx];
+        if (fromStack.length === 0) return { success: false, error: `Peg ${pegNames[fromIdx]} is empty.` };
+        const disk = fromStack[fromStack.length - 1];
+        const topTarget = toStack.length > 0 ? toStack[toStack.length - 1] : Infinity;
+        if (disk > topTarget) {
+          return { success: false, error: `Illegal move: cannot place disk ${disk} onto smaller disk ${topTarget}.` };
+        }
+        inst.stopAutoSolve();
+        inst.selectedPeg = fromIdx;
+        inst.onPegClick(toIdx);
+        return {
+          success: true,
+          moved: { disk, from: pegNames[fromIdx], to: pegNames[toIdx] },
+          moves_count: inst.movesCount,
+          is_won: Boolean(inst.isWon),
+          pegs: { A: [...inst.pegs[0]], B: [...inst.pegs[1]], C: [...inst.pegs[2]] }
+        };
+      }
+
+      if (name === 'configure') {
+        if (args.disk_count !== undefined) {
+          const n = parseInt(args.disk_count, 10);
+          if (n >= 3 && n <= 8) inst.setDiskCount(n);
+        } else if (args.reset) {
+          inst.resetPuzzle();
+        }
+        if (args.show_hint) inst.showHint();
+        return {
+          success: true,
+          disk_count: inst.diskCount,
+          moves_count: inst.movesCount,
+          pegs: { A: [...inst.pegs[0]], B: [...inst.pegs[1]], C: [...inst.pegs[2]] }
+        };
+      }
+
+      return { success: false, error: `Unknown hanoi tool '${name}'.` };
+    }
   }
 
   // Instantiate and mount WebOS Hanoi App

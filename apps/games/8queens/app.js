@@ -733,6 +733,180 @@
     onLocaleChanged() {
       this.instances.forEach(inst => inst.updateLocale());
     }
+
+    _getActiveInstance() {
+      const wm = window.WindowManager;
+      if (wm && wm.activeWindowId) {
+        for (const inst of this.instances.values()) {
+          if (inst.winId === wm.activeWindowId) return inst;
+        }
+      }
+      const list = Array.from(this.instances.values());
+      return list.length > 0 ? list[list.length - 1] : null;
+    }
+
+    _toSquare(r, c, n) {
+      const colChar = String.fromCharCode(65 + c);
+      return `${colChar}${n - r}`;
+    }
+
+    _parseSquare(sq, n) {
+      const m = String(sq || '').trim().toUpperCase().match(/^([A-L])(\d{1,2})$/);
+      if (!m) return null;
+      const c = m[1].charCodeAt(0) - 65;
+      const rank = parseInt(m[2], 10);
+      const r = n - rank;
+      if (r < 0 || r >= n || c < 0 || c >= n) return null;
+      return { r, c };
+    }
+
+    // -------------------------------------------------------------------------
+    // UNIVERSAL AI AGENT CONTRACT — GAME COACH & PLAYER (Phase E — Lot 4)
+    // -------------------------------------------------------------------------
+    getAgentContext() {
+      const inst = this._getActiveInstance();
+      if (!inst) return null;
+      const n = inst.boardSize;
+      const { count } = inst.getConflicts();
+      return {
+        game: 'N-Queens Puzzle',
+        board_size: n,
+        queens: inst.queens.map((q) => ({ row: q.r, col: q.c, square: this._toSquare(q.r, q.c, n) })),
+        conflicts_count: count,
+        moves_count: inst.movesCount,
+        total_solutions: inst.allSolutions.length,
+        is_won: Boolean(inst.isWon)
+      };
+    }
+
+    getAgentTools() {
+      return [
+        {
+          name: 'get_board',
+          description: 'Reads the current 8 Queens board, queen squares, active conflicts, safe squares, and computes a valid Coach hint square leading to a full solution.',
+          risk: 'read',
+          parameters: { type: 'object', properties: {} }
+        },
+        {
+          name: 'toggle_queen',
+          description: 'Places or removes a queen on a square given either chess notation (e.g. square: "D5") or 0-indexed row & col.',
+          risk: 'mutate_app',
+          parameters: {
+            type: 'object',
+            properties: {
+              square: { type: 'string', description: 'Chess square notation (e.g. "A8", "D5")' },
+              row: { type: 'number', description: '0-indexed row (0 = top)' },
+              col: { type: 'number', description: '0-indexed column (0 = left / A)' }
+            }
+          }
+        },
+        {
+          name: 'configure',
+          description: 'Restarts the 8 Queens board, changes board size (4 to 12), toggles visual safe hints, or displays a complete solution.',
+          risk: 'mutate_app',
+          parameters: {
+            type: 'object',
+            properties: {
+              board_size: { type: 'number', description: 'Board size N (4 to 12)' },
+              restart: { type: 'boolean', description: 'If true, clears the board' },
+              show_hints: { type: 'boolean', description: 'If true/false, enables/disables safe square highlights' },
+              show_solution: { type: 'boolean', description: 'If true, shows the next valid complete solution' }
+            }
+          }
+        }
+      ];
+    }
+
+    executeAgentTool(name, args = {}) {
+      const inst = this._getActiveInstance();
+      if (!inst) return { success: false, error: 'No open 8 Queens game window.' };
+      const n = inst.boardSize;
+
+      if (name === 'get_board') {
+        const conf = inst.getConflicts();
+        const safe = Array.from(inst.getSafeSpots()).slice(0, 40).map((key) => {
+          const [r, c] = key.split(',').map(Number);
+          return { row: r, col: c, square: this._toSquare(r, c, n) };
+        });
+        // Find a valid completion matching all currently placed queens (Coach mode)
+        let coachSuggestion = null;
+        if (conf.count === 0 && inst.queens.length < n) {
+          const matchingSol = inst.allSolutions.find((sol) =>
+            inst.queens.every((q) => sol[q.r] === q.c)
+          );
+          if (matchingSol) {
+            for (let r = 0; r < n; r++) {
+              if (!inst.queens.some((q) => q.r === r)) {
+                coachSuggestion = { row: r, col: matchingSol[r], square: this._toSquare(r, matchingSol[r], n), solvable_from_current: true };
+                break;
+              }
+            }
+          } else {
+            coachSuggestion = { solvable_from_current: false, note: 'Current placement is a dead-end; remove at least one queen to reach a solution.' };
+          }
+        }
+        return {
+          success: true,
+          board_size: n,
+          queens: inst.queens.map((q) => ({ row: q.r, col: q.c, square: this._toSquare(q.r, q.c, n) })),
+          conflicts_count: conf.count,
+          conflicts: conf.conflicts.map((c) => ({
+            a: this._toSquare(c.q1.r, c.q1.c, n),
+            b: this._toSquare(c.q2.r, c.q2.c, n),
+            type: c.type
+          })),
+          safe_squares: safe,
+          coach_suggestion: coachSuggestion,
+          is_won: Boolean(inst.isWon)
+        };
+      }
+
+      if (name === 'toggle_queen') {
+        let r = Number(args.row);
+        let c = Number(args.col);
+        if (args.square) {
+          const parsed = this._parseSquare(args.square, n);
+          if (!parsed) return { success: false, error: `Invalid square '${args.square}' for ${n}x${n} board.` };
+          r = parsed.r;
+          c = parsed.c;
+        }
+        if (!Number.isInteger(r) || !Number.isInteger(c) || r < 0 || r >= n || c < 0 || c >= n) {
+          return { success: false, error: `Coordinates out of range for ${n}x${n} board.` };
+        }
+        inst.onCellClick(r, c);
+        const conf = inst.getConflicts();
+        return {
+          success: true,
+          square: this._toSquare(r, c, n),
+          queens_count: inst.queens.length,
+          conflicts_count: conf.count,
+          is_won: Boolean(inst.isWon)
+        };
+      }
+
+      if (name === 'configure') {
+        if (args.board_size !== undefined) {
+          const sz = parseInt(args.board_size, 10);
+          if (sz >= 4 && sz <= 12) inst.setBoardSize(sz);
+        } else if (args.restart) {
+          inst.restart();
+        }
+        if (typeof args.show_hints === 'boolean' && inst.showSafeHints !== args.show_hints) {
+          inst.toggleHints();
+        }
+        if (args.show_solution) {
+          inst.showNextSolution();
+        }
+        return {
+          success: true,
+          board_size: inst.boardSize,
+          queens_count: inst.queens.length,
+          is_won: Boolean(inst.isWon)
+        };
+      }
+
+      return { success: false, error: `Unknown 8queens tool '${name}'.` };
+    }
   }
 
   // Instantiate and mount WebOS Eight Queens Game App

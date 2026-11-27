@@ -471,6 +471,44 @@
     onThemeChanged(themeName) {}
     renderTab(tabId) { return ''; }
     renderContent() { return ''; }
+
+    // Universal AI Agent Contract (Phase E — Lot 4)
+    /**
+     * Returns whether this application currently has at least one open window.
+     */
+    isWindowOpen() {
+      if (this.window && window.WindowManager && window.WindowManager.windows && window.WindowManager.windows.has(this.window.id)) {
+        return true;
+      }
+      if (this.instances && typeof this.instances.size === 'number' && this.instances.size > 0) {
+        return true;
+      }
+      return false;
+    }
+
+    /**
+     * Override in subclasses to expose a concise, JSON-serializable live context snapshot to Compagnon.
+     * @returns {Object|null}
+     */
+    getAgentContext() { return null; }
+
+    /**
+     * Override in subclasses to declare app-specific AI agent tools:
+     * `[{ name, description, parameters, risk: 'read'|'mutate_app'|'mutate_fs'|'destructive', alwaysAvailable?: boolean }]`
+     * @returns {Array<Object>}
+     */
+    getAgentTools() { return []; }
+
+    /**
+     * Override in subclasses to execute a declared tool by short name.
+     * @param {string} toolName
+     * @param {Object} args
+     * @param {Object} ctx
+     * @returns {Object|Promise<Object>}
+     */
+    executeAgentTool(toolName, args = {}, ctx = {}) {
+      return { success: false, error: `Agent tool '${toolName}' is not implemented by '${this.id}'.` };
+    }
   }
 
   /**

@@ -345,7 +345,111 @@ Vous pouvez déposer n'importe quelle application statique (HTML/JS/WASM/PWA —
 
 ---
 
-## 8. Tests Automatisés & Validation Avant Livraison
+## 8. Intégration avec Compagnon (Agent IA Universel)
+
+**Atelier by GallusTech** intègre **Compagnon**, un agent IA multi-fournisseurs (Gemini, OpenAI, Anthropic, Ollama/LM Studio) gouverné par `AgentToolRegistry` (`window.sys.agentTools`). Toute application — **native** ou **externe/WASM** — peut exposer son état courant et ses outils de manière standardisée, sans modifier le noyau ni la barre des tâches.
+
+### 8.1 Contrat Universel pour les Applications Natives (`WebOSApp`)
+
+`WebOSApp` (et `WebOSGameApp`) fournit quatre hooks optionnels détectés automatiquement par `AgentToolRegistry` dès qu'une fenêtre de l'application est ouverte :
+
+| Méthode | Rôle |
+|---|---|
+| `isWindowOpen()` | Retourne `true` si l'application a au moins une fenêtre ouverte (déjà géré par défaut via `this.window` et `this.instances`). |
+| `getAgentContext()` | Retourne un petit objet JSON résumant l'état courant visible à l'écran (onglet actif, position de carte, plateau de jeu, fichier ouvert…). |
+| `getAgentTools()` | Retourne un tableau d'outils `{ name, description, risk, parameters, alwaysAvailable? }`. Chaque outil est automatiquement préfixé `app_<appId>_<name>` (les tirets sont normalisés en `_`, ex. `graphing-calc` → `app_graphing_calc_evaluate`). |
+| `executeAgentTool(name, args, ctx)` | Exécute l'outil demandé (synchrone ou `async`) et retourne `{ success: true, ... }` ou `{ success: false, error: '...' }`. |
+
+#### Niveaux de risque (`risk`) & Human-in-the-Loop
+- **`read`** : lecture seule (toujours autorisé, y compris en mode *Lecture seule*, sans confirmation).
+- **`mutate_app`** : modifie l'état interne de l'application (tracer une courbe, déplacer la carte, jouer un coup). Confirmation demandée en mode *Assisté*, automatique sur l'app active en mode *Autonome dans l'app*.
+- **`mutate_fs`** / **`destructive`** : écriture sur le VFS ou action irréversible — exige **toujours** une confirmation manuelle explicite dans la popup Compagnon.
+
+#### Exemple minimal dans une classe `WebOSApp`
+
+```javascript
+class MonOutilApp extends WebOSApp {
+  getAgentContext() {
+    return {
+      tab: this.currentTab,
+      selected_count: this.selectedIds.length
+    };
+  }
+
+  getAgentTools() {
+    return [
+      {
+        name: 'get_summary',
+        description: 'Retourne un résumé structuré des éléments chargés dans Mon Outil.',
+        risk: 'read',
+        parameters: { type: 'object', properties: {} }
+      },
+      {
+        name: 'filter_items',
+        description: 'Filtre la vue courante par mot-clé.',
+        risk: 'mutate_app',
+        parameters: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'Texte de filtre' }
+          },
+          required: ['query']
+        }
+      }
+    ];
+  }
+
+  executeAgentTool(name, args = {}) {
+    if (name === 'get_summary') {
+      return { success: true, total: this.items.length, tab: this.currentTab };
+    }
+    if (name === 'filter_items') {
+      this.applyFilter(String(args.query || ''));
+      return { success: true, matched: this.filteredItems.length };
+    }
+    return { success: false, error: `Unknown tool '${name}'` };
+  }
+}
+```
+
+> 💡 **Exemples pilotes livrés dans le dépôt** : `apps/graphing-calc/app.js` (évaluation & tracé de courbes), `apps/maps/maps.js` (navigation & couches), `apps/doc-viewer/viewer.js` (recherche & navigation de pages), `apps/explorer/explorer.js` (navigation VFS & tri), `apps/games/hanoi/app.js` et `apps/games/8queens/app.js` (mode **Coach IA** avec calcul de coup optimal et jeu direct).
+
+### 8.2 Applications Externes & WASM (`WebAppAgentBridge`)
+
+Deux mécanismes sont pris en charge automatiquement pour les applications hébergées dans `WebAppHost` :
+
+1. **Auto-découverte `craft-web-api`** : toute application WASM exposant un namespace `window.<prefix>` (ex. `wordcraft`, `gridcraft`, `deckcraft`) avec `.commands()`, `.execute()`, `.docInspect()` / `.screenshot()` est automatiquement pilotable via les outils dynamiques `craft_*`.
+2. **Protocole coopératif `postMessage` (`same-origin` strict)** : toute WebApp tierce (React, Vue, Godot, Rust/WASM…) peut enregistrer ses outils auprès de Compagnon sans couplage :
+   - **Déclarer des outils** :
+     ```javascript
+     window.parent.postMessage({
+       type: 'webos:agent-register-tools',
+       tools: [
+         { name: 'set_zoom', description: 'Définit le zoom (0.5 à 4)', risk: 'mutate_app',
+           parameters: { type: 'object', properties: { factor: { type: 'number' } }, required: ['factor'] } }
+       ]
+     }, window.location.origin);
+     ```
+   - **Publier un contexte vivant** :
+     `window.parent.postMessage({ type: 'webos:agent-context', context: { page: 3, zoom: 1.5 } }, window.location.origin);`
+   - **Répondre aux appels `webos:agent-call`** :
+     ```javascript
+     window.addEventListener('message', (e) => {
+       if (e.origin !== window.location.origin || !e.data || e.data.type !== 'webos:agent-call') return;
+       const { callId, tool, args } = e.data;
+       // Exécuter l'action puis renvoyer le résultat :
+       window.parent.postMessage({
+         type: 'webos:agent-result',
+         callId,
+         success: true,
+         result: { applied: tool, factor: args.factor }
+       }, window.location.origin);
+     });
+     ```
+
+---
+
+## 9. Tests Automatisés & Validation Avant Livraison
 
 Toute nouvelle application doit être accompagnée de tests et passer l'intégralité de la suite :
 

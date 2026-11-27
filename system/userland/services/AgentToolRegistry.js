@@ -23,6 +23,7 @@
       this.dynamicProviders = new Set();
       this._registerCoreOsTools();
       this._registerCoreVfsTools();
+      this._registerNativeAppsProvider();
     }
 
     /**
@@ -352,6 +353,18 @@
               };
             }
           }
+          // Report any native WebOSApp agent tools exposed by the launched app
+          const nativeTools = this.getAvailableTools(ctx.autonomyLevel || 'assisted', Array.from(ctx.disabledApps || []))
+            .filter(t => t.appId === appId)
+            .map(t => t.name);
+          if (nativeTools.length > 0) {
+            return {
+              success: true,
+              launched: appId,
+              agent_protocol: 'webos-native',
+              available_tools: nativeTools
+            };
+          }
           return { success: true, launched: appId };
         }
       });
@@ -584,6 +597,123 @@
             window.EventBus.emit('vfs:changed', {});
           }
           return res || { success: false, error: 'Delete item failed.' };
+        }
+      });
+    }
+
+    // -------------------------------------------------------------------------
+    // UNIVERSAL NATIVE WEBOSAPP PROVIDER (Phase E — Lot 4)
+    // Auto-discovers any native app or game implementing getAgentTools() / getAgentContext()
+    // -------------------------------------------------------------------------
+    _collectNativeAppInstances() {
+      const found = new Map(); // appId -> instance
+      const addIfEligible = (id, inst) => {
+        if (!id || !inst || typeof inst !== 'object') return;
+        const cleanId = String(id).trim();
+        if (!cleanId || FORBIDDEN_APP_IDS.has(cleanId) || found.has(cleanId)) return;
+        if (typeof inst.getAgentTools === 'function' || typeof inst.getAgentContext === 'function') {
+          found.set(cleanId, inst);
+        }
+      };
+
+      const am = (window.sys && window.sys.appManager) || window.AppManager;
+      if (am && am.apps && typeof am.apps.forEach === 'function') {
+        am.apps.forEach((entry, id) => {
+          if (entry && entry.instance) addIfEligible(id, entry.instance);
+        });
+      }
+
+      // Also probe well-known global app singletons (for apps instantiated before/outside AppManager.apps)
+      const globals = [
+        ['explorer', window.explorerApp],
+        ['doc-viewer', window.DocViewerApp],
+        ['image-viewer', window.ImageViewerApp],
+        ['maps', window.MapsApp],
+        ['graphing-calc', window.GraphingCalcApp],
+        ['hanoi', window.HanoiApp],
+        ['8queens', window.EightQueensApp],
+        ['pipe', window.PipeApp],
+        ['foot', window.FootApp]
+      ];
+      globals.forEach(([id, inst]) => addIfEligible(id, inst));
+      return found;
+    }
+
+    _isNativeAppOpen(appId, inst) {
+      if (inst && typeof inst.isWindowOpen === 'function') {
+        try { if (inst.isWindowOpen()) return true; } catch (e) {}
+      }
+      if (inst && inst.instances && typeof inst.instances.size === 'number' && inst.instances.size > 0) {
+        return true;
+      }
+      const wm = window.WindowManager;
+      if (wm && wm.windows) {
+        const list = (wm.windows instanceof Map) ? Array.from(wm.windows.values()) : Array.from(wm.windows);
+        if (list.some(w => w && (w.appId === appId || w.id === appId))) return true;
+      }
+      return false;
+    }
+
+    _registerNativeAppsProvider() {
+      const sanitizePart = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+
+      this.registerProvider({
+        id: 'native-webos-apps',
+        getContext: (ctx) => {
+          const disabled = (ctx && ctx.disabledApps instanceof Set) ? ctx.disabledApps : new Set();
+          const contexts = {};
+          const apps = this._collectNativeAppInstances();
+          apps.forEach((inst, appId) => {
+            if (disabled.has(appId)) return;
+            if (!this._isNativeAppOpen(appId, inst)) return;
+            if (typeof inst.getAgentContext !== 'function') return;
+            try {
+              const snap = inst.getAgentContext();
+              if (snap && typeof snap === 'object') {
+                contexts[appId] = Object.assign({ agent_protocol: 'webos-native' }, snap);
+              }
+            } catch (e) {}
+          });
+          return contexts;
+        },
+        getTools: (ctx) => {
+          const disabled = (ctx && ctx.disabledApps instanceof Set) ? ctx.disabledApps : new Set();
+          const tools = [];
+          const apps = this._collectNativeAppInstances();
+          apps.forEach((inst, appId) => {
+            if (disabled.has(appId)) return;
+            if (typeof inst.getAgentTools !== 'function') return;
+            const isOpen = this._isNativeAppOpen(appId, inst);
+            let defs = [];
+            try { defs = inst.getAgentTools() || []; } catch (e) { defs = []; }
+            if (!Array.isArray(defs) || defs.length === 0) return;
+
+            const safeApp = sanitizePart(appId);
+            for (const d of defs) {
+              if (!d || !d.name) continue;
+              if (!isOpen && !d.alwaysAvailable) continue;
+              const shortName = String(d.name);
+              const fullName = shortName.startsWith(`app_${safeApp}_`) ? shortName : `app_${safeApp}_${sanitizePart(shortName)}`;
+              const risk = ['read', 'mutate_app', 'mutate_fs', 'destructive'].includes(d.risk) ? d.risk : 'mutate_app';
+              tools.push({
+                name: fullName,
+                description: `[${appId}] ${d.description || shortName}`,
+                parameters: (d.parameters && typeof d.parameters === 'object') ? d.parameters : { type: 'object', properties: {} },
+                risk,
+                appId,
+                handler: async (args, execCtx) => {
+                  if (typeof d.handler === 'function') {
+                    return d.handler(args, execCtx);
+                  }
+                  if (typeof inst.executeAgentTool === 'function') {
+                    return inst.executeAgentTool(shortName, args, execCtx);
+                  }
+                  return { success: false, error: `Tool '${shortName}' has no handler on '${appId}'.` };
+                }
+              });
+            }
+          });
+          return tools;
         }
       });
     }

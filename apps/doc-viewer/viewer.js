@@ -1364,6 +1364,80 @@
         }
       }
       return false;
+    },
+
+    // -------------------------------------------------------------------------
+    // UNIVERSAL AI AGENT CONTRACT (Phase E — Lot 4)
+    // -------------------------------------------------------------------------
+    isWindowOpen() {
+      return Boolean(this.instances && this.instances.size > 0);
+    },
+
+    getAgentContext() {
+      const inst = this.getActiveInstance();
+      if (!inst) return null;
+      return {
+        file_name: inst.file ? inst.file.name : '',
+        file_path: inst.file ? inst.file.path : '',
+        is_pdf: Boolean(inst.isPdf),
+        current_page: inst.currentPage || 1,
+        total_pages: inst.totalPages || null
+      };
+    },
+
+    getAgentTools() {
+      return [
+        {
+          name: 'search_text',
+          description: 'Searches and highlights matching text inside the currently open Document Viewer window.',
+          risk: 'read',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'Text string to search and highlight' }
+            },
+            required: ['query']
+          }
+        },
+        {
+          name: 'navigate',
+          description: 'Navigates pages (next, prev, or specific page number) or changes the reading theme (dark, light, sepia) in Document Viewer.',
+          risk: 'mutate_app',
+          parameters: {
+            type: 'object',
+            properties: {
+              action: { type: 'string', description: 'Navigation action: next, prev, or goto' },
+              page: { type: 'number', description: 'Target page number when action is goto' },
+              theme: { type: 'string', description: 'Optional reading theme: dark, light, or sepia' }
+            }
+          }
+        }
+      ];
+    },
+
+    executeAgentTool(name, args = {}) {
+      const inst = this.getActiveInstance();
+      if (!inst) return { success: false, error: 'No open Document Viewer window.' };
+
+      if (name === 'search_text') {
+        const query = String(args.query || '').trim();
+        if (!query) return { success: false, error: 'Search query is required.' };
+        const found = this.searchText({ query });
+        return { success: true, query, found: Boolean(found) };
+      }
+
+      if (name === 'navigate') {
+        const act = String(args.action || '').toLowerCase();
+        if (act === 'next') this.nextPage();
+        else if (act === 'prev') this.prevPage();
+        else if (act === 'goto' && Number.isFinite(Number(args.page))) this.scrollTo({ page: Number(args.page) });
+        if (args.theme && ['dark', 'light', 'sepia'].includes(String(args.theme).toLowerCase())) {
+          this.setTheme({ theme: String(args.theme).toLowerCase() });
+        }
+        return { success: true, current_page: inst.currentPage || 1, theme: args.theme || undefined };
+      }
+
+      return { success: false, error: `Unknown doc-viewer tool '${name}'.` };
     }
   };
 
