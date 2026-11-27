@@ -1844,6 +1844,7 @@ try {
   const l3ToolsNoVision = l3Reg.getAvailableTools('assisted', [], { allowVision: false });
   const l3ToolsDisabled = l3Reg.getAvailableTools('assisted', ['wordcraft']);
 
+  const cmdCatalog = await l3Reg.executeTool('craft_commands', { app_id: 'wordcraft' }, { autonomyLevel: 'assisted', disabledApps: [] });
   const cmdRes = await l3Reg.executeTool('craft_commands', { app_id: 'wordcraft', filter: 'insert' }, { autonomyLevel: 'assisted', disabledApps: [] });
   const batchRes = await l3Reg.executeTool('craft_execute_batch', {
     app_id: 'wordcraft',
@@ -1889,7 +1890,8 @@ try {
     !l3ToolsDisabled.some(t => t.name === 'craft_commands') &&
     l3Reg.requiresConfirmation({ risk: 'mutate_app' }, 'autonomous_app', 'wordcraft', { app_id: 'wordcraft' }) === false &&
     l3Reg.requiresConfirmation({ risk: 'mutate_app' }, 'autonomous_app', 'explorer', { app_id: 'wordcraft' }) === true &&
-    cmdRes && cmdRes.success && Array.isArray(cmdRes.commands) && cmdRes.commands.length === 1 && cmdRes.commands[0].name === 'edit.insertText' &&
+    cmdCatalog && cmdCatalog.success && cmdCatalog.mode === 'compact_catalog' && cmdCatalog.namespaces && Array.isArray(cmdCatalog.namespaces.edit) &&
+    cmdRes && cmdRes.success && Array.isArray(cmdRes.commands) && cmdRes.commands.length === 1 && cmdRes.commands[0].id === 'edit.insertText' &&
     batchRes && batchRes.success && batchRes.executed === 2 && craftExecCalls.length === 2 &&
     shotRes && shotRes.success && shotRes._vision_image && shotRes._vision_image.data === fakePngB64 &&
     !evilRegistered &&

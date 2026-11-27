@@ -391,13 +391,18 @@
 
         tools.push({
           name: 'craft_commands',
-          description: `Lists the internal engine commands supported by an open ArtCraft WASM app (${openIds.join(', ')}). Always call this BEFORE craft_execute to discover exact command names and parameter schemas.`,
+          description: `Lists the internal engine commands supported by an open ArtCraft WASM app (${openIds.join(', ')}). Without filter/ids, returns a compact catalog of command IDs grouped by namespace (low token usage). Pass filter (e.g. "insert", "text", "font", "color", "paragraph", "style") or ids to retrieve exact parameter schemas before calling craft_execute / craft_execute_batch.`,
           risk: 'read',
           parameters: {
             type: 'object',
             properties: {
               app_id: { type: 'string', description: idsDesc },
-              filter: { type: 'string', description: 'Optional case-insensitive substring filter (e.g. "text", "format", "paragraph", "style", "cell", "slide") to narrow large command lists.' }
+              filter: { type: 'string', description: 'Optional case-insensitive substring filter (e.g. "text", "font", "color", "paragraph", "style", "cell", "slide") to get full parameter schemas for matching commands.' },
+              ids: {
+                type: 'array',
+                description: 'Optional list of exact command IDs (e.g. ["text.insert", "font.color"]) to inspect their exact parameter schemas.',
+                items: { type: 'string' }
+              }
             }
           },
           handler: async (args, ctx) => {
@@ -413,24 +418,79 @@
               list = list.commands;
             }
 
+            if (!Array.isArray(list)) {
+              const bounded = truncateValue(list, 12000);
+              return { success: true, app_id: t.appId, prefix: t.prefix, truncated: bounded.truncated, commands: bounded.data };
+            }
+
+            // Exclude currently disabled commands to reduce noise & tokens
+            const enabledList = list.filter((item) => !item || item.enabled !== false);
+            const wantedIds = Array.isArray(args.ids)
+              ? new Set(args.ids.map((s) => String(s || '').trim().toLowerCase()).filter(Boolean))
+              : null;
             const filter = String(args.filter || '').trim().toLowerCase();
-            if (filter && Array.isArray(list)) {
-              list = list.filter((item) => {
-                try {
-                  return JSON.stringify(item).toLowerCase().includes(filter);
-                } catch (e) {
-                  return false;
-                }
+
+            // Compact overview mode when no filter/ids given (saves ~85% tokens on large Craft apps!)
+            if (!filter && (!wantedIds || wantedIds.size === 0)) {
+              const grouped = {};
+              for (const item of enabledList) {
+                const id = String((item && (item.id || item.name)) || '');
+                if (!id) continue;
+                const ns = id.includes('.') ? id.split('.')[0] : 'other';
+                if (!grouped[ns]) grouped[ns] = [];
+                const lbl = item.label ? `${id} (${item.label})` : id;
+                grouped[ns].push(lbl);
+              }
+              const bounded = truncateValue(grouped, 10000);
+              return {
+                success: true,
+                app_id: t.appId,
+                prefix: t.prefix,
+                mode: 'compact_catalog',
+                total_enabled: enabledList.length,
+                truncated: bounded.truncated,
+                hint: 'Call craft_commands again with ids:[...] or filter:"<keyword>" (e.g. "text", "font", "color", "paragraph") to retrieve exact JSON parameter schemas.',
+                namespaces: bounded.data
+              };
+            }
+
+            let matched = enabledList;
+            if (wantedIds && wantedIds.size > 0) {
+              matched = enabledList.filter((item) => {
+                const id = String((item && (item.id || item.name)) || '').toLowerCase();
+                return wantedIds.has(id);
+              });
+            } else if (filter) {
+              // Prioritize matches on id/label/location before matching verbose params prose
+              const byMeta = enabledList.filter((item) => {
+                const hay = `${item.id || item.name || ''} ${item.label || ''} ${item.description || ''} ${item.location || ''}`.toLowerCase();
+                return hay.includes(filter);
+              });
+              matched = byMeta.length > 0 ? byMeta : enabledList.filter((item) => {
+                try { return JSON.stringify(item).toLowerCase().includes(filter); } catch (e) { return false; }
               });
             }
 
-            const bounded = truncateValue(list, MAX_RESULT_CHARS);
+            const compactMatched = matched.slice(0, 30).map((item) => {
+              const entry = {
+                id: item.id || item.name,
+                label: item.label || item.description || ''
+              };
+              if (item.params !== undefined && item.params !== '{}') {
+                const pStr = typeof item.params === 'string' ? item.params : JSON.stringify(item.params);
+                entry.params = pStr.length > 420 ? (pStr.slice(0, 420) + '…') : item.params;
+              }
+              return entry;
+            });
+
+            const bounded = truncateValue(compactMatched, 11000);
             return {
               success: true,
               app_id: t.appId,
               prefix: t.prefix,
-              total: Array.isArray(list) ? list.length : undefined,
-              truncated: bounded.truncated,
+              total_matched: matched.length,
+              returned: Array.isArray(bounded.data) ? bounded.data.length : 0,
+              truncated: bounded.truncated || matched.length > 30,
               commands: bounded.data
             };
           }
@@ -455,13 +515,13 @@
               return { success: false, error: `'${t.appId}' does not expose docInspect().` };
             }
             const raw = await withTimeout(
-              args.params && typeof args.params === 'object' ? t.api.docInspect(args.params) : t.api.docInspect(),
+              t.api.docInspect(args.params && typeof args.params === 'object' ? args.params : {}),
               RPC_TIMEOUT_MS,
               `${t.prefix}.docInspect`
             );
             const unwrapped = unwrapCraftResult(raw);
             if (!unwrapped.success) return unwrapped;
-            const bounded = truncateValue(unwrapped.result, MAX_RESULT_CHARS);
+            const bounded = truncateValue(unwrapped.result, 14000);
             return { success: true, app_id: t.appId, truncated: bounded.truncated, document: bounded.data };
           }
         });
@@ -485,13 +545,13 @@
               return { success: false, error: `'${t.appId}' does not expose uiInspect().` };
             }
             const raw = await withTimeout(
-              args.params && typeof args.params === 'object' ? t.api.uiInspect(args.params) : t.api.uiInspect(),
+              t.api.uiInspect(args.params && typeof args.params === 'object' ? args.params : {}),
               RPC_TIMEOUT_MS,
               `${t.prefix}.uiInspect`
             );
             const unwrapped = unwrapCraftResult(raw);
             if (!unwrapped.success) return unwrapped;
-            const bounded = truncateValue(unwrapped.result, MAX_RESULT_CHARS);
+            const bounded = truncateValue(unwrapped.result, 12000);
             return { success: true, app_id: t.appId, truncated: bounded.truncated, ui: bounded.data };
           }
         });

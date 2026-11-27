@@ -686,7 +686,7 @@
           res = await window.sys.api.post('ai_chat', payload);
           if (res && res.success) return res;
           const errMsg = String((res && res.error) || '');
-          const isTransient = /\bHTTP (502|503|504|429)\b/i.test(errMsg);
+          const isTransient = /\bHTTP (502|503|504)\b/i.test(errMsg);
           if (!isTransient || attempt >= delays.length) return res;
           await new Promise(r => setTimeout(r, delays[attempt]));
         }
