@@ -30,6 +30,15 @@
       }
 
       if (plugin.cssPath) {
+        const alreadyLoaded = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+          .some(el => {
+            const href = el.getAttribute('href') || '';
+            return href === plugin.cssPath || href.startsWith(plugin.cssPath + '?');
+          });
+        if (alreadyLoaded) {
+          this.loadedStyles.add(styleId);
+          return;
+        }
         const link = document.createElement('link');
         link.id = styleId;
         link.rel = 'stylesheet';

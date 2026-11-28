@@ -702,10 +702,14 @@
         return;
       }
 
+      const sortedFolders = (this.stateManager && typeof this.stateManager.computeSortedDirectories === 'function')
+        ? this.stateManager.computeSortedDirectories()
+        : [...folders];
+
       const canMove = this.state.isAdmin || (this.state.userRights && this.state.userRights.can_move);
 
       this.el.folderSection.style.display = 'block';
-      this.el.foldersGrid.innerHTML = folders.map(folder => {
+      this.el.foldersGrid.innerHTML = sortedFolders.map(folder => {
         const badge = folder.is_protected ? '<span class="folder-badge lock-badge">🔒</span>' : '';
         const handleClass = canMove ? 'drag-handle' : '';
         const deleteBtnHtml = this.state.isAdmin ? `<button class="delete-item-btn" data-path="${this.escapeHtml(folder.path)}" data-name="${this.escapeHtml(folder.name)}" data-type="folder" title="${this.escapeHtml(this.t('folder.delete_title'))}">🗑️</button>` : '';
@@ -1298,10 +1302,23 @@
       }
     }
 
+    setSort(sortBy, sortOrder = null) {
+      const nextBy = sortBy || 'name';
+      const curNorm = (this.state.sortBy === 'mtime' || this.state.sortBy === 'exif_date') ? 'date' : (this.state.sortBy || 'name');
+      const nextOrder = sortOrder || ((curNorm === nextBy && this.state.sortOrder === 'asc') ? 'desc' : 'asc');
+      this.state.sortBy = nextBy;
+      this.state.sortOrder = nextOrder;
+      this.saveFolderSort(this.state.currentPath, this.state.sortBy, this.state.sortOrder);
+      if (this.manager) this.manager.updateMenuBarForActiveInstance();
+      this.renderFolders(this.state.directories);
+      this.applyFilterAndRender();
+    }
+
     toggleSortOrder() {
       this.state.sortOrder = (this.state.sortOrder === 'asc') ? 'desc' : 'asc';
       this.saveFolderSort(this.state.currentPath, this.state.sortBy, this.state.sortOrder);
-      this.manager.updateMenuBarForActiveInstance();
+      if (this.manager) this.manager.updateMenuBarForActiveInstance();
+      this.renderFolders(this.state.directories);
       this.applyFilterAndRender();
     }
 
@@ -2205,6 +2222,7 @@
             <div class="sort-group">
               <select id="sortSelect" class="sort-select" aria-label="${this.escapeHtml(this.t('sort.title'))}">
                 <option value="name" ${activeState.sortBy === 'name' ? 'selected' : ''}>${this.escapeHtml(this.t('sort.name'))}</option>
+                <option value="category" ${activeState.sortBy === 'category' ? 'selected' : ''}>${this.escapeHtml(this.t('explorer.list_type'))}</option>
                 <option value="exif_date" ${activeState.sortBy === 'exif_date' ? 'selected' : ''}>${this.escapeHtml(this.t('sort.date'))}</option>
                 <option value="date" ${activeState.sortBy === 'date' ? 'selected' : ''}>${this.escapeHtml(this.t('sort.mtime'))}</option>
                 <option value="size" ${activeState.sortBy === 'size' ? 'selected' : ''}>${this.escapeHtml(this.t('sort.size'))}</option>
@@ -2312,11 +2330,8 @@
         sortSelect.onchange = (e) => {
           const active = this.getActiveInstance();
           if (active) {
-            active.state.sortBy = e.target.value;
-            active.state.sortOrder = ['date', 'exif_date', 'size'].includes(e.target.value) ? 'desc' : 'asc';
-            active.saveFolderSort(active.state.currentPath, active.state.sortBy, active.state.sortOrder);
-            this.updateMenuBarForActiveInstance();
-            active.applyFilterAndRender();
+            const nextOrder = ['date', 'exif_date', 'size'].includes(e.target.value) ? 'desc' : 'asc';
+            active.setSort(e.target.value, nextOrder);
           }
         };
       }

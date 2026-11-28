@@ -394,7 +394,8 @@
           res = (a.mtime || 0) - (b.mtime || 0);
         } else if (state.sortBy === 'size') {
           res = (typeof a.item_count === 'number' ? a.item_count : -1) - (typeof b.item_count === 'number' ? b.item_count : -1);
-        } else {
+        }
+        if (res === 0) {
           res = String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true });
         }
         return (state.sortOrder === 'asc') ? res : -res;

@@ -2581,8 +2581,10 @@ try {
     explorerJs.includes('IntersectionObserver') &&
     explorerJs.includes('invalidateDirCache(') &&
     explorerJs.includes('openQuickLook(') &&
+    explorerJs.includes('setSort(sortBy') &&
     expCtxSrc.includes('showColumnSortContextMenu') &&
     expCtxSrc.includes('explorer.ctx_quicklook') &&
+    fs.readFileSync(path.join(rootDir, 'system/userland/core/GalleryViewRegistry.js'), 'utf8').includes('alreadyLoaded') &&
     lot5Parity
   );
 } catch (e) {
