@@ -33,7 +33,10 @@
     "scripts/explorer-operations.js",
     "scripts/explorer-context-menu.js",
     "scripts/explorer-inspector.js",
-    "scripts/explorer-search.js"
+    "scripts/explorer-search.js",
+    "scripts/explorer-navigation.js",
+    "scripts/explorer-sidebar.js",
+    "scripts/explorer-split-pane.js"
   ],
   "capabilities": [
     "multi-views",

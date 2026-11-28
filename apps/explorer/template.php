@@ -7,15 +7,55 @@
 <template id="explorerAppTemplate">
   <!-- Explorer Application Workspace (Mounted inside WebOS Window) -->
   <div class="webos-explorer-container">
-    <!-- Mounted Volumes & Shared Drives Strip (Phase 1 Multi-User Shares) -->
-    <div class="explorer-volumes-bar" style="display: none; padding: 6px 12px; border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.08)); background: var(--header-bg, rgba(0,0,0,0.06));"></div>
-
-    <!-- Breadcrumbs Navigation Bar -->
-    <div class="breadcrumbs-container">
-      <nav class="breadcrumbs" aria-label="Breadcrumb Navigation">
-        <span class="crumb-item crumb-active crumb-root-item" data-i18n-title="nav.root" title="<?php echo htmlspecialchars(__t('nav.root'), ENT_QUOTES, 'UTF-8'); ?>"><span class="crumb-root-icon" aria-hidden="true">💾</span> <span class="crumb-root-name" data-i18n="nav.root"><?php echo htmlspecialchars(__t('nav.root'), ENT_QUOTES, 'UTF-8'); ?></span></span>
-      </nav>
+    <!-- Native Tabs Bar (Ctrl+T / Ctrl+W, DnD targets) -->
+    <div class="explorer-tabs-bar" role="tablist">
+      <div class="explorer-tabs-list"></div>
+      <button type="button" class="explorer-tab-new-btn" data-i18n-title="explorer.tab_new" title="<?php echo htmlspecialchars(__t('explorer.tab_new'), ENT_QUOTES, 'UTF-8'); ?>">＋</button>
     </div>
+
+    <!-- Modern Navigation & Editable Address Bar -->
+    <div class="explorer-nav-bar">
+      <div class="explorer-nav-controls">
+        <button type="button" class="explorer-nav-btn explorer-sidebar-toggle-btn active" data-i18n-title="explorer.sidebar_toggle" title="<?php echo htmlspecialchars(__t('explorer.sidebar_toggle'), ENT_QUOTES, 'UTF-8'); ?>">☰</button>
+        <button type="button" class="explorer-nav-btn explorer-nav-back-btn" disabled data-i18n-title="explorer.nav_back" title="<?php echo htmlspecialchars(__t('explorer.nav_back'), ENT_QUOTES, 'UTF-8'); ?>">←</button>
+        <button type="button" class="explorer-nav-btn explorer-nav-forward-btn" disabled data-i18n-title="explorer.nav_forward" title="<?php echo htmlspecialchars(__t('explorer.nav_forward'), ENT_QUOTES, 'UTF-8'); ?>">→</button>
+        <button type="button" class="explorer-nav-btn explorer-nav-up-btn" disabled data-i18n-title="explorer.nav_up" title="<?php echo htmlspecialchars(__t('explorer.nav_up'), ENT_QUOTES, 'UTF-8'); ?>">↑</button>
+        <button type="button" class="explorer-nav-btn explorer-nav-refresh-btn" data-i18n-title="explorer.nav_refresh" title="<?php echo htmlspecialchars(__t('explorer.nav_refresh'), ENT_QUOTES, 'UTF-8'); ?>">↻</button>
+      </div>
+
+      <!-- Breadcrumbs + Editable Address Bar (Ctrl+L) -->
+      <div class="breadcrumbs-container explorer-address-bar">
+        <nav class="breadcrumbs" aria-label="Breadcrumb Navigation">
+          <span class="crumb-item crumb-active crumb-root-item" data-i18n-title="nav.root" title="<?php echo htmlspecialchars(__t('nav.root'), ENT_QUOTES, 'UTF-8'); ?>"><span class="crumb-root-icon" aria-hidden="true">💾</span> <span class="crumb-root-name" data-i18n="nav.root"><?php echo htmlspecialchars(__t('nav.root'), ENT_QUOTES, 'UTF-8'); ?></span></span>
+        </nav>
+        <input type="text" class="explorer-address-input" style="display: none;" data-i18n-placeholder="explorer.nav_address_placeholder" placeholder="<?php echo htmlspecialchars(__t('explorer.nav_address_placeholder'), ENT_QUOTES, 'UTF-8'); ?>" />
+        <button type="button" class="explorer-address-edit-btn" data-i18n-title="explorer.nav_edit_path" title="<?php echo htmlspecialchars(__t('explorer.nav_edit_path'), ENT_QUOTES, 'UTF-8'); ?>">✎</button>
+      </div>
+
+      <div class="explorer-nav-actions">
+        <!-- "+ New" Quick Action Menu -->
+        <div class="explorer-new-dropdown">
+          <button type="button" class="explorer-nav-btn explorer-nav-new-btn" style="display: none;">
+            <span>＋</span> <span data-i18n="explorer.nav_new_btn"><?php echo htmlspecialchars(__t('explorer.nav_new_btn'), ENT_QUOTES, 'UTF-8'); ?></span>
+          </button>
+          <div class="explorer-new-menu" style="display: none;">
+            <button type="button" class="explorer-new-menu-item explorer-new-folder-item">
+              <span>📁</span> <span data-i18n="explorer.nav_new_folder"><?php echo htmlspecialchars(__t('explorer.nav_new_folder'), ENT_QUOTES, 'UTF-8'); ?></span>
+            </button>
+            <button type="button" class="explorer-new-menu-item explorer-new-upload-item">
+              <span>📤</span> <span data-i18n="explorer.nav_upload"><?php echo htmlspecialchars(__t('explorer.nav_upload'), ENT_QUOTES, 'UTF-8'); ?></span>
+            </button>
+          </div>
+          <input type="file" class="explorer-nav-upload-input" multiple style="display: none;" />
+        </div>
+
+        <!-- Dual Pane / Commander Toggle (F3) -->
+        <button type="button" class="explorer-nav-btn explorer-split-toggle-btn" data-i18n-title="explorer.split_toggle" title="<?php echo htmlspecialchars(__t('explorer.split_toggle'), ENT_QUOTES, 'UTF-8'); ?>">◫</button>
+      </div>
+    </div>
+
+    <!-- Mounted Volumes & Shared Drives Strip (shown automatically when Sidebar is hidden, e.g. Multimedia/Polaroid mode) -->
+    <div class="explorer-volumes-bar" style="display: none; padding: 6px 12px; border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.08)); background: var(--header-bg, rgba(0,0,0,0.06));"></div>
 
     <!-- Multimodal Autorun / VLog Presentation Banner -->
     <div class="explorer-autorun-banner" style="display: none;">
@@ -59,12 +99,12 @@
         <button class="pill-btn" data-category="archive" data-i18n="view.filter_archives"><?php echo htmlspecialchars(__t('view.filter_archives'), ENT_QUOTES, 'UTF-8'); ?></button>
       </div>
 
-      <!-- Quick View Switcher Buttons -->
+      <!-- Quick View Switcher Buttons (Pro List | Thumbnails Grid/Mosaic | Multimedia Polaroid) -->
       <div class="explorer-view-switcher">
-        <button type="button" class="view-mode-btn" data-view="polaroid" title="Polaroid" data-i18n-title="view.polaroid">🖼️</button>
-        <button type="button" class="view-mode-btn" data-view="grid" title="Grille" data-i18n-title="view.grid">▦</button>
-        <button type="button" class="view-mode-btn" data-view="mosaic" title="Mosaïque" data-i18n-title="view.mosaic">☷</button>
-        <button type="button" class="view-mode-btn" data-view="list" title="Liste" data-i18n-title="view.list">☰</button>
+        <button type="button" class="view-mode-btn" data-view="list" title="<?php echo htmlspecialchars(__t('view.list'), ENT_QUOTES, 'UTF-8'); ?>" data-i18n-title="view.list">☰</button>
+        <button type="button" class="view-mode-btn" data-view="grid" title="<?php echo htmlspecialchars(__t('view.grid'), ENT_QUOTES, 'UTF-8'); ?>" data-i18n-title="view.grid">▦</button>
+        <button type="button" class="view-mode-btn" data-view="mosaic" title="<?php echo htmlspecialchars(__t('view.mosaic'), ENT_QUOTES, 'UTF-8'); ?>" data-i18n-title="view.mosaic">☷</button>
+        <button type="button" class="view-mode-btn" data-view="polaroid" title="<?php echo htmlspecialchars(__t('view.polaroid'), ENT_QUOTES, 'UTF-8'); ?>" data-i18n-title="view.polaroid">🖼️</button>
       </div>
 
       <div class="gallery-stats" data-i18n="stats.loading"><?php echo htmlspecialchars(__t('stats.loading'), ENT_QUOTES, 'UTF-8'); ?></div>
@@ -88,8 +128,35 @@
       </button>
     </div>
 
-    <!-- Main Workspace with Split Inspector Drawer -->
+    <!-- Main Workspace with Sidebar, Primary Pane, Secondary Commander Pane & Inspector Drawer -->
     <div class="explorer-workspace-split">
+      <!-- Resizable Tree & Mounts Sidebar -->
+      <aside class="explorer-sidebar" aria-label="Explorer Sidebar">
+        <div class="explorer-sidebar-scroll">
+          <div class="sidebar-section">
+            <div class="sidebar-section-title" data-i18n="explorer.sidebar_quick_access"><?php echo htmlspecialchars(__t('explorer.sidebar_quick_access'), ENT_QUOTES, 'UTF-8'); ?></div>
+            <div class="sidebar-quick-access"></div>
+          </div>
+
+          <div class="sidebar-section sidebar-mounts-section" style="display: none;">
+            <div class="sidebar-section-title" data-i18n="explorer.sidebar_mounts"><?php echo htmlspecialchars(__t('explorer.sidebar_mounts'), ENT_QUOTES, 'UTF-8'); ?></div>
+            <div class="sidebar-mounts"></div>
+          </div>
+
+          <div class="sidebar-section">
+            <div class="sidebar-section-title" data-i18n="explorer.sidebar_tree"><?php echo htmlspecialchars(__t('explorer.sidebar_tree'), ENT_QUOTES, 'UTF-8'); ?></div>
+            <div class="sidebar-tree"></div>
+          </div>
+
+          <div class="sidebar-section">
+            <div class="sidebar-section-title" data-i18n="explorer.sidebar_organization"><?php echo htmlspecialchars(__t('explorer.sidebar_organization'), ENT_QUOTES, 'UTF-8'); ?></div>
+            <div class="sidebar-organization"></div>
+          </div>
+        </div>
+        <div class="sidebar-quota" style="display: none;"></div>
+      </aside>
+      <div class="explorer-sidebar-resizer" aria-hidden="true"></div>
+
       <main class="gallery-container">
 
       <?php if (!empty($storage_status['is_fallback'])): ?>
@@ -157,7 +224,21 @@
           📁 <span data-i18n="stats.explored_location"><?php echo htmlspecialchars(__t('stats.explored_location'), ENT_QUOTES, 'UTF-8'); ?></span> : <code><?php echo htmlspecialchars($storage_status['active_path'], ENT_QUOTES, 'UTF-8'); ?></code>
         </div>
       </div>
-    </main>
+      </main>
+
+      <!-- Secondary Dual Pane (Commander Mode, F3) -->
+      <section class="explorer-secondary-pane" style="display: none;" aria-label="Secondary Commander Pane">
+        <div class="split-pane-header">
+          <button type="button" class="split-pane-btn split-back-btn" disabled data-i18n-title="explorer.nav_back" title="<?php echo htmlspecialchars(__t('explorer.nav_back'), ENT_QUOTES, 'UTF-8'); ?>">←</button>
+          <button type="button" class="split-pane-btn split-up-btn" disabled data-i18n-title="explorer.nav_up" title="<?php echo htmlspecialchars(__t('explorer.nav_up'), ENT_QUOTES, 'UTF-8'); ?>">↑</button>
+          <button type="button" class="split-pane-btn split-refresh-btn" data-i18n-title="explorer.nav_refresh" title="<?php echo htmlspecialchars(__t('explorer.nav_refresh'), ENT_QUOTES, 'UTF-8'); ?>">↻</button>
+          <div class="split-path-label"></div>
+          <button type="button" class="split-pane-btn split-swap-btn" data-i18n-title="explorer.split_swap" title="<?php echo htmlspecialchars(__t('explorer.split_swap'), ENT_QUOTES, 'UTF-8'); ?>">⇄</button>
+          <button type="button" class="split-pane-btn split-sync-btn" data-i18n-title="explorer.split_sync" title="<?php echo htmlspecialchars(__t('explorer.split_sync'), ENT_QUOTES, 'UTF-8'); ?>">≡</button>
+          <button type="button" class="split-pane-btn split-close-btn" data-i18n-title="explorer.split_close" title="<?php echo htmlspecialchars(__t('explorer.split_close'), ENT_QUOTES, 'UTF-8'); ?>">✕</button>
+        </div>
+        <div class="split-pane-list"></div>
+      </section>
 
       <!-- Side Inspector Drawer Panel -->
       <aside class="explorer-inspector-drawer" style="display: none;">
@@ -223,6 +304,22 @@
         </div>
       </aside>
     </div><!-- /.explorer-workspace-split -->
+
+    <!-- Bottom Status Bar (Item Counts, Selection Size, View Inheritance, Thumbnail Zoom) -->
+    <footer class="explorer-status-bar">
+      <div class="explorer-status-left">
+        <span class="status-items-count"></span>
+        <span class="status-selection-info" style="display: none;"></span>
+      </div>
+      <div class="explorer-status-right">
+        <span class="status-view-badge"></span>
+        <button type="button" class="status-reset-inherit-btn" style="display: none;" data-i18n-title="explorer.view_reset_inherit" title="<?php echo htmlspecialchars(__t('explorer.view_reset_inherit'), ENT_QUOTES, 'UTF-8'); ?>">↺</button>
+        <label class="status-zoom-wrap" style="display: none;" data-i18n-title="explorer.status_zoom" title="<?php echo htmlspecialchars(__t('explorer.status_zoom'), ENT_QUOTES, 'UTF-8'); ?>">
+          <span aria-hidden="true">🔍</span>
+          <input type="range" class="status-zoom-slider" min="120" max="320" step="10" value="210" />
+        </label>
+      </div>
+    </footer>
 
     <!-- Floating Multi-Selection Action Toolbar -->
     <div class="selection-toolbar" style="display: none;">

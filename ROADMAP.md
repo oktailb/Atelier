@@ -349,7 +349,7 @@ flowchart TB
   - Supprimer le double branchement Drag & Drop (`explorer.js` vs `scripts/explorer-dragdrop.js`), corriger l'appel invalide `postFormData()` vers `SyscallClient.upload()` / `uploadChunked()`, éliminer les chaînes françaises en dur.
   - Créer `apps/explorer/locales/{fr,en,ja}.json` en parité stricte (zéro fallback hardcodé dans `this.t()`).
   - Découper le monolithe `apps/explorer/explorer.js` (3 508 L → 2 097 L) en 9 sous-modules dédiés sous `apps/explorer/scripts/` : `explorer-state.js`, `explorer-selection.js`, `explorer-dragdrop.js`, `explorer-map.js`, `explorer-modals.js`, `explorer-operations.js`, `explorer-context-menu.js`, `explorer-inspector.js`, `explorer-search.js` (`explorer.js` devenant l'orchestrateur léger).
-- [ ] **Lot 2 — Shell Moderne : Sidebar Arborescente, Historique, Onglets, Double Volet & Héritage de Vues** :
+- [x] **Lot 2 — Shell Moderne : Sidebar Arborescente, Historique, Onglets, Double Volet & Héritage de Vues** *(Livré & Testé)* :
   - Barre de navigation : **Précédent (`Alt+←`) / Suivant (`Alt+→`) / Parent (`Alt+↑`) / Actualiser (`F5`)**, **Fil d'Ariane + Barre d'adresse éditable (`Ctrl+L`)**, menu rapide **« + Nouveau »**.
   - **Sidebar** rétractable/redimensionnable (arborescence dépliable, points de montage, Favoris, Récents, Tags, Corbeille, quota disque).
   - **Onglets multiples** (`Ctrl+T` / `Ctrl+W`, clic milieu sur un dossier, drop sur onglet) et **Mode Double Volet / Commander (`F3`)**.

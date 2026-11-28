@@ -2222,6 +2222,136 @@ try {
     expLocaleParity &&
     lot1RuntimeOk
   );
+
+  // ---------------------------------------------------------------------------
+  // Phase G (Lot 2): Modern Shell (Tabs, Nav/Address Bar, Sidebar Tree, Dual Pane,
+  // Status Bar & Per-Folder Hierarchical View Mode Inheritance)
+  // ---------------------------------------------------------------------------
+  const lot2Scripts = [
+    'scripts/explorer-navigation.js',
+    'scripts/explorer-sidebar.js',
+    'scripts/explorer-split-pane.js'
+  ];
+  const lot2ScriptsPresent = lot2Scripts.every(rel =>
+    fs.existsSync(path.join(appsDir, 'explorer', rel)) &&
+    Array.isArray(lot1Manifest.scripts) &&
+    lot1Manifest.scripts.includes(rel)
+  );
+  const lot2TplOk = (
+    expTplSrc.includes('explorer-tabs-bar') &&
+    expTplSrc.includes('explorer-nav-bar') &&
+    expTplSrc.includes('explorer-address-input') &&
+    expTplSrc.includes('explorer-sidebar') &&
+    expTplSrc.includes('sidebar-tree') &&
+    expTplSrc.includes('explorer-secondary-pane') &&
+    expTplSrc.includes('explorer-status-bar') &&
+    expTplSrc.includes('status-zoom-slider')
+  );
+
+  // Runtime test of Per-Folder View Mode Inheritance (Pro default, Multimedia polaroid, Thumbs grid, ext://)
+  const inheritWin = {
+    IS_ADMIN: false,
+    ATELIER_CURRENT_USER: { username: 'bob' },
+    localStorage: (() => {
+      const m = new Map();
+      return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k) };
+    })()
+  };
+  new Function('window', 'localStorage', expStateSrc)(inheritWin, inheritWin.localStorage);
+  const inheritMgr = new inheritWin.ExplorerStateManager({ state: { currentPath: '' }, t: k => k });
+
+  const defRoot = inheritMgr.resolveViewModeForPath('');
+  inheritMgr.setFolderViewMode('vacances', 'polaroid');
+  const vacDirect = inheritMgr.resolveViewModeForPath('vacances');
+  const vacChild = inheritMgr.resolveViewModeForPath('vacances/ete/plage');
+  inheritMgr.setFolderViewMode('vacances/ete/plage', 'grid');
+  const vacGrandChild = inheritMgr.resolveViewModeForPath('vacances/ete/plage/raw');
+  const vacReset = inheritMgr.resetFolderViewMode('vacances/ete/plage');
+  inheritMgr.setFolderViewMode('ext://nas', 'mosaic');
+  const extChild = inheritMgr.resolveViewModeForPath('ext://nas/photos/2026');
+
+  const lot2InheritOk = (
+    defRoot.mode === 'list' && defRoot.profile === 'pro' && inheritMgr.shouldShowSidebarByDefault('list') === true &&
+    vacDirect.mode === 'polaroid' && vacDirect.profile === 'multimedia' && !vacDirect.inherited && inheritMgr.shouldShowSidebarByDefault('polaroid') === false &&
+    vacChild.mode === 'polaroid' && vacChild.inherited === true && vacChild.sourcePath === 'vacances' &&
+    vacGrandChild.mode === 'grid' && vacGrandChild.profile === 'thumbs' && vacGrandChild.inherited === true && vacGrandChild.sourcePath === 'vacances/ete/plage' &&
+    vacReset.mode === 'polaroid' && vacReset.inherited === true &&
+    extChild.mode === 'mosaic' && extChild.inherited === true && extChild.sourcePath === 'ext://nas'
+  );
+
+  // Runtime test of Navigation Tabs + History + Sidebar profile visibility
+  const expNavSrc = fs.readFileSync(path.join(appsDir, 'explorer', 'scripts', 'explorer-navigation.js'), 'utf8');
+  const expSidebarSrc = fs.readFileSync(path.join(appsDir, 'explorer', 'scripts', 'explorer-sidebar.js'), 'utf8');
+  const navSandboxWin = {
+    IS_ADMIN: false,
+    ATELIER_CURRENT_USER: { username: 'bob' },
+    localStorage: inheritWin.localStorage,
+    addEventListener: () => {},
+    removeEventListener: () => {}
+  };
+  const navMockDoc = {
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    getElementById: () => null
+  };
+  new Function('window', 'localStorage', expStateSrc)(navSandboxWin, navSandboxWin.localStorage);
+  new Function('window', 'document', expNavSrc)(navSandboxWin, navMockDoc);
+  new Function('window', 'document', expSidebarSrc)(navSandboxWin, navMockDoc);
+
+  const loadedPaths = [];
+  const navInst = {
+    state: { currentPath: '', directories: [], files: [], filteredFiles: [], favorites: [], selectedPaths: new Set(), viewMode: 'list' },
+    el: { sidebar: { style: {} }, sidebarResizer: { style: {} } },
+    containerEl: { style: { setProperty: () => {} } },
+    t: k => k,
+    escapeHtml: s => String(s || ''),
+    renderVolumesBar: () => {},
+    navigateTo: (p) => { navInst.state.currentPath = p; loadedPaths.push(p); navMgr.recordNavigation(p); },
+    loadDirectory: (p) => { navInst.state.currentPath = p; loadedPaths.push(p); navMgr.recordNavigation(p); }
+  };
+  navInst.stateManager = new navSandboxWin.ExplorerStateManager(navInst);
+  const navMgr = new navSandboxWin.ExplorerNavigationManager(navInst);
+  navInst.navigationManager = navMgr;
+  navMgr.init('');
+  navInst.navigateTo('docs');
+  navInst.navigateTo('docs/2026');
+  navMgr.goBack();
+  const afterBack = navInst.state.currentPath;
+  navMgr.goForward();
+  const afterFwd = navInst.state.currentPath;
+  navMgr.goUp();
+  const afterUp = navInst.state.currentPath;
+  const tab2 = navMgr.createTab('photos', { activate: true });
+  const tabCount2 = navMgr.tabs.length;
+  navMgr.closeTab(tab2.id);
+  const tabCountAfterClose = navMgr.tabs.length;
+
+  const sbMgr = new navSandboxWin.ExplorerSidebarManager(navInst);
+  sbMgr.applyProfileVisibility('list');
+  const sbInPro = sbMgr.isVisible;
+  sbMgr.applyProfileVisibility('polaroid');
+  const sbInMedia = sbMgr.isVisible;
+  sbMgr.applyProfileVisibility('grid');
+  const sbInThumbs = sbMgr.isVisible;
+
+  const lot2NavSidebarOk = (
+    afterBack === 'docs' &&
+    afterFwd === 'docs/2026' &&
+    afterUp === 'docs' &&
+    tabCount2 === 2 &&
+    tabCountAfterClose === 1 &&
+    sbInPro === true &&
+    sbInMedia === false &&
+    sbInThumbs === true
+  );
+
+  assert("Phase G (Lot 2): Shell moderne (Onglets, Historique, Barre d'adresse, Sidebar arborescente, Double Volet F3, Barre d'état & héritage de vues Pro/Vignettes/Multimédia)",
+    lot2ScriptsPresent &&
+    lot2TplOk &&
+    expFrKeys.length >= 60 &&
+    lot2InheritOk &&
+    lot2NavSidebarOk
+  );
 } catch (e) {
   assert("Phase 1 exécution runtime UI", false, e.stack);
 }

@@ -38,7 +38,8 @@
         csrfToken: (typeof window !== 'undefined' && (window.CSRF_TOKEN || window.ATELIER_CSRF_TOKEN)) || '',
         userRights: {},
         availableArchives: [],
-        viewMode: 'polaroid',
+        viewMode: 'list',
+        viewResolution: { mode: 'list', profile: 'pro', sourcePath: '', inherited: false, isExplicit: false },
         galleryTitle: 'Atelier by GallusTech'
       };
 
@@ -74,9 +75,18 @@
       this.contextMenuManager = window.ExplorerContextMenuManager ? new window.ExplorerContextMenuManager(this) : null;
       this.inspectorManager = window.ExplorerInspectorManager ? new window.ExplorerInspectorManager(this) : null;
       this.searchManager = window.ExplorerSearchManager ? new window.ExplorerSearchManager(this) : null;
+      this.navigationManager = window.ExplorerNavigationManager ? new window.ExplorerNavigationManager(this) : null;
+      this.sidebarManager = window.ExplorerSidebarManager ? new window.ExplorerSidebarManager(this) : null;
+      this.splitPaneManager = window.ExplorerSplitPaneManager ? new window.ExplorerSplitPaneManager(this) : null;
 
       if (this.dragDropManager && typeof this.dragDropManager.init === 'function') {
         this.dragDropManager.init();
+      }
+      if (this.navigationManager && typeof this.navigationManager.init === 'function') {
+        this.navigationManager.init(this.state.currentPath || '');
+      }
+      if (this.sidebarManager && typeof this.sidebarManager.init === 'function') {
+        this.sidebarManager.init();
       }
     }
 
@@ -152,6 +162,8 @@
       if (this.mapManager && typeof this.mapManager.destroy === 'function') this.mapManager.destroy();
       if (this.contextMenuManager && typeof this.contextMenuManager.destroy === 'function') this.contextMenuManager.destroy();
       if (this.searchManager && typeof this.searchManager.destroy === 'function') this.searchManager.destroy();
+      if (this.navigationManager && typeof this.navigationManager.destroy === 'function') this.navigationManager.destroy();
+      if (this.sidebarManager && typeof this.sidebarManager.destroy === 'function') this.sidebarManager.destroy();
 
       if (this.containerEl && this.containerEl.parentNode) {
         this.containerEl.parentNode.removeChild(this.containerEl);
@@ -166,6 +178,39 @@
     initElements() {
       const root = this.containerEl;
       this.el = {
+        // Phase G (Lot 2) Shell Elements: Tabs, Nav Bar, Address Bar, Sidebar, Split Pane & Status Bar
+        tabsBar: root.querySelector('.explorer-tabs-bar'),
+        tabsList: root.querySelector('.explorer-tabs-list'),
+        tabNewBtn: root.querySelector('.explorer-tab-new-btn'),
+        sidebarToggleBtn: root.querySelector('.explorer-sidebar-toggle-btn'),
+        navBackBtn: root.querySelector('.explorer-nav-back-btn'),
+        navForwardBtn: root.querySelector('.explorer-nav-forward-btn'),
+        navUpBtn: root.querySelector('.explorer-nav-up-btn'),
+        navRefreshBtn: root.querySelector('.explorer-nav-refresh-btn'),
+        addressBar: root.querySelector('.explorer-address-bar'),
+        addressInput: root.querySelector('.explorer-address-input'),
+        addressEditBtn: root.querySelector('.explorer-address-edit-btn'),
+        navNewBtn: root.querySelector('.explorer-nav-new-btn'),
+        navNewMenu: root.querySelector('.explorer-new-menu'),
+        navNewFolderItem: root.querySelector('.explorer-new-folder-item'),
+        navUploadItem: root.querySelector('.explorer-new-upload-item'),
+        navUploadInput: root.querySelector('.explorer-nav-upload-input'),
+        splitToggleBtn: root.querySelector('.explorer-split-toggle-btn'),
+        sidebar: root.querySelector('.explorer-sidebar'),
+        sidebarResizer: root.querySelector('.explorer-sidebar-resizer'),
+        sidebarQuickAccess: root.querySelector('.sidebar-quick-access'),
+        sidebarMountsSection: root.querySelector('.sidebar-mounts-section'),
+        sidebarMounts: root.querySelector('.sidebar-mounts'),
+        sidebarTree: root.querySelector('.sidebar-tree'),
+        sidebarOrganization: root.querySelector('.sidebar-organization'),
+        sidebarQuota: root.querySelector('.sidebar-quota'),
+        secondaryPane: root.querySelector('.explorer-secondary-pane'),
+        statusItemsCount: root.querySelector('.status-items-count'),
+        statusSelectionInfo: root.querySelector('.status-selection-info'),
+        statusViewBadge: root.querySelector('.status-view-badge'),
+        statusResetInheritBtn: root.querySelector('.status-reset-inherit-btn'),
+        statusZoomWrap: root.querySelector('.status-zoom-wrap'),
+        statusZoomSlider: root.querySelector('.status-zoom-slider'),
         volumesBar: root.querySelector('.explorer-volumes-bar'),
         breadcrumbs: root.querySelector('.breadcrumbs'),
         folderDescBanner: root.querySelector('.folder-desc-banner'),
@@ -388,6 +433,17 @@
 
         this.applyFolderOverrides(this.state.overrides);
 
+        // Resolve per-folder view mode with hierarchical parent inheritance (Pro / Thumbs / Multimedia)
+        if (this.stateManager && typeof this.stateManager.resolveViewModeForPath === 'function') {
+          const resolved = this.stateManager.resolveViewModeForPath(cleanPath);
+          this.state.viewMode = resolved.mode;
+          this.state.viewResolution = resolved;
+          this.updateViewModeButtonsUI();
+          if (this.sidebarManager) {
+            this.sidebarManager.applyProfileVisibility(this.state.viewMode);
+          }
+        }
+
         const savedSort = this.getFolderSort(cleanPath);
         if (savedSort && savedSort.sortBy) {
           this.state.sortBy = savedSort.sortBy;
@@ -399,13 +455,27 @@
 
         this.manager.updateMenuBarForActiveInstance();
 
+        if (this.navigationManager) {
+          this.navigationManager.recordNavigation(cleanPath);
+          this.navigationManager.updateActiveTabMeta(cleanPath, json.breadcrumbs || []);
+          this.navigationManager.updateNavButtonsUI();
+        }
+
         this.renderBreadcrumbs(json.breadcrumbs || []);
         this.renderVolumesBar();
         this.renderFolders(this.state.directories);
 
+        if (this.sidebarManager) {
+          this.sidebarManager.onDirectoryLoaded(cleanPath, this.state.directories);
+        }
+
         this.state.filterCategory = 'all';
         this.updateFilterPillsUI();
         this.applyFilterAndRender();
+
+        if (this.navigationManager) {
+          this.navigationManager.updateStatusBar();
+        }
       } catch (err) {
         console.error('[Explorer] Error fetching directory:', err);
       } finally {
@@ -485,6 +555,10 @@
 
     renderVolumesBar() {
       if (!this.el || !this.el.volumesBar) return;
+      if (this.sidebarManager && this.sidebarManager.isVisible) {
+        this.el.volumesBar.style.display = 'none';
+        return;
+      }
       if (window.sys && window.sys.shares && typeof window.sys.shares.renderExplorerMountsBar === 'function') {
         window.sys.shares.renderExplorerMountsBar(
           this.el.volumesBar,
@@ -601,6 +675,13 @@
             this.openFolderUnlockModal(folderPath);
           } else {
             this.navigateTo(folderPath);
+          }
+        };
+
+        card.onauxclick = (e) => {
+          if (e.button === 1 && this.navigationManager) {
+            e.preventDefault();
+            this.navigationManager.createTab(folderPath, { activate: true });
           }
         };
 
@@ -763,14 +844,39 @@
     setViewMode(mode) {
       if (!mode) return;
       this.state.viewMode = mode;
-      if (this.stateManager) this.stateManager.saveViewMode(mode);
+      if (this.stateManager) {
+        this.stateManager.setFolderViewMode(this.state.currentPath || '', mode);
+        this.state.viewResolution = this.stateManager.resolveViewModeForPath(this.state.currentPath || '');
+      }
+
+      if (this.sidebarManager) {
+        this.sidebarManager.applyProfileVisibility(mode);
+      }
 
       this.updateViewModeButtonsUI();
       this.renderMedia();
 
+      if (this.navigationManager) {
+        this.navigationManager.updateStatusBar();
+      }
       if (this.manager) {
         this.manager.updateViewModeUI();
       }
+    }
+
+    resetCurrentFolderViewMode() {
+      if (!this.stateManager) return;
+      const resolved = this.stateManager.resetFolderViewMode(this.state.currentPath || '');
+      this.state.viewMode = resolved.mode;
+      this.state.viewResolution = resolved;
+      if (this.sidebarManager) {
+        this.sidebarManager.applyProfileVisibility(resolved.mode);
+      }
+      this.updateViewModeButtonsUI();
+      this.renderMedia();
+      if (this.navigationManager) this.navigationManager.updateStatusBar();
+      if (this.manager) this.manager.updateViewModeUI();
+      this.showToast(this.t('explorer.view_inherit_reset_done'), 'info');
     }
 
     bindMediaCardEvents() {
@@ -995,6 +1101,7 @@
         });
       }
       this.updateFolderMapButton();
+      if (this.navigationManager) this.navigationManager.updateStatusBar();
     }
 
     clearSelection() {
@@ -1007,6 +1114,7 @@
 
     updateSelectionUI() {
       if (this.selectionManager) this.selectionManager.updateSelectionUI();
+      if (this.navigationManager) this.navigationManager.updateStatusBar();
     }
 
     initMarqueeSelection() {
@@ -1228,7 +1336,33 @@
           } else if (key === 'a') {
             e.preventDefault();
             this.selectAll();
+          } else if (key === 't' && this.navigationManager) {
+            e.preventDefault();
+            this.navigationManager.createTab();
+          } else if (key === 'w' && this.navigationManager && this.navigationManager.tabs.length > 1) {
+            e.preventDefault();
+            this.navigationManager.closeTab();
+          } else if (key === 'l' && this.navigationManager) {
+            e.preventDefault();
+            this.navigationManager.enterAddressEditMode();
           }
+        } else if (e.altKey) {
+          if (e.key === 'ArrowLeft' && this.navigationManager) {
+            e.preventDefault();
+            this.navigationManager.goBack();
+          } else if (e.key === 'ArrowRight' && this.navigationManager) {
+            e.preventDefault();
+            this.navigationManager.goForward();
+          } else if (e.key === 'ArrowUp' && this.navigationManager) {
+            e.preventDefault();
+            this.navigationManager.goUp();
+          }
+        } else if (e.key === 'F3' && this.splitPaneManager) {
+          e.preventDefault();
+          this.splitPaneManager.toggle();
+        } else if (e.key === 'F5' && this.navigationManager) {
+          e.preventDefault();
+          this.navigationManager.refresh();
         } else if (e.key === 'Delete' || e.key === 'Backspace') {
           if (this.state.selectedPaths && this.state.selectedPaths.size > 0 && (this.state.isAdmin || (this.state.userRights && this.state.userRights.can_delete))) {
             e.preventDefault();
@@ -1466,7 +1600,12 @@
       if (window.EventBus && typeof window.EventBus.on === 'function') {
         window.EventBus.on('fs:changed', () => {
           this.instances.forEach(inst => {
+            if (inst.sidebarManager) {
+              inst.sidebarManager.invalidateTreeCache();
+              inst.sidebarManager.loadOrganizationMeta();
+            }
             inst.loadDirectory(inst.state.currentPath);
+            if (inst.splitPaneManager) inst.splitPaneManager.refreshIfOpen();
           });
         });
 
@@ -1479,6 +1618,11 @@
             if (typeof inst.loadSavedPreferences === 'function') inst.loadSavedPreferences();
             if (typeof inst.updateViewModeButtonsUI === 'function') inst.updateViewModeButtonsUI();
             if (typeof inst.renderVolumesBar === 'function') inst.renderVolumesBar();
+            if (inst.sidebarManager) {
+              inst.sidebarManager.invalidateTreeCache();
+              inst.sidebarManager.renderAll();
+              inst.sidebarManager.loadOrganizationMeta();
+            }
             const cur = String(inst.state.currentPath || '').replace(/^\/+|\/+$/g, '');
             const isScopedPath = cur.startsWith('ext://') || cur.startsWith('users/');
             if (isScopedPath) {
@@ -1633,8 +1777,8 @@
 
             <div class="view-selector-container" id="viewSelectorContainer">
               <button type="button" id="viewSelectorBtn" class="btn-toggle view-btn" title="${this.escapeHtml(this.t('view.switch_mode'))}">
-                <span id="currentViewIcon">${this.getViewModeIcon(activeState.viewMode || 'polaroid')}</span>
-                <span id="currentViewLabel">${this.getViewModeLabel(activeState.viewMode || 'polaroid')}</span>
+                <span id="currentViewIcon">${this.getViewModeIcon(activeState.viewMode || 'list')}</span>
+                <span id="currentViewLabel">${this.getViewModeLabel(activeState.viewMode || 'list')}</span>
                 <span class="view-dropdown-arrow">▾</span>
               </button>
               <div id="viewDropdownMenu" class="view-dropdown-menu" style="display: none;"></div>
@@ -1834,7 +1978,7 @@
 
     updateViewDropdownUI() {
       const active = this.getActiveInstance();
-      const currentMode = active ? active.state.viewMode : 'polaroid';
+      const currentMode = active ? active.state.viewMode : 'list';
       const menu = document.getElementById('viewDropdownMenu');
       if (!menu) return;
 
