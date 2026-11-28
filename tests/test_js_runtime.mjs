@@ -2735,6 +2735,52 @@ try {
     zeroHardcodedFallbackI18n &&
     lot5Parity
   );
+
+  // Phase G (Bonus): Dedicated Explorer Settings page, Single/Double Click preferences & refreshed README.md
+  const expPanelPath = path.join(rootDir, 'apps/settings/explorer-panel.js');
+  const expPanelSrc = fs.existsSync(expPanelPath) ? fs.readFileSync(expPanelPath, 'utf8') : '';
+  const settingsManifestSrc = fs.readFileSync(path.join(rootDir, 'apps/settings/manifest.json'), 'utf8');
+  const settingsJsSrc = fs.readFileSync(path.join(rootDir, 'apps/settings/settings.js'), 'utf8');
+  const readmeSrc = fs.readFileSync(path.join(rootDir, 'README.md'), 'utf8');
+
+  // Verify ExplorerStateManager prefs API in sandbox (default 'double' -> save 'single' -> reset 'double')
+  let prefsEventEmitted = null;
+  const prefWin = {
+    IS_ADMIN: false,
+    ATELIER_CURRENT_USER: { username: 'alice' },
+    EventBus: { emit(ev, data) { if (ev === 'explorer:prefs_changed') prefsEventEmitted = data; } },
+    localStorage: (() => {
+      const m = new Map();
+      return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k) };
+    })()
+  };
+  new Function('window', 'localStorage', expStateSrc)(prefWin, prefWin.localStorage);
+  const defPrefs = prefWin.ExplorerStateManager.getPrefsForCurrentUser();
+  const savedSingle = prefWin.ExplorerStateManager.savePrefsForCurrentUser({ openMode: 'single', sidebarMode: 'always', showCheckboxesInList: false });
+  const reloadedPrefs = prefWin.ExplorerStateManager.getPrefsForCurrentUser();
+  const resetPrefs = prefWin.ExplorerStateManager.resetPrefsForCurrentUser();
+
+  assert("Phase G (Settings & Click Mode): Page Settings dédiée Explorateur, mode Simple/Double clic temps réel & README.md à jour",
+    fs.existsSync(expPanelPath) &&
+    !/\bfetch\s*\(/.test(expPanelSrc) &&
+    settingsManifestSrc.includes('explorer-panel.js') &&
+    settingsJsSrc.includes("id: 'explorer'") &&
+    settingsJsSrc.includes('AtelierExplorerPanel') &&
+    defPrefs.openMode === 'double' &&
+    savedSingle.openMode === 'single' &&
+    reloadedPrefs.openMode === 'single' &&
+    reloadedPrefs.sidebarMode === 'always' &&
+    reloadedPrefs.showCheckboxesInList === false &&
+    prefsEventEmitted && prefsEventEmitted.openMode === 'double' &&
+    resetPrefs.openMode === 'double' &&
+    explorerJs.includes("prefs.openMode === 'double'") &&
+    explorerJs.includes("explorer:prefs_changed") &&
+    explorerJs.includes('list-hide-checkboxes') &&
+    expCtxSrc.includes('explorer.ctx_explorer_settings') &&
+    readmeSrc.includes('Phase G') &&
+    readmeSrc.includes('Quick Look') &&
+    readmeSrc.includes('Simple ou Double Clic')
+  );
 } catch (e) {
   assert("Phase 1 exécution runtime UI", false, e.stack);
 }

@@ -130,6 +130,15 @@
   border-bottom: none;
 }
 
+.list-hide-checkboxes .list-col-check {
+  display: none;
+}
+
+.list-hide-checkboxes .list-table-header,
+.list-hide-checkboxes .list-table-row {
+  grid-template-columns: 40px minmax(150px, 1fr) 104px 86px 128px 132px;
+}
+
 .list-table-row-folder .list-folder-title {
   font-weight: 600;
 }

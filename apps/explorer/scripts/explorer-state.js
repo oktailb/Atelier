@@ -8,18 +8,132 @@
 
   const DEFAULT_VIEW_MODE = 'list'; // Mode Pro (dossiers en premier + liste détaillée + sidebar)
   const VALID_VIEWS = ['list', 'grid', 'mosaic', 'polaroid'];
+  const DEFAULT_EXPLORER_PREFS = Object.freeze({
+    openMode: 'double',           // 'double' (single click selects, double click opens) | 'single' (single click opens)
+    defaultViewMode: 'list',      // 'list' | 'grid' | 'mosaic' | 'polaroid'
+    sidebarMode: 'auto',          // 'auto' | 'always' | 'hidden'
+    unifiedFoldersInList: true,   // folders first inside Pro List table
+    showCheckboxesInList: true,   // selection checkboxes column in Pro List
+    defaultThumbZoom: 210,        // 120..320 px
+    openInspectorOnStart: false,
+    enableNavCache: true
+  });
+
+  function resolveUserStorageScopeStatic() {
+    const u = (window.sys && window.sys.shares && typeof window.sys.shares.getCurrentUser === 'function')
+      ? window.sys.shares.getCurrentUser()
+      : window.ATELIER_CURRENT_USER;
+    if (u && u.username) return `user_${u.username}`;
+    return window.IS_ADMIN ? 'admin' : 'guest';
+  }
+
+  function sanitizeExplorerPrefs(raw) {
+    const src = (raw && typeof raw === 'object') ? raw : {};
+    const openMode = (src.openMode === 'single' || src.openMode === 'double') ? src.openMode : DEFAULT_EXPLORER_PREFS.openMode;
+    const defaultViewMode = VALID_VIEWS.includes(src.defaultViewMode) ? src.defaultViewMode : DEFAULT_EXPLORER_PREFS.defaultViewMode;
+    const sidebarMode = ['auto', 'always', 'hidden'].includes(src.sidebarMode) ? src.sidebarMode : DEFAULT_EXPLORER_PREFS.sidebarMode;
+    const zoomNum = parseInt(src.defaultThumbZoom, 10);
+    const defaultThumbZoom = (!isNaN(zoomNum) && zoomNum >= 120 && zoomNum <= 320) ? zoomNum : DEFAULT_EXPLORER_PREFS.defaultThumbZoom;
+    return {
+      openMode,
+      defaultViewMode,
+      sidebarMode,
+      unifiedFoldersInList: src.unifiedFoldersInList !== undefined ? Boolean(src.unifiedFoldersInList) : DEFAULT_EXPLORER_PREFS.unifiedFoldersInList,
+      showCheckboxesInList: src.showCheckboxesInList !== undefined ? Boolean(src.showCheckboxesInList) : DEFAULT_EXPLORER_PREFS.showCheckboxesInList,
+      defaultThumbZoom,
+      openInspectorOnStart: src.openInspectorOnStart !== undefined ? Boolean(src.openInspectorOnStart) : DEFAULT_EXPLORER_PREFS.openInspectorOnStart,
+      enableNavCache: src.enableNavCache !== undefined ? Boolean(src.enableNavCache) : DEFAULT_EXPLORER_PREFS.enableNavCache
+    };
+  }
 
   class ExplorerStateManager {
     constructor(instance) {
       this.inst = instance;
     }
 
+    static getDefaultPrefs() {
+      return { ...DEFAULT_EXPLORER_PREFS };
+    }
+
+    static getPrefsForCurrentUser() {
+      const scope = resolveUserStorageScopeStatic();
+      try {
+        const raw = localStorage.getItem(`atelier_explorer_prefs_${scope}`);
+        return sanitizeExplorerPrefs(raw ? JSON.parse(raw) : {});
+      } catch (e) {
+        return { ...DEFAULT_EXPLORER_PREFS };
+      }
+    }
+
+    static savePrefsForCurrentUser(patch = {}) {
+      const scope = resolveUserStorageScopeStatic();
+      const next = sanitizeExplorerPrefs({ ...ExplorerStateManager.getPrefsForCurrentUser(), ...patch });
+      try {
+        localStorage.setItem(`atelier_explorer_prefs_${scope}`, JSON.stringify(next));
+        if (patch && patch.defaultThumbZoom !== undefined) {
+          localStorage.setItem(`atelier_explorer_thumb_zoom_${scope}`, String(next.defaultThumbZoom));
+        }
+      } catch (e) { }
+      if (window.EventBus && typeof window.EventBus.emit === 'function') {
+        window.EventBus.emit('explorer:prefs_changed', next);
+      }
+      return next;
+    }
+
+    static resetPrefsForCurrentUser() {
+      const scope = resolveUserStorageScopeStatic();
+      const def = { ...DEFAULT_EXPLORER_PREFS };
+      try {
+        localStorage.removeItem(`atelier_explorer_prefs_${scope}`);
+        localStorage.setItem(`atelier_explorer_thumb_zoom_${scope}`, String(def.defaultThumbZoom));
+      } catch (e) { }
+      if (window.EventBus && typeof window.EventBus.emit === 'function') {
+        window.EventBus.emit('explorer:prefs_changed', def);
+      }
+      return def;
+    }
+
+    static getFolderOverridesCountForCurrentUser() {
+      const scope = resolveUserStorageScopeStatic();
+      try {
+        const raw = localStorage.getItem(`atelier_folder_views_${scope}`);
+        const parsed = raw ? JSON.parse(raw) : {};
+        return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? Object.keys(parsed).length : 0;
+      } catch (e) {
+        return 0;
+      }
+    }
+
+    static clearAllFolderViewOverridesForCurrentUser() {
+      const scope = resolveUserStorageScopeStatic();
+      try {
+        localStorage.removeItem(`atelier_folder_views_${scope}`);
+      } catch (e) { }
+      if (window.EventBus && typeof window.EventBus.emit === 'function') {
+        window.EventBus.emit('explorer:prefs_changed', ExplorerStateManager.getPrefsForCurrentUser());
+      }
+    }
+
+    static clearRecentFoldersForCurrentUser() {
+      const scope = resolveUserStorageScopeStatic();
+      try {
+        localStorage.removeItem(`atelier_explorer_recents_${scope}`);
+      } catch (e) { }
+      if (window.EventBus && typeof window.EventBus.emit === 'function') {
+        window.EventBus.emit('explorer:prefs_changed', ExplorerStateManager.getPrefsForCurrentUser());
+      }
+    }
+
+    getExplorerPrefs() {
+      return ExplorerStateManager.getPrefsForCurrentUser();
+    }
+
+    saveExplorerPrefs(patch = {}) {
+      return ExplorerStateManager.savePrefsForCurrentUser(patch);
+    }
+
     getUserStorageScope() {
-      const u = (window.sys && window.sys.shares && typeof window.sys.shares.getCurrentUser === 'function')
-        ? window.sys.shares.getCurrentUser()
-        : window.ATELIER_CURRENT_USER;
-      if (u && u.username) return `user_${u.username}`;
-      return window.IS_ADMIN ? 'admin' : 'guest';
+      return resolveUserStorageScopeStatic();
     }
 
     normalizePath(dirPath) {
@@ -98,6 +212,9 @@
     }
 
     shouldShowSidebarByDefault(mode) {
+      const prefs = this.getExplorerPrefs();
+      if (prefs.sidebarMode === 'always') return true;
+      if (prefs.sidebarMode === 'hidden') return false;
       return this.getViewProfile(mode) !== 'multimedia';
     }
 
@@ -175,14 +292,17 @@
         cursor = this.getParentPath(cursor);
       }
 
-      // Fallback to saved global user preference if valid, else Mode Pro ('list')
-      let fallback = DEFAULT_VIEW_MODE;
-      try {
-        if (window.sys && window.sys.storage && typeof window.sys.storage.getPref === 'function') {
-          const pref = window.sys.storage.getPref('explorer_view_mode', null, 'atelier_explorer_view_mode');
-          if (pref && VALID_VIEWS.includes(pref)) fallback = pref;
-        }
-      } catch (e) { }
+      // Fallback to Explorer Settings defaultViewMode, then legacy pref, else Mode Pro ('list')
+      const prefs = this.getExplorerPrefs();
+      let fallback = VALID_VIEWS.includes(prefs.defaultViewMode) ? prefs.defaultViewMode : DEFAULT_VIEW_MODE;
+      if (fallback === DEFAULT_VIEW_MODE) {
+        try {
+          if (window.sys && window.sys.storage && typeof window.sys.storage.getPref === 'function') {
+            const pref = window.sys.storage.getPref('explorer_view_mode', null, 'atelier_explorer_view_mode');
+            if (pref && VALID_VIEWS.includes(pref)) fallback = pref;
+          }
+        } catch (e) { }
+      }
 
       return {
         mode: fallback,

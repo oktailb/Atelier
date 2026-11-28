@@ -175,5 +175,6 @@
   "explorer.ql_text_truncated": "Preview truncated to first 64 KB.",
   "explorer.ql_unsupported": "Inline preview unavailable for this format.",
   "explorer.ql_error": "Unable to load preview.",
-  "explorer.chunk_loading_more": "Showing {shown} of {total} items..."
+  "explorer.chunk_loading_more": "Showing {shown} of {total} items...",
+  "explorer.ctx_explorer_settings": "Explorer Preferences…"
 }

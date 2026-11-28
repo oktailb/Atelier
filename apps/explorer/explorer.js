@@ -66,6 +66,9 @@
       this.updateViewModeButtonsUI();
       this.bindEvents();
       this.initMarqueeSelection();
+      if (this.stateManager && this.stateManager.getExplorerPrefs().openInspectorOnStart) {
+        this.toggleInspector(true);
+      }
       this.loadDirectory(this.state.currentPath);
     }
 
@@ -422,7 +425,8 @@
       this.state.currentPath = cleanPath;
 
       let json = null;
-      const cached = (!forceRefresh && this._dirCache) ? this._dirCache.get(cleanPath) : null;
+      const prefs = this.stateManager ? this.stateManager.getExplorerPrefs() : { enableNavCache: true };
+      const cached = (!forceRefresh && prefs.enableNavCache !== false && this._dirCache) ? this._dirCache.get(cleanPath) : null;
       if (cached && (Date.now() - cached.ts) < this._dirCacheTtlMs) {
         json = cached.data;
       }
@@ -688,9 +692,10 @@
     renderFolders(folders) {
       if (!this.el.folderSection || !this.el.foldersGrid) return;
 
-      // In Pro List mode, folders are rendered first inside the unified table
+      // In Pro List mode, folders are rendered first inside the unified table (when enabled in preferences)
+      const prefs = this.stateManager ? this.stateManager.getExplorerPrefs() : { unifiedFoldersInList: true };
       const activePlugin = window.GalleryViewRegistry && window.GalleryViewRegistry.get(this.state.viewMode);
-      if (this.state.viewMode === 'list' && activePlugin && activePlugin.supportsUnifiedFolders) {
+      if (this.state.viewMode === 'list' && prefs.unifiedFoldersInList !== false && activePlugin && activePlugin.supportsUnifiedFolders) {
         this.el.folderSection.style.display = 'none';
         this.el.foldersGrid.innerHTML = '';
         return;
@@ -736,9 +741,7 @@
         const folderName = folderObj.name || card.querySelector('.folder-name')?.textContent || folderPath.split('/').pop();
         const folderCover = folderObj.cover || folderObj.cover_url || '';
 
-        card.onclick = (e) => {
-          if (e.target.closest('.delete-item-btn, .folder-settings-btn')) return;
-          e.preventDefault();
+        const openThisFolder = () => {
           const isProtected = card.dataset.protected === '1';
           const isUnlocked = card.dataset.unlocked === '1';
           if (isProtected && !isUnlocked && !this.state.isAdmin) {
@@ -746,6 +749,32 @@
           } else {
             this.navigateTo(folderPath);
           }
+        };
+
+        card.onclick = (e) => {
+          if (e.target.closest('.delete-item-btn, .folder-settings-btn')) return;
+          e.preventDefault();
+          const prefs = this.stateManager ? this.stateManager.getExplorerPrefs() : { openMode: 'double' };
+          if (e.ctrlKey || e.metaKey) {
+            e.stopPropagation();
+            if (this.state.selectedPaths.has(folderPath)) this.state.selectedPaths.delete(folderPath);
+            else this.state.selectedPaths.add(folderPath);
+            this.updateSelectionUI();
+            return;
+          }
+          if (prefs.openMode === 'double') {
+            this.state.selectedPaths.clear();
+            this.state.selectedPaths.add(folderPath);
+            this.updateSelectionUI();
+            return;
+          }
+          openThisFolder();
+        };
+
+        card.ondblclick = (e) => {
+          if (e.target.closest('.delete-item-btn, .folder-settings-btn')) return;
+          e.preventDefault();
+          openThisFolder();
         };
 
         card.onauxclick = (e) => {
@@ -827,10 +856,11 @@
       const renderGen = ++this._renderGeneration;
       const list = this.state.filteredFiles || [];
 
+      const prefs = this.stateManager ? this.stateManager.getExplorerPrefs() : { unifiedFoldersInList: true, showCheckboxesInList: true };
       const viewPlugin = (window.GalleryViewRegistry && window.GalleryViewRegistry.get(this.state.viewMode))
         || (window.GalleryViewRegistry && window.GalleryViewRegistry.get('polaroid'))
         || (window.GalleryViewRegistry && window.GalleryViewRegistry.getAll()[0]);
-      const isUnifiedList = Boolean(this.state.viewMode === 'list' && viewPlugin && viewPlugin.supportsUnifiedFolders);
+      const isUnifiedList = Boolean(this.state.viewMode === 'list' && prefs.unifiedFoldersInList !== false && viewPlugin && viewPlugin.supportsUnifiedFolders);
       const sortedDirs = (isUnifiedList && !this.state.isSearchActive && !this.state.showFavoritesOnly)
         ? (this.stateManager && typeof this.stateManager.computeSortedDirectories === 'function'
             ? this.stateManager.computeSortedDirectories()
@@ -909,7 +939,8 @@
       const initialSlice = list.length > RENDER_BATCH_SIZE ? list.slice(0, RENDER_BATCH_SIZE) : list;
 
       if (viewPlugin) {
-        this.el.mediaGrid.className = `media-grid ${viewPlugin.containerClass || 'polaroid-grid'}`;
+        const hideCbClass = (this.state.viewMode === 'list' && prefs.showCheckboxesInList === false) ? ' list-hide-checkboxes' : '';
+        this.el.mediaGrid.className = `media-grid ${viewPlugin.containerClass || 'polaroid-grid'}${hideCbClass}`;
         if (typeof viewPlugin.renderContainer === 'function') {
           this.el.mediaGrid.innerHTML = viewPlugin.renderContainer(initialSlice, context);
         } else if (typeof viewPlugin.renderItem === 'function') {
@@ -1075,16 +1106,23 @@
           return this.openMediaCommentModal(commBtn.dataset.filename, commBtn.dataset.comment);
         }
 
-        // Unified List Folder Row click
+        // Unified List Folder Row click (honors Single vs Double click preference)
         const folderRow = e.target.closest('.list-table-row-folder[data-path]');
         if (folderRow && this.el.mediaGrid.contains(folderRow)) {
           if (e.target.closest('button, input, a')) return;
           const folderPath = folderRow.dataset.path;
+          const prefs = this.stateManager ? this.stateManager.getExplorerPrefs() : { openMode: 'double' };
           if (e.ctrlKey || e.metaKey) {
             e.preventDefault();
             e.stopPropagation();
             if (this.state.selectedPaths.has(folderPath)) this.state.selectedPaths.delete(folderPath);
             else this.state.selectedPaths.add(folderPath);
+            this.updateSelectionUI();
+            return;
+          }
+          if (prefs.openMode === 'double') {
+            this.state.selectedPaths.clear();
+            this.state.selectedPaths.add(folderPath);
             this.updateSelectionUI();
             return;
           }
@@ -1106,11 +1144,25 @@
           const file = this.state.filteredFiles[index];
           if (!file) return;
 
+          const prefs = this.stateManager ? this.stateManager.getExplorerPrefs() : { openMode: 'double' };
+
           if (e.ctrlKey || e.metaKey || e.shiftKey) {
             e.preventDefault();
             e.stopPropagation();
             if (this.selectionManager) {
               this.selectionManager.selectItem(index, e);
+            }
+            return;
+          }
+
+          if (prefs.openMode === 'double') {
+            if (this.selectionManager) {
+              this.selectionManager.selectItem(index, null);
+            } else {
+              this.state.selectedPaths.clear();
+              this.state.selectedPaths.add(file.path);
+              this.state.lastSelectedIndex = index;
+              this.updateSelectionUI();
             }
             return;
           }
@@ -2145,6 +2197,31 @@
       this.bindGlobalModals();
 
       if (window.EventBus && typeof window.EventBus.on === 'function') {
+        window.EventBus.on('explorer:prefs_changed', (prefs) => {
+          this.instances.forEach(inst => {
+            if (prefs && prefs.enableNavCache === false && typeof inst.invalidateDirCache === 'function') {
+              inst.invalidateDirCache();
+            }
+            if (inst.stateManager) {
+              const resolved = inst.stateManager.resolveViewModeForPath(inst.state.currentPath || '');
+              inst.state.viewMode = resolved.mode;
+              inst.state.viewResolution = resolved;
+              inst.updateViewModeButtonsUI();
+              if (inst.sidebarManager) {
+                inst.sidebarManager.applyProfileVisibility(inst.state.viewMode);
+                inst.sidebarManager.renderQuickAccess();
+              }
+            }
+            if (prefs && prefs.defaultThumbZoom && inst.navigationManager && typeof inst.navigationManager.applyThumbZoom === 'function') {
+              inst.navigationManager.applyThumbZoom(prefs.defaultThumbZoom);
+            }
+            inst.renderFolders(inst.state.directories);
+            inst.applyFilterAndRender();
+            if (inst.navigationManager) inst.navigationManager.updateStatusBar();
+          });
+          this.updateViewModeUI();
+        });
+
         window.EventBus.on('fs:changed', () => {
           this.instances.forEach(inst => {
             if (typeof inst.invalidateDirCache === 'function') inst.invalidateDirCache();

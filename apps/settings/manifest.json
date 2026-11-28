@@ -24,7 +24,8 @@
   },
   "scripts": [
     "users-panel.js",
-    "ai-panel.js"
+    "ai-panel.js",
+    "explorer-panel.js"
   ],
   "capabilities": [
     "admin_auth",

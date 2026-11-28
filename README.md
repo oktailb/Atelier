@@ -1,8 +1,8 @@
 # Atelier by GallusTech 🚀
 
-**Atelier by GallusTech** est un **environnement WebOS souverain, cloud multimédia, studio créatif WASM et bureau assisté par IA**, conçu en **PHP 7.4+ / PHP 8.x et JavaScript Vanilla pur** (zéro framework lourd, zéro dépendance Composer/npm, zéro base de données externe obligatoire).
+**Atelier by GallusTech** est un **environnement WebOS souverain, gestionnaire de fichiers moderne, cloud multimédia, studio créatif WASM et bureau assisté par IA**, conçu en **PHP 7.4+ / PHP 8.x et JavaScript Vanilla pur** (zéro framework lourd, zéro dépendance Composer/npm, zéro base de données externe obligatoire).
 
-Le principe fondamental d'origine reste intact : **pour publier de nouveaux médias (photos, vidéos, musique, documents, archives), il suffit de les déposer dans n'importe quel dossier sur le serveur ou dans un volume cloud monté.**
+Le principe fondamental d'origine reste intact : **pour publier de nouveaux médias ou documents (photos, vidéos, musique, PDF, Markdown, archives), il suffit de les déposer dans n'importe quel dossier sur le serveur ou dans un volume cloud monté.**
 
 ---
 
@@ -11,20 +11,36 @@ Le principe fondamental d'origine reste intact : **pour publier de nouveaux méd
 ## 🌟 Fonctionnalités Principales
 
 ### 🖥️ 1. Environnement de Bureau WebOS & Personnalisation
-- **Gestionnaire de Fenêtres Multi-Tâches (`WindowManager`)** : Déplacement, redimensionnement, maximisation, minimisation, empilement `z-index` et **9 habillages de fenêtres** (`wm-styles/` : macOS, Aqua, Mac OS Classic, Windows 11, Windows 9x, Windows 3.11, AmigaOS, BeOS/Haiku, Window Maker).
+- **Gestionnaire de Fenêtres Multi-Tâches (`WindowManager`)** : Déplacement, redimensionnement, maximisation, minimisation, empilement `z-index`, garde-fou contre les modifications non enregistrées et **9 habillages de fenêtres** (`wm-styles/` : macOS, Aqua, Mac OS Classic, Windows 11, Windows 9x, Windows 3.11, AmigaOS, BeOS/Haiku, Window Maker).
 - **Barre Supérieure Contextuelle (`MenuBarManager`) & Barre des Tâches** : Menus dynamiques adaptés à l'application active, lanceur d'applications, horloge, raccourcis bureau isolés par utilisateur et accès rapide à l'Agent IA.
 - **Thèmes & Typographie Native** : 4 thèmes système (`polaroid-classic`, `dark-glass`, `light-minimal`, `cyberpunk`), polices système natives (zéro appel Google Fonts) et bibliothèques cartographiques/documentaires auto-hébergées (`assets/vendor/`).
-- **Internationalisation Complète (i18n)** : Interface traduite en **Français (FR)**, **Anglais (EN)** et **Japonais (JA)** avec **basculement réactif en temps réel** sans rechargement de page.
+- **Internationalisation Complète (i18n)** : Interface traduite en **Français (FR)**, **Anglais (EN)** et **Japonais (JA)** avec locales isolées par application (`apps/<app>/locales/`) et **basculement réactif en temps réel** sans rechargement de page.
 - **Progressive Web App (PWA)** : Installable sur desktop et mobile via `manifest.webmanifest` et `sw.js` (politique cache sécurisée excluant toute route API ou média privé).
 
 ---
 
-### 📂 2. Suite d'Applications Intégrées (`apps/`) & Studio WASM
+### 🗂️ 2. Explorateur de Fichiers Moderne (`apps/explorer/` — Phase G)
+Entièrement modularisé et multi-instances, l'Explorateur offre une expérience de gestionnaire de fichiers de bureau complète :
+- **3 profils d'affichage + héritage par dossier (`inherit`)** :
+  - **Mode Pro *(Défaut)*** : tableau unifié avec **dossiers en premier**, en-têtes de colonnes triables (`▲`/`▼` sur Nom, Type, Taille, Modification), cases à cocher, badges compacts (Tags, GPS, Partage, Verrou) et panneau latéral visible.
+  - **Mode Vignettes** : aperçus larges (**Grille moderne** / **Mosaïque**) avec panneau latéral et curseur de taille des miniatures en barre d'état.
+  - **Mode Multimédia** : cartes **Polaroid** et bandes vidéo immersives (sans panneau latéral par défaut, avec bannières `.desc`/`.bg` et présentations **Autorun**).
+  - Chaque dossier mémorise son mode par utilisateur et le transmet automatiquement par **héritage** à ses sous-dossiers.
+- **Shell & Productivité** : **Onglets multiples** (`Ctrl+T` / `Ctrl+W`, clic milieu), historique **Précédent / Suivant / Parent** (`Alt+←/→/↑`), **fil d'Ariane + barre d'adresse éditable** (`Ctrl+L`), **panneau latéral redimensionnable** (Accès rapide, Points de montage avec noms conviviaux, Arborescence paresseuse, Tags, Corbeille 30 jours, jauge de quota) et **Mode Double Volet / Commander (`F3`)**.
+- **Ouverture Simple ou Double Clic & Page dédiée dans les Paramètres** : Configurable dans **Panneau de Configuration → Explorateur** (par défaut : simple clic sélectionne, double clic ouvre ; bascule instantanée vers le mode simple clic Web/Galerie, profil par défaut, sidebar, cases à cocher, taille des vignettes et cache).
+- **Menus Contextuels Exhaustifs (Zéro Clic Droit Navigateur)** : Menus dédiés et filtrés par droits RBAC sur toute la surface (fichiers avec *Ouvrir avec* + application par défaut ★, dossiers, arborescence/montages, onglets, fil d'Ariane, en-têtes de colonnes, corbeille, champs texte et fond).
+- **Opérations & Transferts Non-Bloquants** : Renommage direct (`F2`) avec pré-remplissage et sélection intelligente du nom sans l'extension, création de fichiers (`.md`/`.txt`/`.json`), duplication, copier/couper/coller, **téléversement fragmenté automatique** (`uploadChunked` ≥ 2 Mo) et **glisser-déposer récursif de dossiers entiers** depuis l'OS avec panneau de progression annulable.
+- **Inspecteur Latéral à 3 Onglets** : *Détails & EXIF* (aperçu, légende éditable en direct, *Ouvrir avec*, Partage), *Tags* (édition unitaire ou en lot, filtrage depuis la sidebar) et *Versions* (historique automatique + restauration non-destructive en 1 clic).
+- **Quick Look (`Espace`) & Recherche Multi-Critères SQLite** : Aperçu centré instantané (images, vidéos, audio, PDF, texte/Markdown/code, contenu d'archives ZIP) navigable aux flèches `←`/`→`, recherche indexée SQLite combinant texte, type, tag, taille, période et portée, rendu progressif par lots (`IntersectionObserver`) et cache de navigation invalidé sur `fs:changed`.
+
+---
+
+### 📂 3. Suite d'Applications Intégrées (`apps/`) & Studio WASM
 
 | Application | Icône | Description & Capacités |
 |---|:---:|---|
-| **Explorateur de Fichiers** | 📁 | Navigation double volet, volumes montés, fil d'Ariane, tri, recherche indexée SQLite, sélection multiple, uploads fragmentés résumables, modes **Polaroid**, **Grille**, **Liste** et **Compact**. |
-| **Visionneuse d'Images** | 🖼️ | Zoom profond (*Deep Zoom* jusqu'à 10x), panoramique (*Pan*), rotation 90°, édition/filtres colorimétriques et panneau d'inspection des métadonnées EXIF. |
+| **Explorateur de Fichiers** | 🗂️ | Onglets, sidebar arborescente, Double Volet `F3`, mode Pro/Vignettes/Multimédia avec héritage, Quick Look `Espace`, Inspecteur 3 onglets (EXIF/Tags/Versions), Corbeille inline, transferts chunked/dossiers et recherche SQLite. |
+| **Visionneuse d'Images** | 🖼️ | Zoom profond (*Deep Zoom* jusqu'à 10x), panoramique (*Pan*), rotation 90°, édition/filtres colorimétriques et inspection EXIF. |
 | **Lecteur Vidéo HTML5** | 🎬 | Sous-titres (`.vtt`, `.srt`), vitesse de lecture (0.25x à 2x), mode cinéma, *Picture-in-Picture* (PiP), mur vidéo multi-écrans et capture instantanée. |
 | **Lecteur Audio & Musique** | 🎵 | Lecteur flottant avec analyseur de spectre Canvas temps réel, pochettes et tags ID3, listes de lecture et lecture aléatoire. |
 | **Lecteur & Éditeur de Documents** | 📄 | **PDF**, **Markdown** (rendu local `marked` + éditeur scindé en direct), **LaTeX** et **Code Source** (coloration syntaxique locale `Prism`). |
@@ -34,22 +50,22 @@ Le principe fondamental d'origine reste intact : **pour publier de nouveaux méd
 | **Moniteur Système** | 📊 | Supervision en temps réel des ressources serveur, mémoire PHP, espace disque, file de jobs asynchrones, caches et diagnostics. |
 | **Calculatrice & Traceur 2D** | 📐 | Calculatrice scientifique (parseur AST sécurisé sans `eval`, `DEG`/`RAD`/`GRAD`), mode Programmeur 8–64 bits et traceur Canvas 2D multi-courbes (racines, extrema, intersections). |
 | **Autorun Studio** | 🎞️ | Éditeur visuel et JSON de présentations multimédia synchronisées par timeline. |
-| **Panneau de Configuration** | ⚙️ | Navigation latérale catégorisée : Sécurité & RBAC 3 niveaux, Utilisateurs/Groupes/2FA/OIDC, Email/SMTP, Stockage & Cloud, Plugins & Apps Externes, IA & Agent. |
+| **Panneau de Configuration** | ⚙️ | Navigation latérale catégorisée : Sécurité & RBAC 3 niveaux, Utilisateurs/Groupes/2FA/OIDC, Email/SMTP, Partages & Audit, Apparence, **Explorateur**, Démarrage, Stockage & Cloud, IA & Agent, Plugins & Apps Externes, Système. |
 | **Hôte d'Apps Web / WASM** | 🔗 | Auto-découverte et déploiement admin d'applications web/WASM tierces (`WebAppHost` + `ExternalAppManager`) avec **Pont VFS Bidirectionnel** (`WebAppVfsBridge` Open/Save Hook & `?host=parent`). |
 | **Suite de Jeux Rétro** | 🎮 | **8 Dames** (solveur backtracking), **Foot Pong** (physique 1v1 + IA), **Tours de Hanoï** (solveur animé) et **Pipe Connect / Netwalk**. |
 
 ---
 
-### 🤖 3. Agent IA Universel (« Compagnon » — Phase E)
-- **Accès rapide en barre des tâches (`Ctrl+K`)** : Popup ancrée en bas à gauche avec sélecteur de modèle/profil et 3 niveaux d'autonomie (`Lecture seule`, `Assisté` avec validation *Human-in-the-Loop*, `Autonome` sur l'app active).
+### 🤖 4. Agent IA Universel (« Compagnon » — Phase E)
+- **Accès rapide en barre des tâches (`Ctrl+K` / `Alt+Espace`)** : Popup ancrée en bas à gauche avec sélecteur de modèle/profil et 3 niveaux d'autonomie (`Lecture seule`, `Assisté` avec validation *Human-in-the-Loop*, `Autonome` sur l'app active).
 - **Passerelle Multi-LLM zéro dépendance (`LlmGateway`)** : Compatible **OpenAI / OpenRouter / Mistral / vLLM / LM Studio**, **Ollama** (local/LAN avec opt-in admin explicite), **Anthropic** et **Google Gemini**, avec clés API chiffrées au repos (`CredentialVault` AES-256-GCM) et protection anti-SSRF stricte.
-- **Bus d'Outils Universel (`AgentToolRegistry` & `WebAppAgentBridge`)** : Pilote le noyau WebOS/VFS (dans les strictes ACL de session), les applications natives et jeux (`WebOSApp`), les apps WASM (`craft-web-api`) et toute app tierce via `postMessage` *same-origin*.
+- **Bus d'Outils Universel (`AgentToolRegistry` & `WebAppAgentBridge`)** : Pilote le noyau WebOS/VFS (dans les strictes ACL de session et sans suppression définitive autonome), les applications natives (`WebOSApp`, dont **9 outils dédiés dans l'Explorateur** : navigation, vues/tris, onglets, double volet, renommage, tags, corbeille, recherche SQLite, Quick Look), les apps WASM (`craft-web-api`) et toute app tierce via `postMessage` *same-origin*.
 
 ---
 
-### 👥 4. Multi-Utilisateurs, Stockage Hybride & Interopérabilité OS
+### 👥 5. Multi-Utilisateurs, Stockage Hybride & Interopérabilité OS
 - **Persistance Dual-Driver (`AtelierStore`)** : Base **SQLite WAL** automatique (zéro serveur DB externe) avec repli atomique JSON verrouillé et indexation incrémentale des fichiers (`FileIndexManager`).
-- **Identité & Gouvernance** : Comptes, groupes, espaces personnels isolés (`storage/users/`), quotas disque, matrice RBAC en cascade à 3 niveaux (Rôle → Groupe → Utilisateur), inscription autonome configurable (ouvert / invitation / approbation), **2FA TOTP (RFC 6238)** avec QR Code SVG généré 100 % en local, **SSO OpenID Connect (PKCE S256)**, suivi/révocation de sessions, liens de partage signés (`/s/<token>`), journal d'audit et **export/suppression RGPD** (`/e/<token>`).
+- **Identité, Partages & Gouvernance** : Comptes, groupes, espaces personnels isolés (`storage/users/`), quotas disque, matrice RBAC en cascade à 3 niveaux (Rôle → Groupe → Utilisateur), inscription autonome configurable (ouvert / invitation / approbation), **2FA TOTP (RFC 6238)** avec QR Code SVG généré 100 % en local, **SSO OpenID Connect (PKCE S256)**, suivi/révocation de sessions, **liens de partage signés (`/s/<token>`)** avec modes *Lecture* / *Galerie* / *Boîte de dépôt*, mot de passe, expiration et quota de téléchargements, journal d'audit et **export/suppression RGPD** (`/e/<token>`).
 - **Connecteurs Cloud & Résilience** : Montage transparent `ext://<id>/...` vers **S3 / Cloudflare R2 / MinIO / Scaleway / Backblaze B2** (AWS SigV4 natif), **WebDAV** et **Google Drive**, uploads fragmentés résumables, corbeille 30 jours et versioning léger (5 révisions).
 - **Passerelle WebDAV (`/dav/`)** : Montage natif RFC 4918 depuis Windows, macOS, Linux et mobile via *App Passwords* dédiés.
 - **Worker Asynchrone & Backups** : File de tâches persistante (`bin/worker.php`) pour pré-génération de vignettes, réindexation, archives ZIP, aperçus FFmpeg et sauvegardes d'instance ZIP avec manifeste SHA-256.
@@ -93,7 +109,7 @@ Ouvrez `http://localhost:8080` (ou `http://localhost:8080/setup`).
 
 - **Authentification & 2FA** : Hachage Argon2id / BCRYPT, 2FA TOTP RFC 6238 anti-replay, *App Passwords* dédiés pour WebDAV et chiffrement des secrets au repos en **AES-256-GCM** (`CredentialVault`).
 - **Protection CSRF & Anti-SSRF** : Vérification CSRF globale sur toutes les actions mutantes (noyau + plugins `manifest.backend`), validation DNS + *IP pinning* (`UrlValidator`) bloquant les IP privées et métadonnées cloud (`169.254.169.254`).
-- **Cloisonnement Serveur & VFS** : Isolation stricte contre le *Directory Traversal* (`PathValidator`), blocage HTTP 403 des dotfiles, de `storage/`, `config/`, `system/kernel/` et de tout `.php` sous `apps/` (parité stricte `.htaccess` et `docker/nginx.conf`), CSP stricte anti-XSS sur les SVG.
+- **Cloisonnement Serveur & VFS** : Isolation stricte contre le *Directory Traversal* (`PathValidator`), validation stricte des noms/extensions (rejet des dotfiles et doubles extensions exécutables), blocage HTTP 403 des dotfiles, de `storage/`, `config/`, `system/kernel/` et de tout `.php` sous `apps/` (parité stricte `.htaccess` et `docker/nginx.conf`), CSP stricte anti-XSS sur les SVG.
 - **Visionnage en Ligne vs Téléchargement** : Contrôle fin via `can_download_item` et `can_download_archive` dans la matrice RBAC.
 
 ---
@@ -116,21 +132,38 @@ Personnalisez n'importe quel dossier sans base de données en y déposant des fi
 
 ## ⌨️ Raccourcis Clavier Principaux
 
+### Bureau & Explorateur de Fichiers
 | Raccourci | Action |
 |---|---|
 | `Ctrl+K` / `Alt+Espace` | Ouvrir / fermer l'Agent IA **Compagnon** |
-| `<Flèche Gauche>` / `<Flèche Droite>` | Élément précédent / suivant |
-| `+` ou `=` / `-` ou `_` | Zoom avant / arrière dans la visionneuse |
+| `Espace` | Ouvrir / fermer **Quick Look** (aperçu instantané multi-formats) |
+| `Entrée` | Ouvrir le dossier ou fichier sélectionné |
+| `F2` | Renommer l'élément sélectionné (nom pré-rempli) |
+| `F3` | Activer / masquer le **Double Volet (Commander)** |
+| `F5` | Actualiser le dossier courant (invalide le cache) |
+| `Ctrl+L` | Éditer directement le chemin dans la barre d'adresse |
+| `Ctrl+F` / `Ctrl+Shift+F` | Focus filtre rapide / ouvrir la recherche multi-critères SQLite |
+| `Ctrl+T` / `Ctrl+W` | Nouvel onglet / fermer l'onglet actif |
+| `Ctrl+Shift+N` | Créer un nouveau dossier |
+| `Alt+←` / `Alt+→` / `Alt+↑` | Précédent / Suivant / Dossier parent |
+| `Ctrl+A` / `C` / `X` / `V` | Tout sélectionner / Copier / Couper / Coller |
+| `↑` `↓` `←` `→` (+ `Maj`) | Navigation fléchée 2D dans la liste ou la grille (extension de sélection) |
+| `Suppr` / `I` / `Échap` | Mettre à la corbeille / Inspecteur latéral / Désélectionner ou fermer |
+
+### Visionneuse d'Images
+| Raccourci | Action |
+|---|---|
+| `←` / `→` | Média précédent / suivant |
+| `+` ou `=` / `-` ou `_` | Zoom avant / arrière |
 | `Glisser Souris` (*Drag*) | Déplacer l'image agrandie (*Pan*) |
 | `Double Clic` | Alterne entre zoom normal (1x) et zoom centré (2.5x) |
 | `R` / `0` / `F` / `I` | Rotation 90° / Reset zoom / Plein écran / Inspecteur EXIF |
-| `Échap` | Fermer la visionneuse ou la fenêtre active |
 
 ---
 
-## 🧪 Tests Unitaires & Validation
+## 🧪 Tests Automatisés & Qualité
 
-Pour lancer la suite de tests complète (Sécurité PHP, Fonctionnels PHP et Runtime JS Node.js) :
+La suite complète couvre **1 015+ assertions automatisées** (Sécurité PHP, Fonctionnels PHP et Runtime & Iso-Fonctionnalité JS Node.js, incluant la parité i18n FR/EN/JA et le contrôle zéro `fetch()` brut dans `apps/`) :
 
 ```bash
 php tests/run_tests.php
@@ -145,7 +178,7 @@ php tests/run_tests.php
 - ⚙️ **[Guide d'Administration](docs/admin-guide.md)** : Multi-utilisateurs, RBAC, 2FA, OIDC, SMTP, WebDAV et sauvegardes.
 - 🔐 **[Sécurité & Permissions](docs/security.md)** : Modèle de sécurité, politiques d'accès et streaming inline.
 - 🔒 **[Modules Métier & Dépôts Privés](docs/private-extensions.md)** : Intégrer des applications propriétaires sans modifier le noyau public.
-- 🗺️ **[Feuille de Route Produit & Cloud](ROADMAP.md)** : Vision Atelier Cloud, phases A–E et trajectoire produit.
+- 🗺️ **[Feuille de Route Produit & Cloud](ROADMAP.md)** : Vision Atelier Cloud, phases A–G et trajectoire produit.
 - 📋 **[Backlog Opérationnel](TODO.md)** : Suivi des évolutions applicatives.
 - 📖 **[Portail de Documentation](DOCUMENTATION.md)** : Vue d'ensemble et référence technique.
 

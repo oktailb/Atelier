@@ -694,6 +694,11 @@
       if (isAdmin || rights.can_edit) {
         this._addItem(menu, '🎬', this.inst.t('explorer.ctx_autorun'), () => this.inst.openAutorunEditorModal());
       }
+      if (window.sys && window.sys.appManager && typeof window.sys.appManager.launchApp === 'function') {
+        this._addItem(menu, '🎛️', this.inst.t('explorer.ctx_explorer_settings'), () => {
+          window.sys.appManager.launchApp('settings', { tab: 'explorer' });
+        });
+      }
       this._addItem(menu, '↻', this.inst.t('explorer.ctx_refresh'), () => {
         if (this.inst.navigationManager) this.inst.navigationManager.refresh();
         else this.inst.loadDirectory(this.inst.state.currentPath || '');

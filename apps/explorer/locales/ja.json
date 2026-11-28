@@ -175,5 +175,6 @@
   "explorer.ql_text_truncated": "プレビューは先頭 64 KB で省略されています。",
   "explorer.ql_unsupported": "この形式のインラインプレビューには対応していません。",
   "explorer.ql_error": "プレビューを読み込めませんでした。",
-  "explorer.chunk_loading_more": "{total} 件中 {shown} 件を表示中..."
+  "explorer.chunk_loading_more": "{total} 件中 {shown} 件を表示中...",
+  "explorer.ctx_explorer_settings": "エクスプローラーの設定…"
 }

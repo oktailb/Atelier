@@ -71,6 +71,11 @@
         el.selectionToolbarCount.dataset.i18nCount = String(count);
         el.selectionToolbarCount.textContent = this.inst.t('selection.selected_count', { count });
       }
+      if (el.foldersGrid) {
+        el.foldersGrid.querySelectorAll('.folder-card[data-path]').forEach(card => {
+          card.classList.toggle('selected', this.inst.state.selectedPaths.has(card.dataset.path));
+        });
+      }
       if (el.mediaGrid) {
         el.mediaGrid.querySelectorAll('[data-index]').forEach(card => {
           const idx = parseInt(card.dataset.index, 10);

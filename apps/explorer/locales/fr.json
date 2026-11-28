@@ -175,5 +175,6 @@
   "explorer.ql_text_truncated": "Aperçu tronqué aux premiers 64 Ko.",
   "explorer.ql_unsupported": "Aperçu direct indisponible pour ce format.",
   "explorer.ql_error": "Impossible de charger l'aperçu.",
-  "explorer.chunk_loading_more": "Affichage de {shown} sur {total} éléments..."
+  "explorer.chunk_loading_more": "Affichage de {shown} sur {total} éléments...",
+  "explorer.ctx_explorer_settings": "Préférences de l'Explorateur…"
 }
