@@ -178,7 +178,8 @@ php tests/run_tests.php
 - ⚙️ **[Guide d'Administration](docs/admin-guide.md)** : Multi-utilisateurs, RBAC, 2FA, OIDC, SMTP, WebDAV et sauvegardes.
 - 🔐 **[Sécurité & Permissions](docs/security.md)** : Modèle de sécurité, politiques d'accès et streaming inline.
 - 🔒 **[Modules Métier & Dépôts Privés](docs/private-extensions.md)** : Intégrer des applications propriétaires sans modifier le noyau public.
-- 🗺️ **[Feuille de Route Produit & Cloud](ROADMAP.md)** : Vision Atelier Cloud, phases A–G et trajectoire produit.
+- 🗺️ **[Feuille de Route Technique](ROADMAP.md)** : Chantiers restants (Productivité/Automatisations, Time Machine, Galeries Clients, Atelier Cloud).
+- 💼 **[Vision Produit & Business](BUSINESS.md)** : Positionnement, modèles économiques (Open-Core / SaaS / B2B), Go-To-Market et risques.
 - 📋 **[Backlog Opérationnel](TODO.md)** : Suivi des évolutions applicatives.
 - 📖 **[Portail de Documentation](DOCUMENTATION.md)** : Vue d'ensemble et référence technique.
 
