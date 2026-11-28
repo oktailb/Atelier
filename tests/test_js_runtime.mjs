@@ -2352,6 +2352,29 @@ try {
     lot2InheritOk &&
     lot2NavSidebarOk
   );
+
+  // Regression tests for GDrive mount_name resolution & inline Trash View
+  const mountWin = {
+    IS_ADMIN: false,
+    ATELIER_CURRENT_USER: { username: 'bob' },
+    ATELIER_MOUNTED_VOLUMES: [
+      { id: 'vol-ext-1', kind: 'external', driver: 'gdrive', mount_name: 'Mon Google Drive', mount_icon: '☁️', path: 'ext://1', permission: 'write' }
+    ],
+    localStorage: inheritWin.localStorage
+  };
+  new Function('window', 'localStorage', expStateSrc)(mountWin, mountWin.localStorage);
+  const mountStateMgr = new mountWin.ExplorerStateManager({ state: { currentPath: '' }, t: k => k });
+  assert("Phase G (Fix): Point de montage GDrive affiche mount_name ('Mon Google Drive') au lieu de 'ext://1' & vue Corbeille inline opérationnelle",
+    mountStateMgr.getVolumeLabel(mountWin.ATELIER_MOUNTED_VOLUMES[0]) === 'Mon Google Drive' &&
+    mountStateMgr.getFriendlyPathLabel('ext://1') === 'Mon Google Drive' &&
+    mountStateMgr.getFriendlyFullPath('ext://1/Vacances') === 'Mon Google Drive/Vacances' &&
+    expSidebarSrc.includes('openTrashView') &&
+    explorerJs.includes('async openTrashView(') &&
+    explorerJs.includes('restore_trash_item') &&
+    explorerJs.includes('purge_trash_item') &&
+    explorerJs.includes('empty_trash') &&
+    expTplSrc.includes('explorer-trash-view')
+  );
 } catch (e) {
   assert("Phase 1 exécution runtime UI", false, e.stack);
 }

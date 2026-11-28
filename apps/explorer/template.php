@@ -209,6 +209,9 @@
         <div class="media-grid polaroid-grid"></div>
       </section>
 
+      <!-- Inline Trash View (30-Day Soft Delete Bin) -->
+      <section class="explorer-trash-view" style="display: none;"></section>
+
       <!-- Loading State -->
       <div class="loading-spinner">
         <div class="spinner"></div>

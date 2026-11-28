@@ -66,5 +66,18 @@
   "explorer.view_inherit_reset_done": "View mode reset to inherit from parent folder.",
   "explorer.status_items": "{folders} folder(s), {files} file(s)",
   "explorer.status_selected": "{count} selected ({size})",
-  "explorer.status_zoom": "Thumbnail size"
+  "explorer.status_zoom": "Thumbnail size",
+  "explorer.trash_title": "Trash",
+  "explorer.trash_desc": "Deleted items are kept for 30 days before automatic permanent removal.",
+  "explorer.trash_restore": "Restore",
+  "explorer.trash_purge": "Delete permanently",
+  "explorer.trash_empty_all": "Empty trash",
+  "explorer.trash_exit": "Back to files",
+  "explorer.trash_original_path": "Original location",
+  "explorer.trash_deleted_at": "Deleted on",
+  "explorer.trash_restored_ok": "Item restored successfully.",
+  "explorer.trash_purged_ok": "Item permanently deleted.",
+  "explorer.trash_emptied_ok": "Trash emptied.",
+  "explorer.trash_confirm_purge": "Permanently delete \"{name}\"? This cannot be undone.",
+  "explorer.trash_confirm_empty": "Permanently empty the entire trash ({count} item(s))?"
 }

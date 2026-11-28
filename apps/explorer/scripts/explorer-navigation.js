@@ -32,7 +32,9 @@
 
     _makeTab(dirPath) {
       const id = ++this._tabSeq;
-      const label = dirPath ? (dirPath.split('/').filter(Boolean).pop() || dirPath) : this.inst.t('nav.root');
+      const label = this.inst.stateManager
+        ? this.inst.stateManager.getFriendlyPathLabel(dirPath)
+        : (dirPath ? (dirPath.split('/').filter(Boolean).pop() || dirPath) : this.inst.t('nav.root'));
       const icon = dirPath.startsWith('ext://') ? '☁️' : (dirPath.startsWith('users/') ? '🏠' : '📁');
       return {
         id,
@@ -145,7 +147,10 @@
       const clean = this.inst.stateManager ? this.inst.stateManager.normalizePath(dirPath) : (dirPath || '');
       tab.path = clean;
       const last = Array.isArray(crumbs) && crumbs.length > 0 ? crumbs[crumbs.length - 1] : null;
-      tab.title = (!clean || !last) ? this.inst.t('nav.root') : (last.name || clean.split('/').pop() || clean);
+      const fallbackLabel = this.inst.stateManager
+        ? this.inst.stateManager.getFriendlyPathLabel(clean)
+        : (clean.split('/').pop() || clean);
+      tab.title = (!clean) ? this.inst.t('nav.root') : ((last && last.name && last.name !== clean) ? last.name : fallbackLabel);
       tab.icon = clean.startsWith('ext://') ? '☁️' : (clean.startsWith('users/') ? '🏠' : (clean ? '📁' : '💾'));
       this.renderTabs();
     }

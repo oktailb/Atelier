@@ -66,5 +66,18 @@
   "explorer.view_inherit_reset_done": "Affichage réinitialisé sur l'héritage du dossier parent.",
   "explorer.status_items": "{folders} dossier(s), {files} fichier(s)",
   "explorer.status_selected": "{count} sélectionné(s) ({size})",
-  "explorer.status_zoom": "Taille des vignettes"
+  "explorer.status_zoom": "Taille des vignettes",
+  "explorer.trash_title": "Corbeille",
+  "explorer.trash_desc": "Les éléments supprimés sont conservés 30 jours avant purge automatique.",
+  "explorer.trash_restore": "Restaurer",
+  "explorer.trash_purge": "Supprimer définitivement",
+  "explorer.trash_empty_all": "Vider la corbeille",
+  "explorer.trash_exit": "Retour aux fichiers",
+  "explorer.trash_original_path": "Emplacement d'origine",
+  "explorer.trash_deleted_at": "Supprimé le",
+  "explorer.trash_restored_ok": "Élément restauré avec succès.",
+  "explorer.trash_purged_ok": "Élément supprimé définitivement.",
+  "explorer.trash_emptied_ok": "Corbeille vidée.",
+  "explorer.trash_confirm_purge": "Supprimer définitivement « {name} » ? Cette action est irréversible.",
+  "explorer.trash_confirm_empty": "Vider définitivement toute la corbeille ({count} élément(s)) ?"
 }

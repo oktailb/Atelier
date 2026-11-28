@@ -66,5 +66,18 @@
   "explorer.view_inherit_reset_done": "親フォルダの表示設定を継承するようにリセットしました。",
   "explorer.status_items": "{folders} フォルダ、{files} ファイル",
   "explorer.status_selected": "{count} 件選択中 ({size})",
-  "explorer.status_zoom": "サムネイルサイズ"
+  "explorer.status_zoom": "サムネイルサイズ",
+  "explorer.trash_title": "ゴミ箱",
+  "explorer.trash_desc": "削除された項目は30日間保持された後に自動削除されます。",
+  "explorer.trash_restore": "復元",
+  "explorer.trash_purge": "完全に削除",
+  "explorer.trash_empty_all": "ゴミ箱を空にする",
+  "explorer.trash_exit": "ファイルに戻る",
+  "explorer.trash_original_path": "元の場所",
+  "explorer.trash_deleted_at": "削除日時",
+  "explorer.trash_restored_ok": "項目を復元しました。",
+  "explorer.trash_purged_ok": "項目を完全に削除しました。",
+  "explorer.trash_emptied_ok": "ゴミ箱を空にしました。",
+  "explorer.trash_confirm_purge": "「{name}」を完全に削除しますか？この操作は取り消せません。",
+  "explorer.trash_confirm_empty": "ゴミ箱内の全 {count} 件を完全に削除しますか？"
 }

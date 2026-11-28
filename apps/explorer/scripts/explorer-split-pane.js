@@ -103,8 +103,11 @@
       const pane = this.inst.el.secondaryPane;
       const pathLabel = pane && pane.querySelector('.split-path-label');
       if (pathLabel) {
-        pathLabel.textContent = clean || this.inst.t('nav.root');
-        pathLabel.title = clean || this.inst.t('nav.root');
+        const displayPath = this.inst.stateManager
+          ? this.inst.stateManager.getFriendlyFullPath(clean)
+          : (clean || this.inst.t('nav.root'));
+        pathLabel.textContent = displayPath;
+        pathLabel.title = clean ? `${displayPath} (${clean})` : displayPath;
       }
       const backBtn = pane && pane.querySelector('.split-back-btn');
       const upBtn = pane && pane.querySelector('.split-up-btn');

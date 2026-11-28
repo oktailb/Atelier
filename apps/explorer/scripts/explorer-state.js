@@ -35,6 +35,56 @@
       return url;
     }
 
+    getMountedVolumes() {
+      if (window.sys && window.sys.shares && typeof window.sys.shares.getVolumes === 'function') {
+        return window.sys.shares.getVolumes();
+      }
+      return Array.isArray(window.ATELIER_MOUNTED_VOLUMES) ? window.ATELIER_MOUNTED_VOLUMES : [];
+    }
+
+    getVolumeLabel(vol) {
+      if (!vol || typeof vol !== 'object') return '';
+      return String(vol.mount_name || vol.label || vol.name || vol.path || '');
+    }
+
+    getVolumeIcon(vol) {
+      if (!vol || typeof vol !== 'object') return '💾';
+      const vPath = String(vol.path || '');
+      return vol.mount_icon || vol.icon || (vPath.startsWith('ext://') ? '☁️' : (vol.kind === 'home' || vol.type === 'home' ? '🏠' : '🤝'));
+    }
+
+    getFriendlyPathLabel(dirPath) {
+      const clean = this.normalizePath(dirPath);
+      if (!clean) return this.inst.t('nav.root');
+      const vols = this.getMountedVolumes();
+      for (const vol of vols) {
+        const vp = this.normalizePath(vol && vol.path ? vol.path : '');
+        if (!vp) continue;
+        const label = this.getVolumeLabel(vol);
+        if (clean === vp) return label;
+        if (clean.startsWith(vp + '/')) {
+          return clean.split('/').filter(Boolean).pop() || label;
+        }
+      }
+      return clean.split('/').filter(Boolean).pop() || clean;
+    }
+
+    getFriendlyFullPath(dirPath) {
+      const clean = this.normalizePath(dirPath);
+      if (!clean) return this.inst.t('nav.root');
+      const vols = this.getMountedVolumes();
+      for (const vol of vols) {
+        const vp = this.normalizePath(vol && vol.path ? vol.path : '');
+        if (!vp) continue;
+        const label = this.getVolumeLabel(vol);
+        if (clean === vp) return label;
+        if (clean.startsWith(vp + '/')) {
+          return `${label}/${clean.slice(vp.length + 1)}`;
+        }
+      }
+      return clean;
+    }
+
     /**
      * Maps concrete viewMode ('list'|'grid'|'mosaic'|'polaroid') to UX profile:
      *  - 'pro'        : list (folders first, detailed table, sidebar visible, Commander ready)
@@ -227,7 +277,7 @@
       try {
         const key = `atelier_recent_folders_${this.getUserStorageScope()}`;
         const list = this.getRecentFolders().filter(item => item && item.path !== clean);
-        const name = label || clean.split('/').filter(Boolean).pop() || clean;
+        const name = label || this.getFriendlyPathLabel(clean);
         list.unshift({ path: clean, name, ts: Date.now() });
         localStorage.setItem(key, JSON.stringify(list.slice(0, 8)));
       } catch (e) { }

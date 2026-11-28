@@ -147,11 +147,15 @@
       if (recents.length > 0) {
         html += `<div class="sidebar-sublabel">${this.inst.escapeHtml(this.inst.t('explorer.sidebar_recents'))}</div>`;
         recents.forEach(item => {
-          const isCur = curPath === item.path && !this.inst.state.showFavoritesOnly;
+          const isCur = !this.inst.state.isTrashView && curPath === item.path && !this.inst.state.showFavoritesOnly;
+          const displayName = (this.inst.stateManager && (item.name === item.path || String(item.path || '').startsWith('ext://')))
+            ? this.inst.stateManager.getFriendlyPathLabel(item.path)
+            : item.name;
+          const tooltipPath = this.inst.stateManager ? this.inst.stateManager.getFriendlyFullPath(item.path) : item.path;
           html += `
-            <button type="button" class="sidebar-nav-item sidebar-recent-item ${isCur ? 'active' : ''}" data-nav-path="${this.inst.escapeHtml(item.path)}" title="${this.inst.escapeHtml(item.path)}">
+            <button type="button" class="sidebar-nav-item sidebar-recent-item ${isCur ? 'active' : ''}" data-nav-path="${this.inst.escapeHtml(item.path)}" title="${this.inst.escapeHtml(tooltipPath)}">
               <span class="sidebar-item-icon">🕘</span>
-              <span class="sidebar-item-label">${this.inst.escapeHtml(item.name)}</span>
+              <span class="sidebar-item-label">${this.inst.escapeHtml(displayName)}</span>
             </button>`;
         });
       }
@@ -180,13 +184,19 @@
 
       host.innerHTML = volumes.map(vol => {
         const vPath = String(vol.path || '');
-        const isActive = vPath && (curPath === vPath || curPath.startsWith(vPath + '/'));
-        const icon = vol.icon || (vPath.startsWith('ext://') ? '☁️' : (vol.type === 'home' ? '🏠' : '🤝'));
+        const isActive = !this.inst.state.isTrashView && vPath && (curPath === vPath || curPath.startsWith(vPath + '/'));
+        const label = this.inst.stateManager
+          ? this.inst.stateManager.getVolumeLabel(vol)
+          : String(vol.mount_name || vol.label || vol.name || vPath);
+        const icon = this.inst.stateManager
+          ? this.inst.stateManager.getVolumeIcon(vol)
+          : (vol.mount_icon || vol.icon || (vPath.startsWith('ext://') ? '☁️' : (vol.kind === 'home' ? '🏠' : '🤝')));
         const perm = vol.permission === 'write' || vol.permission === 'admin' ? 'RW' : 'R';
+        const tooltip = vol.driver ? `${label} (${String(vol.driver).toUpperCase()} · ${vPath})` : `${label} (${vPath})`;
         return `
-          <button type="button" class="sidebar-nav-item ${isActive ? 'active' : ''}" data-nav-path="${this.inst.escapeHtml(vPath)}" title="${this.inst.escapeHtml(vPath)}">
+          <button type="button" class="sidebar-nav-item ${isActive ? 'active' : ''}" data-nav-path="${this.inst.escapeHtml(vPath)}" title="${this.inst.escapeHtml(tooltip)}">
             <span class="sidebar-item-icon">${icon}</span>
-            <span class="sidebar-item-label">${this.inst.escapeHtml(vol.label || vol.name || vPath)}</span>
+            <span class="sidebar-item-label">${this.inst.escapeHtml(label)}</span>
             <span class="sidebar-perm-badge ${perm === 'RW' ? 'rw' : 'ro'}">${perm}</span>
           </button>`;
       }).join('');
@@ -325,8 +335,9 @@
       const host = this.inst.el.sidebarOrganization;
       if (!host) return;
 
+      const trashActive = Boolean(this.inst.state && this.inst.state.isTrashView);
       let html = `
-        <button type="button" class="sidebar-nav-item" data-action="trash">
+        <button type="button" class="sidebar-nav-item ${trashActive ? 'active' : ''}" data-action="trash">
           <span class="sidebar-item-icon">🗑️</span>
           <span class="sidebar-item-label">${this.inst.escapeHtml(this.inst.t('explorer.sidebar_trash'))}</span>
           ${this.trashCount > 0 ? `<span class="sidebar-badge">${this.trashCount}</span>` : ''}
@@ -348,10 +359,8 @@
 
       host.querySelectorAll('[data-action="trash"]').forEach(btn => {
         btn.onclick = () => {
-          if (window.sys && window.sys.appManager && typeof window.sys.appManager.open === 'function') {
-            window.sys.appManager.open('settings', { tab: 'storage' });
-          } else {
-            this.inst.showToast(this.inst.t('explorer.sidebar_trash_empty'), 'info');
+          if (typeof this.inst.openTrashView === 'function') {
+            this.inst.openTrashView();
           }
         };
       });

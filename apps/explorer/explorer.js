@@ -218,6 +218,7 @@
         foldersGrid: root.querySelector('.folders-grid'),
         mediaSection: root.querySelector('.media-section'),
         mediaGrid: root.querySelector('.media-grid'),
+        trashView: root.querySelector('.explorer-trash-view'),
         loadingState: root.querySelector('.loading-spinner'),
         emptyState: root.querySelector('.empty-state'),
         filterPills: root.querySelector('.filter-pills'),
@@ -380,6 +381,9 @@
 
     async loadDirectory(dirPath) {
       const cleanPath = (dirPath === '.' || !dirPath) ? '' : String(dirPath).trim();
+      this.state.isTrashView = false;
+      if (this.el.trashView) this.el.trashView.style.display = 'none';
+      if (this.el.mediaSection) this.el.mediaSection.style.display = '';
       this.showLoading(true);
       this.state.currentPath = cleanPath;
 
@@ -578,10 +582,13 @@
       nav.innerHTML = crumbs.map((crumb, idx) => {
         const isLast = idx === crumbs.length - 1;
         const isRoot = idx === 0 || crumb.path === '' || crumb.path === '.';
+        const displayName = (!isRoot && this.stateManager && crumb.path && String(crumb.path).startsWith('ext://') && (!crumb.name || crumb.name === crumb.path))
+          ? this.stateManager.getFriendlyPathLabel(crumb.path)
+          : crumb.name;
         const contentHtml = isRoot
           ? `<span class="crumb-root-icon" aria-hidden="true">💾</span> <span class="crumb-root-name" data-i18n="nav.root">${this.escapeHtml(rootLabel)}</span>`
-          : `<span>${this.escapeHtml(crumb.name)}</span>`;
-        const titleAttr = isRoot ? `data-i18n-title="nav.root" title="${this.escapeHtml(rootLabel)}"` : `title="${this.escapeHtml(crumb.name)}"`;
+          : `<span>${this.escapeHtml(displayName)}</span>`;
+        const titleAttr = isRoot ? `data-i18n-title="nav.root" title="${this.escapeHtml(rootLabel)}"` : `title="${this.escapeHtml(displayName)}"`;
 
         if (isLast) {
           return `<span class="crumb-item crumb-active ${isRoot ? 'crumb-root-item' : ''}" ${titleAttr}>${contentHtml}</span>`;
@@ -1272,6 +1279,154 @@
       `;
     }
 
+    // -------------------------------------------------------------
+    // INLINE TRASH BIN VIEW (30-Day Soft Delete, Restore & Purge)
+    // -------------------------------------------------------------
+    async openTrashView() {
+      const host = this.el.trashView;
+      if (!host) return;
+
+      this.state.isTrashView = true;
+      this.clearSelection();
+      if (this.el.folderSection) this.el.folderSection.style.display = 'none';
+      if (this.el.mediaSection) this.el.mediaSection.style.display = 'none';
+      if (this.el.emptyState) this.el.emptyState.style.display = 'none';
+      if (this.el.searchResultsBanner) this.el.searchResultsBanner.style.display = 'none';
+      host.style.display = 'block';
+
+      if (this.sidebarManager) this.sidebarManager.renderAll();
+
+      this.showLoading(true);
+      try {
+        const res = await window.sys.api.get('list_trash');
+        const items = (res && res.success && Array.isArray(res.items)) ? res.items : [];
+        if (this.sidebarManager) {
+          this.sidebarManager.trashCount = items.length;
+          this.sidebarManager.renderOrganization();
+        }
+        this._renderTrashView(items);
+      } catch (err) {
+        this.showToast('⚠️ ' + this.t('explorer.err_network', { message: err.message }), 'error');
+        this._renderTrashView([]);
+      } finally {
+        this.showLoading(false);
+      }
+    }
+
+    exitTrashView() {
+      this.state.isTrashView = false;
+      if (this.el.trashView) this.el.trashView.style.display = 'none';
+      if (this.el.mediaSection) this.el.mediaSection.style.display = '';
+      this.loadDirectory(this.state.currentPath || '');
+    }
+
+    _renderTrashView(items) {
+      const host = this.el.trashView;
+      if (!host) return;
+      const fmtSize = (b) => this.stateManager ? this.stateManager.formatBytes(b) : `${b || 0} B`;
+
+      const emptyBtnHtml = items.length > 0
+        ? `<button type="button" class="trash-btn trash-btn-danger trash-empty-all-btn">🗑️ ${this.escapeHtml(this.t('explorer.trash_empty_all'))}</button>`
+        : '';
+
+      const rowsHtml = items.length === 0
+        ? `<div class="trash-empty-state"><div class="empty-state-icon">🗑️</div><p>${this.escapeHtml(this.t('explorer.sidebar_trash_empty'))}</p></div>`
+        : `<div class="trash-list">${items.map(item => {
+            const id = String(item.id || '');
+            const icon = item.is_dir ? '📁' : '📄';
+            const name = item.name || id;
+            const orig = item.original_path || '/';
+            const dateStr = item.deleted_at ? new Date(Number(item.deleted_at) * 1000).toLocaleString() : '—';
+            const sizeStr = fmtSize(item.size_bytes || 0);
+            return `
+              <div class="trash-row" data-trash-id="${this.escapeHtml(id)}">
+                <span class="trash-row-icon">${icon}</span>
+                <div class="trash-row-main">
+                  <div class="trash-row-name">${this.escapeHtml(name)}</div>
+                  <div class="trash-row-meta">
+                    <span title="${this.escapeHtml(this.t('explorer.trash_original_path'))}">📍 ${this.escapeHtml(orig)}</span>
+                    <span>·</span>
+                    <span>${this.escapeHtml(sizeStr)}</span>
+                    <span>·</span>
+                    <span title="${this.escapeHtml(this.t('explorer.trash_deleted_at'))}">🕒 ${this.escapeHtml(dateStr)}</span>
+                  </div>
+                </div>
+                <div class="trash-row-actions">
+                  <button type="button" class="trash-btn trash-btn-restore" data-restore-id="${this.escapeHtml(id)}">↩️ ${this.escapeHtml(this.t('explorer.trash_restore'))}</button>
+                  <button type="button" class="trash-btn trash-btn-danger" data-purge-id="${this.escapeHtml(id)}" data-purge-name="${this.escapeHtml(name)}">✕ ${this.escapeHtml(this.t('explorer.trash_purge'))}</button>
+                </div>
+              </div>`;
+          }).join('')}</div>`;
+
+      host.innerHTML = `
+        <div class="trash-header">
+          <div>
+            <h2 class="trash-title">🗑️ ${this.escapeHtml(this.t('explorer.trash_title'))} (${items.length})</h2>
+            <p class="trash-desc">${this.escapeHtml(this.t('explorer.trash_desc'))}</p>
+          </div>
+          <div class="trash-header-actions">
+            ${emptyBtnHtml}
+            <button type="button" class="trash-btn trash-exit-btn">← ${this.escapeHtml(this.t('explorer.trash_exit'))}</button>
+          </div>
+        </div>
+        ${rowsHtml}
+      `;
+
+      const exitBtn = host.querySelector('.trash-exit-btn');
+      if (exitBtn) exitBtn.onclick = () => this.exitTrashView();
+
+      const emptyBtn = host.querySelector('.trash-empty-all-btn');
+      if (emptyBtn) {
+        emptyBtn.onclick = async () => {
+          const msg = this.t('explorer.trash_confirm_empty', { count: items.length });
+          const ok = (window.sys && window.sys.dialog && typeof window.sys.dialog.confirm === 'function')
+            ? await window.sys.dialog.confirm(msg, this.t('explorer.trash_title'), true)
+            : true;
+          if (!ok) return;
+          const res = await window.sys.api.post('empty_trash', {});
+          if (res && res.success) {
+            this.showToast(this.t('explorer.trash_emptied_ok'), 'success');
+            await this.openTrashView();
+          } else {
+            this.showToast('⚠️ ' + ((res && res.error) || this.t('explorer.err_delete_failed')), 'error');
+          }
+        };
+      }
+
+      host.querySelectorAll('[data-restore-id]').forEach(btn => {
+        btn.onclick = async () => {
+          const trashId = btn.dataset.restoreId;
+          const res = await window.sys.api.post('restore_trash_item', { trash_id: trashId });
+          if (res && res.success) {
+            this.showToast(this.t('explorer.trash_restored_ok'), 'success');
+            if (window.EventBus) window.EventBus.emit('fs:changed', { action: 'restore_trash' });
+            await this.openTrashView();
+          } else {
+            this.showToast('⚠️ ' + ((res && res.error) || this.t('explorer.err_unknown')), 'error');
+          }
+        };
+      });
+
+      host.querySelectorAll('[data-purge-id]').forEach(btn => {
+        btn.onclick = async () => {
+          const trashId = btn.dataset.purgeId;
+          const name = btn.dataset.purgeName || trashId;
+          const msg = this.t('explorer.trash_confirm_purge', { name });
+          const ok = (window.sys && window.sys.dialog && typeof window.sys.dialog.confirm === 'function')
+            ? await window.sys.dialog.confirm(msg, this.t('explorer.trash_title'), true)
+            : true;
+          if (!ok) return;
+          const res = await window.sys.api.post('purge_trash_item', { trash_id: trashId });
+          if (res && res.success) {
+            this.showToast(this.t('explorer.trash_purged_ok'), 'info');
+            await this.openTrashView();
+          } else {
+            this.showToast('⚠️ ' + ((res && res.error) || this.t('explorer.err_delete_failed')), 'error');
+          }
+        };
+      });
+    }
+
     onLocaleChanged() {
       if (this.containerEl) {
         this.containerEl.querySelectorAll('[data-i18n]').forEach(el => {
@@ -1604,7 +1759,11 @@
               inst.sidebarManager.invalidateTreeCache();
               inst.sidebarManager.loadOrganizationMeta();
             }
-            inst.loadDirectory(inst.state.currentPath);
+            if (inst.state && inst.state.isTrashView && typeof inst.openTrashView === 'function') {
+              inst.openTrashView();
+            } else {
+              inst.loadDirectory(inst.state.currentPath);
+            }
             if (inst.splitPaneManager) inst.splitPaneManager.refreshIfOpen();
           });
         });
