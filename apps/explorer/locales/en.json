@@ -162,5 +162,18 @@
   "explorer.adv_search_tag_label": "Tag",
   "explorer.adv_search_tag_placeholder": "Filter by tag...",
   "explorer.adv_search_btn_title": "Multi-criteria advanced search",
-  "explorer.search_index_badge": "SQLite Index"
+  "explorer.search_index_badge": "SQLite Index",
+  "explorer.list_folder_type": "Folder",
+  "explorer.list_select_all": "Select all",
+  "explorer.list_sort_col": "Sort by {col}",
+  "explorer.ctx_quicklook": "Quick Look (Space)",
+  "explorer.ql_loading": "Loading preview...",
+  "explorer.ql_prev": "Previous item (←)",
+  "explorer.ql_next": "Next item (→)",
+  "explorer.ql_archive_summary": "{count} file(s) · {size}",
+  "explorer.ql_archive_empty": "Unable to list archive contents.",
+  "explorer.ql_text_truncated": "Preview truncated to first 64 KB.",
+  "explorer.ql_unsupported": "Inline preview unavailable for this format.",
+  "explorer.ql_error": "Unable to load preview.",
+  "explorer.chunk_loading_more": "Showing {shown} of {total} items..."
 }

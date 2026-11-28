@@ -110,13 +110,19 @@
         }
       }
 
-      // 7. Primary or secondary pane Folder item
-      const folderCard = target.closest('.folder-card[data-path]');
+      // 7. Primary or secondary pane Folder item (cards or unified list folder rows)
+      const folderCard = target.closest('.folder-card[data-path], .list-table-row-folder[data-path]');
       if (folderCard) {
         const folderPath = folderCard.dataset.path;
         const folderObj = (this.inst.state.directories || []).find(d => d.path === folderPath)
           || { path: folderPath, name: folderPath.split('/').pop() };
         this.showFolderContextMenu(folderObj, e.clientX, e.clientY);
+        return;
+      }
+      // 7b. Table header sort menu
+      const listHeader = target.closest('.list-table-header');
+      if (listHeader) {
+        this.showColumnSortContextMenu(e.clientX, e.clientY);
         return;
       }
       const splitFolder = target.closest('.split-row-folder[data-path]');
@@ -222,6 +228,13 @@
       const isLoggedIn = Boolean(isAdmin || (window.sys && window.sys.shares && window.sys.shares.isLoggedIn && window.sys.shares.isLoggedIn()));
 
       this._addItem(menu, '▶️', this.inst.t('explorer.open'), () => this.inst.openMedia(file, index));
+      this._addItem(menu, '👁️', this.inst.t('explorer.ctx_quicklook'), () => {
+        if (typeof this.inst.openQuickLook === 'function') {
+          this.inst.openQuickLook(index);
+        } else {
+          this.inst.openMedia(file, index);
+        }
+      });
       this._addItem(menu, 'ℹ️', this.inst.t('explorer.details'), () => {
         this.inst.state.selectedPaths.clear();
         this.inst.state.selectedPaths.add(file.path);
@@ -686,6 +699,28 @@
         else this.inst.loadDirectory(this.inst.state.currentPath || '');
       });
 
+      this._mountMenu(menu, clientX, clientY);
+    }
+
+    // -------------------------------------------------------------
+    // 8b. LIST COLUMN HEADER SORT CONTEXT MENU
+    // -------------------------------------------------------------
+    showColumnSortContextMenu(clientX, clientY) {
+      this.close();
+      const menu = document.createElement('div');
+      menu.className = 'explorer-open-with-menu';
+      const curSort = this.inst.state.sortBy || 'name';
+      const curOrder = this.inst.state.sortOrder || 'asc';
+      const pick = (col) => {
+        const nextOrder = (curSort === col && curOrder === 'asc') ? 'desc' : 'asc';
+        this.inst.setSort(col, nextOrder);
+      };
+
+      this._addHeader(menu, this.inst.t('sort.title'));
+      this._addItem(menu, '🔤', this.inst.t('explorer.list_name'), () => pick('name'), { active: curSort === 'name' });
+      this._addItem(menu, '🏷️', this.inst.t('explorer.list_type'), () => pick('category'), { active: curSort === 'category' });
+      this._addItem(menu, '📏', this.inst.t('explorer.list_size'), () => pick('size'), { active: curSort === 'size' });
+      this._addItem(menu, '📅', this.inst.t('explorer.list_date'), () => pick('date'), { active: curSort === 'date' || curSort === 'mtime' || curSort === 'exif_date' });
       this._mountMenu(menu, clientX, clientY);
     }
 

@@ -2471,7 +2471,7 @@ try {
   assert("Phase G (Fix Lot 3): Vue Liste détaillée (thème clair, colonnes minmax, boutons non-absolus, fallback icône), pré-remplissage Renommer & zéro 'undefined élément(s)'",
     !listViewCss.includes('color: #ffffff;') &&
     listViewCss.includes('position: static !important;') &&
-    listViewCss.includes('minmax(140px, 1fr)') &&
+    /minmax\(\d+px,\s*1fr\)/.test(listViewCss) &&
     listViewJs.includes('list-preview-fallback') &&
     listViewJs.includes('file.date_formatted') &&
     expOpsSrc.includes('defaultValue: oldName') &&
@@ -2522,6 +2522,68 @@ try {
     expSidebarSrc.includes('tag.label || tag.name') &&
     expSidebarSrc.includes('refreshOrganizationMeta(') &&
     lot4Parity
+  );
+
+  // Phase G — Lot 5: Unified Pro List View (folders first, sortable headers ▲/▼, checkboxes), Quick Look (Space) & Chunked Rendering + Nav Cache
+  const expQlPath = path.join(rootDir, 'apps/explorer/scripts/explorer-quicklook.js');
+  const expQlSrc = fs.existsSync(expQlPath) ? fs.readFileSync(expQlPath, 'utf8') : '';
+  const lot5Fr = JSON.parse(fs.readFileSync(path.join(rootDir, 'apps/explorer/locales/fr.json'), 'utf8'));
+  const lot5En = JSON.parse(fs.readFileSync(path.join(rootDir, 'apps/explorer/locales/en.json'), 'utf8'));
+  const lot5Ja = JSON.parse(fs.readFileSync(path.join(rootDir, 'apps/explorer/locales/ja.json'), 'utf8'));
+  const lot5FrKeys = Object.keys(lot5Fr).sort();
+  const lot5Parity = (
+    lot5FrKeys.length >= 175 &&
+    JSON.stringify(lot5FrKeys) === JSON.stringify(Object.keys(lot5En).sort()) &&
+    JSON.stringify(lot5FrKeys) === JSON.stringify(Object.keys(lot5Ja).sort())
+  );
+
+  // Runtime test of ListViewPlugin: folders rendered BEFORE files + sort arrow + checkboxes + compact badges
+  let listPluginRegistered = null;
+  const listSandboxWin = {
+    GalleryViewRegistry: { register(p) { listPluginRegistered = p; } }
+  };
+  new Function('window', listViewJs)(listSandboxWin);
+  const renderedListHtml = listPluginRegistered ? listPluginRegistered.renderContainer(
+    [{ name: 'alpha.jpg', path: 'alpha.jpg', category: 'image', size: 1024, size_formatted: '1 KB', mtime: 1700000000, thumb_url: 't.jpg', tags: ['vacances'] }],
+    {
+      t: k => k,
+      escapeHtml: s => String(s || ''),
+      isAdmin: true,
+      userRights: { can_delete: true, can_comment: true },
+      favorites: [],
+      selectedPaths: new Set(),
+      directories: [{ name: 'ZFolder', path: 'ZFolder', mtime: 1700000000, item_count: 3, is_shared: true }],
+      sortBy: 'name',
+      sortOrder: 'asc'
+    }
+  ) : '';
+  const folderIdx = renderedListHtml.indexOf('list-table-row-folder');
+  const fileIdx = renderedListHtml.indexOf('data-index="0"');
+  const foldersBeforeFiles = folderIdx > -1 && fileIdx > -1 && folderIdx < fileIdx;
+
+  assert("Phase G (Lot 5): Vue Liste Pro unifiée (dossiers en premier, tri ▲/▼, cases à cocher, badges), Quick Look (Espace) & rendu par lots + cache navigation",
+    fs.existsSync(expQlPath) &&
+    expManifestSrc.includes('scripts/explorer-quicklook.js') &&
+    !/\bfetch\s*\(/.test(expQlSrc) &&
+    expQlSrc.includes('ArrowLeft') &&
+    expQlSrc.includes('ArrowRight') &&
+    expQlSrc.includes('getText') &&
+    expQlSrc.includes('get_metadata') &&
+    expQlSrc.includes('ql-pdf-frame') &&
+    expQlSrc.includes('ql-archive-view') &&
+    foldersBeforeFiles &&
+    renderedListHtml.includes('list-select-all-cb') &&
+    renderedListHtml.includes('list-row-cb') &&
+    renderedListHtml.includes('data-sort-col="name"') &&
+    renderedListHtml.includes('▲') &&
+    renderedListHtml.includes('badge-tag') &&
+    explorerJs.includes('_setupChunkedRendering(') &&
+    explorerJs.includes('IntersectionObserver') &&
+    explorerJs.includes('invalidateDirCache(') &&
+    explorerJs.includes('openQuickLook(') &&
+    expCtxSrc.includes('showColumnSortContextMenu') &&
+    expCtxSrc.includes('explorer.ctx_quicklook') &&
+    lot5Parity
   );
 } catch (e) {
   assert("Phase 1 exécution runtime UI", false, e.stack);

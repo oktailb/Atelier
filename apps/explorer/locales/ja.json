@@ -162,5 +162,18 @@
   "explorer.adv_search_tag_label": "タグ",
   "explorer.adv_search_tag_placeholder": "タグで絞り込み...",
   "explorer.adv_search_btn_title": "複数条件の高度な検索",
-  "explorer.search_index_badge": "SQLite インデックス"
+  "explorer.search_index_badge": "SQLite インデックス",
+  "explorer.list_folder_type": "フォルダ",
+  "explorer.list_select_all": "すべて選択",
+  "explorer.list_sort_col": "{col} で並べ替え",
+  "explorer.ctx_quicklook": "クイックルック (Space)",
+  "explorer.ql_loading": "プレビューを読み込み中...",
+  "explorer.ql_prev": "前の項目 (←)",
+  "explorer.ql_next": "次の項目 (→)",
+  "explorer.ql_archive_summary": "{count} 件のファイル · {size}",
+  "explorer.ql_archive_empty": "アーカイブの内容を取得できませんでした。",
+  "explorer.ql_text_truncated": "プレビューは先頭 64 KB で省略されています。",
+  "explorer.ql_unsupported": "この形式のインラインプレビューには対応していません。",
+  "explorer.ql_error": "プレビューを読み込めませんでした。",
+  "explorer.chunk_loading_more": "{total} 件中 {shown} 件を表示中..."
 }

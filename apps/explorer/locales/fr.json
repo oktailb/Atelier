@@ -162,5 +162,18 @@
   "explorer.adv_search_tag_label": "Tag",
   "explorer.adv_search_tag_placeholder": "Filtrer par tag...",
   "explorer.adv_search_btn_title": "Recherche avancée multi-critères",
-  "explorer.search_index_badge": "Index SQLite"
+  "explorer.search_index_badge": "Index SQLite",
+  "explorer.list_folder_type": "Dossier",
+  "explorer.list_select_all": "Tout sélectionner",
+  "explorer.list_sort_col": "Trier par {col}",
+  "explorer.ctx_quicklook": "Aperçu rapide (Espace)",
+  "explorer.ql_loading": "Chargement de l'aperçu...",
+  "explorer.ql_prev": "Élément précédent (←)",
+  "explorer.ql_next": "Élément suivant (→)",
+  "explorer.ql_archive_summary": "{count} fichier(s) · {size}",
+  "explorer.ql_archive_empty": "Impossible de lister le contenu de cette archive.",
+  "explorer.ql_text_truncated": "Aperçu tronqué aux premiers 64 Ko.",
+  "explorer.ql_unsupported": "Aperçu direct indisponible pour ce format.",
+  "explorer.ql_error": "Impossible de charger l'aperçu.",
+  "explorer.chunk_loading_more": "Affichage de {shown} sur {total} éléments..."
 }

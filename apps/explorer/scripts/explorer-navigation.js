@@ -179,7 +179,10 @@
 
     refresh() {
       if (this.inst.sidebarManager) this.inst.sidebarManager.invalidateTreeCache();
-      this.inst.loadDirectory(this.inst.state.currentPath || '');
+      if (typeof this.inst.invalidateDirCache === 'function') {
+        this.inst.invalidateDirCache(this.inst.state.currentPath || '');
+      }
+      this.inst.loadDirectory(this.inst.state.currentPath || '', { forceRefresh: true });
     }
 
     updateNavButtonsUI() {

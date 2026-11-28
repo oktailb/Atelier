@@ -21,6 +21,9 @@
 
     selectAll() {
       this.inst.state.selectedPaths.clear();
+      if (this.inst.state.viewMode === 'list') {
+        (this.inst.state.directories || []).forEach(d => this.inst.state.selectedPaths.add(d.path));
+      }
       (this.inst.state.filteredFiles || []).forEach(f => this.inst.state.selectedPaths.add(f.path));
       this.updateSelectionUI();
     }
@@ -73,11 +76,29 @@
           const idx = parseInt(card.dataset.index, 10);
           const file = this.inst.state.filteredFiles[idx];
           if (file) {
-            card.classList.toggle('selected', this.inst.state.selectedPaths.has(file.path));
+            const isSel = this.inst.state.selectedPaths.has(file.path);
+            card.classList.toggle('selected', isSel);
+            const cb = card.querySelector('.list-row-cb');
+            if (cb) cb.checked = isSel;
           }
         });
+        el.mediaGrid.querySelectorAll('.list-table-row-folder[data-path]').forEach(row => {
+          const isSel = this.inst.state.selectedPaths.has(row.dataset.path);
+          row.classList.toggle('selected', isSel);
+          const cb = row.querySelector('.list-row-cb');
+          if (cb) cb.checked = isSel;
+        });
+        const masterCb = el.mediaGrid.querySelector('.list-select-all-cb');
+        if (masterCb) {
+          const totalRows = (this.inst.state.viewMode === 'list' ? (this.inst.state.directories || []).length : 0) + (this.inst.state.filteredFiles || []).length;
+          masterCb.checked = totalRows > 0 && count >= totalRows;
+          masterCb.indeterminate = count > 0 && count < totalRows;
+        }
       }
 
+      if (this.inst.navigationManager) {
+        this.inst.navigationManager.updateStatusBar();
+      }
       this.inst.updateInspectorUI();
     }
 

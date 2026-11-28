@@ -53,6 +53,10 @@
       this.isSearchModalOpen = false;
 
       this.emptyDragImage = new Image();
+      this._dirCache = new Map();
+      this._dirCacheTtlMs = 60000;
+      this._renderGeneration = 0;
+      this._chunkObserver = null;
 
       this.initContainer();
       this.initElements();
@@ -79,6 +83,7 @@
       this.sidebarManager = window.ExplorerSidebarManager ? new window.ExplorerSidebarManager(this) : null;
       this.splitPaneManager = window.ExplorerSplitPaneManager ? new window.ExplorerSplitPaneManager(this) : null;
       this.transfersManager = window.ExplorerTransfersManager ? new window.ExplorerTransfersManager(this) : null;
+      this.quickLookManager = window.ExplorerQuickLookManager ? new window.ExplorerQuickLookManager(this) : null;
 
       if (this.dragDropManager && typeof this.dragDropManager.init === 'function') {
         this.dragDropManager.init();
@@ -169,6 +174,9 @@
       if (this.navigationManager && typeof this.navigationManager.destroy === 'function') this.navigationManager.destroy();
       if (this.sidebarManager && typeof this.sidebarManager.destroy === 'function') this.sidebarManager.destroy();
       if (this.transfersManager && typeof this.transfersManager.destroy === 'function') this.transfersManager.destroy();
+      if (this.quickLookManager && typeof this.quickLookManager.destroy === 'function') this.quickLookManager.destroy();
+      this._disconnectChunkObserver();
+      if (this._dirCache) this._dirCache.clear();
 
       if (this.containerEl && this.containerEl.parentNode) {
         this.containerEl.parentNode.removeChild(this.containerEl);
@@ -381,23 +389,59 @@
     }
 
     // -------------------------------------------------------------
-    // NAVIGATION & DIRECTORY LOADING
+    // NAVIGATION, DIRECTORY CACHE & LOADING
     // -------------------------------------------------------------
-    navigateTo(dirPath) {
-      const cleanPath = (dirPath === '.' || !dirPath) ? '' : String(dirPath).trim();
-      this.loadDirectory(cleanPath);
+    invalidateDirCache(dirPath = null) {
+      if (!this._dirCache) return;
+      if (dirPath === null || dirPath === undefined) {
+        this._dirCache.clear();
+      } else {
+        const clean = (dirPath === '.' || !dirPath) ? '' : String(dirPath).trim();
+        this._dirCache.delete(clean);
+      }
     }
 
-    async loadDirectory(dirPath) {
+    _disconnectChunkObserver() {
+      if (this._chunkObserver) {
+        try { this._chunkObserver.disconnect(); } catch (e) { }
+        this._chunkObserver = null;
+      }
+    }
+
+    navigateTo(dirPath, options = {}) {
       const cleanPath = (dirPath === '.' || !dirPath) ? '' : String(dirPath).trim();
+      this.loadDirectory(cleanPath, options);
+    }
+
+    async loadDirectory(dirPath, options = {}) {
+      const cleanPath = (dirPath === '.' || !dirPath) ? '' : String(dirPath).trim();
+      const forceRefresh = Boolean(options && options.forceRefresh);
       this.state.isTrashView = false;
       if (this.el.trashView) this.el.trashView.style.display = 'none';
       if (this.el.mediaSection) this.el.mediaSection.style.display = '';
-      this.showLoading(true);
       this.state.currentPath = cleanPath;
 
+      let json = null;
+      const cached = (!forceRefresh && this._dirCache) ? this._dirCache.get(cleanPath) : null;
+      if (cached && (Date.now() - cached.ts) < this._dirCacheTtlMs) {
+        json = cached.data;
+      }
+
+      if (!json) {
+        this.showLoading(true);
+      }
+
       try {
-        const json = await window.sys.api.get('get_gallery', { dir: cleanPath, _t: Date.now() });
+        if (!json) {
+          json = await window.sys.api.get('get_gallery', { dir: cleanPath, _t: Date.now() });
+          if (json && json.success && this._dirCache) {
+            if (this._dirCache.size >= 30) {
+              const oldestKey = this._dirCache.keys().next().value;
+              if (oldestKey !== undefined) this._dirCache.delete(oldestKey);
+            }
+            this._dirCache.set(cleanPath, { ts: Date.now(), data: json });
+          }
+        }
 
         if (!json || !json.success) {
           this.state.directories = [];
@@ -644,6 +688,14 @@
     renderFolders(folders) {
       if (!this.el.folderSection || !this.el.foldersGrid) return;
 
+      // In Pro List mode, folders are rendered first inside the unified table
+      const activePlugin = window.GalleryViewRegistry && window.GalleryViewRegistry.get(this.state.viewMode);
+      if (this.state.viewMode === 'list' && activePlugin && activePlugin.supportsUnifiedFolders) {
+        this.el.folderSection.style.display = 'none';
+        this.el.foldersGrid.innerHTML = '';
+        return;
+      }
+
       if (!folders || folders.length === 0) {
         this.el.folderSection.style.display = 'none';
         this.el.foldersGrid.innerHTML = '';
@@ -767,9 +819,21 @@
 
     renderMedia() {
       if (!this.el.mediaGrid) return;
-      const list = this.state.filteredFiles;
+      this._disconnectChunkObserver();
+      const renderGen = ++this._renderGeneration;
+      const list = this.state.filteredFiles || [];
 
-      if (list.length === 0) {
+      const viewPlugin = (window.GalleryViewRegistry && window.GalleryViewRegistry.get(this.state.viewMode))
+        || (window.GalleryViewRegistry && window.GalleryViewRegistry.get('polaroid'))
+        || (window.GalleryViewRegistry && window.GalleryViewRegistry.getAll()[0]);
+      const isUnifiedList = Boolean(this.state.viewMode === 'list' && viewPlugin && viewPlugin.supportsUnifiedFolders);
+      const sortedDirs = (isUnifiedList && !this.state.isSearchActive && !this.state.showFavoritesOnly)
+        ? (this.stateManager && typeof this.stateManager.computeSortedDirectories === 'function'
+            ? this.stateManager.computeSortedDirectories()
+            : [...(this.state.directories || [])])
+        : [];
+
+      if (list.length === 0 && (!isUnifiedList || sortedDirs.length === 0)) {
         if (this.state.showFavoritesOnly) {
           this.el.emptyState.style.display = 'block';
           this.el.mediaGrid.style.display = 'none';
@@ -827,25 +891,86 @@
         isAdmin: this.state.isAdmin,
         userRights: this.state.userRights,
         favorites: this.state.favorites,
+        selectedPaths: this.state.selectedPaths,
         smartLocationsMap: smartLocationsMap,
+        directories: sortedDirs,
+        sortBy: this.state.sortBy || 'name',
+        sortOrder: this.state.sortOrder || 'asc',
+        totalFileCount: list.length,
         isDraggable: canMove ? 'true' : 'false',
         handleClass: canMove ? 'drag-handle' : ''
       };
 
-      const viewPlugin = (window.GalleryViewRegistry && window.GalleryViewRegistry.get(this.state.viewMode))
-        || (window.GalleryViewRegistry && window.GalleryViewRegistry.get('polaroid'))
-        || (window.GalleryViewRegistry && window.GalleryViewRegistry.getAll()[0]);
+      const RENDER_BATCH_SIZE = 80;
+      const initialSlice = list.length > RENDER_BATCH_SIZE ? list.slice(0, RENDER_BATCH_SIZE) : list;
 
       if (viewPlugin) {
         this.el.mediaGrid.className = `media-grid ${viewPlugin.containerClass || 'polaroid-grid'}`;
         if (typeof viewPlugin.renderContainer === 'function') {
-          this.el.mediaGrid.innerHTML = viewPlugin.renderContainer(list, context);
+          this.el.mediaGrid.innerHTML = viewPlugin.renderContainer(initialSlice, context);
         } else if (typeof viewPlugin.renderItem === 'function') {
-          this.el.mediaGrid.innerHTML = list.map((file, idx) => viewPlugin.renderItem(file, idx, context)).join('');
+          this.el.mediaGrid.innerHTML = initialSlice.map((file, idx) => viewPlugin.renderItem(file, idx, context)).join('');
+        }
+
+        // Progressive chunked rendering for large galleries (> 80 files)
+        if (list.length > RENDER_BATCH_SIZE && typeof viewPlugin.renderItem === 'function') {
+          this._setupChunkedRendering(list, RENDER_BATCH_SIZE, viewPlugin, context, renderGen);
         }
       }
 
+      // Bind folder rows in unified list view as drop targets
+      if (isUnifiedList && this.dragDropManager) {
+        this.el.mediaGrid.querySelectorAll('.list-table-row-folder[data-path]').forEach(row => {
+          this.dragDropManager.bindFolderDropTarget(row, row.dataset.path);
+        });
+      }
+
       this.bindMediaCardEvents();
+    }
+
+    _setupChunkedRendering(list, batchSize, viewPlugin, context, renderGen) {
+      const targetContainer = this.el.mediaGrid.querySelector('.list-table-body') || this.el.mediaGrid;
+      if (!targetContainer) return;
+
+      let renderedCount = batchSize;
+      const sentinel = document.createElement('div');
+      sentinel.className = 'explorer-chunk-sentinel';
+      sentinel.textContent = this.t('explorer.chunk_loading_more', { shown: renderedCount, total: list.length });
+      targetContainer.appendChild(sentinel);
+
+      const appendNextChunk = () => {
+        if (renderGen !== this._renderGeneration) {
+          this._disconnectChunkObserver();
+          return;
+        }
+        const nextEnd = Math.min(list.length, renderedCount + batchSize);
+        let html = '';
+        for (let i = renderedCount; i < nextEnd; i++) {
+          html += viewPlugin.renderItem(list[i], i, context);
+        }
+        sentinel.insertAdjacentHTML('beforebegin', html);
+        renderedCount = nextEnd;
+
+        if (renderedCount >= list.length) {
+          sentinel.remove();
+          this._disconnectChunkObserver();
+        } else {
+          sentinel.textContent = this.t('explorer.chunk_loading_more', { shown: renderedCount, total: list.length });
+        }
+      };
+
+      if (typeof IntersectionObserver === 'function') {
+        const scrollRoot = this.el.mainArea || null;
+        this._chunkObserver = new IntersectionObserver((entries) => {
+          if (entries.some(e => e.isIntersecting)) {
+            appendNextChunk();
+          }
+        }, { root: scrollRoot, rootMargin: '280px 0px' });
+        this._chunkObserver.observe(sentinel);
+      } else {
+        // Graceful fallback when IntersectionObserver is unavailable
+        sentinel.onclick = appendNextChunk;
+      }
     }
 
     updateViewModeButtonsUI() {
@@ -868,6 +993,7 @@
       }
 
       this.updateViewModeButtonsUI();
+      this.renderFolders(this.state.directories);
       this.renderMedia();
 
       if (this.navigationManager) {
@@ -887,6 +1013,7 @@
         this.sidebarManager.applyProfileVisibility(resolved.mode);
       }
       this.updateViewModeButtonsUI();
+      this.renderFolders(this.state.directories);
       this.renderMedia();
       if (this.navigationManager) this.navigationManager.updateStatusBar();
       if (this.manager) this.manager.updateViewModeUI();
@@ -904,6 +1031,22 @@
 
       // 1. Delegated Click Listener
       this.el.mediaGrid.addEventListener('click', (e) => {
+        const sortBtn = e.target.closest('.list-sort-btn[data-sort-col]');
+        if (sortBtn) {
+          e.stopPropagation();
+          const col = sortBtn.dataset.sortCol;
+          const cur = (this.state.sortBy === 'mtime' || this.state.sortBy === 'exif_date') ? 'date' : (this.state.sortBy || 'name');
+          const nextOrder = (cur === col && this.state.sortOrder === 'asc') ? 'desc' : 'asc';
+          this.setSort(col, nextOrder);
+          return;
+        }
+
+        const folderSettingsBtn = e.target.closest('.folder-settings-btn[data-path]');
+        if (folderSettingsBtn) {
+          e.stopPropagation();
+          return this.openFolderSettingsModal(folderSettingsBtn.dataset.path);
+        }
+
         const gpsBtn = e.target.closest('.gps-badge[data-path]');
         if (gpsBtn) {
           e.stopPropagation();
@@ -913,7 +1056,7 @@
         const delBtn = e.target.closest('.delete-item-btn');
         if (delBtn) {
           e.stopPropagation();
-          return this.openDeleteConfirmModal(delBtn.dataset.path, delBtn.dataset.name, 'file');
+          return this.openDeleteConfirmModal(delBtn.dataset.path, delBtn.dataset.name, delBtn.dataset.type || 'file');
         }
 
         const favBtn = e.target.closest('.favorite-btn');
@@ -926,6 +1069,29 @@
         if (commBtn) {
           e.stopPropagation();
           return this.openMediaCommentModal(commBtn.dataset.filename, commBtn.dataset.comment);
+        }
+
+        // Unified List Folder Row click
+        const folderRow = e.target.closest('.list-table-row-folder[data-path]');
+        if (folderRow && this.el.mediaGrid.contains(folderRow)) {
+          if (e.target.closest('button, input, a')) return;
+          const folderPath = folderRow.dataset.path;
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (this.state.selectedPaths.has(folderPath)) this.state.selectedPaths.delete(folderPath);
+            else this.state.selectedPaths.add(folderPath);
+            this.updateSelectionUI();
+            return;
+          }
+          const isProtected = folderRow.dataset.protected === '1';
+          const isUnlocked = folderRow.dataset.unlocked === '1';
+          if (isProtected && !isUnlocked && !this.state.isAdmin) {
+            this.openFolderUnlockModal(folderPath);
+          } else {
+            this.navigateTo(folderPath);
+          }
+          return;
         }
 
         const card = e.target.closest('[data-index]');
@@ -959,8 +1125,52 @@
         }
       });
 
+      // 1b. Delegated Checkbox Selection (Unified List View)
+      this.el.mediaGrid.addEventListener('change', (e) => {
+        const masterCb = e.target.closest('.list-select-all-cb');
+        if (masterCb) {
+          if (masterCb.checked) this.selectAll();
+          else this.clearSelection();
+          return;
+        }
+        const rowCb = e.target.closest('.list-row-cb[data-select-path]');
+        if (rowCb) {
+          const p = rowCb.dataset.selectPath;
+          if (rowCb.checked) this.state.selectedPaths.add(p);
+          else this.state.selectedPaths.delete(p);
+          if (rowCb.dataset.selectIndex !== undefined) {
+            this.state.lastSelectedIndex = parseInt(rowCb.dataset.selectIndex, 10);
+          }
+          this.updateSelectionUI();
+        }
+      });
+
+      // 1c. Middle-click on unified folder row opens new tab
+      this.el.mediaGrid.addEventListener('auxclick', (e) => {
+        if (e.button !== 1) return;
+        const folderRow = e.target.closest('.list-table-row-folder[data-path]');
+        if (folderRow && this.navigationManager) {
+          e.preventDefault();
+          this.navigationManager.createTab(folderRow.dataset.path, { activate: true });
+        }
+      });
+
       // 2. Delegated Double Click Listener
       this.el.mediaGrid.addEventListener('dblclick', (e) => {
+        const folderRow = e.target.closest('.list-table-row-folder[data-path]');
+        if (folderRow && this.el.mediaGrid.contains(folderRow)) {
+          if (e.target.closest('button, input, a')) return;
+          e.preventDefault();
+          const folderPath = folderRow.dataset.path;
+          const isProtected = folderRow.dataset.protected === '1';
+          const isUnlocked = folderRow.dataset.unlocked === '1';
+          if (isProtected && !isUnlocked && !this.state.isAdmin) {
+            this.openFolderUnlockModal(folderPath);
+          } else {
+            this.navigateTo(folderPath);
+          }
+          return;
+        }
         const card = e.target.closest('[data-index]');
         if (card && this.el.mediaGrid.contains(card)) {
           if (e.target.closest('button, input, a, .pip-card-btn')) return;
@@ -975,6 +1185,25 @@
 
       // 3. Delegated Drag Start Listener (scoped to this instance)
       this.el.mediaGrid.addEventListener('dragstart', (e) => {
+        const folderRow = e.target.closest('.list-table-row-folder[data-path]');
+        if (folderRow && canMove()) {
+          const folderPath = folderRow.dataset.path;
+          const folderObj = (this.state.directories || []).find(d => d.path === folderPath) || { path: folderPath, name: folderPath.split('/').pop() };
+          const pathsToMove = this.state.selectedPaths.has(folderPath) ? Array.from(this.state.selectedPaths) : [folderPath];
+          this.state.draggingPaths = pathsToMove;
+          this.state.draggingItemPath = folderPath;
+          window.ATELIER_DRAGGING_PATHS = pathsToMove;
+          window.ATELIER_DRAG_SOURCE_INSTANCE = this.id;
+          const folderData = { type: 'folder', path: folderPath, name: folderObj.name, icon: '📁', cover_url: folderObj.cover || '' };
+          window.ATELIER_DRAGGING_ITEM_DATA = folderData;
+          e.dataTransfer.setData('text/plain', JSON.stringify(pathsToMove));
+          e.dataTransfer.setData('application/json', JSON.stringify(pathsToMove));
+          e.dataTransfer.setData('application/atelier-item', JSON.stringify(folderData));
+          e.dataTransfer.effectAllowed = 'copyMove';
+          folderRow.classList.add('is-dragging');
+          return;
+        }
+
         const card = e.target.closest('[data-index]');
         if (!card || !canMove()) return;
 
@@ -1293,6 +1522,20 @@
       }
     }
 
+    openQuickLook(fileOrIndex) {
+      if (this.quickLookManager && typeof this.quickLookManager.toggle === 'function') {
+        if (fileOrIndex !== undefined) {
+          this.quickLookManager.open(fileOrIndex);
+        } else {
+          this.quickLookManager.toggle();
+        }
+        return;
+      }
+      const first = Array.from(this.state.selectedPaths || [])[0];
+      const file = (this.state.files || []).find(f => f.path === first);
+      if (file && window.sys && window.sys.openFile) window.sys.openFile(file);
+    }
+
     updateInspectorUI() {
       if (this.inspectorManager) this.inspectorManager.updateInspectorUI();
     }
@@ -1582,13 +1825,12 @@
             this.clearSelection();
           }
         } else if (e.key === ' ' || e.key === 'Spacebar') {
-          if (this.state.selectedPaths && this.state.selectedPaths.size > 0) {
+          if (this.quickLookManager && this.quickLookManager.isOpen) {
             e.preventDefault();
-            const first = Array.from(this.state.selectedPaths)[0];
-            const file = (this.state.files || []).find(f => f.path === first);
-            if (file && window.sys && window.sys.openFile) {
-              window.sys.openFile(file);
-            }
+            this.quickLookManager.close();
+          } else if (this.state.selectedPaths && this.state.selectedPaths.size > 0) {
+            e.preventDefault();
+            this.openQuickLook();
           }
         } else if (e.key === 'Enter') {
           if (this.state.selectedPaths && this.state.selectedPaths.size > 0) {
@@ -1678,9 +1920,7 @@
       }
       if (this.el.inspectorQuicklookBtn) {
         this.el.inspectorQuicklookBtn.onclick = () => {
-          const first = Array.from(this.state.selectedPaths)[0];
-          const file = (this.state.files || []).find(f => f.path === first);
-          if (file && window.sys && window.sys.openFile) window.sys.openFile(file);
+          this.openQuickLook();
         };
       }
     }
@@ -1808,6 +2048,7 @@
       if (window.EventBus && typeof window.EventBus.on === 'function') {
         window.EventBus.on('fs:changed', () => {
           this.instances.forEach(inst => {
+            if (typeof inst.invalidateDirCache === 'function') inst.invalidateDirCache();
             if (inst.sidebarManager) {
               inst.sidebarManager.invalidateTreeCache();
               inst.sidebarManager.refreshOrganizationMeta();
@@ -1815,7 +2056,7 @@
             if (inst.state && inst.state.isTrashView && typeof inst.openTrashView === 'function') {
               inst.openTrashView();
             } else {
-              inst.loadDirectory(inst.state.currentPath);
+              inst.loadDirectory(inst.state.currentPath, { forceRefresh: true });
             }
             if (inst.splitPaneManager) inst.splitPaneManager.refreshIfOpen();
           });
@@ -1827,6 +2068,7 @@
             : [];
           const mountedPaths = vols.map(v => String(v.path || '').replace(/^\/+|\/+$/g, ''));
           this.instances.forEach(inst => {
+            if (typeof inst.invalidateDirCache === 'function') inst.invalidateDirCache();
             if (typeof inst.loadSavedPreferences === 'function') inst.loadSavedPreferences();
             if (typeof inst.updateViewModeButtonsUI === 'function') inst.updateViewModeButtonsUI();
             if (typeof inst.renderVolumesBar === 'function') inst.renderVolumesBar();

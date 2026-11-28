@@ -366,17 +366,40 @@
         let res = 0;
         if (state.sortBy === 'name') {
           res = a.name.localeCompare(b.name, undefined, { numeric: true });
+        } else if (state.sortBy === 'category' || state.sortBy === 'type') {
+          res = String(a.category || '').localeCompare(String(b.category || '')) || a.name.localeCompare(b.name, undefined, { numeric: true });
         } else if (state.sortBy === 'exif_date') {
           res = (a.effective_mtime || a.mtime) - (b.effective_mtime || b.mtime);
         } else if (state.sortBy === 'date' || state.sortBy === 'mtime') {
-          res = a.mtime - b.mtime;
+          res = (a.mtime || 0) - (b.mtime || 0);
         } else if (state.sortBy === 'size') {
-          res = a.size - b.size;
+          res = (a.size || 0) - (b.size || 0);
         }
         return (state.sortOrder === 'asc') ? res : -res;
       });
 
       return list;
+    }
+
+    computeSortedDirectories() {
+      const state = this.inst.state;
+      let dirs = [...(state.directories || [])];
+      if (state.searchQuery) {
+        const q = state.searchQuery.toLowerCase();
+        dirs = dirs.filter(d => String(d.name || '').toLowerCase().includes(q) || (d.comment && d.comment.toLowerCase().includes(q)));
+      }
+      dirs.sort((a, b) => {
+        let res = 0;
+        if (state.sortBy === 'date' || state.sortBy === 'mtime' || state.sortBy === 'exif_date') {
+          res = (a.mtime || 0) - (b.mtime || 0);
+        } else if (state.sortBy === 'size') {
+          res = (typeof a.item_count === 'number' ? a.item_count : -1) - (typeof b.item_count === 'number' ? b.item_count : -1);
+        } else {
+          res = String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true });
+        }
+        return (state.sortOrder === 'asc') ? res : -res;
+      });
+      return dirs;
     }
   }
 

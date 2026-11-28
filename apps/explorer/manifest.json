@@ -37,7 +37,8 @@
     "scripts/explorer-navigation.js",
     "scripts/explorer-sidebar.js",
     "scripts/explorer-split-pane.js",
-    "scripts/explorer-transfers.js"
+    "scripts/explorer-transfers.js",
+    "scripts/explorer-quicklook.js"
   ],
   "capabilities": [
     "multi-views",

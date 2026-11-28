@@ -365,7 +365,7 @@ flowchart TB
   - **Inspecteur Latéral à 3 onglets** : *Détails & EXIF* (aperçu, métadonnées, commentaire, *Ouvrir avec*), *Tags* (`list_tags` / `set_item_tags`, édition simple ou en lot, filtrage sidebar), *Versions* (`list_file_versions` / `restore_file_version` en 1 clic).
   - **Dialogue « Partager… »** accessible au clic droit (liens signés `/s/<token>` avec expiration/mot de passe/quota/boîte de dépôt + partages inter-utilisateurs/groupes).
   - **Recherche instantanée multi-critères** branchée sur l'index SQLite (`search_file_index`) combinant texte, type, tag, taille, période et portée (dossier courant vs global).
-- [ ] **Lot 5 — Vues Modernisées, Quick Look (`Espace`) & Performance** :
+- [x] **Lot 5 — Vues Modernisées, Quick Look (`Espace`) & Performance** *(Livré & Testé)* :
   - **Vue Liste / Détails Pro** : dossiers en premier dans le tableau, en-têtes de colonnes triables (`▲/▼`), cases à cocher, badges compacts Tags/GPS/Partage.
   - **Quick Look instantané (`Espace`)** : aperçu léger centré (images, vidéos, audio, texte/Markdown/code, PDF, contenu ZIP) navigable aux flèches `←`/`→` sans quitter l'Explorateur.
   - **Performance grandes galeries** : rendu progressif par lots (*chunked rendering* / `IntersectionObserver`) + cache de navigation invalidé sur `fs:changed`.
