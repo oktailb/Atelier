@@ -1,6 +1,7 @@
 /**
- * Atelier by GallusTech - Explorer File Operations & Transfer Manager (apps/explorer/scripts/explorer-operations.js)
- * Handles item moves, clipboard copy/cut/paste, and file uploads via SyscallClient.
+ * Atelier by GallusTech - Explorer File Operations Manager (apps/explorer/scripts/explorer-operations.js)
+ * Handles item moves, in-place renaming (F2), new file creation, duplication,
+ * clipboard copy/cut/paste, path copy, and upload delegation to ExplorerTransfersManager.
  */
 (function (window) {
   'use strict';
@@ -24,7 +25,6 @@
 
       const cleanTarget = (targetDir === '.' || !targetDir) ? '' : String(targetDir).replace(/\/+$/, '').trim();
 
-      // Don't attempt to move items into their current folder
       const itemsToMove = validPaths.filter(p => {
         const cleanP = String(p).replace(/\/+$/, '').trim();
         const parts = cleanP.split('/');
@@ -89,8 +89,129 @@
       }
     }
 
+    async renameItem(itemPath, currentName = '') {
+      if (!itemPath) return;
+      const canMove = this.inst.state.isAdmin || (this.inst.state.userRights && this.inst.state.userRights.can_move);
+      if (!canMove) {
+        this.inst.showToast('⚠️ ' + this.inst.t('explorer.err_move_denied'), 'error');
+        return;
+      }
+
+      const oldName = currentName || String(itemPath).split('/').filter(Boolean).pop() || '';
+      if (!window.sys || !window.sys.dialog || typeof window.sys.dialog.prompt !== 'function') return;
+
+      const nextName = await window.sys.dialog.prompt(
+        this.inst.t('explorer.rename_prompt', { name: oldName }),
+        this.inst.t('explorer.rename_title'),
+        oldName
+      );
+      if (!nextName || !nextName.trim() || nextName.trim() === oldName) return;
+
+      const cleanNew = nextName.trim();
+      try {
+        const json = await window.sys.api.fs.renameItem(itemPath, cleanNew);
+        if (json && json.success) {
+          this.inst.showToast(this.inst.t('explorer.rename_success', { name: cleanNew }), 'success');
+          if (window.EventBus) {
+            window.EventBus.emit('fs:changed', { action: 'rename', source: itemPath, new_name: cleanNew });
+          } else {
+            await this.inst.loadDirectory(this.inst.state.currentPath);
+          }
+        } else {
+          this.inst.showToast('⚠️ ' + ((json && json.error) || this.inst.t('api.err_save_failed')), 'error');
+        }
+      } catch (err) {
+        this.inst.showToast('⚠️ ' + this.inst.t('explorer.err_network', { message: err.message }), 'error');
+      }
+    }
+
+    async renameSelection() {
+      const selected = Array.from(this.inst.state.selectedPaths || []);
+      if (selected.length !== 1) return;
+      const p = selected[0];
+      const name = p.split('/').filter(Boolean).pop() || p;
+      await this.renameItem(p, name);
+    }
+
+    async createNewFile(targetDir = null) {
+      const canUpload = this.inst.state.isAdmin || (this.inst.state.userRights && this.inst.state.userRights.can_upload);
+      if (!canUpload) {
+        this.inst.showToast('⚠️ ' + this.inst.t('explorer.err_upload_denied'), 'error');
+        return;
+      }
+      if (!window.sys || !window.sys.dialog || typeof window.sys.dialog.prompt !== 'function') return;
+
+      const filename = await window.sys.dialog.prompt(
+        this.inst.t('explorer.new_file_prompt'),
+        this.inst.t('explorer.new_file_title'),
+        'note.md'
+      );
+      if (!filename || !filename.trim()) return;
+
+      const cleanName = filename.trim().replace(/[\/\\]/g, '');
+      const destDir = (targetDir !== null && typeof targetDir === 'string') ? targetDir : (this.inst.state.currentPath || '');
+      const fullRelPath = destDir ? `${destDir.replace(/\/+$/, '')}/${cleanName}` : cleanName;
+      const ext = (cleanName.includes('.') ? cleanName.split('.').pop() : '').toLowerCase();
+      const initialContent = ext === 'json' ? '{\n  \n}\n' : (ext === 'md' ? `# ${cleanName.replace(/\.md$/i, '')}\n\n` : '');
+
+      try {
+        const res = await window.sys.api.fs.saveTextFile(fullRelPath, initialContent);
+        if (res && res.success) {
+          this.inst.showToast(this.inst.t('explorer.new_file_created', { name: cleanName }), 'success');
+          if (window.EventBus) {
+            window.EventBus.emit('fs:changed', { action: 'create_file', dir: destDir, file: fullRelPath });
+          } else {
+            await this.inst.loadDirectory(this.inst.state.currentPath);
+          }
+        } else {
+          this.inst.showToast('⚠️ ' + ((res && res.error) || this.inst.t('api.err_save_failed')), 'error');
+        }
+      } catch (err) {
+        this.inst.showToast('⚠️ ' + this.inst.t('explorer.err_network', { message: err.message }), 'error');
+      }
+    }
+
+    async duplicateItem(itemPath) {
+      if (!itemPath) return;
+      const parent = this.inst.stateManager ? this.inst.stateManager.getParentPath(itemPath) : '';
+      const targetDir = parent || '';
+      const name = String(itemPath).split('/').filter(Boolean).pop() || 'copy';
+      const dot = name.lastIndexOf('.');
+      const copyName = dot > 0 ? `${name.slice(0, dot)}_copy${name.slice(dot)}` : `${name}_copy`;
+
+      try {
+        const res = await window.sys.api.fs.copyItem(itemPath, targetDir, copyName);
+        if (res && res.success) {
+          this.inst.showToast(this.inst.t('explorer.duplicate_success'), 'success');
+          if (window.EventBus) {
+            window.EventBus.emit('fs:changed', { action: 'copy', dir: targetDir });
+          } else {
+            await this.inst.loadDirectory(this.inst.state.currentPath);
+          }
+        } else {
+          this.inst.showToast('⚠️ ' + ((res && res.error) || this.inst.t('api.err_save_failed')), 'error');
+        }
+      } catch (err) {
+        this.inst.showToast('⚠️ ' + this.inst.t('explorer.err_network', { message: err.message }), 'error');
+      }
+    }
+
+    async copyPathToClipboard(path) {
+      const text = String(path || '/');
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+        }
+        this.inst.showToast(this.inst.t('explorer.ctx_path_copied'), 'info');
+      } catch (e) { }
+    }
+
     async handleUploadFiles(files, targetDir = null) {
       if (!files || files.length === 0) return;
+      if (this.inst.transfersManager && typeof this.inst.transfersManager.enqueueFiles === 'function') {
+        return this.inst.transfersManager.enqueueFiles(files, targetDir);
+      }
+
       const canUpload = this.inst.state.isAdmin || (this.inst.state.userRights && this.inst.state.userRights.can_upload);
       if (!canUpload) {
         this.inst.showToast('⚠️ ' + this.inst.t('explorer.err_upload_denied'), 'error');
@@ -98,40 +219,14 @@
       }
 
       const destination = (targetDir !== null && typeof targetDir === 'string') ? targetDir : this.inst.state.currentPath;
-
       const formData = new FormData();
       formData.append('dir', destination);
       for (let i = 0; i < files.length; i++) {
         formData.append('files[]', files[i]);
       }
 
-      const progressModal = document.getElementById('uploadProgressModal');
-      const progressBar = document.getElementById('uploadProgressBar');
-      const progressStatus = document.getElementById('uploadProgressStatus');
-
-      const statusText = this.inst.t('explorer.uploading_files', { count: files.length });
-      if (progressModal) {
-        if (progressBar) {
-          progressBar.style.width = '0%';
-          progressBar.textContent = '0%';
-        }
-        if (progressStatus) {
-          progressStatus.textContent = statusText;
-        }
-        progressModal.style.display = 'flex';
-        progressModal.classList.add('open');
-      } else {
-        this.inst.showToast(statusText, 'info');
-      }
-
       try {
-        const json = await window.sys.api.upload('upload_file', formData, (percent) => {
-          if (progressBar) {
-            progressBar.style.width = `${percent}%`;
-            progressBar.textContent = `${percent}%`;
-          }
-        });
-
+        const json = await window.sys.api.upload('upload_file', formData);
         if (json && json.success) {
           this.inst.showToast(json.message || this.inst.t('api.success_uploaded', { count: files.length }), 'success');
           if (window.EventBus) {
@@ -144,11 +239,6 @@
         }
       } catch (err) {
         this.inst.showToast('⚠️ ' + this.inst.t('explorer.err_network', { message: err.message }), 'error');
-      } finally {
-        if (progressModal) {
-          progressModal.style.display = 'none';
-          progressModal.classList.remove('open');
-        }
       }
     }
 

@@ -355,7 +355,7 @@ flowchart TB
   - **Onglets multiples** (`Ctrl+T` / `Ctrl+W`, clic milieu sur un dossier, drop sur onglet) et **Mode Double Volet / Commander (`F3`)**.
   - **Barre d'état** en pied de fenêtre (compteurs, taille cumulée de la sélection, curseur de zoom des miniatures).
   - **Mode Pro par défaut** + profils **Vignettes** et **Multimédia/Polaroid (sans sidebar)** avec **mémorisation par dossier et héritage (`inherit`)** pour les sous-dossiers.
-- [ ] **Lot 3 — Opérations Fichiers Complètes, Menus Contextuels Exhaustifs & Transferts Chunked** :
+- [x] **Lot 3 — Opérations Fichiers Complètes, Menus Contextuels Exhaustifs & Transferts Chunked** *(Livré & Testé)* :
   - **Renommage direct en place (`F2`)** pour fichiers et dossiers (avec action backend sécurisée `rename_item` dans `FileActions.php`, contrôle anti-collisions, extensions interdites, ACL et support `ext://`).
   - **Création de nouveaux fichiers** (`.md`, `.txt`, `.json`, etc.) avec ouverture directe optionnelle dans `doc-viewer`.
   - **Système de menus contextuels unifié** couvrant toutes les zones de l'Explorateur et bloquant totalement le menu contextuel navigateur.

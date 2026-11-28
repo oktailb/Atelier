@@ -634,6 +634,113 @@ class FileActions {
             ]];
         }
 
+        if ($action === 'rename_item') {
+            $source_param = trim((string)($_POST['source'] ?? $_POST['path'] ?? $raw_body['source'] ?? $raw_body['path'] ?? ''));
+            $new_name_raw = trim((string)($_POST['new_name'] ?? $_POST['name'] ?? $raw_body['new_name'] ?? $raw_body['name'] ?? ''));
+
+            if ($source_param === '' || $new_name_raw === '') {
+                return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_invalid_name')]];
+            }
+
+            // Strictly disallow path separators, control chars, dotfiles or invalid filename characters
+            if ($new_name_raw === '.' || $new_name_raw === '..' || $new_name_raw[0] === '.' || preg_match('/[\/\\\\:\*\?"<>\|\\x00-\\x1f]/', $new_name_raw)) {
+                return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_invalid_name')]];
+            }
+
+            // Phase B / G: External mount rename (`ext://<mount_id>/...`)
+            $ext_src = \Atelier\Kernel\Storage\ExternalMountManager::parseExternalPath($source_param);
+            if ($ext_src !== null) {
+                $resolved = \Atelier\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, (int)$ext_src['mount_id']);
+                if (!$resolved || empty($resolved['can_write']) || $ext_src['rel_path'] === '') {
+                    return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_move_denied')]];
+                }
+                $driver = $resolved['driver'];
+                $srcRel = trim($ext_src['rel_path'], '/');
+                $parentRel = dirname($srcRel);
+                $parentRel = ($parentRel === '.' || $parentRel === '/') ? '' : trim($parentRel, '/');
+                $dstRel = ($parentRel !== '' ? $parentRel . '/' : '') . $new_name_raw;
+
+                if ($dstRel === $srcRel) {
+                    return ['status' => 200, 'data' => ['success' => true, 'new_path' => 'ext://' . (int)$ext_src['mount_id'] . '/' . $dstRel, 'name' => $new_name_raw]];
+                }
+
+                $stat = method_exists($driver, 'stat') ? $driver->stat($srcRel) : null;
+                $isDir = is_array($stat) && !empty($stat['is_dir']);
+                if (!$isDir) {
+                    $ext = strtolower(pathinfo($new_name_raw, PATHINFO_EXTENSION));
+                    if (FormatRegistry::isForbiddenExtension($ext) || FormatRegistry::hasForbiddenDoubleExtension($new_name_raw)) {
+                        return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_forbidden_file_type')]];
+                    }
+                }
+                if (method_exists($driver, 'stat') && $driver->stat($dstRel) !== null) {
+                    return ['status' => 409, 'data' => ['success' => false, 'error' => __t('api.err_destination_exists')]];
+                }
+                if (method_exists($driver, 'move') && $driver->move($srcRel, $dstRel)) {
+                    return ['status' => 200, 'data' => [
+                        'success'  => true,
+                        'new_path' => 'ext://' . (int)$ext_src['mount_id'] . '/' . $dstRel,
+                        'name'     => $new_name_raw
+                    ]];
+                }
+                return ['status' => 500, 'data' => ['success' => false, 'error' => __t('api.err_move_failed')]];
+            }
+
+            // Local VFS rename
+            $source_full = PathValidator::canonicalizeAndValidate($source_param, $base_dir, true, false);
+            if ($source_full === null || !file_exists($source_full)) {
+                return ['status' => 404, 'data' => ['success' => false, 'error' => __t('api.err_source_or_dest_invalid')]];
+            }
+
+            $source_rel = PathValidator::getRelativePath($source_full, $base_dir);
+            $clean_rel = trim(str_replace('\\', '/', $source_rel), '/');
+            if (strcasecmp($clean_rel, 'users') === 0 || (preg_match('#^users/[^/]+$#i', $clean_rel) && !AuthManager::isAdminLoggedIn())) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_move_denied')]];
+            }
+            if (!PermissionsManager::hasPermission('can_move', $base_dir, $source_rel)) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_move_denied')]];
+            }
+
+            $parent_dir = dirname($source_full);
+            $check_dir = is_dir($source_full) ? $source_full : $parent_dir;
+            if (!DotfileManager::isDirAccessible($check_dir, $base_dir) || !DotfileManager::isDirAccessible($parent_dir, $base_dir)) {
+                return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
+            }
+
+            if (!is_dir($source_full)) {
+                $dest_ext = strtolower(pathinfo($new_name_raw, PATHINFO_EXTENSION));
+                if (FormatRegistry::isForbiddenExtension($dest_ext) || FormatRegistry::hasForbiddenDoubleExtension($new_name_raw)) {
+                    return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_forbidden_file_type')]];
+                }
+            }
+
+            $destination = $parent_dir . '/' . $new_name_raw;
+            if ($destination === $source_full) {
+                return ['status' => 200, 'data' => ['success' => true, 'new_path' => $source_rel, 'name' => $new_name_raw]];
+            }
+            if (file_exists($destination)) {
+                return ['status' => 409, 'data' => ['success' => false, 'error' => __t('api.err_destination_exists')]];
+            }
+
+            if (@rename($source_full, $destination)) {
+                if (is_file($destination) && strtolower(pathinfo($destination, PATHINFO_EXTENSION)) === 'svg') {
+                    SecurityManager::sanitizeSvgContent($destination);
+                }
+                $new_rel = PathValidator::getRelativePath($destination, $base_dir);
+                \Atelier\Kernel\FS\FileIndexManager::removePath($project_root, $source_rel);
+                if (is_file($destination)) {
+                    \Atelier\Kernel\FS\FileIndexManager::upsertFile($project_root, $base_dir, $destination, $media_types);
+                }
+                CacheManager::invalidateDirCache($parent_dir, $base_dir, $thumb_dir_name);
+                return ['status' => 200, 'data' => [
+                    'success'  => true,
+                    'new_path' => $new_rel,
+                    'name'     => $new_name_raw
+                ]];
+            }
+
+            return ['status' => 500, 'data' => ['success' => false, 'error' => __t('api.err_move_failed')]];
+        }
+
         if ($action === 'copy_item') {
             $source_param = $_POST['source'] ?? $raw_body['source'] ?? '';
             $target_dir_param = $_POST['target_dir'] ?? $raw_body['target_dir'] ?? '';

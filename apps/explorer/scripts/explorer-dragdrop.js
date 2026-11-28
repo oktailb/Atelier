@@ -1,7 +1,7 @@
 /**
  * Atelier by GallusTech - Explorer Drag & Drop Manager (apps/explorer/scripts/explorer-dragdrop.js)
- * Single unified drag-and-drop coordinator for cross-window item moves and external OS file uploads.
- * Strictly scoped per Explorer instance with proper teardown on destroy().
+ * Single unified drag-and-drop coordinator for cross-window item moves and external OS file/folder uploads
+ * (delegating OS folder drops via webkitGetAsEntry() to ExplorerTransfersManager).
  */
 (function (window) {
   'use strict';
@@ -45,17 +45,21 @@
       const onDrop = async (e) => {
         setOverlayVisible(false);
 
-        // Let specific child drop targets (folder cards, breadcrumbs) handle their own drop
-        if (e.target && (e.target.closest('.folder-card') || e.target.closest('.crumb-item'))) {
+        // Let specific child drop targets (folder cards, breadcrumbs, sidebar, tabs, split pane) handle their own drop
+        if (e.target && (e.target.closest('.folder-card') || e.target.closest('.crumb-item') || e.target.closest('.explorer-secondary-pane') || e.target.closest('.explorer-tab') || e.target.closest('.sidebar-tree-row') || e.target.closest('.sidebar-nav-item'))) {
           return;
         }
 
         e.preventDefault();
         e.stopPropagation();
 
-        // 1. External files dropped from local OS
-        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0 && !window.ATELIER_DRAGGING_PATHS) {
-          await this.handleExternalFileUpload(e.dataTransfer.files, this.inst.state.currentPath);
+        // 1. External files or folders dropped from local OS
+        const hasExternal = e.dataTransfer && !window.ATELIER_DRAGGING_PATHS && (
+          (e.dataTransfer.items && e.dataTransfer.items.length > 0 && e.dataTransfer.types && e.dataTransfer.types.includes('Files')) ||
+          (e.dataTransfer.files && e.dataTransfer.files.length > 0)
+        );
+        if (hasExternal) {
+          await this.handleExternalDrop(e.dataTransfer, this.inst.state.currentPath);
           return;
         }
 
@@ -132,8 +136,12 @@
         e.stopPropagation();
         targetEl.classList.remove('drag-over');
 
-        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0 && !window.ATELIER_DRAGGING_PATHS) {
-          await this.handleExternalFileUpload(e.dataTransfer.files, targetPath);
+        const hasExternal = e.dataTransfer && !window.ATELIER_DRAGGING_PATHS && (
+          (e.dataTransfer.items && e.dataTransfer.items.length > 0 && e.dataTransfer.types && e.dataTransfer.types.includes('Files')) ||
+          (e.dataTransfer.files && e.dataTransfer.files.length > 0)
+        );
+        if (hasExternal) {
+          await this.handleExternalDrop(e.dataTransfer, targetPath);
           return;
         }
 
@@ -148,6 +156,17 @@
 
     bindFolderDropTarget(folderEl, folderPath) {
       this.bindDropTarget(folderEl, folderPath);
+    }
+
+    async handleExternalDrop(dataTransfer, targetDir = null) {
+      const dest = targetDir !== null ? targetDir : this.inst.state.currentPath;
+      if (this.inst.transfersManager && typeof this.inst.transfersManager.enqueueDataTransfer === 'function') {
+        await this.inst.transfersManager.enqueueDataTransfer(dataTransfer, dest);
+        return;
+      }
+      if (dataTransfer && dataTransfer.files && dataTransfer.files.length > 0) {
+        await this.handleExternalFileUpload(dataTransfer.files, dest);
+      }
     }
 
     async handleExternalFileUpload(files, targetDir = null) {

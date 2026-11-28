@@ -17,6 +17,7 @@ class ActionRouter {
         'upload_media',
         'create_folder',
         'move_item',
+        'rename_item',
         'copy_item',
         'delete_item',
         'delete_file',
@@ -275,6 +276,7 @@ class ActionRouter {
         'upload_file'             => FileActions::class,
         'upload_media'            => FileActions::class,
         'move_item'               => FileActions::class,
+        'rename_item'             => FileActions::class,
         'copy_item'               => FileActions::class
     ];
 

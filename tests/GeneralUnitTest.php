@@ -894,6 +894,65 @@ class GeneralUnitTestSuite {
 
         $this->assert("FileActions::move_item supporte un tableau de sources (drag & drop)", ($move_res2['status'] ?? 0) === 200);
         $this->assert("Le fichier 2 a bien été déplacé dans le dossier cible via tableau", file_exists($subfolder_target . '/sample_for_move_2.txt'));
+
+        // 6. Test rename_item action (Phase G Lot 3)
+        $this->assert("ActionRouter déclare l'action rename_item dans les actions mutantes", \Atelier\Kernel\Actions\ActionRouter::isMutatingAction('rename_item', $this->base_dir));
+
+        $rename_src = $this->test_dir . '/sample_for_rename.txt';
+        $rename_collide = $this->test_dir . '/sample_collide.txt';
+        $rename_dir_src = $this->test_dir . '/rename_dir_a';
+        file_put_contents($rename_src, 'rename content');
+        file_put_contents($rename_collide, 'collision content');
+        @mkdir($rename_dir_src, 0777, true);
+        $rel_rename_src = ltrim(str_replace($this->base_dir, '', $rename_src), '/');
+        $rel_rename_dir = ltrim(str_replace($this->base_dir, '', $rename_dir_src), '/');
+
+        // Guest denied
+        unset($_SESSION['atelier_admin_logged'], $_SESSION['atelier_user']);
+        $guest_ren = \Atelier\Kernel\Actions\FileActions::handle('rename_item', [
+            'source'   => $rel_rename_src,
+            'new_name' => 'guest_renamed.txt'
+        ], ['base_dir' => $this->base_dir]);
+        $this->assert("FileActions::rename_item refuse un visiteur non connecté (403)", ($guest_ren['status'] ?? 0) === 403);
+
+        $_SESSION['atelier_admin_logged'] = true;
+        $dot_ren = \Atelier\Kernel\Actions\FileActions::handle('rename_item', [
+            'source'   => $rel_rename_src,
+            'new_name' => '.htaccess'
+        ], ['base_dir' => $this->base_dir]);
+        $this->assert("FileActions::rename_item refuse les dotfiles (400)", ($dot_ren['status'] ?? 0) === 400);
+
+        $trav_ren = \Atelier\Kernel\Actions\FileActions::handle('rename_item', [
+            'source'   => $rel_rename_src,
+            'new_name' => '../evil.txt'
+        ], ['base_dir' => $this->base_dir]);
+        $this->assert("FileActions::rename_item refuse les séparateurs / path traversal (400)", ($trav_ren['status'] ?? 0) === 400);
+
+        $php_ren = \Atelier\Kernel\Actions\FileActions::handle('rename_item', [
+            'source'   => $rel_rename_src,
+            'new_name' => 'shell.php'
+        ], ['base_dir' => $this->base_dir]);
+        $this->assert("FileActions::rename_item refuse une extension exécutable interdite (403)", ($php_ren['status'] ?? 0) === 403);
+
+        $col_ren = \Atelier\Kernel\Actions\FileActions::handle('rename_item', [
+            'source'   => $rel_rename_src,
+            'new_name' => 'sample_collide.txt'
+        ], ['base_dir' => $this->base_dir]);
+        $this->assert("FileActions::rename_item refuse d'écraser une cible existante (409)", ($col_ren['status'] ?? 0) === 409);
+
+        $ok_ren = \Atelier\Kernel\Actions\FileActions::handle('rename_item', [
+            'source'   => $rel_rename_src,
+            'new_name' => 'sample_renamed.txt'
+        ], ['base_dir' => $this->base_dir]);
+        $this->assert("FileActions::rename_item renomme un fichier valide (200)", ($ok_ren['status'] ?? 0) === 200 && ($ok_ren['data']['success'] ?? false) === true);
+        $this->assert("Le fichier renommé existe et l'ancien a disparu", !file_exists($rename_src) && file_exists($this->test_dir . '/sample_renamed.txt'));
+
+        $dir_ren = \Atelier\Kernel\Actions\FileActions::handle('rename_item', [
+            'source'   => $rel_rename_dir,
+            'new_name' => 'rename_dir_b'
+        ], ['base_dir' => $this->base_dir]);
+        unset($_SESSION['atelier_admin_logged']);
+        $this->assert("FileActions::rename_item renomme un dossier valide (200)", ($dir_ren['status'] ?? 0) === 200 && is_dir($this->test_dir . '/rename_dir_b') && !is_dir($rename_dir_src));
     }
 
     private function testAutorunAndExplorerEnhancements(): void {

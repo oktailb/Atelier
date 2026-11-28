@@ -75,8 +75,12 @@
           e.preventDefault();
           e.stopPropagation();
 
-          if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0 && !window.ATELIER_DRAGGING_PATHS) {
-            await this.inst.handleUploadFiles(e.dataTransfer.files, this.currentPath);
+          if (e.dataTransfer && !window.ATELIER_DRAGGING_PATHS && ((e.dataTransfer.items && e.dataTransfer.items.length > 0 && e.dataTransfer.types && e.dataTransfer.types.includes('Files')) || (e.dataTransfer.files && e.dataTransfer.files.length > 0))) {
+            if (this.inst.dragDropManager && typeof this.inst.dragDropManager.handleExternalDrop === 'function') {
+              await this.inst.dragDropManager.handleExternalDrop(e.dataTransfer, this.currentPath);
+            } else {
+              await this.inst.handleUploadFiles(e.dataTransfer.files, this.currentPath);
+            }
             return;
           }
           const paths = this.inst.dragDropManager ? this.inst.dragDropManager.extractDraggedPaths(e) : [];

@@ -2375,6 +2375,94 @@ try {
     explorerJs.includes('empty_trash') &&
     expTplSrc.includes('explorer-trash-view')
   );
+
+  // Phase G — Lot 3: File operations (rename_item, new file, duplicate), exhaustive zero-native context menus & chunked/folder transfer manager
+  const expTransfersPath = path.join(rootDir, 'apps/explorer/scripts/explorer-transfers.js');
+  const expCtxPath = path.join(rootDir, 'apps/explorer/scripts/explorer-context-menu.js');
+  const expOpsPath = path.join(rootDir, 'apps/explorer/scripts/explorer-operations.js');
+  const expManifestSrc = fs.readFileSync(path.join(rootDir, 'apps/explorer/manifest.json'), 'utf8');
+  const syscallSrc = fs.readFileSync(path.join(rootDir, 'system/userland/core/SyscallClient.js'), 'utf8');
+  const expTransfersSrc = fs.existsSync(expTransfersPath) ? fs.readFileSync(expTransfersPath, 'utf8') : '';
+  const expCtxSrc = fs.readFileSync(expCtxPath, 'utf8');
+  const expOpsSrc = fs.readFileSync(expOpsPath, 'utf8');
+
+  // Verify strict FR/EN/JA parity for Explorer locales after Lot 3 additions
+  const lot3Fr = JSON.parse(fs.readFileSync(path.join(rootDir, 'apps/explorer/locales/fr.json'), 'utf8'));
+  const lot3En = JSON.parse(fs.readFileSync(path.join(rootDir, 'apps/explorer/locales/en.json'), 'utf8'));
+  const lot3Ja = JSON.parse(fs.readFileSync(path.join(rootDir, 'apps/explorer/locales/ja.json'), 'utf8'));
+  const lot3FrKeys = Object.keys(lot3Fr).sort();
+  const lot3EnKeys = Object.keys(lot3En).sort();
+  const lot3JaKeys = Object.keys(lot3Ja).sort();
+  const lot3LocaleParity = (
+    lot3FrKeys.length >= 120 &&
+    JSON.stringify(lot3FrKeys) === JSON.stringify(lot3EnKeys) &&
+    JSON.stringify(lot3FrKeys) === JSON.stringify(lot3JaKeys)
+  );
+
+  // Sandbox runtime test: ExplorerContextMenuManager intercepts all contextmenu events on containerEl (zero native browser menu)
+  let ctxPrevented = false;
+  let ctxBgMenuCalled = false;
+  const ctxHandlers = {};
+  const ctxContainer = {
+    addEventListener(ev, fn) { ctxHandlers[ev] = fn; },
+    removeEventListener() {}
+  };
+  const ctxWin = {
+    IS_ADMIN: true,
+    ATELIER_CURRENT_USER: { username: 'admin' },
+    document: { addEventListener() {}, removeEventListener() {}, querySelectorAll() { return []; }, body: { appendChild() {} }, createElement() { return { style: {}, classList: { add() {} }, addEventListener() {}, remove() {}, getBoundingClientRect() { return { width: 180, height: 120 }; } }; } },
+    innerWidth: 1280,
+    innerHeight: 800
+  };
+  new Function('window', 'document', expCtxSrc)(ctxWin, ctxWin.document);
+  const ctxInstMock = {
+    containerEl: ctxContainer,
+    state: { currentPath: 'docs', isTrashView: false, allItems: [], selectedItems: new Set() },
+    t: k => k,
+    dom: {}
+  };
+  const ctxMgr = new ctxWin.ExplorerContextMenuManager(ctxInstMock);
+  ctxMgr.showBackgroundContextMenu = () => { ctxBgMenuCalled = true; };
+  ctxMgr.init();
+  if (typeof ctxHandlers.contextmenu === 'function') {
+    ctxHandlers.contextmenu({
+      clientX: 120,
+      clientY: 160,
+      target: { closest() { return null; } },
+      preventDefault() { ctxPrevented = true; },
+      stopPropagation() {}
+    });
+  }
+
+  assert("Phase G (Lot 3): Opérations fichiers (rename_item/F2/nouveau fichier/dupliquer), menus contextuels exhaustifs sans menu natif & TransferManager chunked/dossiers",
+    fs.existsSync(expTransfersPath) &&
+    expManifestSrc.includes('scripts/explorer-transfers.js') &&
+    expTransfersSrc.includes('uploadChunked') &&
+    expTransfersSrc.includes('webkitGetAsEntry') &&
+    expTransfersSrc.includes('cancelItem') &&
+    syscallSrc.includes("renameItem:") &&
+    syscallSrc.includes("'rename_item'") &&
+    syscallSrc.includes('options.isCancelled') &&
+    expCtxSrc.includes('showFileContextMenu') &&
+    expCtxSrc.includes('showFolderContextMenu') &&
+    expCtxSrc.includes('showSidebarPathContextMenu') &&
+    expCtxSrc.includes('showTabContextMenu') &&
+    expCtxSrc.includes('showBreadcrumbContextMenu') &&
+    expCtxSrc.includes('showTrashItemContextMenu') &&
+    expCtxSrc.includes('showTextInputContextMenu') &&
+    expCtxSrc.includes('showBackgroundContextMenu') &&
+    ctxPrevented === true &&
+    ctxBgMenuCalled === true &&
+    expOpsSrc.includes('async renameItem(') &&
+    expOpsSrc.includes('async createNewFile(') &&
+    expOpsSrc.includes('async duplicateItem(') &&
+    expOpsSrc.includes('async copyPathToClipboard(') &&
+    expTplSrc.includes('explorer-transfer-panel') &&
+    expTplSrc.includes('explorer-new-file-item') &&
+    explorerJs.includes("e.key === 'F2'") &&
+    explorerJs.includes('renameSelection') &&
+    lot3LocaleParity
+  );
 } catch (e) {
   assert("Phase 1 exécution runtime UI", false, e.stack);
 }

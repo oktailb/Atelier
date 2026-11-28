@@ -78,9 +78,13 @@
       this.navigationManager = window.ExplorerNavigationManager ? new window.ExplorerNavigationManager(this) : null;
       this.sidebarManager = window.ExplorerSidebarManager ? new window.ExplorerSidebarManager(this) : null;
       this.splitPaneManager = window.ExplorerSplitPaneManager ? new window.ExplorerSplitPaneManager(this) : null;
+      this.transfersManager = window.ExplorerTransfersManager ? new window.ExplorerTransfersManager(this) : null;
 
       if (this.dragDropManager && typeof this.dragDropManager.init === 'function') {
         this.dragDropManager.init();
+      }
+      if (this.contextMenuManager && typeof this.contextMenuManager.init === 'function') {
+        this.contextMenuManager.init();
       }
       if (this.navigationManager && typeof this.navigationManager.init === 'function') {
         this.navigationManager.init(this.state.currentPath || '');
@@ -164,6 +168,7 @@
       if (this.searchManager && typeof this.searchManager.destroy === 'function') this.searchManager.destroy();
       if (this.navigationManager && typeof this.navigationManager.destroy === 'function') this.navigationManager.destroy();
       if (this.sidebarManager && typeof this.sidebarManager.destroy === 'function') this.sidebarManager.destroy();
+      if (this.transfersManager && typeof this.transfersManager.destroy === 'function') this.transfersManager.destroy();
 
       if (this.containerEl && this.containerEl.parentNode) {
         this.containerEl.parentNode.removeChild(this.containerEl);
@@ -193,8 +198,10 @@
         navNewBtn: root.querySelector('.explorer-nav-new-btn'),
         navNewMenu: root.querySelector('.explorer-new-menu'),
         navNewFolderItem: root.querySelector('.explorer-new-folder-item'),
+        navNewFileItem: root.querySelector('.explorer-new-file-item'),
         navUploadItem: root.querySelector('.explorer-new-upload-item'),
         navUploadInput: root.querySelector('.explorer-nav-upload-input'),
+        transferPanel: root.querySelector('.explorer-transfer-panel'),
         splitToggleBtn: root.querySelector('.explorer-split-toggle-btn'),
         sidebar: root.querySelector('.explorer-sidebar'),
         sidebarResizer: root.querySelector('.explorer-sidebar-resizer'),
@@ -1232,6 +1239,26 @@
       if (this.operationsManager) return this.operationsManager.handleUploadFiles(files, targetDir);
     }
 
+    async renameItem(itemPath, currentName = '') {
+      if (this.operationsManager) return this.operationsManager.renameItem(itemPath, currentName);
+    }
+
+    async renameSelection() {
+      if (this.operationsManager) return this.operationsManager.renameSelection();
+    }
+
+    async createNewFile(targetDir = null) {
+      if (this.operationsManager) return this.operationsManager.createNewFile(targetDir);
+    }
+
+    async duplicateItem(itemPath) {
+      if (this.operationsManager) return this.operationsManager.duplicateItem(itemPath);
+    }
+
+    async copyPathToClipboard(path) {
+      if (this.operationsManager) return this.operationsManager.copyPathToClipboard(path);
+    }
+
     copySelection() {
       if (this.operationsManager) this.operationsManager.copySelection();
     }
@@ -1500,6 +1527,9 @@
           } else if (key === 'l' && this.navigationManager) {
             e.preventDefault();
             this.navigationManager.enterAddressEditMode();
+          } else if (key === 'n' && e.shiftKey) {
+            e.preventDefault();
+            this.openCreateFolderModal();
           }
         } else if (e.altKey) {
           if (e.key === 'ArrowLeft' && this.navigationManager) {
@@ -1511,6 +1541,11 @@
           } else if (e.key === 'ArrowUp' && this.navigationManager) {
             e.preventDefault();
             this.navigationManager.goUp();
+          }
+        } else if (e.key === 'F2') {
+          if (this.state.selectedPaths && this.state.selectedPaths.size === 1) {
+            e.preventDefault();
+            this.renameSelection();
           }
         } else if (e.key === 'F3' && this.splitPaneManager) {
           e.preventDefault();

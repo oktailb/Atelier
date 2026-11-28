@@ -42,6 +42,9 @@
             <button type="button" class="explorer-new-menu-item explorer-new-folder-item">
               <span>📁</span> <span data-i18n="explorer.nav_new_folder"><?php echo htmlspecialchars(__t('explorer.nav_new_folder'), ENT_QUOTES, 'UTF-8'); ?></span>
             </button>
+            <button type="button" class="explorer-new-menu-item explorer-new-file-item">
+              <span>📄</span> <span data-i18n="explorer.nav_new_file"><?php echo htmlspecialchars(__t('explorer.nav_new_file'), ENT_QUOTES, 'UTF-8'); ?></span>
+            </button>
             <button type="button" class="explorer-new-menu-item explorer-new-upload-item">
               <span>📤</span> <span data-i18n="explorer.nav_upload"><?php echo htmlspecialchars(__t('explorer.nav_upload'), ENT_QUOTES, 'UTF-8'); ?></span>
             </button>
@@ -479,6 +482,9 @@
         <div class="gallery-leaflet-map map-canvas"></div>
       </div>
     </div>
+
+    <!-- Per-Instance Non-Blocking Transfer Queue Panel (Chunked & Folder Uploads) -->
+    <div class="explorer-transfer-panel" style="display: none;"></div>
 
     <!-- Per-Instance External Drag & Drop Overlay -->
     <div class="drop-zone-overlay" style="display: none;">

@@ -197,6 +197,7 @@
       const canUpload = this.inst.state.isAdmin || (this.inst.state.userRights && this.inst.state.userRights.can_upload);
       if (el.navNewBtn) el.navNewBtn.style.display = (canCreate || canUpload) ? 'inline-flex' : 'none';
       if (el.navNewFolderItem) el.navNewFolderItem.style.display = canCreate ? 'flex' : 'none';
+      if (el.navNewFileItem) el.navNewFileItem.style.display = canUpload ? 'flex' : 'none';
       if (el.navUploadItem) el.navUploadItem.style.display = canUpload ? 'flex' : 'none';
     }
 
@@ -396,6 +397,12 @@
         el.navNewFolderItem.onclick = () => {
           if (el.navNewMenu) el.navNewMenu.style.display = 'none';
           this.inst.openCreateFolderModal();
+        };
+      }
+      if (el.navNewFileItem) {
+        el.navNewFileItem.onclick = () => {
+          if (el.navNewMenu) el.navNewMenu.style.display = 'none';
+          this.inst.createNewFile();
         };
       }
       if (el.navUploadItem && el.navUploadInput) {

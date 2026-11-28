@@ -233,8 +233,12 @@ class SyscallClient {
 
     const uploadId = initRes.upload_id;
     let uploadedBytes = 0;
+    const isCancelled = typeof options.isCancelled === 'function' ? options.isCancelled : () => false;
 
     for (let idx = 0; idx < totalChunks; idx++) {
+      if (isCancelled()) {
+        return { success: false, cancelled: true, error: 'Upload cancelled', upload_id: uploadId };
+      }
       const start = idx * chunkSize;
       const end = Math.min(totalSize, start + chunkSize);
       const slice = file.slice(start, end);
@@ -293,6 +297,7 @@ class SyscallClient {
       createFolder: (dir, name) => this.post('create_folder', { dir, folder_name: name, name }),
       deleteItem: (target_path) => this.post('delete_item', { target: target_path, target_path }),
       moveItem: (source, target_dir, new_name) => this.post('move_item', { source, target_dir, new_name }),
+      renameItem: (source, new_name) => this.post('rename_item', { source, new_name }),
       copyItem: (source, target_dir, new_name) => this.post('copy_item', { source, target_dir, new_name }),
       saveTextFile: (file, content) => this.post('save_text_file', { file, content }),
       getMetadata: (file) => this.get('get_metadata', { file }),

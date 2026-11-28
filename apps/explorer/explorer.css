@@ -1636,3 +1636,140 @@
   text-align: center;
   color: var(--text-muted, #94a3b8);
 }
+
+/* Context Menu Danger & Active Accents */
+.explorer-open-with-item.explorer-ctx-danger {
+  color: #f87171;
+}
+.explorer-open-with-item.explorer-ctx-danger:hover {
+  background: rgba(239, 68, 68, 0.22);
+  color: #fecaca;
+}
+.explorer-open-with-item.explorer-ctx-active {
+  background: rgba(99, 102, 241, 0.2);
+  color: var(--accent-primary, #818cf8);
+  font-weight: 600;
+}
+
+/* Non-Blocking Floating Transfer Queue Panel (Lot 3) */
+.explorer-transfer-panel {
+  position: absolute;
+  right: 14px;
+  bottom: 38px;
+  width: 330px;
+  max-width: calc(100% - 28px);
+  max-height: 280px;
+  display: flex;
+  flex-direction: column;
+  background: var(--menu-bar-bg, var(--bg-card, rgba(15, 23, 42, 0.96)));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.16));
+  border-radius: 12px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+  z-index: 950;
+  overflow: hidden;
+}
+.transfer-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(99, 102, 241, 0.14);
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-main, #f8fafc);
+}
+.transfer-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.transfer-panel-count {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-muted, #94a3b8);
+}
+.transfer-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.transfer-hdr-btn,
+.transfer-item-cancel {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 5px;
+  font-size: 0.78rem;
+}
+.transfer-hdr-btn:hover,
+.transfer-item-cancel:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-main, #fff);
+}
+.transfer-panel-list {
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.transfer-item {
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.06));
+}
+.transfer-item-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  margin-bottom: 4px;
+}
+.transfer-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-main, #f8fafc);
+  font-weight: 500;
+}
+.transfer-item-size,
+.transfer-item-pct {
+  font-size: 0.7rem;
+  color: var(--text-muted, #94a3b8);
+  flex-shrink: 0;
+}
+.transfer-item-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.transfer-item-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent-primary, #6366f1);
+  transition: width 0.15s ease;
+}
+.transfer-status-done .transfer-item-bar {
+  background: #10b981;
+}
+.transfer-status-error .transfer-item-bar {
+  background: #ef4444;
+}
+.transfer-status-cancelled .transfer-item-bar {
+  background: #64748b;
+}
+.transfer-item-error {
+  margin-top: 3px;
+  font-size: 0.68rem;
+  color: #f87171;
+}
