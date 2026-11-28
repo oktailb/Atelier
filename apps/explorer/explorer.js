@@ -1772,10 +1772,88 @@
     }
 
     // -------------------------------------------------------------
+    // 2D KEYBOARD GRID NAVIGATION HELPER (Lot 6)
+    // -------------------------------------------------------------
+    _computeGridColumnCount() {
+      if (this.state.viewMode === 'list') return 1;
+      if (!this.el || !this.el.mediaGrid) return 1;
+      const cards = this.el.mediaGrid.querySelectorAll('[data-index]');
+      if (cards.length >= 2 && typeof cards[0].getBoundingClientRect === 'function') {
+        const firstTop = Math.round(cards[0].getBoundingClientRect().top);
+        let cols = 0;
+        for (let i = 0; i < cards.length; i++) {
+          if (Math.abs(Math.round(cards[i].getBoundingClientRect().top) - firstTop) <= 6) {
+            cols++;
+          } else {
+            break;
+          }
+        }
+        if (cols >= 1) return cols;
+      }
+      return 1;
+    }
+
+    navigateSelectionByArrow(key, extendRange = false) {
+      const files = this.state.filteredFiles || [];
+      if (files.length === 0) return;
+
+      const cols = this._computeGridColumnCount();
+      const currentIndex = (this.state.lastSelectedIndex !== null && this.state.lastSelectedIndex !== undefined)
+        ? this.state.lastSelectedIndex
+        : -1;
+
+      let nextIndex = currentIndex;
+      if (key === 'Home') {
+        nextIndex = 0;
+      } else if (key === 'End') {
+        nextIndex = files.length - 1;
+      } else if (key === 'ArrowRight') {
+        nextIndex = currentIndex < 0 ? 0 : Math.min(files.length - 1, currentIndex + 1);
+      } else if (key === 'ArrowLeft') {
+        nextIndex = currentIndex <= 0 ? 0 : Math.max(0, currentIndex - 1);
+      } else if (key === 'ArrowDown') {
+        nextIndex = currentIndex < 0 ? 0 : Math.min(files.length - 1, currentIndex + cols);
+      } else if (key === 'ArrowUp') {
+        nextIndex = currentIndex < 0 ? 0 : Math.max(0, currentIndex - cols);
+      }
+
+      if (nextIndex < 0 || nextIndex >= files.length) return;
+
+      const targetFile = files[nextIndex];
+      if (!targetFile) return;
+
+      if (extendRange) {
+        const anchor = currentIndex >= 0 ? currentIndex : 0;
+        const start = Math.min(anchor, nextIndex);
+        const end = Math.max(anchor, nextIndex);
+        for (let i = start; i <= end; i++) {
+          if (files[i]) this.state.selectedPaths.add(files[i].path);
+        }
+      } else {
+        this.state.selectedPaths.clear();
+        this.state.selectedPaths.add(targetFile.path);
+      }
+      this.state.lastSelectedIndex = nextIndex;
+      this.updateSelectionUI();
+
+      const card = this.el.mediaGrid && this.el.mediaGrid.querySelector(`[data-index="${nextIndex}"]`);
+      if (card && typeof card.scrollIntoView === 'function') {
+        card.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+      }
+    }
+
+    // -------------------------------------------------------------
     // INSTANCE EVENTS (KEYBOARD, TOOLBARS, INSPECTOR, SEARCH)
     // -------------------------------------------------------------
     bindEvents() {
       this.containerEl.setAttribute('tabindex', '-1');
+      this.containerEl.addEventListener('mousedown', (e) => {
+        const tag = e.target && e.target.tagName ? e.target.tagName.toLowerCase() : '';
+        if (!['input', 'textarea', 'select', 'button', 'a'].includes(tag) && !e.target.isContentEditable) {
+          try { this.containerEl.focus({ preventScroll: true }); } catch (err) { }
+        }
+      });
+
       this.containerEl.addEventListener('keydown', (e) => {
         const tag = e.target.tagName ? e.target.tagName.toLowerCase() : '';
         if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) {
@@ -1805,6 +1883,16 @@
           } else if (key === 'l' && this.navigationManager) {
             e.preventDefault();
             this.navigationManager.enterAddressEditMode();
+          } else if (key === 'f') {
+            e.preventDefault();
+            if (e.shiftKey && this.searchManager) {
+              this.searchManager.openSearchModal();
+            } else if (this.el.quickSearchInput) {
+              this.el.quickSearchInput.focus();
+              this.el.quickSearchInput.select();
+            } else if (this.searchManager) {
+              this.searchManager.openSearchModal();
+            }
           } else if (key === 'n' && e.shiftKey) {
             e.preventDefault();
             this.openCreateFolderModal();
@@ -1831,10 +1919,18 @@
         } else if (e.key === 'F5' && this.navigationManager) {
           e.preventDefault();
           this.navigationManager.refresh();
-        } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        } else if (e.key === 'Delete') {
           if (this.state.selectedPaths && this.state.selectedPaths.size > 0 && (this.state.isAdmin || (this.state.userRights && this.state.userRights.can_delete))) {
             e.preventDefault();
             this.deleteSelection();
+          }
+        } else if (e.key === 'Backspace') {
+          if (this.state.selectedPaths && this.state.selectedPaths.size > 0 && (this.state.isAdmin || (this.state.userRights && this.state.userRights.can_delete))) {
+            e.preventDefault();
+            this.deleteSelection();
+          } else if (this.navigationManager) {
+            e.preventDefault();
+            this.navigationManager.goUp();
           }
         } else if (e.key === 'Escape') {
           if (this.state.selectedPaths && this.state.selectedPaths.size > 0) {
@@ -1864,24 +1960,10 @@
               }
             }
           }
-        } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') {
           if (this.state.filteredFiles && this.state.filteredFiles.length > 0) {
             e.preventDefault();
-            const currentIndex = this.state.lastSelectedIndex !== null ? this.state.lastSelectedIndex : -1;
-            const nextIndex = (e.key === 'ArrowRight' || e.key === 'ArrowDown')
-              ? Math.min(this.state.filteredFiles.length - 1, currentIndex + 1)
-              : Math.max(0, currentIndex - 1);
-            if (nextIndex >= 0 && nextIndex < this.state.filteredFiles.length) {
-              const targetFile = this.state.filteredFiles[nextIndex];
-              this.state.selectedPaths.clear();
-              this.state.selectedPaths.add(targetFile.path);
-              this.state.lastSelectedIndex = nextIndex;
-              this.updateSelectionUI();
-              const card = this.el.mediaGrid && this.el.mediaGrid.querySelector(`[data-index="${nextIndex}"]`);
-              if (card && typeof card.scrollIntoView === 'function') {
-                card.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
-              }
-            }
+            this.navigateSelectionByArrow(e.key, Boolean(e.shiftKey));
           }
         } else if (e.key === 'i' || e.key === 'I') {
           if (!e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -2609,7 +2691,7 @@
     }
 
     // -------------------------------------------------------------------------
-    // UNIVERSAL AI AGENT CONTRACT (Phase E — Lot 4)
+    // UNIVERSAL AI AGENT CONTRACT (Phase E — Lot 4 + Phase G — Lot 6)
     // -------------------------------------------------------------------------
     isWindowOpen() {
       return Boolean(this.instances && this.instances.size > 0);
@@ -2618,16 +2700,31 @@
     getAgentContext() {
       const inst = typeof this.getActiveInstance === 'function' ? this.getActiveInstance() : null;
       if (!inst || !inst.state) return null;
+      const viewMode = inst.state.viewMode || 'list';
+      const viewProfile = inst.stateManager && typeof inst.stateManager.getViewProfile === 'function'
+        ? inst.stateManager.getViewProfile(viewMode)
+        : (viewMode === 'list' ? 'pro' : (viewMode === 'polaroid' ? 'multimedia' : 'thumbs'));
       return {
         current_path: inst.state.currentPath || '',
-        view_mode: inst.state.viewMode || 'polaroid',
+        view_mode: viewMode,
+        view_profile: viewProfile,
         sort_by: inst.state.sortBy || 'name',
         sort_order: inst.state.sortOrder || 'asc',
         filter_category: inst.state.filterCategory || 'all',
         search_query: inst.state.searchQuery || '',
+        active_tag_filter: inst.state.activeTagFilter || null,
         selected_count: inst.state.selectedPaths ? inst.state.selectedPaths.size : 0,
+        selected_paths: inst.state.selectedPaths ? Array.from(inst.state.selectedPaths).slice(0, 20) : [],
         visible_files: Array.isArray(inst.state.filteredFiles) ? inst.state.filteredFiles.length : 0,
-        folders_count: Array.isArray(inst.state.directories) ? inst.state.directories.length : 0
+        folders_count: Array.isArray(inst.state.directories) ? inst.state.directories.length : 0,
+        tabs_count: inst.navigationManager && Array.isArray(inst.navigationManager.tabs) ? inst.navigationManager.tabs.length : 1,
+        active_tab_id: inst.navigationManager ? inst.navigationManager.activeTabId : null,
+        split_pane_open: Boolean(inst.splitPaneManager && inst.splitPaneManager.isOpen),
+        split_pane_path: inst.splitPaneManager ? (inst.splitPaneManager.currentPath || '') : '',
+        sidebar_visible: Boolean(inst.sidebarManager && inst.sidebarManager.isVisible),
+        is_trash_view: Boolean(inst.state.isTrashView),
+        inspector_open: Boolean(inst.el && inst.el.inspectorDrawer && inst.el.inspectorDrawer.style.display !== 'none'),
+        quicklook_open: Boolean(inst.quickLookManager && inst.quickLookManager.isOpen)
       };
     }
 
@@ -2647,15 +2744,111 @@
         },
         {
           name: 'set_view_options',
-          description: 'Changes the active Explorer view mode (polaroid, grid, mosaic, list), sort field/order, or category filter (all, image, video, audio, doc, archive).',
+          description: 'Changes the active Explorer view mode (list, grid, mosaic, polaroid), sort field/order, or category filter (all, image, video, audio, doc, archive).',
           risk: 'mutate_app',
           parameters: {
             type: 'object',
             properties: {
-              view_mode: { type: 'string', description: 'View mode: polaroid, grid, mosaic, or list' },
-              sort_by: { type: 'string', description: 'Sort key: name, date, exif_date, mtime, or size' },
+              view_mode: { type: 'string', description: 'View mode: list (Pro), grid, mosaic, or polaroid (Multimedia)' },
+              sort_by: { type: 'string', description: 'Sort key: name, category, date, exif_date, mtime, or size' },
               sort_order: { type: 'string', description: 'Sort direction: asc or desc' },
               filter_category: { type: 'string', description: 'Media filter: all, image, video, audio, doc, or archive' }
+            }
+          }
+        },
+        {
+          name: 'manage_tabs',
+          description: 'Lists, creates, switches, or closes Explorer navigation tabs.',
+          risk: 'mutate_app',
+          parameters: {
+            type: 'object',
+            properties: {
+              action: { type: 'string', description: 'Action: list, create, switch, or close' },
+              dir: { type: 'string', description: 'Initial directory path when creating a tab' },
+              tab_id: { type: 'string', description: 'Target tab ID when switching or closing' }
+            },
+            required: ['action']
+          }
+        },
+        {
+          name: 'toggle_split_pane',
+          description: 'Opens, closes, navigates, or swaps the Explorer Dual Pane (Commander F3) secondary panel.',
+          risk: 'mutate_app',
+          parameters: {
+            type: 'object',
+            properties: {
+              open: { type: 'boolean', description: 'True to open split pane, false to close' },
+              dir: { type: 'string', description: 'Optional directory path to load in the secondary pane' },
+              swap: { type: 'boolean', description: 'True to swap primary and secondary pane directories' }
+            }
+          }
+        },
+        {
+          name: 'rename_item',
+          description: 'Renames a file or folder inside the VFS (subject to security & permission checks).',
+          risk: 'mutate_fs',
+          parameters: {
+            type: 'object',
+            properties: {
+              source: { type: 'string', description: 'Relative VFS path of the item to rename' },
+              new_name: { type: 'string', description: 'New filename or folder name (without path separators)' }
+            },
+            required: ['source', 'new_name']
+          }
+        },
+        {
+          name: 'manage_tags',
+          description: 'Lists all user tags, reads or updates tags on a VFS item, or filters Explorer by a specific tag.',
+          risk: 'mutate_fs',
+          parameters: {
+            type: 'object',
+            properties: {
+              action: { type: 'string', description: 'Action: list_all, get, set, or filter' },
+              path: { type: 'string', description: 'Relative VFS item path (required for get/set)' },
+              tags: { type: 'array', items: { type: 'string' }, description: 'Array of tag labels (for set)' },
+              tag: { type: 'string', description: 'Tag label to filter Explorer by (for filter)' }
+            },
+            required: ['action']
+          }
+        },
+        {
+          name: 'manage_trash',
+          description: 'Opens the 30-day Trash view, lists soft-deleted items, or restores a trashed item by ID (non-destructive).',
+          risk: 'mutate_app',
+          parameters: {
+            type: 'object',
+            properties: {
+              action: { type: 'string', description: 'Action: open, list, or restore' },
+              trash_id: { type: 'string', description: 'Trash item ID to restore (for restore)' }
+            },
+            required: ['action']
+          }
+        },
+        {
+          name: 'search_indexed',
+          description: 'Runs an instant multi-criteria SQLite indexed search in Explorer (text, category, tag, size_range, timing, scope).',
+          risk: 'read_only',
+          parameters: {
+            type: 'object',
+            properties: {
+              q: { type: 'string', description: 'Text query matching filename, path, comment, or tags' },
+              category: { type: 'string', description: 'Category: all, image, video, audio, doc, archive' },
+              tag: { type: 'string', description: 'Optional tag label filter' },
+              scope: { type: 'string', description: 'Search scope: global or current' },
+              size_range: { type: 'string', description: 'Size filter: all, small, medium, large, xlarge' },
+              timing: { type: 'string', description: 'Time filter: all, today, week, month, year' }
+            }
+          }
+        },
+        {
+          name: 'open_quicklook',
+          description: 'Opens or closes Quick Look inline preview on a file in the active Explorer window.',
+          risk: 'mutate_app',
+          parameters: {
+            type: 'object',
+            properties: {
+              path: { type: 'string', description: 'Relative VFS file path to preview' },
+              close: { type: 'boolean', description: 'True to close Quick Look' }
             }
           }
         }
@@ -2680,11 +2873,17 @@
           if (typeof inst.setViewMode === 'function') inst.setViewMode(String(args.view_mode));
           else inst.state.viewMode = String(args.view_mode);
         }
-        if (args.sort_by && ['name', 'date', 'exif_date', 'mtime', 'size'].includes(String(args.sort_by))) {
-          inst.state.sortBy = String(args.sort_by) === 'mtime' ? 'date' : String(args.sort_by);
-        }
-        if (args.sort_order && ['asc', 'desc'].includes(String(args.sort_order))) {
-          inst.state.sortOrder = String(args.sort_order);
+        const hasSortBy = args.sort_by && ['name', 'category', 'date', 'exif_date', 'mtime', 'size'].includes(String(args.sort_by));
+        const hasSortOrder = args.sort_order && ['asc', 'desc'].includes(String(args.sort_order));
+        if (hasSortBy || hasSortOrder) {
+          const nextBy = hasSortBy ? (String(args.sort_by) === 'mtime' ? 'date' : String(args.sort_by)) : (inst.state.sortBy || 'name');
+          const nextOrder = hasSortOrder ? String(args.sort_order) : (inst.state.sortOrder || 'asc');
+          if (typeof inst.setSort === 'function') {
+            inst.setSort(nextBy, nextOrder);
+          } else {
+            inst.state.sortBy = nextBy;
+            inst.state.sortOrder = nextOrder;
+          }
         }
         if (args.filter_category && ['all', 'image', 'video', 'audio', 'doc', 'archive'].includes(String(args.filter_category))) {
           inst.state.filterCategory = String(args.filter_category);
@@ -2697,6 +2896,152 @@
           sort_order: inst.state.sortOrder,
           filter_category: inst.state.filterCategory
         };
+      }
+
+      if (name === 'manage_tabs') {
+        const nav = inst.navigationManager;
+        if (!nav) return { success: false, error: 'NavigationManager unavailable.' };
+        const act = String(args.action || 'list');
+        if (act === 'list') {
+          return {
+            success: true,
+            active_tab_id: nav.activeTabId,
+            tabs: (nav.tabs || []).map(t => ({ id: t.id, path: t.path, title: t.title }))
+          };
+        }
+        if (act === 'create') {
+          const created = nav.createTab(args.dir !== undefined ? String(args.dir) : (inst.state.currentPath || ''), { activate: true });
+          return { success: true, tab: created ? { id: created.id, path: created.path } : null, tabs_count: nav.tabs.length };
+        }
+        if (act === 'switch') {
+          nav.switchTab(String(args.tab_id || ''));
+          return { success: true, active_tab_id: nav.activeTabId };
+        }
+        if (act === 'close') {
+          nav.closeTab(args.tab_id ? String(args.tab_id) : nav.activeTabId);
+          return { success: true, active_tab_id: nav.activeTabId, tabs_count: nav.tabs.length };
+        }
+        return { success: false, error: `Unknown manage_tabs action '${act}'.` };
+      }
+
+      if (name === 'toggle_split_pane') {
+        const sp = inst.splitPaneManager;
+        if (!sp) return { success: false, error: 'SplitPaneManager unavailable.' };
+        if (args.swap && typeof sp.swapWithPrimary === 'function') {
+          sp.swapWithPrimary();
+          return { success: true, is_open: sp.isOpen, primary_path: inst.state.currentPath || '', secondary_path: sp.currentPath || '' };
+        }
+        const targetOpen = (typeof args.open === 'boolean') ? args.open : !sp.isOpen;
+        sp.toggle(targetOpen);
+        if (targetOpen && typeof args.dir === 'string' && typeof sp.loadPath === 'function') {
+          await sp.loadPath(args.dir, true);
+        }
+        return { success: true, is_open: sp.isOpen, secondary_path: sp.currentPath || '' };
+      }
+
+      if (name === 'rename_item') {
+        const source = String(args.source || '').trim();
+        const newName = String(args.new_name || '').trim();
+        if (!source || !newName) return { success: false, error: 'source and new_name are required.' };
+        if (!window.sys || !window.sys.api || !window.sys.api.fs) return { success: false, error: 'Syscall FS API unavailable.' };
+        const res = await window.sys.api.fs.renameItem(source, newName);
+        if (res && res.success) {
+          if (window.EventBus) window.EventBus.emit('fs:changed', { action: 'rename', source, new_name: newName });
+          else await inst.loadDirectory(inst.state.currentPath || '', { forceRefresh: true });
+          return { success: true, source, new_name: newName, new_path: res.new_path || null };
+        }
+        return { success: false, error: (res && res.error) || 'Rename failed.' };
+      }
+
+      if (name === 'manage_tags') {
+        const act = String(args.action || 'list_all');
+        if (!window.sys || !window.sys.api) return { success: false, error: 'API unavailable.' };
+        if (act === 'list_all') {
+          const res = await window.sys.api.get('list_tags');
+          return { success: Boolean(res && res.success), tags: (res && res.tags) || [] };
+        }
+        if (act === 'get') {
+          const res = await window.sys.api.get('get_item_tags', { path: String(args.path || '') });
+          return { success: Boolean(res && res.success), tags: (res && res.tags) || [] };
+        }
+        if (act === 'set') {
+          const res = await window.sys.api.post('set_item_tags', { path: String(args.path || ''), tags: Array.isArray(args.tags) ? args.tags : [] });
+          if (res && res.success && inst.sidebarManager && typeof inst.sidebarManager.refreshOrganizationMeta === 'function') {
+            inst.sidebarManager.refreshOrganizationMeta();
+          }
+          return { success: Boolean(res && res.success), tags: (res && res.tags) || [] };
+        }
+        if (act === 'filter') {
+          const tagLabel = String(args.tag || '').trim();
+          if (!tagLabel) return { success: false, error: 'tag is required.' };
+          if (typeof inst.searchByTag === 'function') {
+            await inst.searchByTag(tagLabel);
+            return { success: true, tag: tagLabel, results_count: (inst.state.filteredFiles || []).length };
+          }
+          return { success: false, error: 'searchByTag unavailable.' };
+        }
+        return { success: false, error: `Unknown manage_tags action '${act}'.` };
+      }
+
+      if (name === 'manage_trash') {
+        const act = String(args.action || 'list');
+        if (!window.sys || !window.sys.api) return { success: false, error: 'API unavailable.' };
+        if (act === 'open') {
+          if (typeof inst.openTrashView === 'function') {
+            await inst.openTrashView();
+            return { success: true, is_trash_view: true };
+          }
+          return { success: false, error: 'openTrashView unavailable.' };
+        }
+        if (act === 'list') {
+          const res = await window.sys.api.get('list_trash');
+          return { success: Boolean(res && res.success), items: (res && res.items) || [] };
+        }
+        if (act === 'restore') {
+          const tid = String(args.trash_id || '').trim();
+          if (!tid) return { success: false, error: 'trash_id is required.' };
+          const res = await window.sys.api.post('restore_trash_item', { trash_id: tid });
+          if (res && res.success && window.EventBus) {
+            window.EventBus.emit('fs:changed', { action: 'restore_trash', trash_id: tid });
+          }
+          return { success: Boolean(res && res.success), restored_path: res && res.restored_path, error: res && res.error };
+        }
+        return { success: false, error: `Unknown manage_trash action '${act}'.` };
+      }
+
+      if (name === 'search_indexed') {
+        if (!inst.searchManager || typeof inst.searchManager.searchIndexed !== 'function') {
+          return { success: false, error: 'SearchManager unavailable.' };
+        }
+        await inst.searchManager.searchIndexed({
+          q: String(args.q || ''),
+          category: String(args.category || 'all'),
+          tag: String(args.tag || ''),
+          scope: String(args.scope || 'global'),
+          size_range: String(args.size_range || 'all'),
+          timing: String(args.timing || 'all'),
+          limit: 100
+        });
+        const files = inst.state.filteredFiles || [];
+        return {
+          success: true,
+          count: files.length,
+          results: files.slice(0, 25).map(f => ({ name: f.name, path: f.path, category: f.category, size_formatted: f.size_formatted }))
+        };
+      }
+
+      if (name === 'open_quicklook') {
+        if (!inst.quickLookManager) return { success: false, error: 'QuickLook unavailable.' };
+        if (args.close) {
+          inst.quickLookManager.close();
+          return { success: true, is_open: false };
+        }
+        const targetPath = String(args.path || '');
+        const files = inst.state.filteredFiles || [];
+        const idx = targetPath ? files.findIndex(f => f.path === targetPath) : 0;
+        if (idx < 0 || idx >= files.length) return { success: false, error: 'Target file not found in current view.' };
+        inst.quickLookManager.open(idx);
+        return { success: true, is_open: inst.quickLookManager.isOpen, file: files[idx].path };
       }
 
       return { success: false, error: `Unknown explorer tool '${name}'.` };

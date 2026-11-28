@@ -369,7 +369,7 @@ flowchart TB
   - **Vue Liste / Détails Pro** : dossiers en premier dans le tableau, en-têtes de colonnes triables (`▲/▼`), cases à cocher, badges compacts Tags/GPS/Partage.
   - **Quick Look instantané (`Espace`)** : aperçu léger centré (images, vidéos, audio, texte/Markdown/code, PDF, contenu ZIP) navigable aux flèches `←`/`→` sans quitter l'Explorateur.
   - **Performance grandes galeries** : rendu progressif par lots (*chunked rendering* / `IntersectionObserver`) + cache de navigation invalidé sur `fs:changed`.
-- [ ] **Lot 6 — Clavier Complet, Intégration Agent IA & Validation Automatisée** :
+- [x] **Lot 6 — Clavier Complet, Intégration Agent IA & Validation Automatisée** *(Livré & Testé)* :
   - Raccourcis clavier complets (`F2`, `F3`, `F5`, `Espace`, `Entrée`, `Suppr`, `Ctrl+A/C/X/V`, `Ctrl+T/W`, `Ctrl+L`, `Ctrl+F`, `Ctrl+Shift+N`, `Alt+←/→/↑`, flèches 2D).
   - Extension des outils Agent IA (`Compagnon`) dans `ExplorerApp` : onglets, double volet, renommage, tags, corbeille, recherche indexée et changement de mode d'affichage.
   - Tests unitaires PHP (`rename_item`, ACL, sécurité) et Runtime JS Node (multi-instances, héritage de vues, sidebar/arborescence, onglets, zéro clic droit navigateur, corbeille/tags/versions, Quick Look, parité i18n FR/EN/JA).
@@ -426,8 +426,7 @@ Grâce au déport du calcul lourd en **WebAssembly côté client**, la marge bru
 
 ## 9. Prochains Jalons Concrets Recommandés
 
-Les **Phases A, B, C**, les **Lots 1–2 de la Phase D (Studio Créatif & Apps Externes)** et l'ensemble de la **Phase E (Agent IA Universel « Compagnon », Lots 1–4)** étant livrés et couverts par la suite de tests (**991 / 991 PASS**), l'ordre de plus fort retour sur investissement pour la suite est :
+Les **Phases A, B, C**, les **Lots 1–2 de la Phase D (Studio Créatif & Apps Externes)**, l'ensemble de la **Phase E (Agent IA Universel « Compagnon », Lots 1–4)** et l'ensemble de la **Phase G (Refonte Complète de l'Explorateur WebOS, Lots 1–6)** étant livrés et couverts par la suite de tests (**1 014 / 1 014 PASS**), l'ordre de plus fort retour sur investissement pour la suite est :
 
-1. **Phase G (Lots 1 → 6)** : **Refonte complète de l'Explorateur WebOS (`apps/explorer/`)** — architecture modulaire, mode Pro par défaut (liste détaillée + sidebar arborescente + double volet Commander), héritage d'affichage par dossier, menus contextuels exhaustifs (zéro clic droit navigateur), transferts chunked, corbeille/tags/versions/partage intégrés et Quick Look *(effort `L` — cœur d'usage quotidien du WebOS)*.
-2. **Phase D (fin)** : **Galeries de Livraison Client (proofing, filigrane, sélection) + Marque Blanche** *(effort `M` — différenciateur commercial immédiat)*.
-3. **Phase F** : **Démo live publique + Control Plane SaaS (« Atelier Cloud »)** *(effort `L` — monétisation récurrente en silos isolés)*.
+1. **Phase D (fin)** : **Galeries de Livraison Client (proofing, filigrane, sélection) + Marque Blanche** *(effort `M` — différenciateur commercial immédiat)*.
+2. **Phase F** : **Démo live publique + Control Plane SaaS (« Atelier Cloud »)** *(effort `L` — monétisation récurrente en silos isolés)*.

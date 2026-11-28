@@ -2587,6 +2587,154 @@ try {
     fs.readFileSync(path.join(rootDir, 'system/userland/core/GalleryViewRegistry.js'), 'utf8').includes('alreadyLoaded') &&
     lot5Parity
   );
+
+  // Phase G — Lot 6: Full Keyboard Shortcuts + 2D Arrow Navigation, Extended AI Agent Tools & Complete Quality Gate
+  const allExplorerJsFiles = [
+    path.join(rootDir, 'apps/explorer/explorer.js'),
+    ...fs.readdirSync(path.join(rootDir, 'apps/explorer/scripts')).filter(f => f.endsWith('.js')).map(f => path.join(rootDir, 'apps/explorer/scripts', f)),
+    ...['list', 'grid', 'mosaic', 'polaroid'].map(v => path.join(rootDir, 'apps/explorer/views', v, 'view.js'))
+  ];
+  const zeroRawFetchInExplorer = allExplorerJsFiles.every(f => !/\bfetch\s*\(/.test(fs.readFileSync(f, 'utf8')));
+  const zeroHardcodedFallbackI18n = allExplorerJsFiles.every(f => !/this\.t\([^)]*\)\s*\|\|\s*['"`]/.test(fs.readFileSync(f, 'utf8')));
+
+  const shortcutsPresent = (
+    explorerJs.includes("e.key === 'F2'") &&
+    explorerJs.includes("e.key === 'F3'") &&
+    explorerJs.includes("e.key === 'F5'") &&
+    explorerJs.includes("e.key === ' '") &&
+    explorerJs.includes("e.key === 'Enter'") &&
+    explorerJs.includes("e.key === 'Delete'") &&
+    explorerJs.includes("e.key === 'Backspace'") &&
+    explorerJs.includes("key === 'a'") &&
+    explorerJs.includes("key === 'c'") &&
+    explorerJs.includes("key === 'x'") &&
+    explorerJs.includes("key === 'v'") &&
+    explorerJs.includes("key === 't'") &&
+    explorerJs.includes("key === 'w'") &&
+    explorerJs.includes("key === 'l'") &&
+    explorerJs.includes("key === 'f'") &&
+    explorerJs.includes("key === 'n' && e.shiftKey") &&
+    explorerJs.includes("e.key === 'ArrowLeft'") &&
+    explorerJs.includes("e.key === 'ArrowRight'") &&
+    explorerJs.includes("e.key === 'ArrowUp'") &&
+    explorerJs.includes("e.key === 'ArrowDown'") &&
+    explorerJs.includes("navigateSelectionByArrow(") &&
+    explorerJs.includes("_computeGridColumnCount(")
+  );
+
+  // Sandbox runtime test of 2D Arrow Navigation (4-column grid, 10 items) + Extended AI Agent Tools
+  const lot6Win = {
+    IS_ADMIN: true,
+    ATELIER_CURRENT_USER: { username: 'admin' },
+    localStorage: inheritWin.localStorage,
+    addEventListener() {},
+    removeEventListener() {},
+    Image: class {}
+  };
+  const lot6Doc = {
+    addEventListener() {},
+    removeEventListener() {},
+    getElementById() { return null; }
+  };
+  // Extract ExplorerInstance & ExplorerApp classes via safe execution
+  const lot6BootSrc = explorerJs.replace("document.addEventListener('DOMContentLoaded'", "window.__lot6TestCapture = { ExplorerInstance, ExplorerApp }; document.addEventListener('DOMContentLoaded'");
+  new Function('window', 'document', 'localStorage', lot6BootSrc)(lot6Win, lot6Doc, lot6Win.localStorage);
+
+  let nav2dOk = false;
+  let agentLot6Ok = false;
+  if (lot6Win.__lot6TestCapture) {
+    const { ExplorerInstance, ExplorerApp } = lot6Win.__lot6TestCapture;
+    const mockCards = Array.from({ length: 10 }, (_, idx) => ({
+      getBoundingClientRect: () => ({ top: Math.floor(idx / 4) * 200 }),
+      scrollIntoView: () => {}
+    }));
+    const mock2dInst = Object.create(ExplorerInstance.prototype);
+    mock2dInst.state = {
+      viewMode: 'grid',
+      filteredFiles: Array.from({ length: 10 }, (_, idx) => ({ path: `img_${idx}.jpg`, name: `img_${idx}.jpg` })),
+      selectedPaths: new Set(['img_0.jpg']),
+      lastSelectedIndex: 0
+    };
+    mock2dInst.el = {
+      mediaGrid: {
+        querySelectorAll: () => mockCards,
+        querySelector: (sel) => {
+          const m = /data-index="(\d+)"/.exec(sel);
+          return m ? mockCards[Number(m[1])] : null;
+        }
+      }
+    };
+    mock2dInst.updateSelectionUI = () => {};
+    mock2dInst.navigateSelectionByArrow('ArrowDown', false);
+    const afterDown = mock2dInst.state.lastSelectedIndex; // expect 4
+    mock2dInst.navigateSelectionByArrow('ArrowRight', false);
+    const afterRight = mock2dInst.state.lastSelectedIndex; // expect 5
+    mock2dInst.navigateSelectionByArrow('ArrowUp', false);
+    const afterUp = mock2dInst.state.lastSelectedIndex; // expect 1
+    mock2dInst.navigateSelectionByArrow('ArrowLeft', false);
+    const afterLeft = mock2dInst.state.lastSelectedIndex; // expect 0
+    mock2dInst.navigateSelectionByArrow('End', false);
+    const afterEnd = mock2dInst.state.lastSelectedIndex; // expect 9
+    mock2dInst.navigateSelectionByArrow('Home', false);
+    const afterHome = mock2dInst.state.lastSelectedIndex; // expect 0
+    mock2dInst.navigateSelectionByArrow('ArrowRight', true);
+    const rangeSize = mock2dInst.state.selectedPaths.size; // expect 2 (0 and 1)
+
+    nav2dOk = (
+      afterDown === 4 &&
+      afterRight === 5 &&
+      afterUp === 1 &&
+      afterLeft === 0 &&
+      afterEnd === 9 &&
+      afterHome === 0 &&
+      rangeSize === 2
+    );
+
+    const mockAgentApp = Object.create(ExplorerApp.prototype);
+    const tools = mockAgentApp.getAgentTools();
+    const toolNames = tools.map(t => t.name);
+    const requiredAgentTools = ['navigate', 'set_view_options', 'manage_tabs', 'toggle_split_pane', 'rename_item', 'manage_tags', 'manage_trash', 'search_indexed', 'open_quicklook'];
+    mockAgentApp.getActiveInstance = () => ({
+      state: {
+        currentPath: 'docs',
+        viewMode: 'list',
+        sortBy: 'name',
+        sortOrder: 'asc',
+        filterCategory: 'all',
+        searchQuery: '',
+        activeTagFilter: 'urgent',
+        selectedPaths: new Set(['docs/a.md']),
+        filteredFiles: [{ path: 'docs/a.md', name: 'a.md' }],
+        directories: [],
+        isTrashView: false
+      },
+      navigationManager: { tabs: [{ id: 'tab-1', path: 'docs', title: 'docs' }], activeTabId: 'tab-1' },
+      splitPaneManager: { isOpen: true, currentPath: 'archive' },
+      sidebarManager: { isVisible: true },
+      quickLookManager: { isOpen: false },
+      el: { inspectorDrawer: { style: { display: 'flex' } } }
+    });
+    const ctxOut = mockAgentApp.getAgentContext();
+    agentLot6Ok = (
+      requiredAgentTools.every(n => toolNames.includes(n)) &&
+      ctxOut &&
+      ctxOut.tabs_count === 1 &&
+      ctxOut.split_pane_open === true &&
+      ctxOut.split_pane_path === 'archive' &&
+      ctxOut.active_tag_filter === 'urgent' &&
+      ctxOut.inspector_open === true &&
+      ctxOut.view_profile === 'pro'
+    );
+  }
+
+  assert("Phase G (Lot 6): Clavier complet + navigation fléchée 2D, 9 outils Agent IA Compagnon, zéro fetch() brut & zéro fallback i18n",
+    shortcutsPresent &&
+    nav2dOk &&
+    agentLot6Ok &&
+    zeroRawFetchInExplorer &&
+    zeroHardcodedFallbackI18n &&
+    lot5Parity
+  );
 } catch (e) {
   assert("Phase 1 exécution runtime UI", false, e.stack);
 }
