@@ -81,7 +81,7 @@
 
       return `
         <div class="list-table-row list-table-row-folder ${ctx.handleClass || ''} ${isSelected ? 'selected' : ''}" data-path="${ctx.escapeHtml(folder.path)}" data-protected="${isProtected ? '1' : '0'}" data-unlocked="${folder.is_unlocked ? '1' : '0'}" draggable="${ctx.isDraggable || 'false'}" role="row">
-          <div class="list-col-check" onclick="event.stopPropagation()">
+          <div class="list-col-check">
             <input type="checkbox" class="list-row-cb" data-select-path="${ctx.escapeHtml(folder.path)}" ${isSelected ? 'checked' : ''} aria-label="${ctx.escapeHtml(folder.name)}" />
           </div>
           <div class="list-col-preview">${previewHtml}</div>
@@ -97,7 +97,7 @@
           </div>
           <div class="list-col-size"><span>${ctx.escapeHtml(countText)}</span></div>
           <div class="list-col-date"><span>${ctx.escapeHtml(dateFormatted)}</span></div>
-          <div class="list-col-actions" onclick="event.stopPropagation()">
+          <div class="list-col-actions">
             ${ctx.isAdmin ? `<button type="button" class="folder-settings-btn list-inline-action-btn" data-path="${ctx.escapeHtml(folder.path)}" data-name="${ctx.escapeHtml(folder.name)}" title="${ctx.escapeHtml(ctx.t('nav.folder_settings'))}">⚙️</button>` : ''}
             ${canDelete ? `<button type="button" class="delete-item-btn" data-path="${ctx.escapeHtml(folder.path)}" data-name="${ctx.escapeHtml(folder.name)}" data-type="folder" title="${ctx.escapeHtml(ctx.t('folder.delete_title'))}">🗑️</button>` : ''}
           </div>
@@ -132,9 +132,9 @@
       const deleteBtnHtml = canDelete
         ? `<button type="button" class="delete-item-btn" data-path="${ctx.escapeHtml(file.path)}" data-name="${ctx.escapeHtml(file.name)}" data-type="file" title="${ctx.escapeHtml(ctx.t('card.delete_item'))}">🗑️</button>`
         : '';
-      const favBtnHtml = `<button type="button" class="favorite-btn ${isFav ? 'is-favorite' : ''}" data-path="${ctx.escapeHtml(file.path)}" title="${ctx.escapeHtml(isFav ? ctx.t('lightbox.favorite_remove') : ctx.t('lightbox.favorite_add'))}" onclick="event.stopPropagation()">${isFav ? '❤️' : '🤍'}</button>`;
+      const favBtnHtml = `<button type="button" class="favorite-btn ${isFav ? 'is-favorite' : ''}" data-path="${ctx.escapeHtml(file.path)}" title="${ctx.escapeHtml(isFav ? ctx.t('lightbox.favorite_remove') : ctx.t('lightbox.favorite_add'))}">${isFav ? '❤️' : '🤍'}</button>`;
       const pipCardBtn = ['video', 'audio'].includes(file.category)
-        ? `<button type="button" class="pip-card-btn" data-index="${idx}" title="${ctx.escapeHtml(ctx.t('card.pip_mode'))}" onclick="event.stopPropagation()">🗗</button>`
+        ? `<button type="button" class="pip-card-btn" data-index="${idx}" title="${ctx.escapeHtml(ctx.t('card.pip_mode'))}">🗗</button>`
         : '';
 
       const dateFormatted = file.mtime_formatted || file.date_formatted || (file.mtime ? new Date(file.mtime * 1000).toLocaleDateString() : '—');
@@ -144,7 +144,7 @@
 
       return `
         <div class="list-table-row ${ctx.handleClass || ''} ${isSelected ? 'selected' : ''}" data-index="${idx}" data-path="${ctx.escapeHtml(file.path)}" draggable="${ctx.isDraggable || 'false'}" role="row">
-          <div class="list-col-check" onclick="event.stopPropagation()">
+          <div class="list-col-check">
             <input type="checkbox" class="list-row-cb" data-select-index="${idx}" data-select-path="${ctx.escapeHtml(file.path)}" ${isSelected ? 'checked' : ''} aria-label="${ctx.escapeHtml(file.name)}" />
           </div>
           <div class="list-col-preview">
@@ -167,7 +167,7 @@
           <div class="list-col-date">
             <span>${ctx.escapeHtml(dateFormatted)}</span>
           </div>
-          <div class="list-col-actions" onclick="event.stopPropagation()">
+          <div class="list-col-actions">
             ${canComment ? `<button type="button" class="edit-media-comment-btn" data-filename="${ctx.escapeHtml(file.name)}" data-comment="${ctx.escapeHtml(file.comment || '')}" title="${ctx.escapeHtml(ctx.t('card.edit_comment'))}">✏️</button>` : ''}
             ${pipCardBtn}
             ${favBtnHtml}

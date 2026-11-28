@@ -2582,6 +2582,7 @@ try {
     explorerJs.includes('invalidateDirCache(') &&
     explorerJs.includes('openQuickLook(') &&
     explorerJs.includes('setSort(sortBy') &&
+    !listViewJs.includes('stopPropagation()') &&
     expCtxSrc.includes('showColumnSortContextMenu') &&
     expCtxSrc.includes('explorer.ctx_quicklook') &&
     fs.readFileSync(path.join(rootDir, 'system/userland/core/GalleryViewRegistry.js'), 'utf8').includes('alreadyLoaded') &&

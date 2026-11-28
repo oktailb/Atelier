@@ -1109,7 +1109,7 @@
         // Unified List Folder Row click (honors Single vs Double click preference)
         const folderRow = e.target.closest('.list-table-row-folder[data-path]');
         if (folderRow && this.el.mediaGrid.contains(folderRow)) {
-          if (e.target.closest('button, input, a')) return;
+          if (e.target.closest('button, input, a, .list-col-check, .list-col-actions')) return;
           const folderPath = folderRow.dataset.path;
           const prefs = this.stateManager ? this.stateManager.getExplorerPrefs() : { openMode: 'double' };
           if (e.ctrlKey || e.metaKey) {
@@ -1138,7 +1138,7 @@
 
         const card = e.target.closest('[data-index]');
         if (card && this.el.mediaGrid.contains(card)) {
-          if (e.target.closest('button, input, a, .pip-card-btn')) return;
+          if (e.target.closest('button, input, a, .pip-card-btn, .list-col-check, .list-col-actions')) return;
 
           const index = parseInt(card.dataset.index, 10);
           const file = this.state.filteredFiles[index];
@@ -1215,7 +1215,7 @@
       this.el.mediaGrid.addEventListener('dblclick', (e) => {
         const folderRow = e.target.closest('.list-table-row-folder[data-path]');
         if (folderRow && this.el.mediaGrid.contains(folderRow)) {
-          if (e.target.closest('button, input, a')) return;
+          if (e.target.closest('button, input, a, .list-col-check, .list-col-actions')) return;
           e.preventDefault();
           const folderPath = folderRow.dataset.path;
           const isProtected = folderRow.dataset.protected === '1';
@@ -1229,7 +1229,7 @@
         }
         const card = e.target.closest('[data-index]');
         if (card && this.el.mediaGrid.contains(card)) {
-          if (e.target.closest('button, input, a, .pip-card-btn')) return;
+          if (e.target.closest('button, input, a, .pip-card-btn, .list-col-check, .list-col-actions')) return;
           const index = parseInt(card.dataset.index, 10);
           const file = this.state.filteredFiles[index];
           if (file) {
