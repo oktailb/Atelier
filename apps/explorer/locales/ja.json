@@ -122,5 +122,11 @@
   "explorer.transfer_minimize_btn": "最小化 / 展開",
   "explorer.transfer_summary_ok": "{count} 件のファイルをアップロードしました。",
   "explorer.transfer_summary_err": "転送完了：{ok} 件成功、{failed} 件失敗。",
-  "explorer.duplicate_success": "項目を複製しました。"
+  "explorer.duplicate_success": "項目を複製しました。",
+  "explorer.list_preview": "プレビュー",
+  "explorer.list_name": "名前と説明",
+  "explorer.list_type": "種類",
+  "explorer.list_size": "サイズ",
+  "explorer.list_date": "更新日時",
+  "explorer.list_actions": "操作"
 }

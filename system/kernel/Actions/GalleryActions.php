@@ -401,9 +401,10 @@ class GalleryActions {
                 'name'      => (string)$d['name'],
                 'raw_name'  => (string)$d['name'],
                 'path'      => $dPath,
-                'mtime'     => (int)($d['mtime'] ?? 0),
-                'count'     => 0,
-                'cover_url' => null,
+                'mtime'      => (int)($d['mtime'] ?? 0),
+                'count'      => null,
+                'item_count' => null,
+                'cover_url'  => null,
                 'is_locked' => false,
                 'is_private'=> false
             ];

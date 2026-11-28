@@ -100,11 +100,12 @@
       const oldName = currentName || String(itemPath).split('/').filter(Boolean).pop() || '';
       if (!window.sys || !window.sys.dialog || typeof window.sys.dialog.prompt !== 'function') return;
 
-      const nextName = await window.sys.dialog.prompt(
-        this.inst.t('explorer.rename_prompt', { name: oldName }),
-        this.inst.t('explorer.rename_title'),
-        oldName
-      );
+      const nextName = await window.sys.dialog.prompt({
+        title: this.inst.t('explorer.rename_title'),
+        message: this.inst.t('explorer.rename_prompt', { name: oldName }),
+        defaultValue: oldName,
+        selectStem: true
+      });
       if (!nextName || !nextName.trim() || nextName.trim() === oldName) return;
 
       const cleanNew = nextName.trim();
@@ -141,11 +142,12 @@
       }
       if (!window.sys || !window.sys.dialog || typeof window.sys.dialog.prompt !== 'function') return;
 
-      const filename = await window.sys.dialog.prompt(
-        this.inst.t('explorer.new_file_prompt'),
-        this.inst.t('explorer.new_file_title'),
-        'note.md'
-      );
+      const filename = await window.sys.dialog.prompt({
+        title: this.inst.t('explorer.new_file_title'),
+        message: this.inst.t('explorer.new_file_prompt'),
+        defaultValue: 'note.md',
+        selectStem: true
+      });
       if (!filename || !filename.trim()) return;
 
       const cleanName = filename.trim().replace(/[\/\\]/g, '');

@@ -17,12 +17,12 @@
       return `
         <div class="list-table-wrapper">
           <div class="list-table-header">
-            <div class="list-col-preview" data-i18n="list.preview">Aperçu</div>
-            <div class="list-col-name" data-i18n="list.name">Nom &amp; Description</div>
-            <div class="list-col-category" data-i18n="list.type">Type</div>
-            <div class="list-col-size" data-i18n="list.size">Taille</div>
-            <div class="list-col-date" data-i18n="list.date">Date de modification</div>
-            <div class="list-col-actions" data-i18n="list.actions">Actions</div>
+            <div class="list-col-preview">${ctx.escapeHtml(ctx.t('explorer.list_preview'))}</div>
+            <div class="list-col-name">${ctx.escapeHtml(ctx.t('explorer.list_name'))}</div>
+            <div class="list-col-category">${ctx.escapeHtml(ctx.t('explorer.list_type'))}</div>
+            <div class="list-col-size">${ctx.escapeHtml(ctx.t('explorer.list_size'))}</div>
+            <div class="list-col-date">${ctx.escapeHtml(ctx.t('explorer.list_date'))}</div>
+            <div class="list-col-actions">${ctx.escapeHtml(ctx.t('explorer.list_actions'))}</div>
           </div>
           <div class="list-table-body">
             ${rows}
@@ -50,36 +50,39 @@
       const isFav = ctx.favorites && ctx.favorites.includes(file.path);
 
       const deleteBtnHtml = canDelete
-        ? `<button class="delete-item-btn" data-path="${ctx.escapeHtml(file.path)}" data-name="${ctx.escapeHtml(file.name)}" data-type="file" title="${ctx.escapeHtml(ctx.t('card.delete_item'))}">🗑️</button>`
+        ? `<button type="button" class="delete-item-btn" data-path="${ctx.escapeHtml(file.path)}" data-name="${ctx.escapeHtml(file.name)}" data-type="file" title="${ctx.escapeHtml(ctx.t('card.delete_item'))}">🗑️</button>`
         : '';
-      const favBtnHtml = `<button class="favorite-btn ${isFav ? 'is-favorite' : ''}" data-path="${ctx.escapeHtml(file.path)}" title="${ctx.escapeHtml(isFav ? ctx.t('lightbox.favorite_remove') : ctx.t('lightbox.favorite_add'))}" onclick="event.stopPropagation()">${isFav ? '❤️' : '🤍'}</button>`;
+      const favBtnHtml = `<button type="button" class="favorite-btn ${isFav ? 'is-favorite' : ''}" data-path="${ctx.escapeHtml(file.path)}" title="${ctx.escapeHtml(isFav ? ctx.t('lightbox.favorite_remove') : ctx.t('lightbox.favorite_add'))}" onclick="event.stopPropagation()">${isFav ? '❤️' : '🤍'}</button>`;
       const pipCardBtn = ['video', 'audio'].includes(file.category)
-        ? `<button class="pip-card-btn" data-index="${idx}" title="${ctx.escapeHtml(ctx.t('card.pip_mode'))}" onclick="event.stopPropagation()">🗗</button>`
+        ? `<button type="button" class="pip-card-btn" data-index="${idx}" title="${ctx.escapeHtml(ctx.t('card.pip_mode'))}" onclick="event.stopPropagation()">🗗</button>`
         : '';
 
-      const dateFormatted = file.mtime_formatted || (file.mtime ? new Date(file.mtime * 1000).toLocaleDateString() : '—');
+      const dateFormatted = file.mtime_formatted || file.date_formatted || (file.mtime ? new Date(file.mtime * 1000).toLocaleDateString() : '—');
+      const previewHtml = file.thumb_url
+        ? `<img src="${ctx.escapeHtml(file.thumb_url)}" alt="" loading="lazy" draggable="false" onerror="this.style.display='none';if(this.nextElementSibling){this.nextElementSibling.style.display='flex';}" /><span class="list-preview-fallback" style="display:none;" aria-hidden="true">${categoryIcon}</span>`
+        : `<span class="list-preview-fallback" aria-hidden="true">${categoryIcon}</span>`;
 
       return `
         <div class="list-table-row ${ctx.handleClass || ''}" data-index="${idx}" draggable="${ctx.isDraggable || 'false'}">
           <div class="list-col-preview">
-            <img src="${ctx.escapeHtml(file.thumb_url)}" alt="${ctx.escapeHtml(file.name)}" loading="lazy" draggable="false" />
+            ${previewHtml}
           </div>
           <div class="list-col-name">
-            <div class="list-item-main-title">${ctx.escapeHtml(file.name)}</div>
-            ${file.comment ? `<div class="list-item-sub-comment">${ctx.escapeHtml(file.comment)}</div>` : ''}
+            <div class="list-item-main-title" title="${ctx.escapeHtml(file.name)}">${ctx.escapeHtml(file.name)}</div>
+            ${file.comment ? `<div class="list-item-sub-comment" title="${ctx.escapeHtml(file.comment)}">${ctx.escapeHtml(file.comment)}</div>` : ''}
           </div>
           <div class="list-col-category">
-            <span class="list-category-badge">${categoryIcon} ${ctx.escapeHtml(file.category)}</span>
+            <span class="list-category-badge">${categoryIcon} ${ctx.escapeHtml(file.category || 'file')}</span>
           </div>
           <div class="list-col-size">
             <span>${file.size_formatted || '—'}</span>
           </div>
           <div class="list-col-date">
-            <span>${dateFormatted}</span>
+            <span>${ctx.escapeHtml(dateFormatted)}</span>
           </div>
           <div class="list-col-actions" onclick="event.stopPropagation()">
             ${gpsBadge}
-            ${canComment ? `<button class="edit-media-comment-btn" data-filename="${ctx.escapeHtml(file.name)}" data-comment="${ctx.escapeHtml(file.comment || '')}" title="${ctx.escapeHtml(ctx.t('card.edit_comment'))}">✏️</button>` : ''}
+            ${canComment ? `<button type="button" class="edit-media-comment-btn" data-filename="${ctx.escapeHtml(file.name)}" data-comment="${ctx.escapeHtml(file.comment || '')}" title="${ctx.escapeHtml(ctx.t('card.edit_comment'))}">✏️</button>` : ''}
             ${pipCardBtn}
             ${favBtnHtml}
             ${deleteBtnHtml}

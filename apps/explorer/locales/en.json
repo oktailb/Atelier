@@ -122,5 +122,11 @@
   "explorer.transfer_minimize_btn": "Minimize / Expand",
   "explorer.transfer_summary_ok": "{count} file(s) uploaded successfully.",
   "explorer.transfer_summary_err": "Transfer finished: {ok} succeeded, {failed} failed.",
-  "explorer.duplicate_success": "Item duplicated."
+  "explorer.duplicate_success": "Item duplicated.",
+  "explorer.list_preview": "Preview",
+  "explorer.list_name": "Name & Description",
+  "explorer.list_type": "Type",
+  "explorer.list_size": "Size",
+  "explorer.list_date": "Modified",
+  "explorer.list_actions": "Actions"
 }

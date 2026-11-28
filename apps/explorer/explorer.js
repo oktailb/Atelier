@@ -666,9 +666,7 @@
               ${folder.is_protected && !folder.is_unlocked && !this.state.isAdmin ? '<div class="folder-lock-icon">🔒</div>' : (folder.cover ? `<img src="${this.escapeHtml(folder.cover)}" alt="${this.escapeHtml(folder.name)}" class="folder-cover-img" loading="lazy" draggable="false" />` : '📁')}
             </div>
             <div class="folder-name">${this.escapeHtml(folder.name)}</div>
-            <div class="folder-meta">
-              <span>${this.escapeHtml(this.t('folder.items_count', { count: folder.item_count }))}</span>
-            </div>
+            ${typeof folder.item_count === 'number' ? `<div class="folder-meta"><span>${this.escapeHtml(this.t('folder.items_count', { count: folder.item_count }))}</span></div>` : ''}
             ${folder.comment ? `<div class="folder-comment">💬 ${this.escapeHtml(folder.comment)}</div>` : ''}
           </div>
         `;

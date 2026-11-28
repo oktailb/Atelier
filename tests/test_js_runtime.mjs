@@ -2463,6 +2463,22 @@ try {
     explorerJs.includes('renameSelection') &&
     lot3LocaleParity
   );
+
+  // Regression tests for Detailed List view layout/light-theme, Rename pre-fill & external folder count
+  const listViewCss = fs.readFileSync(path.join(rootDir, 'apps/explorer/views/list/view.css'), 'utf8');
+  const listViewJs = fs.readFileSync(path.join(rootDir, 'apps/explorer/views/list/view.js'), 'utf8');
+  const toolkitSrc = fs.readFileSync(path.join(rootDir, 'system/userland/ui/WebOSToolkit.js'), 'utf8');
+  assert("Phase G (Fix Lot 3): Vue Liste détaillée (thème clair, colonnes minmax, boutons non-absolus, fallback icône), pré-remplissage Renommer & zéro 'undefined élément(s)'",
+    !listViewCss.includes('color: #ffffff;') &&
+    listViewCss.includes('position: static !important;') &&
+    listViewCss.includes('minmax(140px, 1fr)') &&
+    listViewJs.includes('list-preview-fallback') &&
+    listViewJs.includes('file.date_formatted') &&
+    expOpsSrc.includes('defaultValue: oldName') &&
+    expOpsSrc.includes('selectStem: true') &&
+    toolkitSrc.includes('options.selectStem') &&
+    explorerJs.includes("typeof folder.item_count === 'number'")
+  );
 } catch (e) {
   assert("Phase 1 exécution runtime UI", false, e.stack);
 }

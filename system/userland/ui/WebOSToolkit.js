@@ -248,11 +248,17 @@
         const cancelText = options.cancelText || this.t('dialog.cancel');
 
         const body = document.createElement('div');
-        body.innerHTML = `
-          <p style="margin:0 0 12px 0;">${options.message || ''}</p>
-          <input type="text" class="webos-search-input" value="${options.defaultValue || ''}" placeholder="${options.placeholder || ''}" style="padding-left:12px;" />
-        `;
-        const input = body.querySelector('input');
+        const msgEl = document.createElement('p');
+        msgEl.style.margin = '0 0 12px 0';
+        msgEl.textContent = options.message || '';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'webos-search-input';
+        input.style.paddingLeft = '12px';
+        input.value = (options.defaultValue !== undefined && options.defaultValue !== null) ? String(options.defaultValue) : '';
+        input.placeholder = options.placeholder || '';
+        body.appendChild(msgEl);
+        body.appendChild(input);
 
         const footer = document.createElement('div');
         footer.style.display = 'flex';
@@ -278,7 +284,21 @@
           onClose: () => doResolve(null)
         });
 
-        setTimeout(() => input.focus(), 100);
+        setTimeout(() => {
+          input.focus();
+          if (input.value && typeof input.setSelectionRange === 'function') {
+            if (options.selectStem) {
+              const lastDot = input.value.lastIndexOf('.');
+              if (lastDot > 0) {
+                input.setSelectionRange(0, lastDot);
+              } else {
+                input.select();
+              }
+            } else if (options.selectAll) {
+              input.select();
+            }
+          }
+        }, 100);
 
         const submit = () => {
           const val = input.value;

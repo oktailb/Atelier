@@ -122,5 +122,11 @@
   "explorer.transfer_minimize_btn": "Réduire / Agrandir",
   "explorer.transfer_summary_ok": "{count} fichier(s) transféré(s) avec succès.",
   "explorer.transfer_summary_err": "Transfert terminé : {ok} réussi(s), {failed} échec(s).",
-  "explorer.duplicate_success": "Élément dupliqué."
+  "explorer.duplicate_success": "Élément dupliqué.",
+  "explorer.list_preview": "Aperçu",
+  "explorer.list_name": "Nom & Description",
+  "explorer.list_type": "Type",
+  "explorer.list_size": "Taille",
+  "explorer.list_date": "Modification",
+  "explorer.list_actions": "Actions"
 }

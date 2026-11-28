@@ -19,11 +19,11 @@
       if (!canCreate) return;
 
       if (window.sys && window.sys.dialog && typeof window.sys.dialog.prompt === 'function') {
-        window.sys.dialog.prompt(
-          this.inst.t('folder.new_name_placeholder'),
-          this.inst.t('nav.create_folder'),
-          ''
-        ).then(async (name) => {
+        window.sys.dialog.prompt({
+          title: this.inst.t('nav.create_folder'),
+          message: this.inst.t('folder.new_name_placeholder'),
+          defaultValue: ''
+        }).then(async (name) => {
           if (name && name.trim()) {
             await this._submitCreateFolder(name.trim());
           }
