@@ -247,11 +247,12 @@
     }
 
     /**
-     * Opens the modal dialog to share a folder with another user/group (mounted disk) or via signed link.
+     * Opens the modal dialog to share a folder or file with another user/group (mounted disk) or via signed link.
      */
-    async openShareDialog(folderPath) {
+    async openShareDialog(folderPath, options = {}) {
       const cleanPath = String(folderPath || '').replace(/^\/+|\/+$/g, '');
       if (!cleanPath || !window.sys || !window.sys.api) return;
+      const isFile = Boolean(options && options.isFile);
 
       const [usersRes, groupsRes, sharesRes, linksRes] = await Promise.all([
         window.sys.api.get('list_users'),
@@ -294,6 +295,7 @@
           <button type="button" class="share-modal-close" style="background:none;border:none;color:${muted};font-size:1.3rem;cursor:pointer;">✕</button>
         </div>
 
+        ${!isFile ? `
         <div style="display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid ${border};border-radius:10px;">
           <div style="font-weight:600;font-size:0.9rem;">💽 ${escapeHtml(t('shares.mount_section_title'))}</div>
           ${targetOptionsHtml ? `
@@ -329,6 +331,7 @@
             </div>
           ` : ''}
         </div>
+        ` : ''}
 
         <div style="display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid ${border};border-radius:10px;">
           <div style="font-weight:600;font-size:0.9rem;">🌐 ${escapeHtml(t('shares.link_section_title'))}</div>
@@ -341,6 +344,14 @@
               <option value="2592000">30d</option>
             </select>
           </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <select id="shareLinkModeSelect" style="padding:7px 9px;border-radius:7px;border:1px solid ${border};background:${inputBg};color:${fg};">
+              <option value="read">👁️ ${escapeHtml(t('shares.link_mode_read'))}</option>
+              ${!isFile ? `<option value="gallery">🖼️ ${escapeHtml(t('shares.link_mode_gallery'))}</option>` : ''}
+              ${!isFile ? `<option value="drop">📥 ${escapeHtml(t('shares.link_mode_drop'))}</option>` : ''}
+            </select>
+            <input type="number" id="shareLinkMaxDownloadsInput" min="1" step="1" placeholder="${escapeHtml(t('shares.link_max_downloads_placeholder'))}" style="padding:7px 9px;border-radius:7px;border:1px solid ${border};background:${inputBg};color:${fg};" />
+          </div>
           <button type="button" id="shareCreateLinkBtn" style="align-self:flex-start;padding:7px 14px;border-radius:7px;border:none;background:#0ea5e9;color:#fff;font-weight:600;cursor:pointer;">
             🔗 ${escapeHtml(t('shares.create_link_btn'))}
           </button>
@@ -349,9 +360,12 @@
             <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">
               ${existingLinks.map(l => {
                 const url = `${window.location.origin}${window.location.pathname}?share=${encodeURIComponent(l.token)}`;
+                const modeTag = l.mode === 'drop' ? '📥 drop' : (l.mode === 'gallery' ? '🖼️ gallery' : '👁️ read');
+                const dlBadge = l.max_downloads ? ` · ${escapeHtml(t('shares.link_downloads_badge', { used: l.download_count || 0, max: l.max_downloads }))}` : '';
+                const expBadge = l.expires_at ? ` · ⏱️ ${new Date(l.expires_at * 1000).toLocaleDateString()}` : '';
                 return `
                   <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border-radius:7px;background:${inputBg};font-size:0.78rem;">
-                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${l.has_password ? '🔒 ' : '🔗 '}<code>?share=${escapeHtml(l.token.slice(0, 12))}…</code></span>
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${l.has_password ? '🔒 ' : '🔗 '}<code>?share=${escapeHtml(l.token.slice(0, 12))}…</code> <span style="opacity:0.75;">[${modeTag}${dlBadge}${expBadge}]</span></span>
                     <div style="display:flex;gap:6px;flex-shrink:0;">
                       <button type="button" class="share-copy-link-btn" data-url="${escapeHtml(url)}" style="padding:3px 8px;border-radius:5px;border:1px solid ${border};background:transparent;color:${fg};cursor:pointer;font-size:0.75rem;">📋</button>
                       <button type="button" class="share-revoke-link-btn" data-id="${l.id}" style="padding:3px 8px;border-radius:5px;border:1px solid rgba(239,68,68,0.4);background:rgba(239,68,68,0.12);color:#ef4444;cursor:pointer;font-size:0.75rem;">${escapeHtml(t('shares.revoke_btn'))}</button>
@@ -411,10 +425,15 @@
       modal.querySelector('#shareCreateLinkBtn')?.addEventListener('click', async () => {
         const password = modal.querySelector('#shareLinkPassInput')?.value || '';
         const ttl = parseInt(modal.querySelector('#shareLinkExpireSelect')?.value || '0', 10);
+        const mode = modal.querySelector('#shareLinkModeSelect')?.value || 'read';
+        const maxDlRaw = modal.querySelector('#shareLinkMaxDownloadsInput')?.value || '';
+        const maxDownloads = parseInt(maxDlRaw, 10) > 0 ? parseInt(maxDlRaw, 10) : null;
         const expiresAt = ttl > 0 ? Math.floor(Date.now() / 1000) + ttl : null;
         const res = await window.sys.api.post('create_share_link', {
           target_path: cleanPath,
           password,
+          mode,
+          max_downloads: maxDownloads,
           expires_at: expiresAt
         });
         if (res && res.success && res.link) {
@@ -424,7 +443,7 @@
           }
           showToast('success', t('shares.link_created_copied'));
           close();
-          this.openShareDialog(cleanPath);
+          this.openShareDialog(cleanPath, options);
         } else {
           showToast('error', (res && res.error) || t('shares.action_error'));
         }

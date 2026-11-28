@@ -91,6 +91,7 @@
         <span class="explorer-quick-search-icon" aria-hidden="true">🔍</span>
         <input type="search" class="explorer-quick-search-input" placeholder="Filtrer..." data-i18n-placeholder="explorer.quick_search_ph">
         <button type="button" class="explorer-quick-search-clear" style="display: none;" title="Effacer" data-i18n-title="nav.search_clear">✕</button>
+        <button type="button" class="explorer-adv-search-open-btn" title="<?php echo htmlspecialchars(__t('explorer.adv_search_btn_title'), ENT_QUOTES, 'UTF-8'); ?>" data-i18n-title="explorer.adv_search_btn_title">⚙</button>
       </div>
 
       <div class="filter-pills">
@@ -264,48 +265,93 @@
 
           <!-- Populated Inspector State -->
           <div class="inspector-details" style="display: none;">
-            <div class="inspector-preview-box">
-              <img class="inspector-preview-img" src="" alt="Aperçu" style="display: none;">
-              <div class="inspector-preview-icon" style="display: none;">📄</div>
-            </div>
-            <div class="inspector-filename-badge"></div>
-
-            <div class="inspector-actions-row">
-              <button type="button" class="inspector-action-btn inspector-open-btn" title="Ouvrir le fichier" data-i18n-title="explorer.open_item">
-                ▶️ <span data-i18n="explorer.open">Ouvrir</span>
+            <!-- 3-Tab Switcher: Details & EXIF | Tags | Versions -->
+            <div class="inspector-tabs" role="tablist">
+              <button type="button" class="inspector-tab-btn active" data-inspector-tab="details" role="tab" aria-selected="true">
+                ℹ️ <span data-i18n="explorer.inspector_tab_details"><?php echo htmlspecialchars(__t('explorer.inspector_tab_details'), ENT_QUOTES, 'UTF-8'); ?></span>
               </button>
-              <button type="button" class="inspector-action-btn inspector-quicklook-btn" title="Aperçu rapide (Espace)" data-i18n-title="explorer.quicklook">
-                👁️ <span data-i18n="explorer.preview">Aperçu</span>
+              <button type="button" class="inspector-tab-btn" data-inspector-tab="tags" role="tab" aria-selected="false">
+                🏷️ <span data-i18n="explorer.inspector_tab_tags"><?php echo htmlspecialchars(__t('explorer.inspector_tab_tags'), ENT_QUOTES, 'UTF-8'); ?></span>
+              </button>
+              <button type="button" class="inspector-tab-btn" data-inspector-tab="versions" role="tab" aria-selected="false">
+                🕓 <span data-i18n="explorer.inspector_tab_versions"><?php echo htmlspecialchars(__t('explorer.inspector_tab_versions'), ENT_QUOTES, 'UTF-8'); ?></span>
               </button>
             </div>
 
-            <div class="inspector-open-with-section" style="display: none;">
-              <div class="inspector-open-with-title" data-i18n="explorer.open_with"><?php echo htmlspecialchars(__t('explorer.open_with'), ENT_QUOTES, 'UTF-8'); ?></div>
-              <div class="inspector-open-with-list"></div>
+            <!-- TAB 1: Details & EXIF -->
+            <div class="inspector-tab-pane" data-inspector-pane="details">
+              <div class="inspector-preview-box">
+                <img class="inspector-preview-img" src="" alt="Aperçu" style="display: none;">
+                <div class="inspector-preview-icon" style="display: none;">📄</div>
+              </div>
+              <div class="inspector-filename-badge"></div>
+
+              <div class="inspector-actions-row">
+                <button type="button" class="inspector-action-btn inspector-open-btn" title="Ouvrir le fichier" data-i18n-title="explorer.open_item">
+                  ▶️ <span data-i18n="explorer.open">Ouvrir</span>
+                </button>
+                <button type="button" class="inspector-action-btn inspector-quicklook-btn" title="Aperçu rapide (Espace)" data-i18n-title="explorer.quicklook">
+                  👁️ <span data-i18n="explorer.preview">Aperçu</span>
+                </button>
+                <button type="button" class="inspector-action-btn inspector-share-btn" style="display: none;" title="<?php echo htmlspecialchars(__t('explorer.ctx_share'), ENT_QUOTES, 'UTF-8'); ?>" data-i18n-title="explorer.ctx_share">
+                  🔗 <span data-i18n="explorer.inspector_share"><?php echo htmlspecialchars(__t('explorer.inspector_share'), ENT_QUOTES, 'UTF-8'); ?></span>
+                </button>
+              </div>
+
+              <div class="inspector-open-with-section" style="display: none;">
+                <div class="inspector-open-with-title" data-i18n="explorer.open_with"><?php echo htmlspecialchars(__t('explorer.open_with'), ENT_QUOTES, 'UTF-8'); ?></div>
+                <div class="inspector-open-with-list"></div>
+              </div>
+
+              <dl class="inspector-meta-list">
+                <dt data-i18n="meta.filename">Nom</dt>
+                <dd class="inspector-meta-name"></dd>
+
+                <dt data-i18n="meta.filesize">Taille</dt>
+                <dd class="inspector-meta-size"></dd>
+
+                <dt data-i18n="meta.dimensions">Dimensions</dt>
+                <dd class="inspector-meta-dim">-</dd>
+
+                <dt data-i18n="meta.mtime">Modifié le</dt>
+                <dd class="inspector-meta-date"></dd>
+
+                <dt data-i18n="comment.title">Légende</dt>
+                <dd class="inspector-meta-comment-cell">
+                  <span class="inspector-meta-comment">-</span>
+                  <div class="inspector-comment-editor" style="display: none;">
+                    <input type="text" class="inspector-comment-input" data-i18n-placeholder="explorer.inspector_comment_placeholder" placeholder="<?php echo htmlspecialchars(__t('explorer.inspector_comment_placeholder'), ENT_QUOTES, 'UTF-8'); ?>" />
+                    <button type="button" class="inspector-comment-save-btn" data-i18n="explorer.inspector_comment_save"><?php echo htmlspecialchars(__t('explorer.inspector_comment_save'), ENT_QUOTES, 'UTF-8'); ?></button>
+                  </div>
+                </dd>
+
+                <dt data-i18n="meta.exif_title">EXIF / Appareil</dt>
+                <dd class="inspector-meta-camera">-</dd>
+
+                <dt data-i18n="nav.map">GPS</dt>
+                <dd class="inspector-meta-gps">-</dd>
+              </dl>
             </div>
 
-            <dl class="inspector-meta-list">
-              <dt data-i18n="meta.filename">Nom</dt>
-              <dd class="inspector-meta-name"></dd>
+            <!-- TAB 2: Tags (Single & Batch) -->
+            <div class="inspector-tab-pane" data-inspector-pane="tags" style="display: none;">
+              <div class="inspector-tags-batch-hint" style="display: none;"></div>
+              <div class="inspector-tags-section-title" data-i18n="explorer.tags_current"><?php echo htmlspecialchars(__t('explorer.tags_current'), ENT_QUOTES, 'UTF-8'); ?></div>
+              <div class="inspector-tags-chips"></div>
+              <div class="inspector-tags-add-row">
+                <input type="text" class="inspector-tags-input" data-i18n-placeholder="explorer.tags_add_placeholder" placeholder="<?php echo htmlspecialchars(__t('explorer.tags_add_placeholder'), ENT_QUOTES, 'UTF-8'); ?>" />
+                <button type="button" class="inspector-tags-add-btn" data-i18n="explorer.tags_add_btn"><?php echo htmlspecialchars(__t('explorer.tags_add_btn'), ENT_QUOTES, 'UTF-8'); ?></button>
+              </div>
+              <div class="inspector-tags-suggestions-wrap" style="display: none;">
+                <div class="inspector-tags-section-title" data-i18n="explorer.tags_suggestions"><?php echo htmlspecialchars(__t('explorer.tags_suggestions'), ENT_QUOTES, 'UTF-8'); ?></div>
+                <div class="inspector-tags-suggestions"></div>
+              </div>
+            </div>
 
-              <dt data-i18n="meta.filesize">Taille</dt>
-              <dd class="inspector-meta-size"></dd>
-
-              <dt data-i18n="meta.dimensions">Dimensions</dt>
-              <dd class="inspector-meta-dim">-</dd>
-
-              <dt data-i18n="meta.mtime">Modifié le</dt>
-              <dd class="inspector-meta-date"></dd>
-
-              <dt data-i18n="comment.title">Légende</dt>
-              <dd class="inspector-meta-comment">-</dd>
-
-              <dt data-i18n="meta.exif_title">EXIF / Appareil</dt>
-              <dd class="inspector-meta-camera">-</dd>
-
-              <dt data-i18n="nav.map">GPS</dt>
-              <dd class="inspector-meta-gps">-</dd>
-            </dl>
+            <!-- TAB 3: File Versions -->
+            <div class="inspector-tab-pane" data-inspector-pane="versions" style="display: none;">
+              <div class="inspector-versions-list"></div>
+            </div>
           </div>
         </div>
       </aside>
@@ -375,6 +421,14 @@
             <label class="gdrive-form-label" data-i18n="comment.title"><?php echo htmlspecialchars(__t('comment.title'), ENT_QUOTES, 'UTF-8'); ?></label>
             <div class="gdrive-form-control">
               <input type="text" class="adv-search-words gdrive-input" data-i18n-placeholder="comment.placeholder" placeholder="<?php echo htmlspecialchars(__t('comment.placeholder'), ENT_QUOTES, 'UTF-8'); ?>">
+            </div>
+          </div>
+
+          <!-- Row 3b: Tag -->
+          <div class="gdrive-form-row">
+            <label class="gdrive-form-label" data-i18n="explorer.adv_search_tag_label"><?php echo htmlspecialchars(__t('explorer.adv_search_tag_label'), ENT_QUOTES, 'UTF-8'); ?></label>
+            <div class="gdrive-form-control">
+              <input type="text" class="adv-search-tag gdrive-input" data-i18n-placeholder="explorer.adv_search_tag_placeholder" placeholder="<?php echo htmlspecialchars(__t('explorer.adv_search_tag_placeholder'), ENT_QUOTES, 'UTF-8'); ?>">
             </div>
           </div>
 

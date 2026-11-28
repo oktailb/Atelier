@@ -953,6 +953,44 @@ class GeneralUnitTestSuite {
         ], ['base_dir' => $this->base_dir]);
         unset($_SESSION['atelier_admin_logged']);
         $this->assert("FileActions::rename_item renomme un dossier valide (200)", ($dir_ren['status'] ?? 0) === 200 && is_dir($this->test_dir . '/rename_dir_b') && !is_dir($rename_dir_src));
+
+        // 7. Test Lot 4: Unicode tags + SQLite multi-criteria FileIndexManager::search()
+        $tag_fr = \Atelier\Kernel\Auth\ShareManager::ensureTag($this->base_dir, 'Été 2026');
+        $tag_ja = \Atelier\Kernel\Auth\ShareManager::ensureTag($this->base_dir, '写真');
+        $this->assert("ShareManager::ensureTag accepte les libellés Unicode (FR & JA)", !empty($tag_fr['slug']) && !empty($tag_ja['slug']));
+
+        $idx_file = $this->test_dir . '/indexed_lot4_sample.txt';
+        file_put_contents($idx_file, 'Lot 4 indexed search sample payload');
+        $rel_idx = ltrim(str_replace($this->base_dir, '', $idx_file), '/');
+        $rel_dir = ltrim(str_replace($this->base_dir, '', $this->test_dir), '/');
+
+        \Atelier\Kernel\FS\FileIndexManager::upsertFile($this->base_dir, $this->base_dir, $idx_file, ['doc' => ['txt']]);
+        \Atelier\Kernel\FS\FileIndexManager::updateTagsText($this->base_dir, $rel_idx, [['label' => 'Été 2026'], ['label' => 'facture']]);
+
+        $res_tag = \Atelier\Kernel\FS\FileIndexManager::search($this->base_dir, $this->base_dir, '', 'all', 50, [
+            'tag'        => 'facture',
+            'scope'      => 'current',
+            'dir'        => $rel_dir,
+            'size_range' => 'small',
+            'timing'     => 'today',
+            'enrich'     => true
+        ]);
+        $found_lot4 = array_values(array_filter($res_tag, function ($r) use ($rel_idx) {
+            return ($r['path'] ?? '') === $rel_idx;
+        }));
+        $this->assert("FileIndexManager::search multi-critères (tag+scope+size+timing+enrich) trouve le fichier", count($found_lot4) === 1 && !empty($found_lot4[0]['thumb_url']) && !empty($found_lot4[0]['size_formatted']));
+
+        $res_miss = \Atelier\Kernel\FS\FileIndexManager::search($this->base_dir, $this->base_dir, '', 'all', 50, [
+            'tag'        => 'facture',
+            'size_range' => 'xlarge'
+        ]);
+        $found_miss = array_values(array_filter($res_miss, function ($r) use ($rel_idx) {
+            return ($r['path'] ?? '') === $rel_idx;
+        }));
+        $this->assert("FileIndexManager::search filtre correctement size_range=xlarge", count($found_miss) === 0);
+
+        \Atelier\Kernel\FS\FileIndexManager::removePath($this->base_dir, $rel_idx);
+        @unlink($idx_file);
     }
 
     private function testAutorunAndExplorerEnhancements(): void {

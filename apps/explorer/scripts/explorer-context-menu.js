@@ -226,8 +226,33 @@
         this.inst.state.selectedPaths.clear();
         this.inst.state.selectedPaths.add(file.path);
         this.inst.updateSelectionUI();
-        this.inst.toggleInspector(true);
+        if (this.inst.inspectorManager && typeof this.inst.inspectorManager.openTab === 'function') {
+          this.inst.inspectorManager.openTab('details');
+        } else {
+          this.inst.toggleInspector(true);
+        }
       });
+      const isExternalFile = String(file.path || '').startsWith('ext://');
+      if (isLoggedIn && !isExternalFile) {
+        this._addItem(menu, '🏷️', this.inst.t('explorer.ctx_tags'), () => {
+          this.inst.state.selectedPaths.clear();
+          this.inst.state.selectedPaths.add(file.path);
+          this.inst.updateSelectionUI();
+          if (this.inst.inspectorManager && typeof this.inst.inspectorManager.openTab === 'function') {
+            this.inst.inspectorManager.openTab('tags');
+          }
+        });
+      }
+      if (!isExternalFile) {
+        this._addItem(menu, '🕓', this.inst.t('explorer.ctx_versions'), () => {
+          this.inst.state.selectedPaths.clear();
+          this.inst.state.selectedPaths.add(file.path);
+          this.inst.updateSelectionUI();
+          if (this.inst.inspectorManager && typeof this.inst.inspectorManager.openTab === 'function') {
+            this.inst.inspectorManager.openTab('versions');
+          }
+        });
+      }
 
       // Compatible apps ("Ouvrir avec...") + default app star
       const appMgr = window.sys && window.sys.appManager;
@@ -317,8 +342,8 @@
       if (canComment) {
         this._addItem(menu, '💬', this.inst.t('explorer.ctx_comment'), () => this.inst.openMediaCommentModal(file.name, file.comment || ''));
       }
-      if (isLoggedIn && window.sys && window.sys.shares && typeof window.sys.shares.openShareModal === 'function') {
-        this._addItem(menu, '🔗', this.inst.t('explorer.ctx_share'), () => window.sys.shares.openShareModal(file.path));
+      if (isLoggedIn && !isExternalFile && window.sys && window.sys.shares && typeof window.sys.shares.openShareDialog === 'function') {
+        this._addItem(menu, '🔗', this.inst.t('explorer.ctx_share'), () => window.sys.shares.openShareDialog(file.path, { isFile: true }));
       }
       if (canDownload) {
         this._addItem(menu, '⬇️', this.inst.t('explorer.ctx_download'), () => {
@@ -392,8 +417,19 @@
       if (isLoggedIn || canArchive || isAdmin) {
         this._addSep(menu);
       }
-      if (isLoggedIn && window.sys && window.sys.shares && typeof window.sys.shares.openShareModal === 'function') {
-        this._addItem(menu, '🤝', this.inst.t('explorer.ctx_share'), () => window.sys.shares.openShareModal(folder.path));
+      const isExternalFolder = String(folder.path || '').startsWith('ext://');
+      if (isLoggedIn && !isExternalFolder && window.sys && window.sys.shares && typeof window.sys.shares.openShareDialog === 'function') {
+        this._addItem(menu, '🔗', this.inst.t('explorer.ctx_share'), () => window.sys.shares.openShareDialog(folder.path, { isFile: false }));
+      }
+      if (isLoggedIn && !isExternalFolder) {
+        this._addItem(menu, '🏷️', this.inst.t('explorer.ctx_tags'), () => {
+          this.inst.state.selectedPaths.clear();
+          this.inst.state.selectedPaths.add(folder.path);
+          this.inst.updateSelectionUI();
+          if (this.inst.inspectorManager && typeof this.inst.inspectorManager.openTab === 'function') {
+            this.inst.inspectorManager.openTab('tags');
+          }
+        });
       }
       if (canArchive) {
         this._addItem(menu, '📦', this.inst.t('explorer.ctx_download_zip'), () => {
@@ -440,6 +476,10 @@
       }
       this._addSep(menu);
       this._addItem(menu, '📋', this.inst.t('explorer.ctx_copy_path'), () => this.inst.copyPathToClipboard(dirPath || '/'));
+      const isLoggedInSidebar = Boolean(this.inst.state.isAdmin || (window.sys && window.sys.shares && window.sys.shares.isLoggedIn && window.sys.shares.isLoggedIn()));
+      if (dirPath && !String(dirPath).startsWith('ext://') && isLoggedInSidebar && window.sys && window.sys.shares && typeof window.sys.shares.openShareDialog === 'function') {
+        this._addItem(menu, '🔗', this.inst.t('explorer.ctx_share'), () => window.sys.shares.openShareDialog(dirPath, { isFile: false }));
+      }
       if (this.inst.state.isAdmin) {
         this._addItem(menu, '⚙️', this.inst.t('explorer.ctx_folder_settings'), () => this.inst.openFolderSettingsModal(dirPath));
       }
@@ -630,6 +670,11 @@
 
       this._addSep(menu);
       this._addItem(menu, '☑️', this.inst.t('explorer.ctx_select_all'), () => this.inst.selectAll());
+      const curBgPath = this.inst.state.currentPath || '';
+      const isLoggedInBg = Boolean(isAdmin || (window.sys && window.sys.shares && window.sys.shares.isLoggedIn && window.sys.shares.isLoggedIn()));
+      if (curBgPath && !curBgPath.startsWith('ext://') && isLoggedInBg && window.sys && window.sys.shares && typeof window.sys.shares.openShareDialog === 'function') {
+        this._addItem(menu, '🔗', this.inst.t('explorer.ctx_share'), () => window.sys.shares.openShareDialog(curBgPath, { isFile: false }));
+      }
       if (isAdmin) {
         this._addItem(menu, '⚙️', this.inst.t('explorer.ctx_folder_settings'), () => this.inst.openFolderSettingsModal());
       }

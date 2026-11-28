@@ -1,6 +1,6 @@
 /**
  * Atelier by GallusTech - Explorer Search Manager (apps/explorer/scripts/explorer-search.js)
- * Coordinates quick live filtering and the advanced search popover modal per instance.
+ * Coordinates quick live filtering, tag filtering, and SQLite multi-criteria indexed search (`search_file_index`).
  */
 (function (window) {
   'use strict';
@@ -14,6 +14,10 @@
 
     bindEvents() {
       const el = this.inst.el;
+
+      if (el.advSearchOpenBtn) {
+        el.advSearchOpenBtn.onclick = () => this.openSearchModal();
+      }
 
       if (el.searchModalCloseBtn) el.searchModalCloseBtn.onclick = () => this.closeSearchModal();
       if (el.searchModal) {
@@ -64,7 +68,7 @@
         };
       }
 
-      // Quick Live Filter Search Input (instance-scoped)
+      // Quick Live Filter Search Input (instance-scoped) + Enter for instant SQLite global search
       if (el.quickSearchInput) {
         el.quickSearchInput.oninput = (e) => {
           const val = (e.target.value || '').trim().toLowerCase();
@@ -80,7 +84,17 @@
             el.quickSearchInput.value = '';
             this.inst.state.searchQuery = '';
             if (el.quickSearchClearBtn) el.quickSearchClearBtn.style.display = 'none';
-            this.inst.applyFilterAndRender();
+            if (this.inst.state.isSearchActive) {
+              this.exitSearch();
+            } else {
+              this.inst.applyFilterAndRender();
+            }
+          } else if (e.key === 'Enter') {
+            const raw = (el.quickSearchInput.value || '').trim();
+            if (raw && !String(this.inst.state.currentPath || '').startsWith('ext://')) {
+              e.preventDefault();
+              this.searchIndexed({ q: raw, scope: 'global' });
+            }
           }
         };
       }
@@ -89,7 +103,11 @@
           if (el.quickSearchInput) el.quickSearchInput.value = '';
           this.inst.state.searchQuery = '';
           el.quickSearchClearBtn.style.display = 'none';
-          this.inst.applyFilterAndRender();
+          if (this.inst.state.isSearchActive) {
+            this.exitSearch();
+          } else {
+            this.inst.applyFilterAndRender();
+          }
         };
       }
     }
@@ -126,11 +144,9 @@
       const card = el.searchModalCard || el.searchModal.querySelector('.search-modal-card');
       if (!card) return;
 
-      const advBtn = document.getElementById('advancedSearchBtn');
-      const searchBox = (advBtn && advBtn.closest('.search-box'))
-        || document.getElementById('searchInput')
+      const searchBox = (this.inst.containerEl && this.inst.containerEl.querySelector('.explorer-quick-search-wrapper'))
         || el.quickSearchInput
-        || (this.inst.containerEl && this.inst.containerEl.querySelector('.explorer-quick-search-wrapper'));
+        || document.getElementById('searchInput');
 
       let top = 48;
       let left = 20;
@@ -146,13 +162,13 @@
         }
         if (left < 12) left = 12;
 
-        const estimatedHeight = card.offsetHeight || 440;
+        const estimatedHeight = card.offsetHeight || 460;
         if (top + estimatedHeight > window.innerHeight - 12 && rect.top > estimatedHeight + 12) {
           top = Math.max(12, rect.top - estimatedHeight - 6);
         }
       } else {
         left = Math.max(12, (window.innerWidth - cardWidth) / 2);
-        top = Math.max(20, (window.innerHeight - 450) / 2);
+        top = Math.max(20, (window.innerHeight - 460) / 2);
       }
 
       card.style.position = 'fixed';
@@ -161,10 +177,75 @@
       card.style.width = `${cardWidth}px`;
     }
 
+    async searchByTag(tagLabel) {
+      const cleanTag = String(tagLabel || '').trim();
+      if (!cleanTag) return;
+      this.inst.state.activeTagFilter = cleanTag;
+      await this.searchIndexed({ tag: cleanTag, scope: 'global', limit: 200 }, {
+        bannerText: (count) => this.inst.t('explorer.tags_filter_banner', { tag: cleanTag, count })
+      });
+      if (this.inst.sidebarManager) {
+        this.inst.sidebarManager.renderOrganization();
+      }
+    }
+
+    async searchIndexed(criteria = {}, uiOpts = {}) {
+      const el = this.inst.el;
+      if (this.inst.state.isTrashView && typeof this.inst.exitTrashView === 'function') {
+        this.inst.exitTrashView();
+      }
+      this.inst.showLoading(true);
+
+      try {
+        const params = {
+          q: criteria.q || '',
+          category: criteria.category || 'all',
+          tag: criteria.tag || '',
+          dir: criteria.dir !== undefined ? criteria.dir : (this.inst.state.currentPath || ''),
+          scope: criteria.scope || 'global',
+          size_range: criteria.size_range || 'all',
+          timing: criteria.timing || 'all',
+          date_from: criteria.date_from || '',
+          date_to: criteria.date_to || '',
+          gps_only: criteria.gps_only ? 1 : 0,
+          limit: criteria.limit || 200
+        };
+
+        const json = await window.sys.api.get('search_file_index', params);
+        let results = (json && json.success && Array.isArray(json.results)) ? json.results : [];
+        if (criteria.favOnly) {
+          results = results.filter(f => (this.inst.state.favorites || []).includes(f.path));
+        }
+
+        this.inst.state.isSearchActive = true;
+        this.inst.state.searchQuery = '';
+        this.inst.state.files = results;
+        this.inst.state.directories = [];
+
+        if (el.folderSection) el.folderSection.style.display = 'none';
+        if (el.searchResultsBanner) {
+          el.searchResultsBanner.style.display = 'flex';
+          if (el.searchResultsCountText) {
+            el.searchResultsCountText.textContent = typeof uiOpts.bannerText === 'function'
+              ? uiOpts.bannerText(results.length)
+              : `${results.length} ${this.inst.t('search.results_found')} (${this.inst.t('explorer.search_index_badge')})`;
+          }
+        }
+
+        this.inst.applyFilterAndRender();
+        if (this.inst.navigationManager) this.inst.navigationManager.updateStatusBar();
+      } catch (err) {
+        this.inst.showToast('⚠️ ' + this.inst.t('explorer.err_network', { message: err.message }), 'error');
+      } finally {
+        this.inst.showLoading(false);
+      }
+    }
+
     async submitAdvancedSearch() {
       const el = this.inst.el;
       const name = el.advSearchName ? el.advSearchName.value.trim() : '';
       const words = el.advSearchWords ? el.advSearchWords.value.trim() : '';
+      const tag = el.advSearchTag ? el.advSearchTag.value.trim() : '';
       const category = el.advSearchCategory ? el.advSearchCategory.value : 'all';
       const location = el.advSearchLocation ? el.advSearchLocation.value : 'current';
       const timing = el.advSearchTiming ? el.advSearchTiming.value : 'all';
@@ -175,8 +256,33 @@
       const favOnly = el.advSearchFavOnly ? el.advSearchFavOnly.checked : false;
 
       this.closeSearchModal();
-      this.inst.showLoading(true);
+      this.inst.state.activeTagFilter = tag || null;
 
+      const isExternalCurrent = String(this.inst.state.currentPath || '').startsWith('ext://');
+
+      // Use fast SQLite multi-criteria index for local VFS (and global queries)
+      if (!isExternalCurrent || location === 'everywhere') {
+        const combinedQuery = [name, words].filter(Boolean).join(' ');
+        await this.searchIndexed({
+          q: combinedQuery,
+          category,
+          tag,
+          dir: this.inst.state.currentPath || '',
+          scope: location === 'everywhere' ? 'global' : 'current',
+          size_range: sizeRange,
+          timing,
+          date_from: dateFrom,
+          date_to: dateTo,
+          gps_only: gpsOnly,
+          favOnly,
+          limit: 200
+        });
+        if (this.inst.sidebarManager) this.inst.sidebarManager.renderOrganization();
+        return;
+      }
+
+      // Fallback to live `search_media` when explicitly searching inside an external `ext://` mount
+      this.inst.showLoading(true);
       try {
         const params = {
           dir: this.inst.state.currentPath,
@@ -227,6 +333,7 @@
       const el = this.inst.el;
       this.inst.state.searchQuery = '';
       this.inst.state.isSearchActive = false;
+      this.inst.state.activeTagFilter = null;
 
       if (el.quickSearchInput) el.quickSearchInput.value = '';
       if (el.quickSearchClearBtn) el.quickSearchClearBtn.style.display = 'none';
@@ -239,6 +346,7 @@
       }
 
       if (el.searchResultsBanner) el.searchResultsBanner.style.display = 'none';
+      if (this.inst.sidebarManager) this.inst.sidebarManager.renderOrganization();
       this.inst.loadDirectory(this.inst.state.currentPath);
     }
 

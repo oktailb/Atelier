@@ -299,9 +299,9 @@
       this.renderTree();
     }
 
-    async loadOrganizationMeta() {
+    async loadOrganizationMeta(force = false) {
       const scope = this.inst.getUserStorageScope();
-      if (this._orgLoadedForScope === scope) return;
+      if (!force && this._orgLoadedForScope === scope) return;
       this._orgLoadedForScope = scope;
 
       const isLoggedIn = Boolean(
@@ -331,11 +331,16 @@
       this.renderOrganization();
     }
 
+    async refreshOrganizationMeta() {
+      return this.loadOrganizationMeta(true);
+    }
+
     renderOrganization() {
       const host = this.inst.el.sidebarOrganization;
       if (!host) return;
 
       const trashActive = Boolean(this.inst.state && this.inst.state.isTrashView);
+      const activeTag = String((this.inst.state && this.inst.state.activeTagFilter) || '').toLowerCase();
       let html = `
         <button type="button" class="sidebar-nav-item ${trashActive ? 'active' : ''}" data-action="trash">
           <span class="sidebar-item-icon">🗑️</span>
@@ -345,12 +350,15 @@
 
       if (this.tagsList.length > 0) {
         html += `<div class="sidebar-sublabel">${this.inst.escapeHtml(this.inst.t('explorer.sidebar_tags'))}</div>`;
-        this.tagsList.slice(0, 8).forEach(tag => {
+        this.tagsList.slice(0, 12).forEach(tag => {
           const color = tag.color || '#6366f1';
+          const label = String(tag.label || tag.name || '').trim();
+          if (!label) return;
+          const isTagActive = Boolean(activeTag && activeTag === label.toLowerCase());
           html += `
-            <button type="button" class="sidebar-nav-item" data-tag-name="${this.inst.escapeHtml(tag.name || '')}">
+            <button type="button" class="sidebar-nav-item ${isTagActive ? 'active' : ''}" data-tag-name="${this.inst.escapeHtml(label)}">
               <span class="sidebar-tag-dot" style="background:${this.inst.escapeHtml(color)};"></span>
-              <span class="sidebar-item-label">${this.inst.escapeHtml(tag.name || '')}</span>
+              <span class="sidebar-item-label">${this.inst.escapeHtml(label)}</span>
             </button>`;
         });
       }
@@ -368,11 +376,18 @@
       host.querySelectorAll('[data-tag-name]').forEach(btn => {
         btn.onclick = () => {
           const tagName = btn.dataset.tagName || '';
-          if (this.inst.el.quickSearchInput) {
-            this.inst.el.quickSearchInput.value = tagName;
+          if (!tagName) return;
+          if (this.inst.state && this.inst.state.activeTagFilter && this.inst.state.activeTagFilter.toLowerCase() === tagName.toLowerCase()) {
+            if (this.inst.searchManager) this.inst.searchManager.exitSearch();
+            return;
           }
-          this.inst.state.searchQuery = tagName.toLowerCase();
-          this.inst.applyFilterAndRender();
+          if (this.inst.searchManager && typeof this.inst.searchManager.searchByTag === 'function') {
+            this.inst.searchManager.searchByTag(tagName);
+          } else {
+            if (this.inst.el.quickSearchInput) this.inst.el.quickSearchInput.value = tagName;
+            this.inst.state.searchQuery = tagName.toLowerCase();
+            this.inst.applyFilterAndRender();
+          }
         };
       });
     }

@@ -263,6 +263,8 @@
         advSearchCategory: root.querySelector('.adv-search-category'),
         advSearchName: root.querySelector('.adv-search-name'),
         advSearchWords: root.querySelector('.adv-search-words'),
+        advSearchTag: root.querySelector('.adv-search-tag'),
+        advSearchOpenBtn: root.querySelector('.explorer-adv-search-open-btn'),
         advSearchLocation: root.querySelector('.adv-search-location'),
         advSearchDateFrom: root.querySelector('.adv-search-date-from'),
         advSearchDateTo: root.querySelector('.adv-search-date-to'),
@@ -1273,6 +1275,24 @@
       if (this.inspectorManager) this.inspectorManager.toggleInspector(forceState);
     }
 
+    openInspectorTab(tabId) {
+      if (this.inspectorManager && typeof this.inspectorManager.openTab === 'function') {
+        this.inspectorManager.openTab(tabId);
+      }
+    }
+
+    openShareDialogForPath(targetPath, options = {}) {
+      if (window.sys && window.sys.shares && typeof window.sys.shares.openShareDialog === 'function') {
+        window.sys.shares.openShareDialog(targetPath, options);
+      }
+    }
+
+    searchByTag(tagLabel) {
+      if (this.searchManager && typeof this.searchManager.searchByTag === 'function') {
+        this.searchManager.searchByTag(tagLabel);
+      }
+    }
+
     updateInspectorUI() {
       if (this.inspectorManager) this.inspectorManager.updateInspectorUI();
     }
@@ -1790,7 +1810,7 @@
           this.instances.forEach(inst => {
             if (inst.sidebarManager) {
               inst.sidebarManager.invalidateTreeCache();
-              inst.sidebarManager.loadOrganizationMeta();
+              inst.sidebarManager.refreshOrganizationMeta();
             }
             if (inst.state && inst.state.isTrashView && typeof inst.openTrashView === 'function') {
               inst.openTrashView();

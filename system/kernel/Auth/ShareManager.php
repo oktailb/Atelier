@@ -589,9 +589,12 @@ class ShareManager {
 
     public static function ensureTag(string $projectRoot, string $label, string $color = '#6366f1', string $namespace = 'general'): array {
         $cleanLabel = trim($label);
+        if ($cleanLabel === '') {
+            throw new \InvalidArgumentException('Invalid tag label');
+        }
         $slug = strtolower(trim((string)preg_replace('/[^a-zA-Z0-9]+/', '-', $cleanLabel), '-'));
         if ($slug === '') {
-            throw new \InvalidArgumentException('Invalid tag label');
+            $slug = 'tag-' . substr(sha1(mb_strtolower($cleanLabel, 'UTF-8')), 0, 10);
         }
         $store = AtelierStore::forRoot($projectRoot);
         $existing = $store->selectOne('tags', ['slug' => $slug]);

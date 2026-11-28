@@ -351,6 +351,7 @@ class UserActions {
                 $tags = json_decode($tags, true) ?: array_map('trim', explode(',', $tags));
             }
             $savedTags = ShareManager::setItemTags($project_root, $rel, is_array($tags) ? $tags : []);
+            \Atelier\Kernel\FS\FileIndexManager::updateTagsText($project_root, $rel, $savedTags);
             if (isset($in['classification']) || isset($in['is_encrypted']) || isset($in['crypto_algo'])) {
                 ShareManager::setItemMetadata($project_root, $rel, $in);
             }

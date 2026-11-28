@@ -2479,6 +2479,50 @@ try {
     toolkitSrc.includes('options.selectStem') &&
     explorerJs.includes("typeof folder.item_count === 'number'")
   );
+
+  // Phase G — Lot 4: 3-Tab Inspector (Details/Tags/Versions), Share modal hook & SQLite multi-criteria search
+  const expInspSrc = fs.readFileSync(path.join(rootDir, 'apps/explorer/scripts/explorer-inspector.js'), 'utf8');
+  const expSearchSrc = fs.readFileSync(path.join(rootDir, 'apps/explorer/scripts/explorer-search.js'), 'utf8');
+  const shareSvcSrc = fs.readFileSync(path.join(rootDir, 'system/userland/services/ShareVolumesService.js'), 'utf8');
+  const lot4Fr = JSON.parse(fs.readFileSync(path.join(rootDir, 'apps/explorer/locales/fr.json'), 'utf8'));
+  const lot4En = JSON.parse(fs.readFileSync(path.join(rootDir, 'apps/explorer/locales/en.json'), 'utf8'));
+  const lot4Ja = JSON.parse(fs.readFileSync(path.join(rootDir, 'apps/explorer/locales/ja.json'), 'utf8'));
+  const lot4FrKeys = Object.keys(lot4Fr).sort();
+  const lot4Parity = (
+    lot4FrKeys.length >= 160 &&
+    JSON.stringify(lot4FrKeys) === JSON.stringify(Object.keys(lot4En).sort()) &&
+    JSON.stringify(lot4FrKeys) === JSON.stringify(Object.keys(lot4Ja).sort())
+  );
+
+  assert("Phase G (Lot 4): Inspecteur 3 onglets (Détails/Tags/Versions), dialogue Partager (mode/quota) & recherche multi-critères SQLite",
+    expTplSrc.includes('data-inspector-tab="details"') &&
+    expTplSrc.includes('data-inspector-tab="tags"') &&
+    expTplSrc.includes('data-inspector-tab="versions"') &&
+    expTplSrc.includes('adv-search-tag') &&
+    expTplSrc.includes('explorer-adv-search-open-btn') &&
+    expInspSrc.includes('setActiveTab(') &&
+    expInspSrc.includes('openTab(') &&
+    expInspSrc.includes('loadTagsForSelection(') &&
+    expInspSrc.includes('addTagToSelection(') &&
+    expInspSrc.includes('removeTagFromSelection(') &&
+    expInspSrc.includes('loadVersionsForSelection(') &&
+    expInspSrc.includes('restoreVersion(') &&
+    expInspSrc.includes('list_file_versions') &&
+    expInspSrc.includes('restore_file_version') &&
+    expInspSrc.includes('set_item_tags') &&
+    expCtxSrc.includes('openShareDialog') &&
+    !expCtxSrc.includes('openShareModal') &&
+    expCtxSrc.includes('explorer.ctx_tags') &&
+    expCtxSrc.includes('explorer.ctx_versions') &&
+    shareSvcSrc.includes('shareLinkModeSelect') &&
+    shareSvcSrc.includes('shareLinkMaxDownloadsInput') &&
+    shareSvcSrc.includes('max_downloads') &&
+    expSearchSrc.includes('search_file_index') &&
+    expSearchSrc.includes('searchByTag(') &&
+    expSidebarSrc.includes('tag.label || tag.name') &&
+    expSidebarSrc.includes('refreshOrganizationMeta(') &&
+    lot4Parity
+  );
 } catch (e) {
   assert("Phase 1 exécution runtime UI", false, e.stack);
 }

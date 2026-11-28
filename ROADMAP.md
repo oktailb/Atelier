@@ -360,7 +360,7 @@ flowchart TB
   - **Création de nouveaux fichiers** (`.md`, `.txt`, `.json`, etc.) avec ouverture directe optionnelle dans `doc-viewer`.
   - **Système de menus contextuels unifié** couvrant toutes les zones de l'Explorateur et bloquant totalement le menu contextuel navigateur.
   - **Gestionnaire de transferts non-bloquant** : bascule automatique sur `SyscallClient.uploadChunked()` pour les gros fichiers, support du **glisser-déposer de dossiers entiers** (`webkitGetAsEntry()`), file de progression par fichier avec annulation et récapitulatif d'erreurs.
-- [ ] **Lot 4 — Exploitation Complète du Backend Cloud/OS Existant** :
+- [x] **Lot 4 — Exploitation Complète du Backend Cloud/OS Existant** *(Livré & Testé)* :
   - **Vue Corbeille 30 jours** intégrée dans la sidebar (`list_trash`, `restore_trash_item`, `purge_trash_item`, `empty_trash`).
   - **Inspecteur Latéral à 3 onglets** : *Détails & EXIF* (aperçu, métadonnées, commentaire, *Ouvrir avec*), *Tags* (`list_tags` / `set_item_tags`, édition simple ou en lot, filtrage sidebar), *Versions* (`list_file_versions` / `restore_file_version` en 1 clic).
   - **Dialogue « Partager… »** accessible au clic droit (liens signés `/s/<token>` avec expiration/mot de passe/quota/boîte de dépôt + partages inter-utilisateurs/groupes).

@@ -373,9 +373,28 @@ class StorageActions {
             $q = (string)($in['q'] ?? '');
             $cat = (string)($in['category'] ?? 'all');
             $limit = max(1, min(300, (int)($in['limit'] ?? 100)));
+
+            // Auto-populate index once on a fresh install if completely empty
+            $stats = FileIndexManager::getStats($project_root);
+            if ((int)($stats['total_files'] ?? 0) === 0) {
+                FileIndexManager::rebuildIndex($project_root, $base_dir, $media_types, $ignore_list);
+            }
+
+            $filters = [
+                'tag'        => (string)($in['tag'] ?? ''),
+                'dir'        => (string)($in['dir'] ?? ''),
+                'scope'      => (string)($in['scope'] ?? 'global'),
+                'size_range' => (string)($in['size_range'] ?? 'all'),
+                'timing'     => (string)($in['timing'] ?? 'all'),
+                'date_from'  => (string)($in['date_from'] ?? ''),
+                'date_to'    => (string)($in['date_to'] ?? ''),
+                'gps_only'   => !empty($in['gps_only']),
+                'enrich'     => true
+            ];
+
             return ['status' => 200, 'data' => [
                 'success' => true,
-                'results' => FileIndexManager::search($project_root, $base_dir, $q, $cat, $limit)
+                'results' => FileIndexManager::search($project_root, $base_dir, $q, $cat, $limit, $filters)
             ]];
         }
 
