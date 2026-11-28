@@ -10,14 +10,14 @@
  *   - `ai_chat`              : Server-side LLM completion proxy with rate limiting & normalized tool-calling
  */
 
-namespace SimpleGallery\Kernel\Actions;
+namespace Atelier\Kernel\Actions;
 
-use SimpleGallery\Kernel\AI\AiSettings;
-use SimpleGallery\Kernel\AI\LlmGateway;
-use SimpleGallery\Kernel\Auth\AuditLogger;
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\Config\ConfigStore;
-use SimpleGallery\Kernel\Security\RateLimiter;
+use Atelier\Kernel\AI\AiSettings;
+use Atelier\Kernel\AI\LlmGateway;
+use Atelier\Kernel\Auth\AuditLogger;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\Config\ConfigStore;
+use Atelier\Kernel\Security\RateLimiter;
 
 class AiAgentActions {
 
@@ -101,7 +101,7 @@ class AiAgentActions {
                 }
                 $sp = $policy['shared_provider'];
                 $dec = $sp['api_key_enc'] !== ''
-                    ? \SimpleGallery\Kernel\Storage\CredentialVault::decryptJson($project_root, (string)$sp['api_key_enc'])
+                    ? \Atelier\Kernel\Storage\CredentialVault::decryptJson($project_root, (string)$sp['api_key_enc'])
                     : [];
                 $effective = [
                     'type'     => (string)($profileIn['type'] ?? $sp['type']),

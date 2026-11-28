@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - Foot Pong Arcade Game
+ * Atelier by GallusTech - Foot Pong Arcade Game
  * Modern WebOS multi-instance arcade soccer pong with dynamic mouse angle paddle physics,
  * ball spin, AI bot opponent, sound synthesizers, and goal celebration VFX.
  */

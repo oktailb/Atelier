@@ -1,5 +1,5 @@
 /**
- * SimpleGallery - Explorer Drag & Drop Manager (apps/explorer/scripts/explorer-dragdrop.js)
+ * Atelier - Explorer Drag & Drop Manager (apps/explorer/scripts/explorer-dragdrop.js)
  * Handles internal cross-window moving and external file uploads via native drag-and-drop.
  */
 (function(window) {
@@ -17,7 +17,7 @@
       container.addEventListener('dragover', (e) => {
         e.preventDefault();
         const hasExternalFiles = e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files');
-        const hasInternalItems = !!window.SG_DRAGGING_PATHS;
+        const hasInternalItems = !!window.ATELIER_DRAGGING_PATHS;
 
         if (hasInternalItems) {
           e.dataTransfer.dropEffect = 'move';
@@ -50,9 +50,9 @@
         }
 
         // 2. Internal items dropped onto container background
-        if (window.SG_DRAGGING_PATHS && Array.isArray(window.SG_DRAGGING_PATHS)) {
-          const paths = window.SG_DRAGGING_PATHS;
-          window.SG_DRAGGING_PATHS = null;
+        if (window.ATELIER_DRAGGING_PATHS && Array.isArray(window.ATELIER_DRAGGING_PATHS)) {
+          const paths = window.ATELIER_DRAGGING_PATHS;
+          window.ATELIER_DRAGGING_PATHS = null;
           await this.inst.moveItems(paths, this.inst.state.currentPath);
         }
       });
@@ -60,7 +60,7 @@
 
     bindFolderDropTarget(folderEl, folderPath) {
       folderEl.addEventListener('dragover', (e) => {
-        if (window.SG_DRAGGING_PATHS) {
+        if (window.ATELIER_DRAGGING_PATHS) {
           e.preventDefault();
           e.stopPropagation();
           e.dataTransfer.dropEffect = 'move';
@@ -73,12 +73,12 @@
       });
 
       folderEl.addEventListener('drop', async (e) => {
-        if (window.SG_DRAGGING_PATHS) {
+        if (window.ATELIER_DRAGGING_PATHS) {
           e.preventDefault();
           e.stopPropagation();
           folderEl.classList.remove('drag-over');
-          const paths = window.SG_DRAGGING_PATHS;
-          window.SG_DRAGGING_PATHS = null;
+          const paths = window.ATELIER_DRAGGING_PATHS;
+          window.ATELIER_DRAGGING_PATHS = null;
           await this.inst.moveItems(paths, folderPath);
         }
       });

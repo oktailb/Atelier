@@ -10,8 +10,8 @@
 
 require_once __DIR__ . '/../boot/bootstrap.php';
 
-use SimpleGallery\Kernel\PluginDiscovery;
-use SimpleGallery\Kernel\StandaloneWebAppManifestSynthesizer;
+use Atelier\Kernel\PluginDiscovery;
+use Atelier\Kernel\StandaloneWebAppManifestSynthesizer;
 
 $projectRoot = rtrim(str_replace('\\', '/', dirname(__DIR__, 2)), '/');
 $appId = trim((string)($_GET['app'] ?? ''));
@@ -63,7 +63,7 @@ if ($htmlContent === false) {
     exit;
 }
 
-// Compute site base path from SCRIPT_NAME (e.g. `/SimpleGallery/system/endpoints/webapp.php` -> `/SimpleGallery`)
+// Compute site base path from SCRIPT_NAME (e.g. `/Atelier/system/endpoints/webapp.php` -> `/Atelier`)
 $scriptName = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '/system/endpoints/webapp.php'));
 $siteBase = preg_replace('#/system/endpoints/webapp\.php$#i', '', $scriptName);
 $siteBase = rtrim((string)$siteBase, '/');

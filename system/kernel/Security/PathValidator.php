@@ -1,7 +1,7 @@
 <?php
-namespace SimpleGallery\Kernel\Security;
+namespace Atelier\Kernel\Security;
 
-use SimpleGallery\Kernel\Config\ConfigStore;
+use Atelier\Kernel\Config\ConfigStore;
 
 /**
  * Kernel Path Validator & Anti-Traversal Shield
@@ -181,7 +181,7 @@ class PathValidator {
     }
 
     public static function isDirAccessible(string $dir_path, string $base_dir): bool {
-        return \SimpleGallery\Kernel\Auth\AuthManager::isDirAccessible($dir_path, $base_dir);
+        return \Atelier\Kernel\Auth\AuthManager::isDirAccessible($dir_path, $base_dir);
     }
 }
 

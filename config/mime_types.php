@@ -1,6 +1,6 @@
 <?php
 /**
- * SimpleGallery 2026 - Core Baseline MIME Types and File Association Configuration
+ * Atelier by GallusTech - Core Baseline MIME Types and File Association Configuration
  *
  * This file defines only the minimal core gallery baseline.
  * Installed native apps (`apps/<app>/manifest.json`), external/WASM standalone apps

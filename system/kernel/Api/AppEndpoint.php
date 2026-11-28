@@ -1,11 +1,11 @@
 <?php
-namespace SimpleGallery\Kernel\Api;
+namespace Atelier\Kernel\Api;
 
-use SimpleGallery\Kernel\Security\SecurityManager;
-use SimpleGallery\Kernel\Security\CsrfManager;
+use Atelier\Kernel\Security\SecurityManager;
+use Atelier\Kernel\Security\CsrfManager;
 
 /**
- * SimpleGallery WebOS - Unified App API Endpoint Gateway
+ * Atelier WebOS - Unified App API Endpoint Gateway
  * Standardizes session management, JSON parsing, CSRF verification, error handling, and response delivery for app backends.
  */
 class AppEndpoint {
@@ -118,7 +118,7 @@ class AppEndpoint {
             exit;
 
         } catch (\Throwable $e) {
-            @error_log('[SimpleGallery AppEndpoint:' . $app_id . '] ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            @error_log('[Atelier AppEndpoint:' . $app_id . '] ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
             http_response_code(500);
             echo json_encode([
                 'success' => false,

@@ -1,9 +1,9 @@
 <?php
-namespace SimpleGallery\Kernel\FS;
+namespace Atelier\Kernel\FS;
 
-use SimpleGallery\Kernel\Security\PathValidator;
-use SimpleGallery\Kernel\Security\SecurityManager;
-use SimpleGallery\Kernel\Media\ExifParser;
+use Atelier\Kernel\Security\PathValidator;
+use Atelier\Kernel\Security\SecurityManager;
+use Atelier\Kernel\Media\ExifParser;
 
 /**
  * Kernel Virtual File System (VFS)

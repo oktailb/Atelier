@@ -6,9 +6,9 @@
  * Compatible with Authentik, Keycloak, Authelia, Google, Okta, Azure AD / Entra ID, Zitadel, etc.
  */
 
-namespace SimpleGallery\Kernel\Auth;
+namespace Atelier\Kernel\Auth;
 
-use SimpleGallery\Kernel\Data\AtelierStore;
+use Atelier\Kernel\Data\AtelierStore;
 
 class OidcProvider {
 
@@ -40,7 +40,7 @@ class OidcProvider {
         $redirectUri = AuthSettings::resolvePublicBaseUrl($cfg) . '/?oidc_callback=1';
         $scopes = trim((string)($cfg['oidc_scopes'] ?? 'openid profile email')) ?: 'openid profile email';
 
-        $_SESSION['sg_oidc_state'] = [
+        $_SESSION['atelier_oidc_state'] = [
             'state'          => $state,
             'nonce'          => $nonce,
             'code_verifier'  => $verifier,
@@ -74,8 +74,8 @@ class OidcProvider {
      */
     public static function completeCallback(string $projectRoot, string $mediaDir, string $code, string $state): array {
         AuthManager::ensureSessionStarted();
-        $saved = $_SESSION['sg_oidc_state'] ?? null;
-        unset($_SESSION['sg_oidc_state']);
+        $saved = $_SESSION['atelier_oidc_state'] ?? null;
+        unset($_SESSION['atelier_oidc_state']);
 
         if (!is_array($saved) || (int)($saved['expires_at'] ?? 0) < time()) {
             return ['success' => false, 'status' => 400, 'error' => 'SSO login session expired. Please try again.'];

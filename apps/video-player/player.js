@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - Video & Video Wall Player Application
+ * Atelier by GallusTech - Video & Video Wall Player Application
  * Combines floating PiP video player + multi-screen synchronized video wall engine.
  */
 (function (window) {

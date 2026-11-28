@@ -1,8 +1,8 @@
 <?php
-namespace SimpleGallery\Kernel\FS;
+namespace Atelier\Kernel\FS;
 
 /**
- * SimpleGallery WebOS - App Data & Runtime Storage Repository
+ * Atelier WebOS - App Data & Runtime Storage Repository
  * Handles persistent data storage for applications inside `storage/apps/<app_id>/` or `storage/`.
  */
 class StorageRepository {

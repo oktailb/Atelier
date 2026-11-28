@@ -1,15 +1,15 @@
 <?php
-namespace SimpleGallery\Kernel\Actions;
+namespace Atelier\Kernel\Actions;
 
-use SimpleGallery\Kernel\Security\PathValidator;
-use SimpleGallery\Kernel\Security\SecurityManager;
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\FS\CacheManager;
-use SimpleGallery\Kernel\FS\DotfileManager;
-use SimpleGallery\Kernel\FS\PermissionsManager;
-use SimpleGallery\Kernel\FS\ArchiveEngine;
-use SimpleGallery\Kernel\Media\BinaryLocator;
-use SimpleGallery\Kernel\Media\ExifParser;
+use Atelier\Kernel\Security\PathValidator;
+use Atelier\Kernel\Security\SecurityManager;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\FS\CacheManager;
+use Atelier\Kernel\FS\DotfileManager;
+use Atelier\Kernel\FS\PermissionsManager;
+use Atelier\Kernel\FS\ArchiveEngine;
+use Atelier\Kernel\Media\BinaryLocator;
+use Atelier\Kernel\Media\ExifParser;
 
 
 /**
@@ -47,7 +47,7 @@ class GalleryActions {
         $requested_dir = $params['dir'] ?? '';
 
         // Phase B: Transparent Virtual Mount browsing (`ext://<mount_id>/...`)
-        $extParsed = \SimpleGallery\Kernel\Storage\ExternalMountManager::parseExternalPath((string)$requested_dir);
+        $extParsed = \Atelier\Kernel\Storage\ExternalMountManager::parseExternalPath((string)$requested_dir);
         if ($extParsed !== null) {
             return self::getExternalGallery($extParsed, $base_dir, $media_types, $gallery_title);
         }
@@ -366,10 +366,10 @@ class GalleryActions {
      * Phase B: Renders an external storage mount (`ext://<mount_id>/...`) in standard Explorer gallery format.
      */
     private static function getExternalGallery(array $extParsed, string $base_dir, array $media_types, string $gallery_title): array {
-        $project_root = \SimpleGallery\Kernel\Config\ConfigStore::resolveRoot($base_dir);
+        $project_root = \Atelier\Kernel\Config\ConfigStore::resolveRoot($base_dir);
         $mountId = (int)$extParsed['mount_id'];
         $rel = (string)$extParsed['rel_path'];
-        $resolved = \SimpleGallery\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, $mountId);
+        $resolved = \Atelier\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, $mountId);
         if (!$resolved) {
             return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied', [], null, $base_dir)]];
         }
@@ -415,7 +415,7 @@ class GalleryActions {
             $mime = (string)($f['mime'] ?? '');
             $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
             if ($ext === '' && $mime !== '') {
-                $ext = \SimpleGallery\Kernel\Storage\GoogleDriveStorageDriver::inferExtensionFromMime($mime);
+                $ext = \Atelier\Kernel\Storage\GoogleDriveStorageDriver::inferExtensionFromMime($mime);
             }
             $cat = ExifParser::getMediaCategory($ext, $media_types);
             $fPath = $prefix . '/' . ltrim((string)$f['path'], '/');

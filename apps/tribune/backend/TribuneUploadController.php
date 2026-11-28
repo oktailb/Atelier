@@ -1,9 +1,9 @@
 <?php
-namespace SimpleGallery\Apps\Tribune\Backend;
+namespace Atelier\Apps\Tribune\Backend;
 
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\FS\PermissionsManager;
-use SimpleGallery\Kernel\Security\RateLimiter;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\FS\PermissionsManager;
+use Atelier\Kernel\Security\RateLimiter;
 
 /**
  * Tribune Temporary File Upload & Hardened Delivery Controller

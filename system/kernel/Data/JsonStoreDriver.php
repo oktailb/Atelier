@@ -5,7 +5,7 @@
  * inside `storage/atelier_db/<table>.json`.
  */
 
-namespace SimpleGallery\Kernel\Data;
+namespace Atelier\Kernel\Data;
 
 class JsonStoreDriver implements AtelierStoreInterface {
 

@@ -6,10 +6,10 @@
  * via `AuthManager::revalidateActiveUser()`.
  */
 
-namespace SimpleGallery\Kernel\Auth;
+namespace Atelier\Kernel\Auth;
 
-use SimpleGallery\Kernel\Data\AtelierStore;
-use SimpleGallery\Kernel\Security\RateLimiter;
+use Atelier\Kernel\Data\AtelierStore;
+use Atelier\Kernel\Security\RateLimiter;
 
 class SessionRegistry {
 
@@ -40,8 +40,8 @@ class SessionRegistry {
                 'last_seen_at'       => $now,
                 'revoked_at'         => null
             ]);
-            $_SESSION['sg_session_token'] = $rawToken;
-            $_SESSION['sg_session_touched_at'] = $now;
+            $_SESSION['atelier_session_token'] = $rawToken;
+            $_SESSION['atelier_session_touched_at'] = $now;
         } catch (\Throwable $e) {
             // Do not break login if storage fails transiently
         }
@@ -54,7 +54,7 @@ class SessionRegistry {
      */
     public static function validateCurrentSession(string $projectRoot): bool {
         AuthManager::ensureSessionStarted();
-        $raw = $_SESSION['sg_session_token'] ?? '';
+        $raw = $_SESSION['atelier_session_token'] ?? '';
         if (!is_string($raw) || $raw === '') {
             return true; // Backward-compatible with pre-existing/test sessions without token
         }
@@ -68,10 +68,10 @@ class SessionRegistry {
                 return false;
             }
             $now = time();
-            $lastTouched = (int)($_SESSION['sg_session_touched_at'] ?? 0);
+            $lastTouched = (int)($_SESSION['atelier_session_touched_at'] ?? 0);
             if ($now - $lastTouched >= 60) {
                 $store->update('user_sessions', ['last_seen_at' => $now], ['id' => (int)$row['id']]);
-                $_SESSION['sg_session_touched_at'] = $now;
+                $_SESSION['atelier_session_touched_at'] = $now;
             }
             return true;
         } catch (\Throwable $e) {
@@ -84,7 +84,7 @@ class SessionRegistry {
      */
     public static function markCurrentRevoked(string $projectRoot): void {
         AuthManager::ensureSessionStarted();
-        $raw = $_SESSION['sg_session_token'] ?? '';
+        $raw = $_SESSION['atelier_session_token'] ?? '';
         if (!is_string($raw) || $raw === '') {
             return;
         }
@@ -102,7 +102,7 @@ class SessionRegistry {
      */
     public static function listSessions(string $projectRoot, ?int $userId = null, bool $includeAll = false): array {
         AuthManager::ensureSessionStarted();
-        $curHash = !empty($_SESSION['sg_session_token']) ? self::hashToken((string)$_SESSION['sg_session_token']) : '';
+        $curHash = !empty($_SESSION['atelier_session_token']) ? self::hashToken((string)$_SESSION['atelier_session_token']) : '';
         $store = AtelierStore::forRoot($projectRoot);
         $where = $includeAll ? [] : ['user_id' => $userId];
         $rows = $store->select('user_sessions', $where, ['last_seen_at' => 'DESC'], 100);
@@ -148,7 +148,7 @@ class SessionRegistry {
      */
     public static function revokeOtherSessions(string $projectRoot, ?int $userId): array {
         AuthManager::ensureSessionStarted();
-        $curHash = !empty($_SESSION['sg_session_token']) ? self::hashToken((string)$_SESSION['sg_session_token']) : '';
+        $curHash = !empty($_SESSION['atelier_session_token']) ? self::hashToken((string)$_SESSION['atelier_session_token']) : '';
         $store = AtelierStore::forRoot($projectRoot);
         $rows = $store->select('user_sessions', ['user_id' => $userId]);
         $now = time();

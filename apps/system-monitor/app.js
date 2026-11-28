@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - System Monitor & Task Manager (SystemMonitorApp)
+ * Atelier by GallusTech - System Monitor & Task Manager (SystemMonitorApp)
  * Real-time WebOS process telemetry, PHP host diagnostics, storage visualizer & cache cleaner.
  * Refactored using WebOSApp Base Class & WebOSToolkit Declarative Components.
  */

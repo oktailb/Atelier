@@ -1,8 +1,8 @@
 <?php
-namespace SimpleGallery\Kernel\Actions;
+namespace Atelier\Kernel\Actions;
 
-use SimpleGallery\Kernel\Config\ConfigStore;
-use SimpleGallery\Kernel\PluginDiscovery;
+use Atelier\Kernel\Config\ConfigStore;
+use Atelier\Kernel\PluginDiscovery;
 
 class ActionRouter {
 
@@ -317,7 +317,7 @@ class ActionRouter {
             : ConfigStore::resolveRoot($base_dir);
 
         // Immediately revoke disabled/deleted user sessions & sync role changes on every API request
-        \SimpleGallery\Kernel\Auth\AuthManager::revalidateActiveUser($resolved_project_root);
+        \Atelier\Kernel\Auth\AuthManager::revalidateActiveUser($resolved_project_root);
 
         $params = array_merge($_GET, $_POST, $raw_body);
         $context = [

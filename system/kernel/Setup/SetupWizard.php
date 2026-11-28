@@ -9,13 +9,13 @@
  *   - Permanently self-locks (HTTP 403) the instant an admin exists.
  */
 
-namespace SimpleGallery\Kernel\Setup;
+namespace Atelier\Kernel\Setup;
 
-use SimpleGallery\Kernel\Auth\AuditLogger;
-use SimpleGallery\Kernel\Auth\AuthSettings;
-use SimpleGallery\Kernel\Auth\UserManager;
-use SimpleGallery\Kernel\Config\ConfigStore;
-use SimpleGallery\Kernel\Data\AtelierStore;
+use Atelier\Kernel\Auth\AuditLogger;
+use Atelier\Kernel\Auth\AuthSettings;
+use Atelier\Kernel\Auth\UserManager;
+use Atelier\Kernel\Config\ConfigStore;
+use Atelier\Kernel\Data\AtelierStore;
 
 class SetupWizard {
 

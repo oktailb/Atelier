@@ -1,6 +1,6 @@
 <?php
 /**
- * SimpleGallery 2026 - Video & Video Wall Player App UI Template
+ * Atelier by GallusTech - Video & Video Wall Player App UI Template
  * Injected automatically by the Kernel into the workspace.
  */
 ?>

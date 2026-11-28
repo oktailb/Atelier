@@ -1,5 +1,5 @@
 <?php
-namespace SimpleGallery\Kernel\Security;
+namespace Atelier\Kernel\Security;
 
 /**
  * Kernel URL Validator & SSRF-Safe HTTP Client

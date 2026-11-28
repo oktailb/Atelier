@@ -15,8 +15,8 @@
       "description": "Chronological chat system, interactive clocks, Totoz memes, Trollometer and Boîte à Con (BAK)"
     },
     "ja": {
-      "title": "フリー掲示板 & マルチブショウクライナ",
-      "description": "時 me ログ掲示板、クロックトラッキング、Totoz、トロロメーター、Boîte à Con (BAK)"
+      "title": "フリー掲示板 & マルチブショクライアント",
+      "description": "時系列チャット、インタラクティブ時計、Totoz、トロールメーター、ミュートリスト (BAK)"
     }
   },
   "entry": {
@@ -25,7 +25,7 @@
   },
   "backend": {
     "file": "backend/TribuneActions.php",
-    "class": "SimpleGallery\\Apps\\Tribune\\Backend\\TribuneActions",
+    "class": "Atelier\\Apps\\Tribune\\Backend\\TribuneActions",
     "actions": [
       "tribune_boards_get",
       "tribune_boards_save",

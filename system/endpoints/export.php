@@ -11,9 +11,9 @@ $project_root = dirname(dirname(__DIR__));
 require_once $project_root . '/system/boot/bootstrap.php';
 require_once $project_root . '/system/kernel/functions.php';
 
-use SimpleGallery\Kernel\Auth\AccountExportService;
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\Security\CsrfManager;
+use Atelier\Kernel\Auth\AccountExportService;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\Security\CsrfManager;
 
 if (!headers_sent()) {
     header('Referrer-Policy: no-referrer');

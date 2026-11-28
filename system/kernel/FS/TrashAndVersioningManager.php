@@ -5,12 +5,12 @@
  *  - Versioning: automatic pre-overwrite snapshots (`storage/versions/<hash>/`) keeping last N revisions
  */
 
-namespace SimpleGallery\Kernel\FS;
+namespace Atelier\Kernel\FS;
 
-use SimpleGallery\Kernel\Auth\AuditLogger;
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\Config\ConfigStore;
-use SimpleGallery\Kernel\Security\PathValidator;
+use Atelier\Kernel\Auth\AuditLogger;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\Config\ConfigStore;
+use Atelier\Kernel\Security\PathValidator;
 
 class TrashAndVersioningManager {
 
@@ -243,7 +243,7 @@ class TrashAndVersioningManager {
         }
         if (empty($meta['is_dir'])) {
             $ext = strtolower(pathinfo($baseName, PATHINFO_EXTENSION));
-            if (\SimpleGallery\Kernel\Media\FormatRegistry::isForbiddenExtension($ext) || \SimpleGallery\Kernel\Media\FormatRegistry::hasForbiddenDoubleExtension($baseName)) {
+            if (\Atelier\Kernel\Media\FormatRegistry::isForbiddenExtension($ext) || \Atelier\Kernel\Media\FormatRegistry::hasForbiddenDoubleExtension($baseName)) {
                 return ['success' => false, 'status' => 403, 'error' => 'Forbidden restore file type.'];
             }
         }
@@ -266,9 +266,9 @@ class TrashAndVersioningManager {
 
         // Enforce personal disk quota when restoring inside `users/<username>`
         if (preg_match('#^users/([^/]+)(?:/|$)#i', $origRel, $um)) {
-            $owner = \SimpleGallery\Kernel\Auth\UserManager::findByUsername($projectRoot, $um[1]);
+            $owner = \Atelier\Kernel\Auth\UserManager::findByUsername($projectRoot, $um[1]);
             if ($owner && (int)($owner['quota_bytes'] ?? 0) > 0) {
-                $qinfo = \SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo($projectRoot, $mediaDir, $owner);
+                $qinfo = \Atelier\Kernel\Auth\UserManager::getUserQuotaInfo($projectRoot, $mediaDir, $owner);
                 $restoreBytes = max(0, (int)($meta['size_bytes'] ?? (is_file($payloadPath) ? @filesize($payloadPath) : 0)));
                 if (($qinfo['used_bytes'] + $restoreBytes) > $qinfo['quota_bytes']) {
                     return ['success' => false, 'status' => 413, 'error' => 'Disk quota exceeded: unable to restore item from trash.'];
@@ -441,9 +441,9 @@ class TrashAndVersioningManager {
 
         // Enforce personal disk quota delta when restoring a larger version inside `users/<username>`
         if (preg_match('#^users/([^/]+)(?:/|$)#i', $norm, $um)) {
-            $owner = \SimpleGallery\Kernel\Auth\UserManager::findByUsername($projectRoot, $um[1]);
+            $owner = \Atelier\Kernel\Auth\UserManager::findByUsername($projectRoot, $um[1]);
             if ($owner && (int)($owner['quota_bytes'] ?? 0) > 0) {
-                $qinfo = \SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo($projectRoot, $mediaDir, $owner);
+                $qinfo = \Atelier\Kernel\Auth\UserManager::getUserQuotaInfo($projectRoot, $mediaDir, $owner);
                 $curSize = is_file($absTarget) ? (int)@filesize($absTarget) : 0;
                 $bakSize = (int)@filesize($bakPath);
                 $delta = max(0, $bakSize - $curSize);

@@ -1,8 +1,8 @@
 <?php
-namespace SimpleGallery\Apps\Tribune\Backend;
+namespace Atelier\Apps\Tribune\Backend;
 
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\Security\RateLimiter;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\Security\RateLimiter;
 
 /**
  * Tribune Scheduled Posts Controller
@@ -99,7 +99,7 @@ class TribuneSchedulerController {
                     } else {
                         if (!empty($post['target_url'])) {
                             $headers = [
-                                "User-Agent: " . ($post['user_agent'] ?? 'SimpleGallery-Scheduled/1.0'),
+                                "User-Agent: " . ($post['user_agent'] ?? 'Atelier-Scheduled/1.0'),
                                 "Content-Type: application/x-www-form-urlencoded"
                             ];
                             if (!empty($post['cookie'])) {
@@ -141,7 +141,7 @@ class TribuneSchedulerController {
         $target_url  = trim($_POST['target_url'] ?? $raw_body['target_url'] ?? '');
         $post_field  = trim($_POST['post_field'] ?? $raw_body['post_field'] ?? 'message');
         $cookie_hdr  = trim($_POST['cookie'] ?? $raw_body['cookie'] ?? '');
-        $user_agent  = trim($_POST['user_agent'] ?? $raw_body['user_agent'] ?? 'SimpleGallery Client');
+        $user_agent  = trim($_POST['user_agent'] ?? $raw_body['user_agent'] ?? 'Atelier Client');
 
         if (empty($msg_text)) {
             return ['status' => 400, 'data' => ['success' => false, 'error' => 'Le message ne peut pas être vide.']];

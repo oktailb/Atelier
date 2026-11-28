@@ -15,9 +15,9 @@
  *   - Optional admin domain allowlist (`allowed_domains`).
  */
 
-namespace SimpleGallery\Kernel\AI;
+namespace Atelier\Kernel\AI;
 
-use SimpleGallery\Kernel\Security\UrlValidator;
+use Atelier\Kernel\Security\UrlValidator;
 
 class LlmGateway {
 

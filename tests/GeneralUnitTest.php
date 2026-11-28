@@ -1,11 +1,11 @@
 <?php
 /**
- * SimpleGallery 2026 - General Functional & Feature Unit Test Suite
+ * Atelier by GallusTech - General Functional & Feature Unit Test Suite
  * Covers directory indexing, path operations, dotfile overrides, caching, search filters, comments, and archives.
  */
 
-if (!defined('SIMPLE_GALLERY_CORE')) {
-    define('SIMPLE_GALLERY_CORE', true);
+if (!defined('ATELIER_CORE')) {
+    define('ATELIER_CORE', true);
 }
 
 require_once dirname(__DIR__) . '/system/boot/bootstrap.php';
@@ -60,7 +60,7 @@ class GeneralUnitTestSuite {
             @mkdir($sandbox, 0755, true);
         }
         if (!is_dir($sandbox) || !is_writable($sandbox)) {
-            $sandbox = sys_get_temp_dir() . '/sg_test_sandbox_gen_' . md5(uniqid('', true));
+            $sandbox = sys_get_temp_dir() . '/atelier_test_sandbox_gen_' . md5(uniqid('', true));
             if (!is_dir($sandbox)) {
                 @mkdir($sandbox, 0755, true);
             }
@@ -108,7 +108,7 @@ class GeneralUnitTestSuite {
         $_SESSION = [];
 
         echo "\n============================================================\n";
-        echo " ⚙️ SimpleGallery 2026 - Suite de Tests Fonctionnels Généraux\n";
+        echo " ⚙️ Atelier by GallusTech - Suite de Tests Fonctionnels Généraux\n";
         echo "============================================================\n\n";
 
         $this->testPathAndRelativeHelpers();
@@ -351,7 +351,7 @@ class GeneralUnitTestSuite {
      */
     private function getRenderedIndex(): string {
         $index_content = @file_get_contents($this->base_dir . '/index.php') ?: '';
-        $discovered_apps = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir);
+        $discovered_apps = \Atelier\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir);
         $all_templates = '';
         foreach ($discovered_apps as $app) {
             if (!empty($app['template_entry']) && file_exists($this->base_dir . '/' . $app['template_entry'])) {
@@ -391,7 +391,7 @@ class GeneralUnitTestSuite {
         $this->assert("Application image-viewer fournit le modal de choix de sauvegarde imageSaveChoiceModal", strpos($rendered_ui, 'id="imageSaveChoiceModal"') !== false);
 
         $api_content = $this->getActionCode();
-        $this->assert("api.php déclare l'action edit_image dans les actions mutantes", in_array('edit_image', \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true));
+        $this->assert("api.php déclare l'action edit_image dans les actions mutantes", in_array('edit_image', \Atelier\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true));
         $this->assert("api.php implémente le gestionnaire d'action edit_image", strpos($api_content, "'edit_image'") !== false);
 
         // Create a 10x10 sample truecolor JPEG image
@@ -440,7 +440,7 @@ class GeneralUnitTestSuite {
         // Test Document WYSIWYG & Markdown save action
         $doc_viewer_js = @file_get_contents($this->base_dir . '/apps/doc-viewer/viewer.js') ?: '';
         $this->assert("doc-viewer intègre le chargeur Toast UI Editor", strpos($doc_viewer_js, 'loadToastUiEditor') !== false);
-        $this->assert("api.php déclare l'action save_text_file dans les actions mutantes", in_array('save_text_file', \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true));
+        $this->assert("api.php déclare l'action save_text_file dans les actions mutantes", in_array('save_text_file', \Atelier\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true));
         $this->assert("api.php implémente le gestionnaire d'action save_text_file", strpos($api_content, "'save_text_file'") !== false);
 
 
@@ -491,7 +491,7 @@ class GeneralUnitTestSuite {
         $temp_es_file = $this->base_dir . '/locales/tmp_test_es.json';
         file_put_contents($temp_es_file, json_encode([
             '_meta' => ['code' => 'tmp_test_es', 'name' => 'Español Test', 'flag' => '🇪🇸'],
-            'translations' => ['app.title' => 'SimpleGallery ES']
+            'translations' => ['app.title' => 'Atelier ES']
         ]));
 
         // Test global __t helper function
@@ -515,7 +515,7 @@ class GeneralUnitTestSuite {
 
         // 1. Test Text/Document Metadata
         $doc_path = $this->test_dir . '/sample_doc.txt';
-        file_put_contents($doc_path, "Ligne 1: Bonjour le monde\nLigne 2: Test SimpleGallery 2026\nLigne 3: Fin de fichier");
+        file_put_contents($doc_path, "Ligne 1: Bonjour le monde\nLigne 2: Test Atelier by GallusTech\nLigne 3: Fin de fichier");
         $meta_doc = get_file_unified_metadata($doc_path, 'sample_doc.txt', 'doc', 'txt');
 
         $this->assert("Extraction métadonnées générales TXT", isset($meta_doc['general']['filename']) && $meta_doc['general']['filename'] === 'sample_doc.txt');
@@ -586,26 +586,26 @@ class GeneralUnitTestSuite {
         echo "\n📊 [12/12] Test de l'Application Moniteur Système & Télémétrie Serveur...\n";
 
         // 1. App Discovery
-        $discovered = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir);
+        $discovered = \Atelier\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir);
         $this->assert("Application 'system-monitor' découverte par PluginDiscovery", isset($discovered['system-monitor']));
         $this->assert("Manifeste system-monitor valide", !empty($discovered['system-monitor']['manifest']['id']));
         $this->assert("Point d'entrée JS de system-monitor présent", file_exists($this->base_dir . '/' . $discovered['system-monitor']['js_entry']));
         $this->assert("Feuille de style CSS de system-monitor présente", file_exists($this->base_dir . '/' . $discovered['system-monitor']['css_entry']));
 
         // 2. Translations
-        $fr_trans = \SimpleGallery\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'fr');
+        $fr_trans = \Atelier\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'fr');
         $this->assert("Traduction FR de system-monitor chargée", !empty($fr_trans['apps.system-monitor.title']) || !empty($discovered['system-monitor']['locales']['fr']['title']));
 
-        $en_trans = \SimpleGallery\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'en');
+        $en_trans = \Atelier\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'en');
         $this->assert("Traduction EN de system-monitor chargée", !empty($en_trans['apps.system-monitor.title']) || !empty($discovered['system-monitor']['locales']['en']['title']));
 
-        $ja_trans = \SimpleGallery\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'ja');
+        $ja_trans = \Atelier\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'ja');
         $this->assert("Traduction JA de system-monitor chargée", !empty($ja_trans['apps.system-monitor.title']) || !empty($discovered['system-monitor']['locales']['ja']['title']));
 
         // 3. API Declarations
         $api_code = $this->getActionCode();
         $this->assert("api.php déclare l'action get_system_info", strpos($api_code, "get_system_info") !== false);
-        $this->assert("api.php déclare l'action clear_all_caches dans les actions mutantes", in_array('clear_all_caches', \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true));
+        $this->assert("api.php déclare l'action clear_all_caches dans les actions mutantes", in_array('clear_all_caches', \Atelier\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true));
         $this->assert("api.php fournit les métriques de mémoire RAM (current & peak)", strpos($api_code, "'memory_current'") !== false && strpos($api_code, "'memory_peak'") !== false);
         $this->assert("api.php fournit les métriques d'espace disque (total, free, used)", strpos($api_code, "'disk_total'") !== false && strpos($api_code, "'disk_free'") !== false);
         $this->assert("api.php fournit les métriques de caches et miniatures", strpos($api_code, "'cache_count'") !== false && strpos($api_code, "'thumbs_count'") !== false);
@@ -618,7 +618,7 @@ class GeneralUnitTestSuite {
         echo "\n🖥️ [13/13] Test de la Barre des Tâches Évoluée & Catégories d'Applications...\n";
 
         // 1. Dynamic App Categories Discovery (from manifest.json or subfolder name, else empty string for root)
-        $discovered = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir);
+        $discovered = \Atelier\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir);
         $this->assert("Catégorie de 'system-monitor' vient du manifest ('system')", ($discovered['system-monitor']['category'] ?? '') === 'system');
         $this->assert("Catégorie de '8queens' vient du manifest ou sous-dossier ('game' ou 'games')", in_array($discovered['8queens']['category'] ?? '', ['game', 'games'], true));
         $this->assert("Catégorie de 'explorer' vient du manifest ('view')", ($discovered['explorer']['category'] ?? '') === 'view');
@@ -633,10 +633,10 @@ class GeneralUnitTestSuite {
         $this->assert("WindowManager implémente la prévisualisation au survol taskbarPreviewCard", strpos($wm_code, 'taskbarPreviewCard') !== false);
         $this->assert("WindowManager implémente le registre dynamique getWindowStyles()", strpos($wm_code, 'getWindowStyles') !== false);
         $this->assert("WindowManager implémente setWindowStyle()", strpos($wm_code, 'setWindowStyle') !== false);
-        $this->assert("WindowManager supporte la découverte dynamique sans liste en dur", strpos($wm_code, 'SG_DISCOVERED_WM_STYLES') !== false);
+        $this->assert("WindowManager supporte la découverte dynamique sans liste en dur", strpos($wm_code, 'ATELIER_DISCOVERED_WM_STYLES') !== false);
 
         // 3. Modular Window Manager Skins Auto-Discovery (wm-styles/*)
-        $discovered_styles = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredWindowStyles($this->base_dir);
+        $discovered_styles = \Atelier\Kernel\PluginDiscovery::getDiscoveredWindowStyles($this->base_dir);
         $this->assert("PluginDiscovery découvre au moins 9 styles de fenêtres", count($discovered_styles) >= 9);
         $style_ids = array_column($discovered_styles, 'id');
         $this->assert("Style modulaire 'beos' découvert avec style.json/css", in_array('beos', $style_ids, true));
@@ -678,7 +678,7 @@ class GeneralUnitTestSuite {
         require_once $this->base_dir . '/apps/tribune/backend/TribuneActions.php';
 
         // 1. App Discovery
-        $discovered = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir);
+        $discovered = \Atelier\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir);
         $this->assert("Application 'tribune' découverte par PluginDiscovery", isset($discovered['tribune']));
         $this->assert("Manifeste tribune valide (ID='tribune')", ($discovered['tribune']['manifest']['id'] ?? '') === 'tribune');
         $this->assert("Point d'entrée JS de tribune présent", file_exists($this->base_dir . '/' . $discovered['tribune']['js_entry']));
@@ -686,21 +686,21 @@ class GeneralUnitTestSuite {
         $this->assert("Catégorie de 'tribune' vient du manifest ('communication')", ($discovered['tribune']['category'] ?? '') === 'communication');
 
         // 2. Translations
-        $fr_trans = \SimpleGallery\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'fr');
+        $fr_trans = \Atelier\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'fr');
         $this->assert("Traduction FR de tribune chargée", !empty($fr_trans['apps.tribune.title']) || !empty($discovered['tribune']['locales']['fr']['title']));
 
         // 3. Backend Endpoints in API / Tribune API
         $api_code = $this->getActionCode();
         $this->assert("api.php déclare l'action tribune_get", strpos($api_code, "tribune_get") !== false);
-        $this->assert("ActionRouter déclare l'action tribune_post dans les actions mutantes (CSRF)", in_array('tribune_post', \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true));
+        $this->assert("ActionRouter déclare l'action tribune_post dans les actions mutantes (CSRF)", in_array('tribune_post', \Atelier\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true));
         $this->assert("api.php déclare l'action tribune_proxy_fetch", strpos($api_code, "tribune_proxy_fetch") !== false);
-        $this->assert("api.php déclare l'action tribune_file_upload dans les actions mutantes", in_array('tribune_file_upload', \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true) || strpos($api_code, 'tribune_file_upload') !== false);
+        $this->assert("api.php déclare l'action tribune_file_upload dans les actions mutantes", in_array('tribune_file_upload', \Atelier\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true) || strpos($api_code, 'tribune_file_upload') !== false);
         $this->assert("api.php déclare l'action tribune_file_get", strpos($api_code, "tribune_file_get") !== false);
         $this->assert("api.php déclare l'action tribune_stream (SSE EventSource)", strpos($api_code, "tribune_stream") !== false);
         $this->assert("api.php déclare l'action tribune_schedule_post", strpos($api_code, "tribune_schedule_post") !== false);
         $this->assert("api.php déclare l'action tribune_scheduled_list", strpos($api_code, "tribune_scheduled_list") !== false);
-        $this->assert("api.php déclare l'action tribune_proxy_post dans les actions mutantes", in_array('tribune_proxy_post', \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true) || strpos($api_code, 'tribune_proxy_post') !== false);
-        $proxy_post_res = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::handle('tribune_proxy_post', ['message' => ''], $this->base_dir);
+        $this->assert("api.php déclare l'action tribune_proxy_post dans les actions mutantes", in_array('tribune_proxy_post', \Atelier\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true) || strpos($api_code, 'tribune_proxy_post') !== false);
+        $proxy_post_res = \Atelier\Apps\Tribune\Backend\TribuneActions::handle('tribune_proxy_post', ['message' => ''], $this->base_dir);
         $this->assert("TribuneActions gère l'action tribune_proxy_post (non-null)", $proxy_post_res !== null && isset($proxy_post_res['data']['success']));
 
         // 4. App UI Elements & Features (Balltrap, Trollometer, Miaoli)
@@ -766,7 +766,7 @@ class GeneralUnitTestSuite {
         // 2. API Actions
         $api_code = $this->getActionCode();
         $this->assert("api.php déclare l'action get_autostart_settings", strpos($api_code, "get_autostart_settings") !== false);
-        $this->assert("api.php déclare l'action save_autostart_settings dans les actions mutantes", in_array('save_autostart_settings', \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true));
+        $this->assert("api.php déclare l'action save_autostart_settings dans les actions mutantes", in_array('save_autostart_settings', \Atelier\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true));
 
         // 3. Settings App UI & Boot Process
         $settings_js = file_get_contents($this->base_dir . '/apps/settings/settings.js');
@@ -783,9 +783,9 @@ class GeneralUnitTestSuite {
         echo "\n🔒 [16/16] Test du Filtrage des Applications Désactivées & Tribune Standalone...\n";
 
         // 1. PluginDiscovery filtering tests
-        $active_apps = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir, false);
-        $all_apps = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir, true);
-        $disabled_list = \SimpleGallery\Kernel\PluginDiscovery::getDisabledAppIds($this->base_dir);
+        $active_apps = \Atelier\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir, false);
+        $all_apps = \Atelier\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir, true);
+        $disabled_list = \Atelier\Kernel\PluginDiscovery::getDisabledAppIds($this->base_dir);
 
         $this->assert("Liste des apps désactivées est un tableau", is_array($disabled_list));
         $test_disabled_id = !empty($disabled_list) ? $disabled_list[0] : null;
@@ -796,8 +796,8 @@ class GeneralUnitTestSuite {
             $this->assert("L'attribut 'enabled' est false pour l'app désactivée", ($all_apps[$test_disabled_id]['enabled'] ?? true) === false);
         } else {
             $GLOBALS['disabled_apps'] = ['template-app'];
-            $filtered_active = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir, false);
-            $filtered_all = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir, true);
+            $filtered_active = \Atelier\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir, false);
+            $filtered_all = \Atelier\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir, true);
             $this->assert("PluginDiscovery omet l'app désactivée quand include_disabled=false", !isset($filtered_active['template-app']));
             $this->assert("PluginDiscovery inclut toutes les apps quand include_disabled=true", isset($filtered_all['template-app']));
             $this->assert("L'attribut 'enabled' est false pour l'app désactivée", ($filtered_all['template-app']['enabled'] ?? true) === false);
@@ -809,8 +809,15 @@ class GeneralUnitTestSuite {
         $this->assert("Fichier apps/tribune/index.php présent pour mode standalone", file_exists($tribune_index));
         $tribune_html = file_get_contents($tribune_index);
         $this->assert("Tribune standalone injecte le conteneur standalone-container", strpos($tribune_html, 'standalone-container') !== false);
-        $this->assert("Tribune standalone instancie SyscallClient pointant sur api.php", strpos($tribune_html, "SyscallClient('api.php')") !== false);
+        $this->assert("Tribune standalone instancie SyscallClient pointant sur system/endpoints/api.php", strpos($tribune_html, "SyscallClient('../../system/endpoints/api.php')") !== false);
         $this->assert("Tribune standalone charge les traductions locales", strpos($tribune_html, 'translations') !== false);
+
+        // 2b. Unified plugin backend routing (template-app via ActionRouter + manifest.backend)
+        $this->assert("ActionRouter reconnaît template_save_note comme action mutante CSRF", \Atelier\Kernel\Actions\ActionRouter::isMutatingAction('template_save_note', $this->base_dir));
+        $tpl_ping = \Atelier\Kernel\Actions\ActionRouter::dispatch('template_ping', [], $this->base_dir . '/storage/media', [], [], 'Atelier', '.thumbnails', $this->base_dir);
+        $this->assert("ActionRouter dispatche template_ping via manifest.backend", is_array($tpl_ping) && ($tpl_ping['status'] ?? 0) === 200 && !empty($tpl_ping['data']['success']));
+        $api_gw_src = @file_get_contents($this->base_dir . '/system/endpoints/api.php') ?: '';
+        $this->assert("api.php passe project_root à __t pour api.err_unknown_action", strpos($api_gw_src, "__t('api.err_unknown_action', [], null, \$project_root)") !== false);
 
         // 3. Tribune app.js auto-mount
         $tribune_js = file_get_contents($this->base_dir . '/apps/tribune/app.js');
@@ -831,7 +838,7 @@ class GeneralUnitTestSuite {
         $this->assert("index.php inclut ShortcutManager.js", strpos($index_html, 'ShortcutManager.js') !== false);
 
         // 2. ActionRouter declares copy_item
-        $this->assert("ActionRouter déclare l'action copy_item dans les actions mutantes", in_array('copy_item', \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true));
+        $this->assert("ActionRouter déclare l'action copy_item dans les actions mutantes", in_array('copy_item', \Atelier\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true));
 
         // 3. Backend copy_item functional execution
         $sample_src = $this->test_dir . '/sample_for_copy.txt';
@@ -839,12 +846,12 @@ class GeneralUnitTestSuite {
         $rel_src = ltrim(str_replace($this->base_dir, '', $sample_src), '/');
         $rel_target_dir = ltrim(str_replace($this->base_dir, '', $this->test_dir), '/');
 
-        $_SESSION['sg_admin_logged'] = true;
-        $copy_res = \SimpleGallery\Kernel\Actions\FileActions::handle('copy_item', [
+        $_SESSION['atelier_admin_logged'] = true;
+        $copy_res = \Atelier\Kernel\Actions\FileActions::handle('copy_item', [
             'source'     => $rel_src,
             'target_dir' => $rel_target_dir
         ], ['base_dir' => $this->base_dir]);
-        unset($_SESSION['sg_admin_logged']);
+        unset($_SESSION['atelier_admin_logged']);
 
         $this->assert("FileActions::copy_item renvoie un statut 200", ($copy_res['status'] ?? 0) === 200);
         $this->assert("FileActions::copy_item indique success = true", ($copy_res['data']['success'] ?? false) === true);
@@ -869,9 +876,9 @@ class GeneralUnitTestSuite {
         $rel_src2 = ltrim(str_replace($this->base_dir, '', $move_src2), '/');
         $rel_sub_target = ltrim(str_replace($this->base_dir, '', $subfolder_target), '/');
 
-        $_SESSION['sg_admin_logged'] = true;
+        $_SESSION['atelier_admin_logged'] = true;
         // Test single move
-        $move_res1 = \SimpleGallery\Kernel\Actions\FileActions::handle('move_item', [
+        $move_res1 = \Atelier\Kernel\Actions\FileActions::handle('move_item', [
             'source'     => $rel_src1,
             'target_dir' => $rel_sub_target
         ], ['base_dir' => $this->base_dir]);
@@ -879,11 +886,11 @@ class GeneralUnitTestSuite {
         $this->assert("Le fichier 1 a bien été déplacé dans le dossier cible", file_exists($subfolder_target . '/sample_for_move_1.txt'));
 
         // Test batch array move
-        $move_res2 = \SimpleGallery\Kernel\Actions\FileActions::handle('move_item', [
+        $move_res2 = \Atelier\Kernel\Actions\FileActions::handle('move_item', [
             'source'     => [$rel_src2],
             'target_dir' => $rel_sub_target
         ], ['base_dir' => $this->base_dir]);
-        unset($_SESSION['sg_admin_logged']);
+        unset($_SESSION['atelier_admin_logged']);
 
         $this->assert("FileActions::move_item supporte un tableau de sources (drag & drop)", ($move_res2['status'] ?? 0) === 200);
         $this->assert("Le fichier 2 a bien été déplacé dans le dossier cible via tableau", file_exists($subfolder_target . '/sample_for_move_2.txt'));
@@ -918,7 +925,7 @@ class GeneralUnitTestSuite {
         ];
         file_put_contents($test_autorun_folder . '/autorun.json', json_encode($sample_autorun));
 
-        $overrides = \SimpleGallery\Kernel\FS\DotfileManager::loadFolderOverrides($test_autorun_folder, $this->test_dir);
+        $overrides = \Atelier\Kernel\FS\DotfileManager::loadFolderOverrides($test_autorun_folder, $this->test_dir);
         $this->assert("DotfileManager détecte has_autorun = true", ($overrides['has_autorun'] ?? false) === true);
         $this->assert("DotfileManager extrait le titre de l'autorun", ($overrides['autorun']['title'] ?? '') === 'Mon VLog Test');
         $this->assert("DotfileManager extrait les étapes de l'autorun", count($overrides['autorun']['steps'] ?? []) === 2);
@@ -929,7 +936,7 @@ class GeneralUnitTestSuite {
         file_put_contents($test_autorun_folder . '/.autorun.json', json_encode($dot_autorun));
         touch($test_autorun_folder . '/autorun.json', time());
         touch($test_autorun_folder . '/.autorun.json', time());
-        $overrides_cohab = \SimpleGallery\Kernel\FS\DotfileManager::loadFolderOverrides($test_autorun_folder, $this->test_dir);
+        $overrides_cohab = \Atelier\Kernel\FS\DotfileManager::loadFolderOverrides($test_autorun_folder, $this->test_dir);
         $this->assert("DotfileManager privilégie autorun.json par rapport à .autorun.json", ($overrides_cohab['autorun']['title'] ?? '') === 'Mon VLog Test');
         @unlink($test_autorun_folder . '/.autorun.json');
 
@@ -974,7 +981,7 @@ class GeneralUnitTestSuite {
         $this->assert("Traduction FR présente pour explorer.details", isset($fr_json['translations']['explorer.details']));
 
         // 6. PluginDiscovery auxiliary scripts discovery & template syntax verification
-        $discovered = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir, true);
+        $discovered = \Atelier\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir, true);
         $this->assert("PluginDiscovery découvre l'app explorer", isset($discovered['explorer']));
         $this->assert("PluginDiscovery découvre autorun-engine.js dans scripts de explorer", in_array('apps/explorer/autorun-engine.js', $discovered['explorer']['scripts'] ?? []));
 
@@ -1020,16 +1027,16 @@ class GeneralUnitTestSuite {
         require_once $this->base_dir . '/apps/browser/backend/BrowserProxyAction.php';
         $router_code = file_get_contents($this->base_dir . '/system/kernel/Actions/ActionRouter.php');
         $this->assert("ActionRouter déclare l'action browser_proxy", strpos($router_code, 'browser_proxy') !== false);
-        $this->assert("BrowserProxyAction rejette localhost (Anti-SSRF)", !\SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::isSafePublicUrl('http://localhost/'));
-        $this->assert("BrowserProxyAction rejette 127.0.0.1 (Anti-SSRF)", !\SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::isSafePublicUrl('http://127.0.0.1/admin'));
-        $this->assert("BrowserProxyAction rejette IP privée 192.168.1.1 (Anti-SSRF)", !\SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::isSafePublicUrl('http://192.168.1.1/'));
-        $this->assert("BrowserProxyAction accepte URL publique", \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::isSafePublicUrl('https://fr.wikipedia.org/wiki/Accueil'));
+        $this->assert("BrowserProxyAction rejette localhost (Anti-SSRF)", !\Atelier\Apps\Browser\Backend\BrowserProxyAction::isSafePublicUrl('http://localhost/'));
+        $this->assert("BrowserProxyAction rejette 127.0.0.1 (Anti-SSRF)", !\Atelier\Apps\Browser\Backend\BrowserProxyAction::isSafePublicUrl('http://127.0.0.1/admin'));
+        $this->assert("BrowserProxyAction rejette IP privée 192.168.1.1 (Anti-SSRF)", !\Atelier\Apps\Browser\Backend\BrowserProxyAction::isSafePublicUrl('http://192.168.1.1/'));
+        $this->assert("BrowserProxyAction accepte URL publique", \Atelier\Apps\Browser\Backend\BrowserProxyAction::isSafePublicUrl('https://fr.wikipedia.org/wiki/Accueil'));
 
-        $proxy_ssrf_res = \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::handle('browser_proxy', ['url' => 'http://127.0.0.1:8080/test'], ['test_mode' => true]);
+        $proxy_ssrf_res = \Atelier\Apps\Browser\Backend\BrowserProxyAction::handle('browser_proxy', ['url' => 'http://127.0.0.1:8080/test'], ['test_mode' => true]);
         $this->assert("BrowserProxyAction retourne 403 sur tentative SSRF", ($proxy_ssrf_res['status'] ?? 0) === 403);
 
         $mock_html = "<html><head><title>Test Page</title></head><body><a href=\"/page2\">Page 2</a></body></html>";
-        $proxy_mock_res = \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::handle('browser_proxy', [
+        $proxy_mock_res = \Atelier\Apps\Browser\Backend\BrowserProxyAction::handle('browser_proxy', [
             'url' => 'https://example.com/sub/index.html'
         ], [
             'test_mode' => true,
@@ -1041,7 +1048,7 @@ class GeneralUnitTestSuite {
         $this->assert("BrowserProxyAction injecte le helper script de navigation", strpos($rewritten, 'webos-browser-proxy-helper') !== false);
 
         // 10. Auto-discovery & Synthetic Manifest for Standalone Third-Party Web Apps (HTML/WASM/PWA)
-        $tmp_root = sys_get_temp_dir() . '/sg_standalone_webapp_test_' . md5(uniqid('', true));
+        $tmp_root = sys_get_temp_dir() . '/atelier_standalone_webapp_test_' . md5(uniqid('', true));
         $tmp_app1 = $tmp_root . '/apps/pixelcraft-web-0.9.5';
         $tmp_app2 = $tmp_root . '/apps/games/retrobox-v2.1';
         @mkdir($tmp_app1 . '/app', 0755, true);
@@ -1063,7 +1070,7 @@ class GeneralUnitTestSuite {
             ]
         ]));
 
-        $tmp_discovered = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($tmp_root, true);
+        $tmp_discovered = \Atelier\Kernel\PluginDiscovery::getDiscoveredApps($tmp_root, true);
         $this->assert("PluginDiscovery découvre une distribution web autonome sans manifest.json", isset($tmp_discovered['pixelcraft']));
         $pc = $tmp_discovered['pixelcraft'] ?? [];
         $this->assert("Manifest synthétique extrait id='pixelcraft' et version='0.9.5'", ($pc['id'] ?? '') === 'pixelcraft' && ($pc['version'] ?? '') === '0.9.5');
@@ -1079,7 +1086,7 @@ class GeneralUnitTestSuite {
         $this->assert("Web app imbriquée hérite de la catégorie 'games' et des file_handlers W3C", ($rb['category'] ?? '') === 'games' && in_array('nes', $rb['manifest']['extensions'] ?? [], true) && in_array('gb', $rb['manifest']['extensions'] ?? [], true));
         $this->assert("Web app imbriquée extrait l'icône locale depuis <link rel='icon'>", ($rb['icon_url'] ?? '') === 'apps/games/retrobox-v2.1/favicon.svg');
 
-        $tmp_trans = \SimpleGallery\Kernel\PluginDiscovery::getAppTranslations($tmp_root, 'fr', true);
+        $tmp_trans = \Atelier\Kernel\PluginDiscovery::getAppTranslations($tmp_root, 'fr', true);
         $this->assert("getAppTranslations expose le titre synthétique apps.pixelcraft.title", ($tmp_trans['apps.pixelcraft.title'] ?? '') === 'PixelCraft');
 
         // Test Layer 4 primary format inference + ?file= openFileParam (e.g. PDF workbench without Formats heading)
@@ -1088,7 +1095,7 @@ class GeneralUnitTestSuite {
         file_put_contents($tmp_app3 . '/index.html', '<!DOCTYPE html><html><head><title>DocBench</title></head><body><canvas id="c"></canvas></body></html>');
         file_put_contents($tmp_app3 . '/README.md', "<h1>DocBench</h1><p><b>Modern PDF reader and editor built in Rust.</b></p>");
         file_put_contents($tmp_app3 . '/HOSTING.md', "Add `?file=<url>` to open a PDF on startup.");
-        $tmp_discovered_3 = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($tmp_root, true);
+        $tmp_discovered_3 = \Atelier\Kernel\PluginDiscovery::getDiscoveredApps($tmp_root, true);
         $db = $tmp_discovered_3['docbench'] ?? [];
         $this->assert("Inférence Layer 4 associe .pdf sans section Formats explicite", in_array('pdf', $db['manifest']['extensions'] ?? [], true));
         $this->assert("Détection du paramètre de démarrage openFileParam='file' depuis HOSTING.md", ($db['manifest']['openFileParam'] ?? null) === 'file');
@@ -1106,7 +1113,7 @@ class GeneralUnitTestSuite {
         file_put_contents($tmp_sheet_new . '/HOSTING.md', "Use `?host=parent&author=Ada` and `?chrome=notitlebar` for iframe hosting. Posts `sheetcraft:ready` and `sheetcraft:save`.");
         file_put_contents($tmp_broken . '/index.html', '');
 
-        $tmp_active_l1 = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($tmp_root, false);
+        $tmp_active_l1 = \Atelier\Kernel\PluginDiscovery::getDiscoveredApps($tmp_root, false);
         $sc = $tmp_active_l1['sheetcraft'] ?? [];
         $hb = $sc['manifest']['hostBridge'] ?? null;
         $this->assert("Lot 1 Synthétiseur v2: dédoublonnage SemVer (0.19.1 > 0.18.0), conteneur apps/external/ neutre & filtrage app 0 octet",
@@ -1129,25 +1136,25 @@ class GeneralUnitTestSuite {
         file_put_contents($tmp_root . '/config/external_apps.json', json_encode([
             'pixelcraft' => ['icon' => '🖌️', 'category' => 'productivity']
         ]));
-        $tmp_overridden = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($tmp_root, true);
+        $tmp_overridden = \Atelier\Kernel\PluginDiscovery::getDiscoveredApps($tmp_root, true);
         $this->assert("config/external_apps.json permet de surcharger icône et catégorie sans modifier l'app tierce", ($tmp_overridden['pixelcraft']['icon'] ?? '') === '🖌️' && ($tmp_overridden['pixelcraft']['category'] ?? '') === 'productivity');
 
         // Verify FormatRegistry dynamic auto-registration (native apps + standalone WASM apps + immutable blacklist)
-        \SimpleGallery\Kernel\Media\FormatRegistry::clearCache();
-        $real_reg = \SimpleGallery\Kernel\Media\FormatRegistry::resolve($this->base_dir);
+        \Atelier\Kernel\Media\FormatRegistry::clearCache();
+        $real_reg = \Atelier\Kernel\Media\FormatRegistry::resolve($this->base_dir);
         $this->assert("FormatRegistry: les apps natives enregistrent automatiquement .odt et .epub pour l'upload",
             in_array('odt', $real_reg['allowed_upload_extensions'], true) &&
             in_array('epub', $real_reg['allowed_upload_extensions'], true) &&
-            \SimpleGallery\Kernel\Media\FormatRegistry::getMimeType('odt', $this->base_dir) === 'application/vnd.oasis.opendocument.text'
+            \Atelier\Kernel\Media\FormatRegistry::getMimeType('odt', $this->base_dir) === 'application/vnd.oasis.opendocument.text'
         );
         $this->assert("FormatRegistry: la blacklist sécurité bloque TOUJOURS .php/.js/.html/.sh même si déclarés par doc-viewer en lecture",
-            !\SimpleGallery\Kernel\Media\FormatRegistry::isUploadExtensionAllowed('php', $this->base_dir) &&
-            !\SimpleGallery\Kernel\Media\FormatRegistry::isUploadExtensionAllowed('js', $this->base_dir) &&
-            !\SimpleGallery\Kernel\Media\FormatRegistry::isUploadExtensionAllowed('html', $this->base_dir) &&
-            !\SimpleGallery\Kernel\Media\FormatRegistry::isUploadExtensionAllowed('sh', $this->base_dir) &&
-            \SimpleGallery\Kernel\Media\FormatRegistry::hasForbiddenDoubleExtension('exploit.php.jpg') === true
+            !\Atelier\Kernel\Media\FormatRegistry::isUploadExtensionAllowed('php', $this->base_dir) &&
+            !\Atelier\Kernel\Media\FormatRegistry::isUploadExtensionAllowed('js', $this->base_dir) &&
+            !\Atelier\Kernel\Media\FormatRegistry::isUploadExtensionAllowed('html', $this->base_dir) &&
+            !\Atelier\Kernel\Media\FormatRegistry::isUploadExtensionAllowed('sh', $this->base_dir) &&
+            \Atelier\Kernel\Media\FormatRegistry::hasForbiddenDoubleExtension('exploit.php.jpg') === true
         );
-        $tmp_reg = \SimpleGallery\Kernel\Media\FormatRegistry::resolve($tmp_root);
+        $tmp_reg = \Atelier\Kernel\Media\FormatRegistry::resolve($tmp_root);
         $this->assert("FormatRegistry: une app externe WASM (PixelCraft) auto-enregistre ses formats (.pcraft, .kra, .psd) sans liste en dur",
             in_array('pcraft', $tmp_reg['allowed_upload_extensions'], true) &&
             in_array('kra', $tmp_reg['allowed_upload_extensions'], true) &&
@@ -1158,14 +1165,14 @@ class GeneralUnitTestSuite {
             'allow_extensions' => ['mycustom', 'php'],
             'mime_map' => ['mycustom' => 'application/x-mycustom']
         ]));
-        \SimpleGallery\Kernel\Media\FormatRegistry::clearCache();
+        \Atelier\Kernel\Media\FormatRegistry::clearCache();
         $this->assert("FormatRegistry: config/formats.json étend les formats custom mais ne peut JAMAIS autoriser .php",
-            \SimpleGallery\Kernel\Media\FormatRegistry::isUploadExtensionAllowed('mycustom', $tmp_root) &&
-            !\SimpleGallery\Kernel\Media\FormatRegistry::isUploadExtensionAllowed('php', $tmp_root) &&
-            \SimpleGallery\Kernel\Media\FormatRegistry::getMimeType('mycustom', $tmp_root) === 'application/x-mycustom'
+            \Atelier\Kernel\Media\FormatRegistry::isUploadExtensionAllowed('mycustom', $tmp_root) &&
+            !\Atelier\Kernel\Media\FormatRegistry::isUploadExtensionAllowed('php', $tmp_root) &&
+            \Atelier\Kernel\Media\FormatRegistry::getMimeType('mycustom', $tmp_root) === 'application/x-mycustom'
         );
         @unlink($tmp_root . '/config/formats.json');
-        \SimpleGallery\Kernel\Media\FormatRegistry::clearCache();
+        \Atelier\Kernel\Media\FormatRegistry::clearCache();
 
         // Verify .htaccess supports WASM MIME type & split-bundle snippets fallback
         $root_htaccess = @file_get_contents($this->base_dir . '/.htaccess') ?: '';
@@ -1174,12 +1181,12 @@ class GeneralUnitTestSuite {
 
         // 11. Phase 2 Architecture (ARCH-01 project_root vs media_dir, ARCH-02 kernel fixes, ARCH-03 plugin action discovery, Tribune OAuth2 silent refresh)
         $media_sub = $this->base_dir . '/storage/media';
-        $this->assert("ARCH-01: ConfigStore::resolveRoot résout storage/media vers project_root", \SimpleGallery\Kernel\Config\ConfigStore::resolveRoot($media_sub) === $this->base_dir);
-        $this->assert("ARCH-01: ConfigStore::resolveRoot préserve un sandbox isolé de test", \SimpleGallery\Kernel\Config\ConfigStore::resolveRoot($this->test_dir) === $this->test_dir);
-        $this->assert("ARCH-01: PermissionsManager résout storage/permissions.json sous project_root (jamais sous storage/media)", \SimpleGallery\Kernel\FS\PermissionsManager::getPermissionsFilePath($media_sub) === $this->base_dir . '/storage/permissions.json');
-        $wm_res = \SimpleGallery\Kernel\Actions\SystemActions::handle('get_wm_styles', [], ['base_dir' => $media_sub]);
+        $this->assert("ARCH-01: ConfigStore::resolveRoot résout storage/media vers project_root", \Atelier\Kernel\Config\ConfigStore::resolveRoot($media_sub) === $this->base_dir);
+        $this->assert("ARCH-01: ConfigStore::resolveRoot préserve un sandbox isolé de test", \Atelier\Kernel\Config\ConfigStore::resolveRoot($this->test_dir) === $this->test_dir);
+        $this->assert("ARCH-01: PermissionsManager résout storage/permissions.json sous project_root (jamais sous storage/media)", \Atelier\Kernel\FS\PermissionsManager::getPermissionsFilePath($media_sub) === $this->base_dir . '/storage/permissions.json');
+        $wm_res = \Atelier\Kernel\Actions\SystemActions::handle('get_wm_styles', [], ['base_dir' => $media_sub]);
         $this->assert("ARCH-01: SystemActions::get_wm_styles trouve les skins même quand base_dir=storage/media", ($wm_res['status'] ?? 0) === 200 && !empty($wm_res['data']['styles']));
-        $this->assert("ARCH-01: TribuneActions::resolveStorageDir pointe vers <project_root>/storage pour storage/media", \SimpleGallery\Apps\Tribune\Backend\TribuneActions::resolveStorageDir($media_sub) === $this->base_dir . '/storage');
+        $this->assert("ARCH-01: TribuneActions::resolveStorageDir pointe vers <project_root>/storage pour storage/media", \Atelier\Apps\Tribune\Backend\TribuneActions::resolveStorageDir($media_sub) === $this->base_dir . '/storage');
 
         $gal_src = @file_get_contents($this->base_dir . '/system/kernel/Actions/GalleryActions.php') ?: '';
         $this->assert("ARCH-02: GalleryActions appelle AuthManager::getPasswordHash('', \$base_dir)", strpos($gal_src, "AuthManager::getPasswordHash('', \$base_dir)") !== false);
@@ -1187,19 +1194,19 @@ class GeneralUnitTestSuite {
         $this->assert("ARCH-02: thumb.php utilise un cast (int) pour HTTP Range (fseek)", strpos($thumb_src, '(int)$matches[1]') !== false && strpos($thumb_src, '(float)$matches[1]') === false);
         $this->assert("ARCH-02: thumb.php gère la redirection stderr portable Windows/Unix", strpos($thumb_src, "PHP_OS_FAMILY === 'Windows'") !== false);
 
-        $discovered_backend = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredBackendActions($this->base_dir);
+        $discovered_backend = \Atelier\Kernel\PluginDiscovery::getDiscoveredBackendActions($this->base_dir);
         $this->assert("ARCH-03: PluginDiscovery découvre browser_proxy depuis apps/browser/manifest.json", isset($discovered_backend['actions']['browser_proxy']));
         $this->assert("ARCH-03: PluginDiscovery découvre tribune_oauth_refresh depuis apps/tribune/manifest.json", isset($discovered_backend['actions']['tribune_oauth_refresh']));
-        $this->assert("ARCH-03: ActionRouter::isMutatingAction protège tribune_oauth_refresh via manifeste", \SimpleGallery\Kernel\Actions\ActionRouter::isMutatingAction('tribune_oauth_refresh', $this->base_dir) === true);
-        $this->assert("ARCH-03: ActionRouter::resolvePluginAction résout dynamiquement browser_proxy", (\SimpleGallery\Kernel\Actions\ActionRouter::resolvePluginAction('browser_proxy', $this->base_dir)['app_id'] ?? '') === 'browser');
+        $this->assert("ARCH-03: ActionRouter::isMutatingAction protège tribune_oauth_refresh via manifeste", \Atelier\Kernel\Actions\ActionRouter::isMutatingAction('tribune_oauth_refresh', $this->base_dir) === true);
+        $this->assert("ARCH-03: ActionRouter::resolvePluginAction résout dynamiquement browser_proxy", (\Atelier\Kernel\Actions\ActionRouter::resolvePluginAction('browser_proxy', $this->base_dir)['app_id'] ?? '') === 'browser');
 
-        $refresh_missing = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::handle('tribune_oauth_refresh', ['board_id' => 'linuxfr', 'refresh_token' => ''], $this->test_dir);
+        $refresh_missing = \Atelier\Apps\Tribune\Backend\TribuneActions::handle('tribune_oauth_refresh', ['board_id' => 'linuxfr', 'refresh_token' => ''], $this->test_dir);
         $this->assert("Tribune OAuth2: tribune_oauth_refresh valide les paramètres requis (400)", ($refresh_missing['status'] ?? 0) === 400);
         $tribune_backend_src = @file_get_contents($this->base_dir . '/apps/tribune/backend/TribuneActions.php') ?: '';
         $this->assert("Tribune OAuth2: tribune_oauth_callback ne contient plus d'alert() bloquant", strpos($tribune_backend_src, 'alert(') === false);
 
         // 12. FEAT-04 : Calculatrice Scientifique & Traceur de Courbes (apps/graphing-calc)
-        $discovered_all = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir, true);
+        $discovered_all = \Atelier\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir, true);
         $this->assert("FEAT-04: PluginDiscovery découvre apps/graphing-calc", isset($discovered_all['graphing-calc']));
         $gcalc_app = $discovered_all['graphing-calc'] ?? [];
         $this->assert("FEAT-04: graphing-calc appartient à la catégorie utilities avec icône 📐", ($gcalc_app['category'] ?? '') === 'utilities' && ($gcalc_app['icon'] ?? '') === '📐');
@@ -1209,9 +1216,9 @@ class GeneralUnitTestSuite {
             ($gcalc_app['js_entry'] ?? '') === 'apps/graphing-calc/app.js' &&
             ($gcalc_app['css_entry'] ?? '') === 'apps/graphing-calc/style.css'
         );
-        $gcalc_tr_fr = \SimpleGallery\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'fr', true);
-        $gcalc_tr_en = \SimpleGallery\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'en', true);
-        $gcalc_tr_ja = \SimpleGallery\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'ja', true);
+        $gcalc_tr_fr = \Atelier\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'fr', true);
+        $gcalc_tr_en = \Atelier\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'en', true);
+        $gcalc_tr_ja = \Atelier\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'ja', true);
         $this->assert("FEAT-04: Locales autonomes apps/graphing-calc/locales/{fr,en,ja}.json chargées par PluginDiscovery",
             !empty($gcalc_tr_fr['calc.tab_graph']) &&
             !empty($gcalc_tr_en['calc.tab_graph']) &&
@@ -1247,45 +1254,45 @@ class GeneralUnitTestSuite {
 
         $saved_sess = $_SESSION ?? [];
         $_SESSION = [];
-        \SimpleGallery\Kernel\Data\AtelierStore::resetCache();
+        \Atelier\Kernel\Data\AtelierStore::resetCache();
 
         $p1_root = $this->test_dir . '/phase1_func_sandbox';
         @mkdir($p1_root, 0755, true);
 
         // 1. Store driver & schema initialization
-        $store = \SimpleGallery\Kernel\Data\AtelierStore::forRoot($p1_root);
+        $store = \Atelier\Kernel\Data\AtelierStore::forRoot($p1_root);
         $driver = $store->getDriverName();
         $this->assert("Phase 1: AtelierStore initialise un moteur valide (sqlite ou json)", in_array($driver, ['sqlite', 'json'], true));
 
         // 2. Create users & group & membership
-        $alice_res = \SimpleGallery\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
+        $alice_res = \Atelier\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
             'username' => 'alice', 'password' => 'Alice123!', 'role' => 'user', 'display_name' => 'Alice Dupont'
         ]);
-        $bob_res = \SimpleGallery\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
+        $bob_res = \Atelier\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
             'username' => 'bob', 'password' => 'Bob1234!', 'role' => 'user', 'display_name' => 'Bob Martin'
         ]);
         $alice = $alice_res['user'] ?? [];
         $bob = $bob_res['user'] ?? [];
-        $studio_res = \SimpleGallery\Kernel\Auth\UserManager::createGroup($p1_root, [
+        $studio_res = \Atelier\Kernel\Auth\UserManager::createGroup($p1_root, [
             'name' => 'studio', 'display_name' => 'Équipe Studio'
         ]);
         $studio = $studio_res['group'] ?? [];
         $_SESSION['is_admin'] = true;
-        $_SESSION['sg_admin_logged'] = true;
-        $set_mem_res = \SimpleGallery\Kernel\Actions\UserActions::handle('set_group_members', [], [
+        $_SESSION['atelier_admin_logged'] = true;
+        $set_mem_res = \Atelier\Kernel\Actions\UserActions::handle('set_group_members', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['group_id' => (int)$studio['id'], 'member_ids' => [(int)$bob['id']]]
         ]);
         $this->assert("Phase 1: API set_group_members persiste member_ids et renvoie la liste", ($set_mem_res['status'] ?? 0) === 200 && in_array((int)$bob['id'], $set_mem_res['data']['member_ids'] ?? [], true));
-        unset($_SESSION['is_admin'], $_SESSION['sg_admin_logged']);
-        $bob_groups = \SimpleGallery\Kernel\Auth\UserManager::getUserGroupIds($p1_root, (int)$bob['id']);
+        unset($_SESSION['is_admin'], $_SESSION['atelier_admin_logged']);
+        $bob_groups = \Atelier\Kernel\Auth\UserManager::getUserGroupIds($p1_root, (int)$bob['id']);
         $this->assert("Phase 1: Bob appartient au groupe studio", in_array((int)$studio['id'], $bob_groups, true));
 
         // 3. Alice shares folder with group 'studio' -> appears in Bob's mounted volumes
-        $users_root = \SimpleGallery\Kernel\Security\PathValidator::getUsersRoot($p1_root);
+        $users_root = \Atelier\Kernel\Security\PathValidator::getUsersRoot($p1_root);
         @mkdir($users_root . '/alice/projets', 0755, true);
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($alice);
-        \SimpleGallery\Kernel\Auth\ShareManager::createUserShare($p1_root, $p1_root, [
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($alice);
+        \Atelier\Kernel\Auth\ShareManager::createUserShare($p1_root, $p1_root, [
             'source_path'     => 'users/alice/projets',
             'target_type'     => 'group',
             'target_id'       => (int)$studio['id'],
@@ -1295,27 +1302,27 @@ class GeneralUnitTestSuite {
             'show_on_desktop' => 1
         ]);
 
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($bob);
-        $bob_vols = \SimpleGallery\Kernel\Auth\ShareManager::getMountedVolumesForCurrentUser($p1_root);
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($bob);
+        $bob_vols = \Atelier\Kernel\Auth\ShareManager::getMountedVolumesForCurrentUser($p1_root);
         $vol_names = array_column($bob_vols, 'mount_name');
         $vol_kinds = array_column($bob_vols, 'kind');
         $this->assert("Phase 1: Bob reçoit son volume Home + le volume partagé de groupe 'Disque Studio'", in_array('home', $vol_kinds, true) && in_array('Disque Studio', $vol_names, true));
-        $this->assert("Phase 1: Bob dispose bien du droit d'écriture via le partage de groupe", \SimpleGallery\Kernel\Auth\ShareManager::canWritePath('users/alice/projets', $p1_root) === true);
+        $this->assert("Phase 1: Bob dispose bien du droit d'écriture via le partage de groupe", \Atelier\Kernel\Auth\ShareManager::canWritePath('users/alice/projets', $p1_root) === true);
 
         // 4. Future-proof Tagging/Classification & E2EE metadata schema hooks
-        $tags_saved = \SimpleGallery\Kernel\Auth\ShareManager::setItemTags($p1_root, 'users/alice/projets', ['client', 'prioritaire']);
-        $tags_read = \SimpleGallery\Kernel\Auth\ShareManager::getItemTags($p1_root, 'users/alice/projets');
+        $tags_saved = \Atelier\Kernel\Auth\ShareManager::setItemTags($p1_root, 'users/alice/projets', ['client', 'prioritaire']);
+        $tags_read = \Atelier\Kernel\Auth\ShareManager::getItemTags($p1_root, 'users/alice/projets');
         $tag_slugs = array_column($tags_read, 'slug');
         $this->assert("Phase 1: Tags/Classification persistés sur un chemin VFS", count($tags_saved) === 2 && in_array('client', $tag_slugs, true) && in_array('prioritaire', $tag_slugs, true));
 
-        \SimpleGallery\Kernel\Auth\ShareManager::setItemMetadata($p1_root, 'users/alice/projets/coffre.bin', [
+        \Atelier\Kernel\Auth\ShareManager::setItemMetadata($p1_root, 'users/alice/projets/coffre.bin', [
             'classification' => 'confidential',
             'is_encrypted' => 1,
             'crypto_algo' => 'AES-256-GCM',
             'crypto_key_id' => 'vault-key-01',
             'crypto_iv' => '00112233445566778899aabb'
         ]);
-        $meta = \SimpleGallery\Kernel\Auth\ShareManager::getItemMetadata($p1_root, 'users/alice/projets/coffre.bin');
+        $meta = \Atelier\Kernel\Auth\ShareManager::getItemMetadata($p1_root, 'users/alice/projets/coffre.bin');
         $this->assert("Phase 1: Métadonnées futures (classification + E2EE AES-256-GCM) stockées et relues",
             ($meta['classification'] ?? '') === 'confidential' &&
             (int)($meta['is_encrypted'] ?? 0) === 1 &&
@@ -1323,24 +1330,24 @@ class GeneralUnitTestSuite {
         );
 
         // 5. Audit logging records security events
-        \SimpleGallery\Kernel\Auth\AuditLogger::log($p1_root, 'test_audit_event', 'users/alice/projets', 'ok', ['ok' => true]);
-        $logs = \SimpleGallery\Kernel\Auth\AuditLogger::recent($p1_root, 10);
+        \Atelier\Kernel\Auth\AuditLogger::log($p1_root, 'test_audit_event', 'users/alice/projets', 'ok', ['ok' => true]);
+        $logs = \Atelier\Kernel\Auth\AuditLogger::recent($p1_root, 10);
         $this->assert("Phase 1: AuditLogger enregistre et renvoie les événements récents", count($logs) >= 1 && ($logs[0]['action'] ?? '') === 'test_audit_event');
 
         // 6. PluginDiscovery loads apps/settings/users-panel.js and apps/settings/locales/{fr,en,ja}.json
-        $discovered = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir, true);
+        $discovered = \Atelier\Kernel\PluginDiscovery::getDiscoveredApps($this->base_dir, true);
         $this->assert("Phase 1: PluginDiscovery charge apps/settings/users-panel.js dans scripts", in_array('apps/settings/users-panel.js', $discovered['settings']['scripts'] ?? [], true));
 
-        $tr_fr = \SimpleGallery\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'fr', true);
-        $tr_en = \SimpleGallery\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'en', true);
-        $tr_ja = \SimpleGallery\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'ja', true);
+        $tr_fr = \Atelier\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'fr', true);
+        $tr_en = \Atelier\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'en', true);
+        $tr_ja = \Atelier\Kernel\PluginDiscovery::getAppTranslations($this->base_dir, 'ja', true);
         $this->assert("Phase 1: Locales autonomes apps/settings/locales/{fr,en,ja}.json chargées par PluginDiscovery",
             !empty($tr_fr['settings.tab_users']) && !empty($tr_en['settings.tab_users']) && !empty($tr_ja['settings.tab_users']) &&
             !empty($tr_fr['users.section_users']) && !empty($tr_en['users.section_users']) && !empty($tr_ja['users.section_users'])
         );
 
         $_SESSION = $saved_sess;
-        \SimpleGallery\Kernel\Data\AtelierStore::resetCache();
+        \Atelier\Kernel\Data\AtelierStore::resetCache();
     }
 }
 

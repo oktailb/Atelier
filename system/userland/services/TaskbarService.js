@@ -1,5 +1,5 @@
 /**
- * SimpleGallery WebOS - Central Taskbar Service (TaskbarService.js)
+ * Atelier WebOS - Central Taskbar Service (TaskbarService.js)
  * Provides registration, lifecycle management, and event relay for the active Taskbar Provider.
  * Allows the default taskbar app (apps/taskbar) to be replaced by custom docks or alternate panels.
  */

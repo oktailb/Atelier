@@ -1,11 +1,11 @@
 <?php
 /**
- * SimpleGallery 2026 - Audio Metadata Extractor Module
+ * Atelier by GallusTech - Audio Metadata Extractor Module
  * Zero-dependency pure PHP parser for ID3v1/ID3v2 tags and RIFF WAV headers.
  */
 
-if (!defined('SIMPLE_GALLERY_CORE')) {
-    define('SIMPLE_GALLERY_CORE', true);
+if (!defined('ATELIER_CORE')) {
+    define('ATELIER_CORE', true);
 }
 
 /**

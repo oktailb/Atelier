@@ -1,6 +1,6 @@
 <?php
 /**
- * SimpleGallery WebOS - Root API Gateway Forwarder
+ * Atelier WebOS - Root API Gateway Forwarder
  * Backwards compatibility for root-level API callers and external OAuth callbacks.
  */
 

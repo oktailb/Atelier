@@ -218,14 +218,14 @@
     updateTaskbarVisibility() {
       const bar = document.getElementById('taskbarCopilotBar');
       if (!bar) return;
-      const isLoggedIn = Boolean(window.SG_CURRENT_USER || window.IS_ADMIN);
+      const isLoggedIn = Boolean(window.ATELIER_CURRENT_USER || window.IS_ADMIN);
       bar.classList.toggle('copilot-unauth', !isLoggedIn);
       bar.classList.toggle('copilot-disabled', isLoggedIn && this.configLoaded && !this.canUse);
     }
 
     async loadConfig() {
       if (!window.sys || !window.sys.api) return;
-      const isLoggedIn = Boolean(window.SG_CURRENT_USER || window.IS_ADMIN);
+      const isLoggedIn = Boolean(window.ATELIER_CURRENT_USER || window.IS_ADMIN);
       if (!isLoggedIn) {
         this.canUse = false;
         this.config = null;
@@ -463,7 +463,7 @@
       const box = document.getElementById('copilotMessages');
       if (!box) return;
 
-      const isLoggedIn = Boolean(window.SG_CURRENT_USER || window.IS_ADMIN);
+      const isLoggedIn = Boolean(window.ATELIER_CURRENT_USER || window.IS_ADMIN);
       if (!isLoggedIn) {
         box.innerHTML = `
           <div class="copilot-empty-state">
@@ -618,7 +618,7 @@
       if (!footer) return;
 
       const prevText = (document.getElementById('copilotPromptInput') || {}).value || '';
-      const isReady = Boolean((window.SG_CURRENT_USER || window.IS_ADMIN) && this.canUse && this.modelChoices.length > 0);
+      const isReady = Boolean((window.ATELIER_CURRENT_USER || window.IS_ADMIN) && this.canUse && this.modelChoices.length > 0);
 
       const familyTree = this._buildModelFamilyTree();
       let activeFamilyEntry = null;

@@ -1,5 +1,5 @@
 /**
- * SimpleGallery WebOS - Scientific & Graphing Calculator (GraphingCalcApp)
+ * Atelier WebOS - Scientific & Graphing Calculator (GraphingCalcApp)
  * Modes: Scientific / Standard (DEG/RAD/GRAD, memory, history),
  *        Programmer (HEX/DEC/OCT/BIN, 8/16/32/64-bit bitwise & interactive bit grid),
  *        2D Canvas Plotter (multi-curve, zoom/pan, trace, roots/extrema/intersections, value table, PNG export).

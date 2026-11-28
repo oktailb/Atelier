@@ -6,9 +6,9 @@
 
 require_once __DIR__ . '/../boot/bootstrap.php';
 
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\Security\CsrfGuard;
-use SimpleGallery\Kernel\Setup\SetupWizard;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\Security\CsrfGuard;
+use Atelier\Kernel\Setup\SetupWizard;
 
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');

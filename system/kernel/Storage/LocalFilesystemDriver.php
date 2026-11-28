@@ -3,7 +3,7 @@
  * Atelier by GallusTech - Sandboxed Local Filesystem Storage Driver (Phase B)
  */
 
-namespace SimpleGallery\Kernel\Storage;
+namespace Atelier\Kernel\Storage;
 
 class LocalFilesystemDriver implements StorageDriverInterface {
 

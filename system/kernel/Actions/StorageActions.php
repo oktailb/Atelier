@@ -3,22 +3,22 @@
  * Atelier by GallusTech - Phase B Storage, External Mounts, Chunked Uploads, Trash, Versioning & File Index Controller
  */
 
-namespace SimpleGallery\Kernel\Actions;
+namespace Atelier\Kernel\Actions;
 
-use SimpleGallery\Kernel\Auth\AppPasswordManager;
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\Auth\AuthSettings;
-use SimpleGallery\Kernel\Backup\InstanceBackupService;
-use SimpleGallery\Kernel\Config\ConfigStore;
-use SimpleGallery\Kernel\FS\CacheManager;
-use SimpleGallery\Kernel\FS\ChunkedUploadManager;
-use SimpleGallery\Kernel\FS\DotfileManager;
-use SimpleGallery\Kernel\FS\FileIndexManager;
-use SimpleGallery\Kernel\FS\PermissionsManager;
-use SimpleGallery\Kernel\FS\TrashAndVersioningManager;
-use SimpleGallery\Kernel\Jobs\JobQueueManager;
-use SimpleGallery\Kernel\Security\PathValidator;
-use SimpleGallery\Kernel\Storage\ExternalMountManager;
+use Atelier\Kernel\Auth\AppPasswordManager;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\Auth\AuthSettings;
+use Atelier\Kernel\Backup\InstanceBackupService;
+use Atelier\Kernel\Config\ConfigStore;
+use Atelier\Kernel\FS\CacheManager;
+use Atelier\Kernel\FS\ChunkedUploadManager;
+use Atelier\Kernel\FS\DotfileManager;
+use Atelier\Kernel\FS\FileIndexManager;
+use Atelier\Kernel\FS\PermissionsManager;
+use Atelier\Kernel\FS\TrashAndVersioningManager;
+use Atelier\Kernel\Jobs\JobQueueManager;
+use Atelier\Kernel\Security\PathValidator;
+use Atelier\Kernel\Storage\ExternalMountManager;
 
 class StorageActions {
 
@@ -108,7 +108,7 @@ class StorageActions {
             $showOnDesktop = !array_key_exists('show_on_desktop', $in) || !empty($in['show_on_desktop']);
             $rootFolderId = trim((string)($in['root_folder_id'] ?? 'root')) ?: 'root';
 
-            $_SESSION['sg_gdrive_oauth'] = [
+            $_SESSION['atelier_gdrive_oauth'] = [
                 'state'           => $state,
                 'code_verifier'   => $verifier,
                 'redirect_uri'    => $redirectUri,
@@ -143,8 +143,8 @@ class StorageActions {
 
         if ($action === 'gdrive_oauth_callback') {
             AuthManager::ensureSessionStarted();
-            $saved = $_SESSION['sg_gdrive_oauth'] ?? null;
-            unset($_SESSION['sg_gdrive_oauth']);
+            $saved = $_SESSION['atelier_gdrive_oauth'] ?? null;
+            unset($_SESSION['atelier_gdrive_oauth']);
 
             $code = trim((string)($in['code'] ?? ''));
             $state = trim((string)($in['state'] ?? ''));

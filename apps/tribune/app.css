@@ -1,4 +1,4 @@
-/* SimpleGallery WebOS - Tribune Libre / Bouchot Client (`apps/tribune`) */
+/* Atelier WebOS - Tribune Libre / Bouchot Client (`apps/tribune`) */
 
 .tribune-app-container {
   display: flex;
@@ -7,7 +7,7 @@
   width: 100%;
   background: var(--window-bg, var(--bg-main, #0f172a));
   color: var(--text-main, #f8fafc);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overflow: hidden;
   container-type: inline-size;
 }

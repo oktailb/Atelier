@@ -1,11 +1,11 @@
 <?php
 /**
- * SimpleGallery 2026 - Central Metadata Manager & Coordinator
+ * Atelier by GallusTech - Central Metadata Manager & Coordinator
  * Orchestrates unified metadata extraction across all file formats and categories.
  */
 
-if (!defined('SIMPLE_GALLERY_CORE')) {
-    define('SIMPLE_GALLERY_CORE', true);
+if (!defined('ATELIER_CORE')) {
+    define('ATELIER_CORE', true);
 }
 
 require_once __DIR__ . '/ImageMetadata.php';

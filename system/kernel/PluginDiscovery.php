@@ -1,5 +1,5 @@
 <?php
-namespace SimpleGallery\Kernel;
+namespace Atelier\Kernel;
 
 /**
  * Kernel Application & Plugin Discovery Engine

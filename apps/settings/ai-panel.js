@@ -207,7 +207,7 @@
     // -------------------------------------------------------------------------
     let behaviorCardHtml = '';
     if (canUse || settingsApp.isAdmin) {
-      const discovered = window.SG_DISCOVERED_APPS || {};
+      const discovered = window.ATELIER_DISCOVERED_APPS || {};
       const allApps = Object.keys(discovered).map(id => {
         const info = discovered[id] || {};
         const m = info.manifest || {};

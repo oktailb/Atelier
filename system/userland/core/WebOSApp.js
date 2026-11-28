@@ -1,6 +1,6 @@
 /**
  * WebOSApp - Standard Base Classes for WebOS Applications
- * SimpleGallery WebOS Userland Core: WebOSApp, WebOSMediaApp, WebOSGameApp
+ * Atelier WebOS Userland Core: WebOSApp, WebOSMediaApp, WebOSGameApp
  */
 (function (window, document) {
   'use strict';
@@ -81,7 +81,7 @@
       }
       const self = this;
       const getScope = () => {
-        const u = window.SG_CURRENT_USER;
+        const u = window.ATELIER_CURRENT_USER;
         if (u && u.id) return `u_${u.id}`;
         if (u && u.username) return `u_${String(u.username).toLowerCase()}`;
         return window.IS_ADMIN ? 'admin' : 'guest';

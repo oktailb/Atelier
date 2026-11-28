@@ -4,11 +4,11 @@
  * ACL Resolution, and Extensible Tagging / Classification / E2EE Crypto Metadata Engine.
  */
 
-namespace SimpleGallery\Kernel\Auth;
+namespace Atelier\Kernel\Auth;
 
-use SimpleGallery\Kernel\Config\ConfigStore;
-use SimpleGallery\Kernel\Data\AtelierStore;
-use SimpleGallery\Kernel\Security\PathValidator;
+use Atelier\Kernel\Config\ConfigStore;
+use Atelier\Kernel\Data\AtelierStore;
+use Atelier\Kernel\Security\PathValidator;
 
 class ShareManager {
 
@@ -114,7 +114,7 @@ class ShareManager {
 
         // 4. Active signed share link unlocked in session (supports guests and logged-in users)
         AuthManager::ensureSessionStarted();
-        $unlockedLinks = $_SESSION['sg_unlocked_shares'] ?? [];
+        $unlockedLinks = $_SESSION['atelier_unlocked_shares'] ?? [];
         if (is_array($unlockedLinks) && !empty($unlockedLinks)) {
             $store = AtelierStore::forRoot($projectRoot);
             foreach ($unlockedLinks as $token => $grantedAt) {
@@ -183,7 +183,7 @@ class ShareManager {
             }
             if (AuthManager::isAdminLoggedIn()) {
                 try {
-                    foreach (\SimpleGallery\Kernel\Storage\ExternalMountManager::listAccessibleMounts($projectRoot) as $em) {
+                    foreach (\Atelier\Kernel\Storage\ExternalMountManager::listAccessibleMounts($projectRoot) as $em) {
                         $volumes[] = [
                             'id'              => 'vol-ext-' . (int)$em['id'],
                             'mount_id'        => (int)$em['id'],
@@ -280,7 +280,7 @@ class ShareManager {
 
         // 3. External Cloud & Storage Mounts (`ext://<id>`)
         try {
-            $extMounts = \SimpleGallery\Kernel\Storage\ExternalMountManager::listAccessibleMounts($projectRoot);
+            $extMounts = \Atelier\Kernel\Storage\ExternalMountManager::listAccessibleMounts($projectRoot);
             foreach ($extMounts as $em) {
                 $volumes[] = [
                     'id'              => 'vol-ext-' . (int)$em['id'],
@@ -562,10 +562,10 @@ class ShareManager {
         }
 
         AuthManager::ensureSessionStarted();
-        if (!isset($_SESSION['sg_unlocked_shares']) || !is_array($_SESSION['sg_unlocked_shares'])) {
-            $_SESSION['sg_unlocked_shares'] = [];
+        if (!isset($_SESSION['atelier_unlocked_shares']) || !is_array($_SESSION['atelier_unlocked_shares'])) {
+            $_SESSION['atelier_unlocked_shares'] = [];
         }
-        $_SESSION['sg_unlocked_shares'][$cleanToken] = time();
+        $_SESSION['atelier_unlocked_shares'][$cleanToken] = time();
 
         AuditLogger::log($projectRoot, 'share_link_access', (string)$link['target_path'], 'ok', ['link_id' => (int)$link['id']]);
         return [

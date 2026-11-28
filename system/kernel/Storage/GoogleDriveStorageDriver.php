@@ -4,7 +4,7 @@
  * Uses OAuth2 access_token / refresh_token with automatic silent renewal.
  */
 
-namespace SimpleGallery\Kernel\Storage;
+namespace Atelier\Kernel\Storage;
 
 class GoogleDriveStorageDriver implements StorageDriverInterface {
 

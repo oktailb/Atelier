@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - WebOS Desktop Host Environment (js/desktop.js)
+ * Atelier by GallusTech - WebOS Desktop Host Environment (js/desktop.js)
  * Minimal desktop shell responsible for system runtime initialization:
  * - WindowManager, MenuBarManager, AppManager, SyscallClient, I18nEngine.
  * - System Tray controls (Language switcher, Admin authentication, Cookie settings).
@@ -39,7 +39,7 @@
         ? appMgr.isAppDisabled('taskbar')
         : (appMgr && typeof appMgr.isAppEnabled === 'function'
           ? !appMgr.isAppEnabled('taskbar')
-          : (Array.isArray(window.SG_DISABLED_APPS) && window.SG_DISABLED_APPS.includes('taskbar')));
+          : (Array.isArray(window.ATELIER_DISABLED_APPS) && window.ATELIER_DISABLED_APPS.includes('taskbar')));
 
       if (!isTaskbarDisabled) {
         if (window.TaskbarApp && typeof window.TaskbarApp.open === 'function') {
@@ -49,7 +49,7 @@
         }
       }
 
-      const cfg = window.SG_AUTOSTART_CONFIG || { enabled: true, apps: [{ appId: 'explorer', state: 'maximized', enabled: true }] };
+      const cfg = window.ATELIER_AUTOSTART_CONFIG || { enabled: true, apps: [{ appId: 'explorer', state: 'maximized', enabled: true }] };
       if (cfg.enabled === false) return;
       const apps = cfg.apps || [];
 
@@ -105,7 +105,7 @@
     // I18N / LOCALIZATION ENGINE & SYSTEM TRAY
     // -------------------------------------------------------------
     initI18n() {
-      let initialConfig = window.SG_I18N_CONFIG;
+      let initialConfig = window.ATELIER_I18N_CONFIG;
       if (!initialConfig) {
         const payloadEl = document.getElementById('initialLocalesConfig');
         if (payloadEl && payloadEl.textContent) {
@@ -131,7 +131,7 @@
 
       let storedLocale = null;
       try {
-        storedLocale = localStorage.getItem('sg_locale');
+        storedLocale = localStorage.getItem('atelier_locale');
       } catch (e) {}
 
       if (storedLocale && storedLocale !== this.state.currentLocale) {
@@ -241,8 +241,8 @@
 
     finishLocaleChange(code) {
       try {
-        localStorage.setItem('sg_locale', code);
-        document.cookie = `sg_locale=${encodeURIComponent(code)}; path=/; max-age=31536000; SameSite=Lax`;
+        localStorage.setItem('atelier_locale', code);
+        document.cookie = `atelier_locale=${encodeURIComponent(code)}; path=/; max-age=31536000; SameSite=Lax`;
       } catch (e) {}
 
       document.documentElement.lang = code;
@@ -672,16 +672,16 @@
             defaultName: app.name,
             icon: app.icon || '🗔'
           };
-          window.SG_DRAGGING_ITEM_DATA = appData;
+          window.ATELIER_DRAGGING_ITEM_DATA = appData;
           e.dataTransfer.setData('text/plain', JSON.stringify({ appId: app.id }));
           e.dataTransfer.setData('application/json', JSON.stringify({ appId: app.id }));
-          e.dataTransfer.setData('application/sg-item', JSON.stringify(appData));
+          e.dataTransfer.setData('application/atelier-item', JSON.stringify(appData));
           e.dataTransfer.effectAllowed = 'copy';
           item.classList.add('is-dragging');
         };
 
         item.ondragend = () => {
-          window.SG_DRAGGING_ITEM_DATA = null;
+          window.ATELIER_DRAGGING_ITEM_DATA = null;
           item.classList.remove('is-dragging');
           this.closeAppLauncher();
         };
@@ -703,7 +703,7 @@
       const container = this.el.desktopShortcuts || document.getElementById('desktopShortcuts');
       if (!container) return;
 
-      const config = window.SG_DESKTOP_CONFIG || {};
+      const config = window.ATELIER_DESKTOP_CONFIG || {};
       const shortcuts = (config.shortcuts || []).filter(s => s.enabled !== false);
 
       if (shortcuts.length === 0) {
@@ -817,7 +817,7 @@
             return;
           }
 
-          if (e.dataTransfer.types.includes('application/sg-item') || window.SG_DRAGGING_ITEM_DATA || e.dataTransfer.types.includes('application/json')) {
+          if (e.dataTransfer.types.includes('application/atelier-item') || window.ATELIER_DRAGGING_ITEM_DATA || e.dataTransfer.types.includes('application/json')) {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'copy';
             const grid = document.getElementById('desktopShortcuts');
@@ -841,14 +841,14 @@
             return;
           }
 
-          let rawData = e.dataTransfer.getData('application/sg-item');
+          let rawData = e.dataTransfer.getData('application/atelier-item');
           let itemData = null;
 
           if (rawData) {
             try { itemData = JSON.parse(rawData); } catch (err) {}
           }
-          if (!itemData && window.SG_DRAGGING_ITEM_DATA) {
-            itemData = window.SG_DRAGGING_ITEM_DATA;
+          if (!itemData && window.ATELIER_DRAGGING_ITEM_DATA) {
+            itemData = window.ATELIER_DRAGGING_ITEM_DATA;
           }
 
           if (!itemData) {
@@ -873,11 +873,11 @@
           e.preventDefault();
           e.stopPropagation();
 
-          window.SG_DESKTOP_CONFIG = window.SG_DESKTOP_CONFIG || { shortcuts: [] };
-          window.SG_DESKTOP_CONFIG.shortcuts = window.SG_DESKTOP_CONFIG.shortcuts || [];
+          window.ATELIER_DESKTOP_CONFIG = window.ATELIER_DESKTOP_CONFIG || { shortcuts: [] };
+          window.ATELIER_DESKTOP_CONFIG.shortcuts = window.ATELIER_DESKTOP_CONFIG.shortcuts || [];
 
           if (itemData.type === 'app') {
-            const exists = window.SG_DESKTOP_CONFIG.shortcuts.some(s => (s.type === 'app' || s.appId) && s.appId === itemData.appId);
+            const exists = window.ATELIER_DESKTOP_CONFIG.shortcuts.some(s => (s.type === 'app' || s.appId) && s.appId === itemData.appId);
             if (exists) {
               this.showToast("Ce raccourci d'application existe déjà sur le bureau", 'info');
               return;
@@ -893,7 +893,7 @@
               enabled: true
             };
 
-            window.SG_DESKTOP_CONFIG.shortcuts.push(newShortcut);
+            window.ATELIER_DESKTOP_CONFIG.shortcuts.push(newShortcut);
             this.renderDesktopShortcuts();
             await this.saveDesktopShortcuts();
             this.showToast(`Raccourci d'application ajouté : « ${newShortcut.name} »`, 'success');
@@ -901,7 +901,7 @@
           }
 
           // Check if folder or file shortcut already exists
-          const exists = window.SG_DESKTOP_CONFIG.shortcuts.some(s => s.path === itemData.path);
+          const exists = window.ATELIER_DESKTOP_CONFIG.shortcuts.some(s => s.path === itemData.path);
           if (exists) {
             this.showToast('Ce raccourci existe déjà sur le bureau', 'info');
             return;
@@ -921,7 +921,7 @@
             enabled: true
           };
 
-          window.SG_DESKTOP_CONFIG.shortcuts.push(newShortcut);
+          window.ATELIER_DESKTOP_CONFIG.shortcuts.push(newShortcut);
           this.renderDesktopShortcuts();
           await this.saveDesktopShortcuts();
           this.showToast(`Raccourci créé : « ${newShortcut.name} »`, 'success');
@@ -930,18 +930,18 @@
     }
 
     async saveDesktopShortcuts() {
-      const csrfToken = window.CSRF_TOKEN || window.SG_CSRF_TOKEN || '';
-      const shortcuts = (window.SG_DESKTOP_CONFIG && window.SG_DESKTOP_CONFIG.shortcuts) || [];
+      const csrfToken = window.CSRF_TOKEN || window.ATELIER_CSRF_TOKEN || '';
+      const shortcuts = (window.ATELIER_DESKTOP_CONFIG && window.ATELIER_DESKTOP_CONFIG.shortcuts) || [];
 
       try {
-        localStorage.setItem('sg_desktop_shortcuts', JSON.stringify(shortcuts));
+        localStorage.setItem('atelier_desktop_shortcuts', JSON.stringify(shortcuts));
       } catch (e) {}
 
       try {
         if (window.sys && window.sys.api) {
           const json = await window.sys.api.post('save_desktop_shortcuts', { shortcuts });
           if (json && json.success && Array.isArray(json.shortcuts)) {
-            window.SG_DESKTOP_CONFIG.shortcuts = json.shortcuts;
+            window.ATELIER_DESKTOP_CONFIG.shortcuts = json.shortcuts;
           }
         }
       } catch (e) {
@@ -963,7 +963,7 @@
         e.stopPropagation();
 
         const shortcutId = card.dataset.shortcutId;
-        const config = window.SG_DESKTOP_CONFIG || {};
+        const config = window.ATELIER_DESKTOP_CONFIG || {};
         const shortcut = (config.shortcuts || []).find(s => s.id === shortcutId);
         if (!shortcut) return;
 
@@ -1020,7 +1020,7 @@
         if (deleteBtn) {
           deleteBtn.onclick = async () => {
             closeMenu();
-            window.SG_DESKTOP_CONFIG.shortcuts = (window.SG_DESKTOP_CONFIG.shortcuts || []).filter(s => s.id !== shortcutId);
+            window.ATELIER_DESKTOP_CONFIG.shortcuts = (window.ATELIER_DESKTOP_CONFIG.shortcuts || []).filter(s => s.id !== shortcutId);
             this.renderDesktopShortcuts();
             await this.saveDesktopShortcuts();
             this.showToast('Raccourci supprimé du bureau', 'info');
@@ -1320,7 +1320,7 @@
       const refuseBtn = document.getElementById('cookieRefuseBtn') || document.getElementById('cookieRejectNonEssentialBtn');
       const customizeBtn = document.getElementById('cookieCustomizeBtn');
 
-      const isConsentGiven = localStorage.getItem('sg_cookie_consent');
+      const isConsentGiven = localStorage.getItem('atelier_cookie_consent');
       if (!isConsentGiven && banner) {
         banner.style.display = 'flex';
       }
@@ -1348,7 +1348,7 @@
       }
       if (acceptAllBtn && banner) {
         acceptAllBtn.onclick = () => {
-          localStorage.setItem('sg_cookie_consent', JSON.stringify({
+          localStorage.setItem('atelier_cookie_consent', JSON.stringify({
             necessary: true,
             preferences: true,
             cdn: true,
@@ -1360,7 +1360,7 @@
       }
       if (refuseBtn && banner) {
         refuseBtn.onclick = () => {
-          localStorage.setItem('sg_cookie_consent', JSON.stringify({
+          localStorage.setItem('atelier_cookie_consent', JSON.stringify({
             necessary: true,
             preferences: false,
             cdn: false,

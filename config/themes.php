@@ -1,6 +1,6 @@
 <?php
 /**
- * SimpleGallery 2026 - Theme Color Palettes & System Themes Registry
+ * Atelier by GallusTech - Theme Color Palettes & System Themes Registry
  * Master variables for global WebOS windowing, desktop UI and application views.
  */
 

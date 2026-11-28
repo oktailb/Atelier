@@ -9,11 +9,11 @@
  *  - Password reset requests are anti-enumeration (always return uniform success response).
  */
 
-namespace SimpleGallery\Kernel\Auth;
+namespace Atelier\Kernel\Auth;
 
-use SimpleGallery\Kernel\Data\AtelierStore;
-use SimpleGallery\Kernel\Mail\Mailer;
-use SimpleGallery\Kernel\Security\RateLimiter;
+use Atelier\Kernel\Data\AtelierStore;
+use Atelier\Kernel\Mail\Mailer;
+use Atelier\Kernel\Security\RateLimiter;
 
 class RegistrationService {
 

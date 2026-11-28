@@ -1,5 +1,5 @@
 /**
- * SimpleGallery WebOS - Taskbar Application (apps/taskbar/app.js)
+ * Atelier WebOS - Taskbar Application (apps/taskbar/app.js)
  * Modular taskbar application:
  * - Always-on-top, frameless, fixed bottom window manager companion
  * - Colonizes the top bar with the Applications Menu launcher

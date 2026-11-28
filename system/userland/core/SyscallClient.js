@@ -1,5 +1,5 @@
 /**
- * SimpleGallery Userland - Syscall Client
+ * Atelier Userland - Syscall Client
  * Unified, zero-boilerplate API client for WebOS communicating with Kernel (api.php).
  */
 class SyscallClient {
@@ -8,13 +8,15 @@ class SyscallClient {
   }
 
   forApp(appId) {
-    return new SyscallClient(`apps/${appId}/api.php`);
+    // Route all plugin backend actions centrally through the kernel API gateway (ActionRouter + manifest.backend)
+    // because direct HTTP execution of PHP files under apps/ is strictly blocked by .htaccess & docker/nginx.conf.
+    return new SyscallClient(this.endpoint);
   }
 
   getCsrfToken() {
 
     return (typeof window !== 'undefined' && (
-      window.SG_CSRF_TOKEN ||
+      window.ATELIER_CSRF_TOKEN ||
       window.CSRF_TOKEN ||
       document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
     )) || '';
@@ -22,7 +24,7 @@ class SyscallClient {
 
   syncCsrfToken(token) {
     if (!token || typeof token !== 'string' || typeof window === 'undefined') return;
-    window.SG_CSRF_TOKEN = token;
+    window.ATELIER_CSRF_TOKEN = token;
     window.CSRF_TOKEN = token;
     if (window.desktop && window.desktop.state) {
       window.desktop.state.csrfToken = token;

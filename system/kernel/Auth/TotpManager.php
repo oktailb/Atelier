@@ -8,9 +8,9 @@
  *  - 8 single-use backup recovery codes stored hashed
  */
 
-namespace SimpleGallery\Kernel\Auth;
+namespace Atelier\Kernel\Auth;
 
-use SimpleGallery\Kernel\Data\AtelierStore;
+use Atelier\Kernel\Data\AtelierStore;
 
 class TotpManager {
 

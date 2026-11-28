@@ -1,4 +1,4 @@
-/* SimpleGallery WebOS - Extracted Overlays & Modals Stylesheet (RGPD Cookies, Image Editor, Language Dropdown, Context Menu) */
+/* Atelier WebOS - Extracted Overlays & Modals Stylesheet (RGPD Cookies, Image Editor, Language Dropdown, Context Menu) */
 
 /* -------------------------------------------------------------
  * 12. APP FOOTER & PRIVACY / COOKIES LINK
@@ -126,7 +126,7 @@
   font-size: 1.05rem;
   font-weight: 700;
   color: #ffffff;
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-title, system-ui, -apple-system, sans-serif);
 }
 
 .cookie-banner-desc {
@@ -388,7 +388,7 @@
   font-size: 1.15rem;
   font-weight: 700;
   color: var(--text-main, #ffffff);
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-title, system-ui, -apple-system, sans-serif);
 }
 
 .editor-badge {

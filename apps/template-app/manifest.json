@@ -11,7 +11,20 @@
     "js": "app.js",
     "css": "style.css"
   },
-  "api": "api.php",
+  "backend": {
+    "file": "backend/TemplateAppActions.php",
+    "class": "Atelier\\Apps\\TemplateApp\\Backend\\TemplateAppActions",
+    "actions": [
+      "template_get_notes",
+      "template_save_note",
+      "template_clear_notes",
+      "template_ping"
+    ],
+    "mutating_actions": [
+      "template_save_note",
+      "template_clear_notes"
+    ]
+  },
   "window": {
     "width": 880,
     "height": 620,

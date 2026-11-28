@@ -1,5 +1,5 @@
 /**
- * SimpleGallery Userland - IPC Event Bus
+ * Atelier Userland - IPC Event Bus
  * Provides inter-application and system event dispatching.
  */
 class EventBus {

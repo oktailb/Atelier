@@ -1,6 +1,6 @@
 <?php
 /**
- * SimpleGallery 2026 / Atelier - 3-Tier Cascading Permissions Matrix Manager
+ * Atelier by GallusTech / Atelier - 3-Tier Cascading Permissions Matrix Manager
  * Cascade order (for public gallery & global capabilities):
  *   1. Role matrix (`anonymous`, `guest`, `user`) stored in `storage/permissions.json`
  *   2. Group overrides (`groups.permissions_json`, where explicit `deny` beats `allow` across groups)
@@ -9,11 +9,11 @@
  * User homes (`users/<login>/...`) and shares remain strictly governed by ShareManager ACLs.
  */
 
-namespace SimpleGallery\Kernel\FS;
+namespace Atelier\Kernel\FS;
 
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\Config\ConfigStore;
-use SimpleGallery\Kernel\Data\AtelierStore;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\Config\ConfigStore;
+use Atelier\Kernel\Data\AtelierStore;
 
 class PermissionsManager {
     public const DEFAULT_PERMISSIONS = [
@@ -291,11 +291,11 @@ class PermissionsManager {
         if ($target_rel_path !== null) {
             $norm = trim(str_replace('\\', '/', $target_rel_path), '/');
             $is_users_ns = (strcasecmp($norm, 'users') === 0 || stripos($norm, 'users/') === 0);
-            $share_perm = \SimpleGallery\Kernel\Auth\ShareManager::resolveEffectivePathPermission($norm, $base_dir);
+            $share_perm = \Atelier\Kernel\Auth\ShareManager::resolveEffectivePathPermission($norm, $base_dir);
             $is_acl_governed = $is_users_ns || ($share_perm !== 'none');
 
             if ($permission_key === 'can_upload') {
-                $can_upload = \SimpleGallery\Kernel\Auth\ShareManager::canUploadPath($norm, $base_dir);
+                $can_upload = \Atelier\Kernel\Auth\ShareManager::canUploadPath($norm, $base_dir);
                 if ($is_acl_governed) {
                     return $can_upload;
                 }
@@ -303,7 +303,7 @@ class PermissionsManager {
                     return true;
                 }
             } elseif (in_array($permission_key, ['can_delete', 'can_move', 'can_comment', 'can_create_folder'], true)) {
-                $can_write = \SimpleGallery\Kernel\Auth\ShareManager::canWritePath($norm, $base_dir);
+                $can_write = \Atelier\Kernel\Auth\ShareManager::canWritePath($norm, $base_dir);
                 if ($is_acl_governed) {
                     // Strict isolation: user homes & shared folders NEVER fall back to the public/role matrix
                     return $can_write;
@@ -312,7 +312,7 @@ class PermissionsManager {
                     return true;
                 }
             } elseif (in_array($permission_key, ['can_download_item', 'can_download_archive'], true)) {
-                $can_read = \SimpleGallery\Kernel\Auth\ShareManager::canReadPath($norm, $base_dir);
+                $can_read = \Atelier\Kernel\Auth\ShareManager::canReadPath($norm, $base_dir);
                 if ($is_acl_governed) {
                     return $can_read;
                 }

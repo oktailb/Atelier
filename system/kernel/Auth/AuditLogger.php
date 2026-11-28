@@ -3,10 +3,10 @@
  * Atelier by GallusTech - Security & GDPR Audit Logger
  */
 
-namespace SimpleGallery\Kernel\Auth;
+namespace Atelier\Kernel\Auth;
 
-use SimpleGallery\Kernel\Data\AtelierStore;
-use SimpleGallery\Kernel\Security\RateLimiter;
+use Atelier\Kernel\Data\AtelierStore;
+use Atelier\Kernel\Security\RateLimiter;
 
 class AuditLogger {
 

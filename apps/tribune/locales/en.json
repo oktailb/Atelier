@@ -13,7 +13,7 @@
   "tribune.pseudo": "Handle",
   "tribune.user_agent": "Editable User-Agent",
   "tribune.cookie": "Board Cookie (Remote/Local)",
-  "tribune.session_local": "SimpleGallery local session.",
+  "tribune.session_local": "Atelier local session.",
   "tribune.cookie_help": "Paste your linuxfr.org cookie (F12 ➔ Storage ➔ Cookies).",
   "tribune.load_local_cookie": "Load Local WebOS Cookie",
   "tribune.stats_title": "Telemetry & 24h Stats",

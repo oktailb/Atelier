@@ -1,10 +1,10 @@
 <?php
 /**
- * SimpleGallery 2026 - Tribune OAuth Secrets Template
+ * Atelier by GallusTech - Tribune OAuth Secrets Template
  * Copy this file to `storage/tribune_secrets.php` and fill in your own OAuth credentials.
  * Never commit `storage/tribune_secrets.php` to version control.
  */
-if (!defined('SG_EXEC') && !defined('SIMPLE_GALLERY_BOOTED')) {
+if (!defined('ATELIER_EXEC') && !defined('ATELIER_BOOTED')) {
     http_response_code(403);
     exit('Access Denied');
 }

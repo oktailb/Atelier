@@ -1,11 +1,11 @@
 <?php
 /**
- * SimpleGallery 2026 - Image Metadata Extractor Module
+ * Atelier by GallusTech - Image Metadata Extractor Module
  * Zero-dependency pure PHP extraction for Image dimensions, Aspect Ratio, GIF frames & EXIF.
  */
 
-if (!defined('SIMPLE_GALLERY_CORE')) {
-    define('SIMPLE_GALLERY_CORE', true);
+if (!defined('ATELIER_CORE')) {
+    define('ATELIER_CORE', true);
 }
 
 if (!function_exists('compute_aspect_ratio')) {

@@ -1,7 +1,7 @@
 <?php
-namespace SimpleGallery\Kernel\FS;
+namespace Atelier\Kernel\FS;
 
-use SimpleGallery\Kernel\Security\PathValidator;
+use Atelier\Kernel\Security\PathValidator;
 
 /**
  * Kernel Cache Manager
@@ -21,7 +21,7 @@ class CacheManager {
             @mkdir($cache_dir, 0755, true);
         }
         if (!is_dir($cache_dir) || !is_writable($cache_dir)) {
-            $cache_dir = sys_get_temp_dir() . '/simplegallery_thumbnails';
+            $cache_dir = sys_get_temp_dir() . '/atelier_thumbnails';
             if (!is_dir($cache_dir)) {
                 @mkdir($cache_dir, 0755, true);
             }

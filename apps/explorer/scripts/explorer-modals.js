@@ -1,5 +1,5 @@
 /**
- * SimpleGallery - Explorer Modals Manager (apps/explorer/scripts/explorer-modals.js)
+ * Atelier - Explorer Modals Manager (apps/explorer/scripts/explorer-modals.js)
  * Manages Folder Creation, Deletion Confirmation, Password Unlock, and Metadata Editing dialogs.
  */
 (function(window) {

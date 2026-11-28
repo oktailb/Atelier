@@ -1,5 +1,5 @@
 /**
- * SimpleGallery WebOS - Desktop Shortcuts Manager
+ * Atelier WebOS - Desktop Shortcuts Manager
  * Handles desktop icons grid, drag-and-drop creation, context menus, and persistence.
  */
 
@@ -15,7 +15,7 @@
     canEditShortcuts() {
       return Boolean(
         window.IS_ADMIN ||
-        (window.SG_CURRENT_USER && (window.SG_CURRENT_USER.id || window.SG_CURRENT_USER.username)) ||
+        (window.ATELIER_CURRENT_USER && (window.ATELIER_CURRENT_USER.id || window.ATELIER_CURRENT_USER.username)) ||
         (window.desktop && window.desktop.state && window.desktop.state.isAdmin)
       );
     }
@@ -36,10 +36,10 @@
     }
 
     getEffectiveShortcuts() {
-      const config = window.SG_DESKTOP_CONFIG || {};
+      const config = window.ATELIER_DESKTOP_CONFIG || {};
       const baseShortcuts = (config.shortcuts || []).filter(s => s.enabled !== false);
-      const mountedVolumes = Array.isArray(window.SG_MOUNTED_VOLUMES)
-        ? window.SG_MOUNTED_VOLUMES.filter(v => v && v.show_on_desktop !== false)
+      const mountedVolumes = Array.isArray(window.ATELIER_MOUNTED_VOLUMES)
+        ? window.ATELIER_MOUNTED_VOLUMES.filter(v => v && v.show_on_desktop !== false)
         : [];
 
       const volumeShortcuts = mountedVolumes.map(v => ({
@@ -188,7 +188,7 @@
       dropZones.forEach(zone => {
         zone.addEventListener('dragover', (e) => {
           if (!this.canEditShortcuts()) return;
-          if (e.dataTransfer.types.includes('application/sg-item') || e.dataTransfer.types.includes('application/json')) {
+          if (e.dataTransfer.types.includes('application/atelier-item') || e.dataTransfer.types.includes('application/json')) {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'copy';
           }
@@ -197,22 +197,22 @@
         zone.addEventListener('drop', async (e) => {
           if (!this.canEditShortcuts()) return;
           e.preventDefault();
-          let itemData = window.SG_DRAGGING_ITEM_DATA;
+          let itemData = window.ATELIER_DRAGGING_ITEM_DATA;
 
           if (!itemData) {
             try {
-              const raw = e.dataTransfer.getData('application/sg-item') || e.dataTransfer.getData('application/json');
+              const raw = e.dataTransfer.getData('application/atelier-item') || e.dataTransfer.getData('application/json');
               if (raw) itemData = JSON.parse(raw);
             } catch (err) {}
           }
 
           if (!itemData) return;
 
-          window.SG_DESKTOP_CONFIG = window.SG_DESKTOP_CONFIG || {};
-          window.SG_DESKTOP_CONFIG.shortcuts = window.SG_DESKTOP_CONFIG.shortcuts || [];
+          window.ATELIER_DESKTOP_CONFIG = window.ATELIER_DESKTOP_CONFIG || {};
+          window.ATELIER_DESKTOP_CONFIG.shortcuts = window.ATELIER_DESKTOP_CONFIG.shortcuts || [];
 
           if (itemData.type === 'app') {
-            const exists = window.SG_DESKTOP_CONFIG.shortcuts.some(s => (s.type === 'app' || s.appId) && s.appId === itemData.appId);
+            const exists = window.ATELIER_DESKTOP_CONFIG.shortcuts.some(s => (s.type === 'app' || s.appId) && s.appId === itemData.appId);
             if (exists) {
               if (window.sys && window.sys.toast) window.sys.toast.info("Ce raccourci d'application existe déjà sur le bureau");
               return;
@@ -228,14 +228,14 @@
               enabled: true
             };
 
-            window.SG_DESKTOP_CONFIG.shortcuts.push(newShortcut);
+            window.ATELIER_DESKTOP_CONFIG.shortcuts.push(newShortcut);
             this.render();
             await this.save();
             if (window.sys && window.sys.toast) window.sys.toast.success(`Raccourci ajouté : « ${newShortcut.name} »`);
             return;
           }
 
-          const exists = window.SG_DESKTOP_CONFIG.shortcuts.some(s => s.path === itemData.path);
+          const exists = window.ATELIER_DESKTOP_CONFIG.shortcuts.some(s => s.path === itemData.path);
           if (exists) {
             if (window.sys && window.sys.toast) window.sys.toast.info('Ce raccourci existe déjà sur le bureau');
             return;
@@ -255,7 +255,7 @@
             enabled: true
           };
 
-          window.SG_DESKTOP_CONFIG.shortcuts.push(newShortcut);
+          window.ATELIER_DESKTOP_CONFIG.shortcuts.push(newShortcut);
           this.render();
           await this.save();
           if (window.sys && window.sys.toast) window.sys.toast.success(`Raccourci créé : « ${newShortcut.name} »`);
@@ -265,14 +265,14 @@
 
     async save() {
       if (!this.canEditShortcuts()) return false;
-      const shortcuts = (window.SG_DESKTOP_CONFIG && window.SG_DESKTOP_CONFIG.shortcuts) || [];
+      const shortcuts = (window.ATELIER_DESKTOP_CONFIG && window.ATELIER_DESKTOP_CONFIG.shortcuts) || [];
 
       try {
         const api = (window.sys && window.sys.api) || window.SyscallClient;
         if (api && typeof api.post === 'function') {
           const json = await api.post('save_desktop_shortcuts', { shortcuts });
           if (json && json.success && Array.isArray(json.shortcuts)) {
-            window.SG_DESKTOP_CONFIG.shortcuts = json.shortcuts;
+            window.ATELIER_DESKTOP_CONFIG.shortcuts = json.shortcuts;
             return true;
           }
         }
@@ -351,7 +351,7 @@
         if (deleteBtn) {
           deleteBtn.onclick = async () => {
             closeMenu();
-            window.SG_DESKTOP_CONFIG.shortcuts = (window.SG_DESKTOP_CONFIG.shortcuts || []).filter(s => s.id !== shortcutId);
+            window.ATELIER_DESKTOP_CONFIG.shortcuts = (window.ATELIER_DESKTOP_CONFIG.shortcuts || []).filter(s => s.id !== shortcutId);
             this.render();
             await this.save();
             if (window.sys && window.sys.toast) window.sys.toast.info('Raccourci supprimé du bureau');

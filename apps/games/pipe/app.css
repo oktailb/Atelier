@@ -1,5 +1,5 @@
 /**
- * SimpleGallery WebOS - Pipe Connect & Netwalk Puzzle
+ * Atelier WebOS - Pipe Connect & Netwalk Puzzle
  * Stylesheet with SVG Pipes, Neon Energy Liquid Glow, Smooth Rotations & Torus Grid Indicators.
  */
 
@@ -10,7 +10,7 @@
   width: 100%;
   background: var(--window-bg, var(--bg-main, radial-gradient(circle at 50% 20%, #0f172a 0%, #020617 80%, #000000 100%)));
   color: var(--text-main, #f8fafc);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   user-select: none;
   overflow: hidden;
   position: relative;

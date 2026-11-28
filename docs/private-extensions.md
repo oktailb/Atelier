@@ -23,7 +23,7 @@ Atelier by GallusTech est conçu pour être extensible **sans altération du noy
 ### Structure Recommandée sur la Machine de Déploiement :
 
 ```text
-SimpleGallery/                     (Dépôt Public GitHub)
+Atelier/                     (Dépôt Public GitHub)
 ├── system/
 ├── config/
 ├── apps/
@@ -41,7 +41,7 @@ SimpleGallery/                     (Dépôt Public GitHub)
 
 ### Étape 1 — Ignorer le dossier dans le `.gitignore` public
 
-Dans le fichier [.gitignore](file:///c:/Users/ec135/AndroidStudioProjects/SimpleGallery/.gitignore) racine du WebOS :
+Dans le fichier [.gitignore](../.gitignore) racine du WebOS :
 ```gitignore
 # Dossiers d'applications privées / sous-dépôts
 apps/mon-pack-prive/
@@ -107,4 +107,4 @@ Format d'un fichier `locales/fr.json` :
 }
 ```
 
-Ces traductions sont automatiquement fusionnées dans le dictionnaire global au chargement de l'application, sans jamais modifier les fichiers de langues principaux du WebOS ([locales/fr.json](file:///c:/Users/ec135/AndroidStudioProjects/SimpleGallery/locales/fr.json), etc.).
+Ces traductions sont automatiquement fusionnées dans le dictionnaire global au chargement de l'application, sans jamais modifier les fichiers de langues principaux du WebOS ([locales/fr.json](../locales/fr.json), etc.).

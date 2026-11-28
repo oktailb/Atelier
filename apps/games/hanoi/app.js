@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - Towers of Hanoi Game
+ * Atelier by GallusTech - Towers of Hanoi Game
  * Modern WebOS multi-instance puzzle app with 3 to 8 customizable disks,
  * recursive optimal solver, step-by-step hints, audio synthesizers, and victory celebrations.
  */

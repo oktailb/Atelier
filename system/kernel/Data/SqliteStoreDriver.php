@@ -11,7 +11,7 @@
  * - audit_logs (security & GDPR audit trail)
  */
 
-namespace SimpleGallery\Kernel\Data;
+namespace Atelier\Kernel\Data;
 
 use PDO;
 

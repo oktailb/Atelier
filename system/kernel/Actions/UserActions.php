@@ -3,15 +3,15 @@
  * Atelier by GallusTech - Multi-User, Group, Shares, Mounted Volumes, Tags & Audit API Controller
  */
 
-namespace SimpleGallery\Kernel\Actions;
+namespace Atelier\Kernel\Actions;
 
-use SimpleGallery\Kernel\Auth\AuditLogger;
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\Auth\ShareManager;
-use SimpleGallery\Kernel\Auth\UserManager;
-use SimpleGallery\Kernel\Config\ConfigStore;
-use SimpleGallery\Kernel\Data\AtelierStore;
-use SimpleGallery\Kernel\Security\RateLimiter;
+use Atelier\Kernel\Auth\AuditLogger;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\Auth\ShareManager;
+use Atelier\Kernel\Auth\UserManager;
+use Atelier\Kernel\Config\ConfigStore;
+use Atelier\Kernel\Data\AtelierStore;
+use Atelier\Kernel\Security\RateLimiter;
 
 class UserActions {
 
@@ -37,7 +37,7 @@ class UserActions {
                 'quota'                 => $user ? UserManager::getUserQuotaInfo($project_root, $base_dir, $user) : null,
                 'preferences'           => $user ? UserManager::getUserPreferences($project_root, (int)$user['id']) : [],
                 'desktop_config'        => UserManager::getEffectiveDesktopConfig($project_root, $user, $isAdmin),
-                'effective_permissions' => \SimpleGallery\Kernel\FS\PermissionsManager::resolveEffectivePermissions($project_root, $user, $isAdmin),
+                'effective_permissions' => \Atelier\Kernel\FS\PermissionsManager::resolveEffectivePermissions($project_root, $user, $isAdmin),
                 'mounted_volumes'       => ShareManager::getMountedVolumesForCurrentUser($base_dir),
                 'csrf_token'            => get_csrf_token()
             ]];
@@ -73,8 +73,8 @@ class UserActions {
             if (!$user) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
             }
-            $ttlHours = (int)($in['ttl_hours'] ?? \SimpleGallery\Kernel\Auth\AccountExportService::DEFAULT_TTL_HOURS);
-            $res = \SimpleGallery\Kernel\Auth\AccountExportService::createExport($project_root, $base_dir, $user, $ttlHours, false);
+            $ttlHours = (int)($in['ttl_hours'] ?? \Atelier\Kernel\Auth\AccountExportService::DEFAULT_TTL_HOURS);
+            $res = \Atelier\Kernel\Auth\AccountExportService::createExport($project_root, $base_dir, $user, $ttlHours, false);
             return ['status' => $res['status'], 'data' => $res];
         }
 
@@ -85,7 +85,7 @@ class UserActions {
             }
             return ['status' => 200, 'data' => [
                 'success' => true,
-                'exports' => \SimpleGallery\Kernel\Auth\AccountExportService::listUserExports($project_root, (int)$user['id'])
+                'exports' => \Atelier\Kernel\Auth\AccountExportService::listUserExports($project_root, (int)$user['id'])
             ]];
         }
 
@@ -97,7 +97,7 @@ class UserActions {
             if (($token === null || $token === '') && !$user) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
             }
-            $res = \SimpleGallery\Kernel\Auth\AccountExportService::confirmReceipt(
+            $res = \Atelier\Kernel\Auth\AccountExportService::confirmReceipt(
                 $project_root,
                 $token,
                 $exportId,
@@ -112,7 +112,7 @@ class UserActions {
             if (!$user) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_access_denied')]];
             }
-            $res = \SimpleGallery\Kernel\Auth\AccountExportService::deleteSelfAccount($project_root, $base_dir, $user, $in);
+            $res = \Atelier\Kernel\Auth\AccountExportService::deleteSelfAccount($project_root, $base_dir, $user, $in);
             return ['status' => $res['status'], 'data' => $res];
         }
 
@@ -325,10 +325,10 @@ class UserActions {
             // Enforce strict read ACL / dotfile visibility (anti-IDOR)
             $canRead = AuthManager::isAdminLoggedIn() || ShareManager::canReadPath($rel, $base_dir);
             if (!$canRead) {
-                $resolved = \SimpleGallery\Kernel\Security\PathValidator::canonicalize($rel, $base_dir, true, true);
+                $resolved = \Atelier\Kernel\Security\PathValidator::canonicalize($rel, $base_dir, true, true);
                 if ($resolved !== null) {
                     $checkDir = is_dir($resolved) ? $resolved : dirname($resolved);
-                    $canRead = \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($checkDir, $base_dir);
+                    $canRead = \Atelier\Kernel\FS\DotfileManager::isDirAccessible($checkDir, $base_dir);
                 }
             }
             if (!$canRead) {

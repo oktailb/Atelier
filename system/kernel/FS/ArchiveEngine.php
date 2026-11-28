@@ -1,9 +1,9 @@
 <?php
-namespace SimpleGallery\Kernel\FS;
+namespace Atelier\Kernel\FS;
 
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\Media\BinaryLocator;
-use SimpleGallery\Kernel\Security\PathValidator;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\Media\BinaryLocator;
+use Atelier\Kernel\Security\PathValidator;
 use RecursiveIteratorIterator;
 use RecursiveDirectoryIterator;
 use RecursiveCallbackFilterIterator;

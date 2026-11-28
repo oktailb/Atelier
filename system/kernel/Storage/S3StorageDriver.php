@@ -5,9 +5,9 @@
  * CopyObject, and presigned GET URLs without requiring AWS SDK / Composer.
  */
 
-namespace SimpleGallery\Kernel\Storage;
+namespace Atelier\Kernel\Storage;
 
-use SimpleGallery\Kernel\Security\UrlValidator;
+use Atelier\Kernel\Security\UrlValidator;
 
 class S3StorageDriver implements StorageDriverInterface {
 

@@ -23,7 +23,7 @@ $maxJobs = isset($opts['max-jobs']) ? max(1, (int)$opts['max-jobs']) : ($isDaemo
 $defaultRoot = rtrim(str_replace('\\', '/', dirname(__DIR__)), '/');
 require_once $defaultRoot . '/system/boot/bootstrap.php';
 
-use SimpleGallery\Kernel\Jobs\JobQueueManager;
+use Atelier\Kernel\Jobs\JobQueueManager;
 
 $projectRoot = !empty($opts['root']) ? rtrim(str_replace('\\', '/', (string)$opts['root']), '/') : $defaultRoot;
 $mediaDir = is_dir($projectRoot . '/storage/media') ? ($projectRoot . '/storage/media') : ($real_base_dir ?? $projectRoot);

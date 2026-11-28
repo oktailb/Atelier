@@ -1,11 +1,11 @@
 <?php
 /**
- * SimpleGallery 2026 - Authentication & Access Manager
+ * Atelier by GallusTech - Authentication & Access Manager
  */
 
-namespace SimpleGallery\Kernel\Auth;
+namespace Atelier\Kernel\Auth;
 
-use SimpleGallery\Kernel\Security\PathValidator;
+use Atelier\Kernel\Security\PathValidator;
 
 class AuthManager {
     /**
@@ -41,11 +41,11 @@ class AuthManager {
      */
     public static function isAdminLoggedIn(): bool {
         self::ensureSessionStarted();
-        if ((!empty($_SESSION['sg_admin_logged']) && $_SESSION['sg_admin_logged'] === true)
+        if ((!empty($_SESSION['atelier_admin_logged']) && $_SESSION['atelier_admin_logged'] === true)
             || (!empty($_SESSION['is_admin']) && $_SESSION['is_admin'] === true)) {
             return true;
         }
-        $user = $_SESSION['sg_user'] ?? null;
+        $user = $_SESSION['atelier_user'] ?? null;
         if (is_array($user) && in_array($user['role'] ?? '', ['superadmin', 'admin'], true)) {
             return true;
         }
@@ -57,7 +57,7 @@ class AuthManager {
      */
     public static function getCurrentUser(): ?array {
         self::ensureSessionStarted();
-        $user = $_SESSION['sg_user'] ?? null;
+        $user = $_SESSION['atelier_user'] ?? null;
         return (is_array($user) && !empty($user['id']) && !empty($user['username'])) ? $user : null;
     }
 
@@ -76,9 +76,9 @@ class AuthManager {
         if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_ACTIVE && !headers_sent()) {
             @session_regenerate_id(true);
         }
-        $_SESSION['sg_user'] = $sanitizedUser;
+        $_SESSION['atelier_user'] = $sanitizedUser;
         $isAdmin = in_array($sanitizedUser['role'] ?? '', ['superadmin', 'admin'], true);
-        $_SESSION['sg_admin_logged'] = $isAdmin;
+        $_SESSION['atelier_admin_logged'] = $isAdmin;
         $_SESSION['is_admin'] = $isAdmin;
         if ($projectRoot !== null && $projectRoot !== '') {
             SessionRegistry::registerCurrentSession($projectRoot, isset($sanitizedUser['id']) ? (int)$sanitizedUser['id'] : null, (string)($sanitizedUser['username'] ?? 'user'));
@@ -94,16 +94,16 @@ class AuthManager {
             SessionRegistry::markCurrentRevoked($projectRoot);
         }
         unset(
-            $_SESSION['sg_admin_logged'],
+            $_SESSION['atelier_admin_logged'],
             $_SESSION['is_admin'],
-            $_SESSION['sg_user'],
-            $_SESSION['sg_2fa_pending'],
-            $_SESSION['sg_session_token'],
-            $_SESSION['sg_session_touched_at'],
-            $_SESSION['sg_oidc_state'],
-            $_SESSION['sg_unlocked_folders'],
+            $_SESSION['atelier_user'],
+            $_SESSION['atelier_2fa_pending'],
+            $_SESSION['atelier_session_token'],
+            $_SESSION['atelier_session_touched_at'],
+            $_SESSION['atelier_oidc_state'],
+            $_SESSION['atelier_unlocked_folders'],
             $_SESSION['unlocked_dirs'],
-            $_SESSION['sg_unlocked_shares']
+            $_SESSION['atelier_unlocked_shares']
         );
         if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_ACTIVE && !headers_sent()) {
             @session_regenerate_id(true);
@@ -116,11 +116,11 @@ class AuthManager {
      */
     public static function revalidateActiveUser(string $baseOrRoot): void {
         self::ensureSessionStarted();
-        if (!empty($_SESSION['sg_session_token']) && !SessionRegistry::validateCurrentSession($baseOrRoot)) {
+        if (!empty($_SESSION['atelier_session_token']) && !SessionRegistry::validateCurrentSession($baseOrRoot)) {
             self::logoutSession();
             return;
         }
-        $sessionUser = $_SESSION['sg_user'] ?? null;
+        $sessionUser = $_SESSION['atelier_user'] ?? null;
         if (!is_array($sessionUser) || empty($sessionUser['id'])) {
             return;
         }
@@ -131,9 +131,9 @@ class AuthManager {
                 return;
             }
             $fresh = UserManager::sanitizeUserForOutput($dbUser);
-            $_SESSION['sg_user'] = $fresh;
+            $_SESSION['atelier_user'] = $fresh;
             $isAdmin = in_array($fresh['role'] ?? '', ['superadmin', 'admin'], true);
-            $_SESSION['sg_admin_logged'] = $isAdmin;
+            $_SESSION['atelier_admin_logged'] = $isAdmin;
             $_SESSION['is_admin'] = $isAdmin;
         } catch (\Throwable $e) {
             // Do not crash if storage is temporarily unavailable
@@ -210,13 +210,13 @@ class AuthManager {
      * walking all ancestor directories from $base_dir down to $dir_path.
      */
     public static function getDirAccessInfo(string $dir_path, string $base_dir): array {
-        return \SimpleGallery\Kernel\FS\DotfileManager::getEffectiveAccessInfo($dir_path, $base_dir);
+        return \Atelier\Kernel\FS\DotfileManager::getEffectiveAccessInfo($dir_path, $base_dir);
     }
 
     /**
      * Check if a directory (and every one of its ancestor directories) is accessible by the current visitor/session.
      */
     public static function isDirAccessible(string $dir_path, string $base_dir): bool {
-        return \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($dir_path, $base_dir);
+        return \Atelier\Kernel\FS\DotfileManager::isDirAccessible($dir_path, $base_dir);
     }
 }

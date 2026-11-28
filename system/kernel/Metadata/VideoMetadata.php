@@ -1,11 +1,11 @@
 <?php
 /**
- * SimpleGallery 2026 - Video Metadata Extractor Module
+ * Atelier by GallusTech - Video Metadata Extractor Module
  * Zero-dependency pure PHP parser for MP4/MOV atoms + FFprobe optional fallback.
  */
 
-if (!defined('SIMPLE_GALLERY_CORE')) {
-    define('SIMPLE_GALLERY_CORE', true);
+if (!defined('ATELIER_CORE')) {
+    define('ATELIER_CORE', true);
 }
 
 if (!function_exists('format_media_duration')) {

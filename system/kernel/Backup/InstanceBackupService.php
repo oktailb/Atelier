@@ -10,10 +10,10 @@
  *   - Optionally user & media storage (`include_media = true`, excluding `.thumbnails/` & `backups/`)
  */
 
-namespace SimpleGallery\Kernel\Backup;
+namespace Atelier\Kernel\Backup;
 
-use SimpleGallery\Kernel\Auth\AuditLogger;
-use SimpleGallery\Kernel\Config\ConfigStore;
+use Atelier\Kernel\Auth\AuditLogger;
+use Atelier\Kernel\Config\ConfigStore;
 
 class InstanceBackupService {
 

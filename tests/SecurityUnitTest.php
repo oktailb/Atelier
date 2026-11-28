@@ -1,10 +1,10 @@
 <?php
 /**
- * SimpleGallery 2026 - Security Unit Test Suite
+ * Atelier by GallusTech - Security Unit Test Suite
  * Zero-dependency standalone security test suite.
  */
 
-if (php_sapi_name() !== 'cli' && !defined('SG_RUNNING_TESTS_VIA_API')) {
+if (php_sapi_name() !== 'cli' && !defined('ATELIER_RUNNING_TESTS_VIA_API')) {
     die("Error: Security unit tests must be executed from CLI.\n");
 }
 
@@ -42,7 +42,7 @@ class SecurityUnitTestSuite {
             @mkdir($sandbox, 0755, true);
         }
         if (!is_dir($sandbox) || !is_writable($sandbox)) {
-            $sandbox = sys_get_temp_dir() . '/sg_test_sandbox_' . md5(uniqid('', true));
+            $sandbox = sys_get_temp_dir() . '/atelier_test_sandbox_' . md5(uniqid('', true));
             if (!is_dir($sandbox)) {
                 @mkdir($sandbox, 0755, true);
             }
@@ -97,7 +97,7 @@ class SecurityUnitTestSuite {
         $_SESSION = [];
 
         echo "\n============================================================\n";
-        echo " 🛡️ SimpleGallery 2026 - Suite de Tests de Sécurité Unitaires\n";
+        echo " 🛡️ Atelier by GallusTech - Suite de Tests de Sécurité Unitaires\n";
         echo "============================================================\n\n";
 
         $this->testPathTraversal();
@@ -368,7 +368,7 @@ SVG;
         $htaccess_file = $this->base_dir . '/.htaccess';
         if (!file_exists($htaccess_file)) {
             $default_htaccess = <<<'HTACCESS'
-# SimpleGallery 2026 - Apache Web Server Security Rules
+# Atelier by GallusTech - Apache Web Server Security Rules
 Options -Indexes
 <FilesMatch "^\.">
     <IfModule mod_authz_core.c>
@@ -515,7 +515,7 @@ HTACCESS;
         echo "\n🔒 [11/11] Audit Approfondi des Actions Mutantes, CSRF et Injections...\n";
 
         // Read mutating actions from ActionRouter / api.php
-        $mutating = \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS;
+        $mutating = \Atelier\Kernel\Actions\ActionRouter::MUTATING_ACTIONS;
         $this->assert("Présence de MUTATING_ACTIONS dans ActionRouter", is_array($mutating) && !empty($mutating));
 
         $expected_mutating = [
@@ -581,7 +581,7 @@ HTACCESS;
         echo "🌐 [12/12] Test de Protection SSRF, Validation d'URL & Cloisonnement...\n";
 
         require_once __DIR__ . '/../apps/tribune/backend/TribuneActions.php';
-        $tribuneClass = 'SimpleGallery\\Apps\\Tribune\\Backend\\TribuneActions';
+        $tribuneClass = 'Atelier\\Apps\\Tribune\\Backend\\TribuneActions';
 
         $method = new \ReflectionMethod($tribuneClass, 'isSafePublicUrl');
         $method->setAccessible(true);
@@ -627,7 +627,7 @@ HTACCESS;
         $this->assert("save_text_file autorise explicitement .autorun.json", in_array(strtolower('.autorun.json'), ['.autorun.json', 'autorun.json'], true));
 
         // Test FileActions directly handling save_file_content for .autorun.json
-        $_SESSION['sg_admin_logged'] = true;
+        $_SESSION['atelier_admin_logged'] = true;
         $_SESSION['is_admin'] = true;
         $autorun_content = json_encode([
             "version" => "2.0",
@@ -643,7 +643,7 @@ HTACCESS;
                 'content' => $autorun_content
             ]
         ];
-        $res = \SimpleGallery\Kernel\Actions\FileActions::handle('save_file_content', [
+        $res = \Atelier\Kernel\Actions\FileActions::handle('save_file_content', [
             'file' => '.autorun.json',
             'content' => $autorun_content
         ], $test_context);
@@ -662,7 +662,7 @@ HTACCESS;
                 'content' => 'Deny from all'
             ]
         ];
-        $res_block = \SimpleGallery\Kernel\Actions\FileActions::handle('save_file_content', [
+        $res_block = \Atelier\Kernel\Actions\FileActions::handle('save_file_content', [
             'file' => '.htaccess',
             'content' => 'Deny from all'
         ], $test_context_block);
@@ -672,7 +672,7 @@ HTACCESS;
         $dirty_svg = '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script><circle cx="50" cy="50" r="40" onload="alert(2)"/></svg>';
         $test_svg_file = $this->temp_test_dir . '/test_save.svg';
         @file_put_contents($test_svg_file, $dirty_svg);
-        \SimpleGallery\Kernel\Security\SecurityManager::sanitizeSvgContent($test_svg_file);
+        \Atelier\Kernel\Security\SecurityManager::sanitizeSvgContent($test_svg_file);
         $clean_svg = @file_get_contents($test_svg_file) ?: '';
         @unlink($test_svg_file);
         $this->assert("save_text_file SVG désinfecte les balises <script>", stripos($clean_svg, '<script>') === false);
@@ -697,10 +697,10 @@ HTACCESS;
 
         // Test Explorer Search Routes & MediaActions
         require_once __DIR__ . '/../system/kernel/Actions/ActionRouter.php';
-        $ref_router = new ReflectionClass(\SimpleGallery\Kernel\Actions\ActionRouter::class);
+        $ref_router = new ReflectionClass(\Atelier\Kernel\Actions\ActionRouter::class);
         $routes = $ref_router->getConstant('ACTION_MAP');
-        $this->assert("ActionRouter associe 'search' à MediaActions", isset($routes['search']) && $routes['search'] === \SimpleGallery\Kernel\Actions\MediaActions::class);
-        $this->assert("ActionRouter associe 'search_media' à MediaActions", isset($routes['search_media']) && $routes['search_media'] === \SimpleGallery\Kernel\Actions\MediaActions::class);
+        $this->assert("ActionRouter associe 'search' à MediaActions", isset($routes['search']) && $routes['search'] === \Atelier\Kernel\Actions\MediaActions::class);
+        $this->assert("ActionRouter associe 'search_media' à MediaActions", isset($routes['search_media']) && $routes['search_media'] === \Atelier\Kernel\Actions\MediaActions::class);
 
         // Test Autorun / Explorer XSS sanitization patterns
         $raw_malicious_script = '<script>alert(1)</script><img src="x" onerror="alert(2)">';
@@ -710,38 +710,38 @@ HTACCESS;
         $this->assert("Autorun sanitization élimine attributs d'événement onerror", stripos($sanitized_pattern, 'onerror') === false);
 
         // Test ActionRouter CSRF protection on tribune_post
-        $this->assert("ActionRouter::MUTATING_ACTIONS protège tribune_post (CSRF)", in_array('tribune_post', \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true));
+        $this->assert("ActionRouter::MUTATING_ACTIONS protège tribune_post (CSRF)", in_array('tribune_post', \Atelier\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true));
 
         // Test UrlValidator Advanced Anti-SSRF (IPv4-mapped IPv6, CGNAT, userinfo, integer/hex IP, redirects)
-        $this->assert("UrlValidator bloque IPv4-mapped IPv6 loopback ([::ffff:127.0.0.1])", !\SimpleGallery\Kernel\Security\UrlValidator::isSafePublicUrl('http://[::ffff:127.0.0.1]/'));
-        $this->assert("UrlValidator bloque IPv4-mapped IPv6 metadata ([::ffff:169.254.169.254])", !\SimpleGallery\Kernel\Security\UrlValidator::isSafePublicUrl('http://[::ffff:169.254.169.254]/latest/meta-data/'));
-        $this->assert("UrlValidator bloque plage CGNAT (100.64.0.1)", !\SimpleGallery\Kernel\Security\UrlValidator::isSafePublicUrl('http://100.64.0.1/'));
-        $this->assert("UrlValidator bloque confusion userinfo (http://example.com@127.0.0.1/)", !\SimpleGallery\Kernel\Security\UrlValidator::isSafePublicUrl('http://example.com@127.0.0.1/'));
-        $this->assert("UrlValidator bloque IP entière (http://2130706433/)", !\SimpleGallery\Kernel\Security\UrlValidator::isSafePublicUrl('http://2130706433/'));
-        $this->assert("UrlValidator bloque IP hexadécimale (http://0x7f000001/)", !\SimpleGallery\Kernel\Security\UrlValidator::isSafePublicUrl('http://0x7f000001/'));
-        $this->assert("UrlValidator résout correctement une redirection relative", \SimpleGallery\Kernel\Security\UrlValidator::resolveRedirectUrl('https://example.com/a/b', '/c') === 'https://example.com/c');
-        $this->assert("UrlValidator rejette une redirection vers file://", \SimpleGallery\Kernel\Security\UrlValidator::resolveRedirectUrl('https://example.com/', 'file:///etc/passwd') === null);
-        $this->assert("UrlValidator rejette une redirection vers gopher://", \SimpleGallery\Kernel\Security\UrlValidator::resolveRedirectUrl('https://example.com/', 'gopher://127.0.0.1:6379/') === null);
+        $this->assert("UrlValidator bloque IPv4-mapped IPv6 loopback ([::ffff:127.0.0.1])", !\Atelier\Kernel\Security\UrlValidator::isSafePublicUrl('http://[::ffff:127.0.0.1]/'));
+        $this->assert("UrlValidator bloque IPv4-mapped IPv6 metadata ([::ffff:169.254.169.254])", !\Atelier\Kernel\Security\UrlValidator::isSafePublicUrl('http://[::ffff:169.254.169.254]/latest/meta-data/'));
+        $this->assert("UrlValidator bloque plage CGNAT (100.64.0.1)", !\Atelier\Kernel\Security\UrlValidator::isSafePublicUrl('http://100.64.0.1/'));
+        $this->assert("UrlValidator bloque confusion userinfo (http://example.com@127.0.0.1/)", !\Atelier\Kernel\Security\UrlValidator::isSafePublicUrl('http://example.com@127.0.0.1/'));
+        $this->assert("UrlValidator bloque IP entière (http://2130706433/)", !\Atelier\Kernel\Security\UrlValidator::isSafePublicUrl('http://2130706433/'));
+        $this->assert("UrlValidator bloque IP hexadécimale (http://0x7f000001/)", !\Atelier\Kernel\Security\UrlValidator::isSafePublicUrl('http://0x7f000001/'));
+        $this->assert("UrlValidator résout correctement une redirection relative", \Atelier\Kernel\Security\UrlValidator::resolveRedirectUrl('https://example.com/a/b', '/c') === 'https://example.com/c');
+        $this->assert("UrlValidator rejette une redirection vers file://", \Atelier\Kernel\Security\UrlValidator::resolveRedirectUrl('https://example.com/', 'file:///etc/passwd') === null);
+        $this->assert("UrlValidator rejette une redirection vers gopher://", \Atelier\Kernel\Security\UrlValidator::resolveRedirectUrl('https://example.com/', 'gopher://127.0.0.1:6379/') === null);
 
         // Test BrowserProxyAction Origin Isolation, Auth Gate, Content-Type & Script Tag Escaping
         require_once $project_root . '/apps/browser/backend/BrowserProxyAction.php';
-        $proxy_headers = \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::getProxySecurityHeaders();
+        $proxy_headers = \Atelier\Apps\Browser\Backend\BrowserProxyAction::getProxySecurityHeaders();
         $csp_val = $proxy_headers['Content-Security-Policy'] ?? '';
         $this->assert("BrowserProxy impose CSP sandbox", stripos($csp_val, 'sandbox') !== false);
         $this->assert("BrowserProxy n'accorde JAMAIS allow-same-origin dans CSP", stripos($csp_val, 'allow-same-origin') === false);
         $this->assert("BrowserProxy n'expose pas Access-Control-Allow-Origin", !isset($proxy_headers['Access-Control-Allow-Origin']));
-        $this->assert("BrowserProxy bloque Content-Type SVG dangereux", \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::sanitizeContentType('image/svg+xml') === 'text/plain; charset=utf-8');
-        $this->assert("BrowserProxy bloque injection CRLF dans Content-Type", strpos(\SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::sanitizeContentType("text/html\r\nX-Evil: 1"), "\r") === false);
+        $this->assert("BrowserProxy bloque Content-Type SVG dangereux", \Atelier\Apps\Browser\Backend\BrowserProxyAction::sanitizeContentType('image/svg+xml') === 'text/plain; charset=utf-8');
+        $this->assert("BrowserProxy bloque injection CRLF dans Content-Type", strpos(\Atelier\Apps\Browser\Backend\BrowserProxyAction::sanitizeContentType("text/html\r\nX-Evil: 1"), "\r") === false);
 
         $xss_url = 'https://example.com/</script><script>alert(1)</script>';
-        $escaped_html = \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::processHtml('<html><head></head><body>Hi</body></html>', $xss_url);
+        $escaped_html = \Atelier\Apps\Browser\Backend\BrowserProxyAction::processHtml('<html><head></head><body>Hi</body></html>', $xss_url);
         $this->assert("BrowserProxy échappe </script> dans l'URL source (JSON_HEX_TAG)", stripos($escaped_html, '</script><script>alert(1)') === false);
 
         // Auth gate check: guest rejected (403), admin allowed (200), AND HTTP param test_mode=1 cannot bypass auth (SEC-01)
         $prev_admin_1 = $_SESSION['is_admin'] ?? null;
-        $prev_admin_2 = $_SESSION['sg_admin_logged'] ?? null;
-        unset($_SESSION['is_admin'], $_SESSION['sg_admin_logged']);
-        $guest_proxy_res = \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::handle('browser_proxy', [
+        $prev_admin_2 = $_SESSION['atelier_admin_logged'] ?? null;
+        unset($_SESSION['is_admin'], $_SESSION['atelier_admin_logged']);
+        $guest_proxy_res = \Atelier\Apps\Browser\Backend\BrowserProxyAction::handle('browser_proxy', [
             'url' => 'https://example.com/'
         ], [
             'base_dir'     => $this->temp_test_dir,
@@ -752,7 +752,7 @@ HTACCESS;
         $this->assert("BrowserProxy refuse un invité non autorisé (403)", ($guest_proxy_res['status'] ?? 0) === 403);
 
         // SEC-01: Passing test_mode=true & mock_body in HTTP $params (without $context['test_mode']) MUST be rejected (403)
-        $bypass_attempt_res = \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::handle('browser_proxy', [
+        $bypass_attempt_res = \Atelier\Apps\Browser\Backend\BrowserProxyAction::handle('browser_proxy', [
             'url'       => 'https://example.com/',
             'test_mode' => true,
             'mock_body' => '<html><body>bypassed</body></html>'
@@ -762,8 +762,8 @@ HTACCESS;
         $this->assert("SEC-01: BrowserProxy rejette le contournement ?test_mode=1 depuis les paramètres HTTP (403)", ($bypass_attempt_res['status'] ?? 0) === 403);
 
         $_SESSION['is_admin'] = true;
-        $_SESSION['sg_admin_logged'] = true;
-        $admin_proxy_res = \SimpleGallery\Apps\Browser\Backend\BrowserProxyAction::handle('browser_proxy', [
+        $_SESSION['atelier_admin_logged'] = true;
+        $admin_proxy_res = \Atelier\Apps\Browser\Backend\BrowserProxyAction::handle('browser_proxy', [
             'url' => 'https://example.com/'
         ], [
             'base_dir'     => $this->temp_test_dir,
@@ -773,34 +773,34 @@ HTACCESS;
         ]);
         $this->assert("BrowserProxy autorise un administrateur connecté (200)", ($admin_proxy_res['status'] ?? 0) === 200);
         if ($prev_admin_1 === null) unset($_SESSION['is_admin']); else $_SESSION['is_admin'] = $prev_admin_1;
-        if ($prev_admin_2 === null) unset($_SESSION['sg_admin_logged']); else $_SESSION['sg_admin_logged'] = $prev_admin_2;
+        if ($prev_admin_2 === null) unset($_SESSION['atelier_admin_logged']); else $_SESSION['atelier_admin_logged'] = $prev_admin_2;
 
         // SEC-02: Tribune File Upload Whitelist, Auth Gate & Hardened Delivery Headers (Anti-Stored XSS)
-        $val_html = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::validateTribuneUpload('evil.html', 'text/html', 120);
+        $val_html = \Atelier\Apps\Tribune\Backend\TribuneActions::validateTribuneUpload('evil.html', 'text/html', 120);
         $this->assert("SEC-02: tribune_file_upload rejette les fichiers .html", empty($val_html['valid']));
-        $val_svg = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::validateTribuneUpload('xss.svg', 'image/svg+xml', 120);
+        $val_svg = \Atelier\Apps\Tribune\Backend\TribuneActions::validateTribuneUpload('xss.svg', 'image/svg+xml', 120);
         $this->assert("SEC-02: tribune_file_upload rejette les fichiers .svg", empty($val_svg['valid']));
-        $val_spoof = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::validateTribuneUpload('fake.png', 'text/html', 120);
+        $val_spoof = \Atelier\Apps\Tribune\Backend\TribuneActions::validateTribuneUpload('fake.png', 'text/html', 120);
         $this->assert("SEC-02: tribune_file_upload rejette un MIME text/html déguisé en .png", empty($val_spoof['valid']));
-        $val_double = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::validateTribuneUpload('shell.php.jpg', 'image/jpeg', 120);
+        $val_double = \Atelier\Apps\Tribune\Backend\TribuneActions::validateTribuneUpload('shell.php.jpg', 'image/jpeg', 120);
         $this->assert("SEC-02: tribune_file_upload rejette une double extension shell.php.jpg", empty($val_double['valid']));
-        $val_oversize = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::validateTribuneUpload('big.jpg', 'image/jpeg', 20 * 1024 * 1024);
+        $val_oversize = \Atelier\Apps\Tribune\Backend\TribuneActions::validateTribuneUpload('big.jpg', 'image/jpeg', 20 * 1024 * 1024);
         $this->assert("SEC-02: tribune_file_upload rejette un fichier > 10 Mo", empty($val_oversize['valid']));
-        $val_ok_png = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::validateTribuneUpload('photo.png', 'image/png', 2048);
+        $val_ok_png = \Atelier\Apps\Tribune\Backend\TribuneActions::validateTribuneUpload('photo.png', 'image/png', 2048);
         $this->assert("SEC-02: tribune_file_upload accepte un fichier image PNG légitime", !empty($val_ok_png['valid']));
 
-        $hdr_img = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::getTribuneFileResponseHeaders('png', 'image/png', 'photo.png');
+        $hdr_img = \Atelier\Apps\Tribune\Backend\TribuneActions::getTribuneFileResponseHeaders('png', 'image/png', 'photo.png');
         $this->assert("SEC-02: tribune_file_get applique CSP sandbox sur image PNG", stripos($hdr_img['Content-Security-Policy'] ?? '', 'sandbox') !== false);
         $this->assert("SEC-02: tribune_file_get applique X-Content-Type-Options: nosniff", ($hdr_img['X-Content-Type-Options'] ?? '') === 'nosniff');
         $this->assert("SEC-02: tribune_file_get autorise inline pour PNG sûr", strpos($hdr_img['Content-Disposition'] ?? '', 'inline;') === 0);
 
-        $hdr_html = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::getTribuneFileResponseHeaders('html', 'text/html', 'evil.html');
+        $hdr_html = \Atelier\Apps\Tribune\Backend\TribuneActions::getTribuneFileResponseHeaders('html', 'text/html', 'evil.html');
         $this->assert("SEC-02: tribune_file_get force octet-stream sur un fichier HTML legacy", ($hdr_html['Content-Type'] ?? '') === 'application/octet-stream');
         $this->assert("SEC-02: tribune_file_get force attachment sur un fichier non-image", strpos($hdr_html['Content-Disposition'] ?? '', 'attachment;') === 0);
 
         // SEC-02: Unauthorized guest upload rejected with 403
-        unset($_SESSION['is_admin'], $_SESSION['sg_admin_logged']);
-        $guest_upload_res = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::handle('tribune_file_upload', [], $this->temp_test_dir);
+        unset($_SESSION['is_admin'], $_SESSION['atelier_admin_logged']);
+        $guest_upload_res = \Atelier\Apps\Tribune\Backend\TribuneActions::handle('tribune_file_upload', [], $this->temp_test_dir);
         $this->assert("SEC-02: tribune_file_upload refuse un invité non autorisé (403)", ($guest_upload_res['status'] ?? 0) === 403);
 
         // SEC-03, SEC-04, SEC-05: Recursive .private/.password inheritance across AuthManager, SearchEngine, GalleryActions, FileActions, ArchiveEngine
@@ -820,76 +820,76 @@ HTACCESS;
         file_put_contents($pwd_parent . '/.password', password_hash('SecretPwd!', PASSWORD_DEFAULT) . "\n");
         file_put_contents($pwd_child . '/locked_nested.jpg', 'locked-img');
 
-        $this->assert("SEC-03: AuthManager::isDirAccessible bloque un sous-dossier d'un parent .private", \SimpleGallery\Kernel\Auth\AuthManager::isDirAccessible($priv_child, $sec_root) === false);
+        $this->assert("SEC-03: AuthManager::isDirAccessible bloque un sous-dossier d'un parent .private", \Atelier\Kernel\Auth\AuthManager::isDirAccessible($priv_child, $sec_root) === false);
         $this->assert("SEC-03: is_dir_accessible bloque un sous-dossier d'un parent .password verrouillé", is_dir_accessible($pwd_child, $sec_root) === false);
         $this->assert("SEC-03: is_dir_accessible autorise un dossier public", is_dir_accessible($pub_dir, $sec_root) === true);
 
         global $media_types;
         $mtypes = $media_types ?: ['image' => ['jpg', 'png'], 'video' => ['mp4'], 'audio' => ['mp3']];
 
-        $search_res = \SimpleGallery\Kernel\Search\SearchEngine::search($sec_root, $sec_root, ['q' => '', 'recursive' => true], [], $mtypes);
+        $search_res = \Atelier\Kernel\Search\SearchEngine::search($sec_root, $sec_root, ['q' => '', 'recursive' => true], [], $mtypes);
         $search_names = array_column($search_res, 'name');
         $this->assert("SEC-04: SearchEngine retourne le média public", in_array('visible.jpg', $search_names, true));
         $this->assert("SEC-04: SearchEngine exclut les médias dans un sous-dossier .private", !in_array('hidden_nested.jpg', $search_names, true));
         $this->assert("SEC-04: SearchEngine exclut les médias dans un sous-dossier .password verrouillé", !in_array('locked_nested.jpg', $search_names, true));
 
-        $gal_priv_sub = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => 'secret_parent/nested_child'], $sec_root, $mtypes, [], 'Test', '.thumbnails');
+        $gal_priv_sub = \Atelier\Kernel\Actions\GalleryActions::getGallery(['dir' => 'secret_parent/nested_child'], $sec_root, $mtypes, [], 'Test', '.thumbnails');
         $this->assert("SEC-04: GalleryActions::getGallery refuse un sous-dossier de .private (403)", ($gal_priv_sub['status'] ?? 0) === 403);
 
-        $gal_pwd_sub = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => 'locked_parent/nested_locked_child'], $sec_root, $mtypes, [], 'Test', '.thumbnails');
+        $gal_pwd_sub = \Atelier\Kernel\Actions\GalleryActions::getGallery(['dir' => 'locked_parent/nested_locked_child'], $sec_root, $mtypes, [], 'Test', '.thumbnails');
         $this->assert("SEC-04: GalleryActions::getGallery verrouille un sous-dossier de .password", !empty($gal_pwd_sub['data']['is_locked']));
 
-        $flat_res = \SimpleGallery\Kernel\Actions\GalleryActions::getAllMediaFlat($sec_root, $mtypes, []);
+        $flat_res = \Atelier\Kernel\Actions\GalleryActions::getAllMediaFlat($sec_root, $mtypes, []);
         $flat_names = array_column($flat_res['data']['files'] ?? [], 'name');
         $this->assert("SEC-04: getAllMediaFlat inclut le média public", in_array('visible.jpg', $flat_names, true));
         $this->assert("SEC-04: getAllMediaFlat exclut les sous-dossiers .private", !in_array('hidden_nested.jpg', $flat_names, true));
         $this->assert("SEC-04: getAllMediaFlat exclut les sous-dossiers .password verrouillés", !in_array('locked_nested.jpg', $flat_names, true));
 
-        $stream_priv = \SimpleGallery\Kernel\Actions\GalleryActions::getStreamUrl(['file' => 'secret_parent/nested_child/hidden_nested.jpg'], $sec_root);
+        $stream_priv = \Atelier\Kernel\Actions\GalleryActions::getStreamUrl(['file' => 'secret_parent/nested_child/hidden_nested.jpg'], $sec_root);
         $this->assert("SEC-04: getStreamUrl refuse un fichier sous .private (403)", ($stream_priv['status'] ?? 0) === 403);
 
-        $allowed_arch = \SimpleGallery\Kernel\FS\ArchiveEngine::collectAllowedFiles($sec_root, $sec_root, []);
+        $allowed_arch = \Atelier\Kernel\FS\ArchiveEngine::collectAllowedFiles($sec_root, $sec_root, []);
         $allowed_locals = array_column($allowed_arch, 'local');
         $this->assert("SEC-05: ArchiveEngine::collectAllowedFiles inclut le média public", in_array('public_album/visible.jpg', $allowed_locals, true));
         $this->assert("SEC-05: ArchiveEngine::collectAllowedFiles exclut les sous-dossiers .private", !in_array('secret_parent/nested_child/hidden_nested.jpg', $allowed_locals, true));
         $this->assert("SEC-05: ArchiveEngine::collectAllowedFiles exclut les sous-dossiers .password verrouillés", !in_array('locked_parent/nested_locked_child/locked_nested.jpg', $allowed_locals, true));
 
         $priv_zip_out = $this->temp_test_dir . '/should_not_create.zip';
-        $this->assert("SEC-05: ArchiveEngine refuse d'archiver directement un sous-dossier .private", \SimpleGallery\Kernel\FS\ArchiveEngine::createArchive('zip', $priv_child, $priv_zip_out, $sec_root, []) === false);
+        $this->assert("SEC-05: ArchiveEngine refuse d'archiver directement un sous-dossier .private", \Atelier\Kernel\FS\ArchiveEngine::createArchive('zip', $priv_child, $priv_zip_out, $sec_root, []) === false);
         if (file_exists($priv_zip_out)) @unlink($priv_zip_out);
 
         // SEC-06: Least-privilege default guest permissions aligned with config/security.php
-        $def_perms = \SimpleGallery\Kernel\FS\PermissionsManager::getDefaultPermissions();
+        $def_perms = \Atelier\Kernel\FS\PermissionsManager::getDefaultPermissions();
         $this->assert("SEC-06: Permission par défaut can_comment est false", ($def_perms['can_comment'] ?? true) === false);
         $this->assert("SEC-06: Permission par défaut can_download_archive est false", ($def_perms['can_download_archive'] ?? true) === false);
         $this->assert("SEC-06: Permission par défaut can_download_item est false", ($def_perms['can_download_item'] ?? true) === false);
         $this->assert("SEC-06: Permission par défaut can_use_browser_proxy est false", ($def_perms['can_use_browser_proxy'] ?? true) === false);
 
         // SEC-07: Admin gates on save_desktop_shortcuts & tribune_boards_save
-        unset($_SESSION['is_admin'], $_SESSION['sg_admin_logged']);
-        $guest_shortcuts_res = \SimpleGallery\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', ['shortcuts' => []], ['base_dir' => $this->temp_test_dir, 'raw_body' => ['shortcuts' => []]]);
+        unset($_SESSION['is_admin'], $_SESSION['atelier_admin_logged']);
+        $guest_shortcuts_res = \Atelier\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', ['shortcuts' => []], ['base_dir' => $this->temp_test_dir, 'raw_body' => ['shortcuts' => []]]);
         $this->assert("SEC-07: save_desktop_shortcuts refuse un invité non-admin (403)", ($guest_shortcuts_res['status'] ?? 0) === 403);
 
-        $guest_boards_res = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::handle('tribune_boards_save', ['boards' => []], $this->temp_test_dir);
+        $guest_boards_res = \Atelier\Apps\Tribune\Backend\TribuneActions::handle('tribune_boards_save', ['boards' => []], $this->temp_test_dir);
         $this->assert("SEC-07: tribune_boards_save refuse un invité non-admin (403)", ($guest_boards_res['status'] ?? 0) === 403);
 
         $_SESSION['is_admin'] = true;
-        $_SESSION['sg_admin_logged'] = true;
-        $bad_shortcut_res = \SimpleGallery\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', [], [
+        $_SESSION['atelier_admin_logged'] = true;
+        $bad_shortcut_res = \Atelier\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', [], [
             'base_dir' => $this->temp_test_dir,
             'raw_body' => ['shortcuts' => [['id' => 'xss', 'url' => 'javascript:alert(1)']]]
         ]);
         $this->assert("SEC-07: save_desktop_shortcuts rejette un schéma javascript: (400)", ($bad_shortcut_res['status'] ?? 0) === 400);
 
-        $bad_board_res = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::handle('tribune_boards_save', [
+        $bad_board_res = \Atelier\Apps\Tribune\Backend\TribuneActions::handle('tribune_boards_save', [
             'boards' => ['evil' => ['backend_type' => 'tsv', 'url' => 'http://127.0.0.1/internal']]
         ], $this->temp_test_dir);
         $this->assert("SEC-07: tribune_boards_save rejette une URL privée anti-SSRF (400)", ($bad_board_res['status'] ?? 0) === 400);
 
         // SEC-08: Tribune OAuth2 state validation, scheduler cookie hiding/ownership & proxy board restriction
-        unset($_SESSION['is_admin'], $_SESSION['sg_admin_logged']);
+        unset($_SESSION['is_admin'], $_SESSION['atelier_admin_logged']);
         $_SESSION['tribune_oauth_state_linuxfr'] = 'expected_secret_state_123';
-        $bad_state_cb = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::handle('tribune_oauth_callback', [
+        $bad_state_cb = \Atelier\Apps\Tribune\Backend\TribuneActions::handle('tribune_oauth_callback', [
             'board_id' => 'linuxfr',
             'code'     => 'dummy_code',
             'state'    => 'forged_state'
@@ -897,19 +897,19 @@ HTACCESS;
         $this->assert("SEC-08: tribune_oauth_callback rejette un paramètre state invalide (403)", ($bad_state_cb['status'] ?? 0) === 403);
 
         $_SESSION['tribune_oauth_state_linuxfr'] = 'valid_state_abc';
-        $this->assert("SEC-08: verifyOauthState accepte un state valide et le consomme", \SimpleGallery\Apps\Tribune\Backend\TribuneActions::verifyOauthState('linuxfr', 'valid_state_abc') === true);
-        $this->assert("SEC-08: verifyOauthState rejette la réutilisation d'un state déjà consommé", \SimpleGallery\Apps\Tribune\Backend\TribuneActions::verifyOauthState('linuxfr', 'valid_state_abc') === false);
+        $this->assert("SEC-08: verifyOauthState accepte un state valide et le consomme", \Atelier\Apps\Tribune\Backend\TribuneActions::verifyOauthState('linuxfr', 'valid_state_abc') === true);
+        $this->assert("SEC-08: verifyOauthState rejette la réutilisation d'un state déjà consommé", \Atelier\Apps\Tribune\Backend\TribuneActions::verifyOauthState('linuxfr', 'valid_state_abc') === false);
 
         $tribune_php_src = @file_get_contents($project_root . '/apps/tribune/backend/TribuneActions.php') ?: '';
         $this->assert("SEC-08: tribune_oauth_callback n'utilise plus postMessage(..., '*')", strpos($tribune_php_src, 'postMessage(payload, "*")') === false);
         $this->assert("SEC-08: tribune_oauth_callback utilise window.location.origin + JSON_HEX_TAG", strpos($tribune_php_src, 'postMessage(payload, window.location.origin)') !== false && strpos($tribune_php_src, 'JSON_HEX_TAG') !== false);
 
-        $sanitized_sched = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::sanitizeScheduledItemForOutput([
+        $sanitized_sched = \Atelier\Apps\Tribune\Backend\TribuneActions::sanitizeScheduledItemForOutput([
             'id' => 'abc', 'message' => 'hello', 'cookie' => 'session=TOPSECRET', 'owner_session_hash' => 'hash123'
         ]);
         $this->assert("SEC-08: tribune_scheduled_list masque le champ cookie", !isset($sanitized_sched['cookie']) && !isset($sanitized_sched['owner_session_hash']));
 
-        $open_proxy_attempt = \SimpleGallery\Apps\Tribune\Backend\TribuneActions::handle('tribune_proxy_fetch', [
+        $open_proxy_attempt = \Atelier\Apps\Tribune\Backend\TribuneActions::handle('tribune_proxy_fetch', [
             'url' => 'https://example.com/unconfigured'
         ], $this->temp_test_dir);
         $this->assert("SEC-08: tribune_proxy_fetch refuse une URL hors tribunes configurées pour un invité (403)", ($open_proxy_attempt['status'] ?? 0) === 403);
@@ -918,30 +918,30 @@ HTACCESS;
         $rl_pwd_dir = $sec_root . '/rl_locked_dir';
         @mkdir($rl_pwd_dir, 0755, true);
         file_put_contents($rl_pwd_dir . '/.password', password_hash('RightPass!', PASSWORD_DEFAULT) . "\n");
-        $rl_key_unlock = 'unlock_' . md5('rl_locked_dir') . '_' . \SimpleGallery\Kernel\Security\RateLimiter::getClientIp();
-        \SimpleGallery\Kernel\Security\RateLimiter::reset($rl_key_unlock);
+        $rl_key_unlock = 'unlock_' . md5('rl_locked_dir') . '_' . \Atelier\Kernel\Security\RateLimiter::getClientIp();
+        \Atelier\Kernel\Security\RateLimiter::reset($rl_key_unlock);
         for ($attempt = 0; $attempt < 5; $attempt++) {
-            \SimpleGallery\Kernel\Actions\FileActions::handle('unlock_folder', [], [
+            \Atelier\Kernel\Actions\FileActions::handle('unlock_folder', [], [
                 'base_dir' => $sec_root,
                 'raw_body' => ['dir' => 'rl_locked_dir', 'password' => 'WrongPass']
             ]);
         }
-        $rl_blocked = \SimpleGallery\Kernel\Actions\FileActions::handle('unlock_folder', [], [
+        $rl_blocked = \Atelier\Kernel\Actions\FileActions::handle('unlock_folder', [], [
             'base_dir' => $sec_root,
             'raw_body' => ['dir' => 'rl_locked_dir', 'password' => 'RightPass!']
         ]);
         $this->assert("SEC-09: unlock_folder applique un rate-limit anti-bruteforce (429)", ($rl_blocked['status'] ?? 0) === 429);
-        \SimpleGallery\Kernel\Security\RateLimiter::reset($rl_key_unlock);
+        \Atelier\Kernel\Security\RateLimiter::reset($rl_key_unlock);
 
         $_SESSION['is_admin'] = true;
-        $_SESSION['sg_admin_logged'] = true;
-        $save_html_res = \SimpleGallery\Kernel\Actions\FileActions::handle('save_text_file', [], [
+        $_SESSION['atelier_admin_logged'] = true;
+        $save_html_res = \Atelier\Kernel\Actions\FileActions::handle('save_text_file', [], [
             'base_dir' => $this->temp_test_dir,
             'raw_body' => ['file' => 'xss_test.html', 'content' => '<script>alert(1)</script>']
         ]);
         $this->assert("SEC-09: save_text_file bloque la création de fichier .html (403)", ($save_html_res['status'] ?? 0) === 403);
 
-        $save_js_res = \SimpleGallery\Kernel\Actions\FileActions::handle('save_text_file', [], [
+        $save_js_res = \Atelier\Kernel\Actions\FileActions::handle('save_text_file', [], [
             'base_dir' => $this->temp_test_dir,
             'raw_body' => ['file' => 'evil_test.js', 'content' => 'alert(1)']
         ]);
@@ -954,7 +954,7 @@ HTACCESS;
         $this->assert("SEC-10: AppEndpoint ne divulgue pas getMessage() dans les réponses HTTP 500", strpos($app_ep_src, "'error'   => 'Erreur interne de traitement.'") !== false && strpos($app_ep_src, '@error_log(') !== false);
 
         if ($prev_admin_1 === null) unset($_SESSION['is_admin']); else $_SESSION['is_admin'] = $prev_admin_1;
-        if ($prev_admin_2 === null) unset($_SESSION['sg_admin_logged']); else $_SESSION['sg_admin_logged'] = $prev_admin_2;
+        if ($prev_admin_2 === null) unset($_SESSION['atelier_admin_logged']); else $_SESSION['atelier_admin_logged'] = $prev_admin_2;
 
         // Test Tribune OAuth Secrets Hygiene (.gitignore + example template)
         $gitignore_content = @file_get_contents($project_root . '/.gitignore') ?: '';
@@ -970,15 +970,15 @@ HTACCESS;
 
         $saved_sess = $_SESSION ?? [];
         $_SESSION = [];
-        \SimpleGallery\Kernel\Data\AtelierStore::resetCache();
-        $cli_ip = \SimpleGallery\Kernel\Security\RateLimiter::getClientIp();
-        \SimpleGallery\Kernel\Security\RateLimiter::reset('register_' . $cli_ip);
-        \SimpleGallery\Kernel\Security\RateLimiter::reset('login_' . $cli_ip);
-        \SimpleGallery\Kernel\Security\RateLimiter::reset('2fa_' . $cli_ip);
-        \SimpleGallery\Kernel\Security\RateLimiter::reset('pwd_reset_' . md5('charlie@studio.fr|' . $cli_ip));
+        \Atelier\Kernel\Data\AtelierStore::resetCache();
+        $cli_ip = \Atelier\Kernel\Security\RateLimiter::getClientIp();
+        \Atelier\Kernel\Security\RateLimiter::reset('register_' . $cli_ip);
+        \Atelier\Kernel\Security\RateLimiter::reset('login_' . $cli_ip);
+        \Atelier\Kernel\Security\RateLimiter::reset('2fa_' . $cli_ip);
+        \Atelier\Kernel\Security\RateLimiter::reset('pwd_reset_' . md5('charlie@studio.fr|' . $cli_ip));
 
         // 1. CSRF protection on all Phase 1 mutating actions
-        $mut = \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS;
+        $mut = \Atelier\Kernel\Actions\ActionRouter::MUTATING_ACTIONS;
         $p1_mutating = [
             'create_user', 'update_user', 'delete_user',
             'create_group', 'set_group_members', 'delete_group',
@@ -998,30 +998,30 @@ HTACCESS;
         @mkdir($p1_root, 0755, true);
 
         // 2. Guest cannot call admin-only user/audit actions
-        $guest_create = \SimpleGallery\Kernel\Actions\UserActions::handle('create_user', [], [
+        $guest_create = \Atelier\Kernel\Actions\UserActions::handle('create_user', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['username' => 'hacker', 'password' => '123456', 'role' => 'admin']
         ]);
         $this->assert("Phase 1: Invité ne peut pas créer d'utilisateur (403)", ($guest_create['status'] ?? 0) === 403);
 
-        $guest_audit = \SimpleGallery\Kernel\Actions\UserActions::handle('get_audit_logs', [], ['base_dir' => $p1_root]);
+        $guest_audit = \Atelier\Kernel\Actions\UserActions::handle('get_audit_logs', [], ['base_dir' => $p1_root]);
         $this->assert("Phase 1: Invité ne peut pas lire les logs d'audit (403)", ($guest_audit['status'] ?? 0) === 403);
 
         // 3. Admin creates alice and bob with automatic private homes
         $_SESSION['is_admin'] = true;
-        $_SESSION['sg_admin_logged'] = true;
+        $_SESSION['atelier_admin_logged'] = true;
 
-        $alice_res = \SimpleGallery\Kernel\Actions\UserActions::handle('create_user', [], [
+        $alice_res = \Atelier\Kernel\Actions\UserActions::handle('create_user', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['username' => 'alice', 'display_name' => 'Alice', 'password' => 'AlicePass1!', 'role' => 'user']
         ]);
-        $bob_res = \SimpleGallery\Kernel\Actions\UserActions::handle('create_user', [], [
+        $bob_res = \Atelier\Kernel\Actions\UserActions::handle('create_user', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['username' => 'bob', 'display_name' => 'Bob', 'password' => 'BobPass1!', 'role' => 'user']
         ]);
         $alice = $alice_res['data']['user'] ?? null;
         $bob = $bob_res['data']['user'] ?? null;
-        $users_root = \SimpleGallery\Kernel\Security\PathValidator::getUsersRoot($p1_root);
+        $users_root = \Atelier\Kernel\Security\PathValidator::getUsersRoot($p1_root);
 
         $this->assert("Phase 1: Admin crée alice et bob (200)", ($alice_res['status'] ?? 0) === 200 && ($bob_res['status'] ?? 0) === 200 && !empty($alice['id']) && !empty($bob['id']));
         $this->assert("Phase 1: Homes créés dans storage/users/ séparé de storage/media/ (avec .htaccess et .private)",
@@ -1043,12 +1043,12 @@ HTACCESS;
         file_put_contents($users_root . '/alice/secret_only/private.txt', 'top secret');
 
         // 4. Guest access: public gallery root remains visible, users/alice is blocked
-        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
-        $this->assert("Phase 1: Invité bloqué sur users/alice (isDirAccessible=false)", \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/alice', $p1_root) === false);
+        \Atelier\Kernel\Auth\AuthManager::logoutSession();
+        $this->assert("Phase 1: Invité bloqué sur users/alice (isDirAccessible=false)", \Atelier\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/alice', $p1_root) === false);
 
         global $media_types;
         $mtypes = $media_types ?: ['image' => ['jpg', 'png'], 'video' => ['mp4'], 'audio' => ['mp3']];
-        $gal_public_guest = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => ''], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
+        $gal_public_guest = \Atelier\Kernel\Actions\GalleryActions::getGallery(['dir' => ''], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
         $pub_dir_names = array_column($gal_public_guest['data']['directories'] ?? [], 'raw_name');
         $pub_file_names = array_column($gal_public_guest['data']['files'] ?? [], 'name');
         $this->assert("Phase 1: Invité voit la galerie publique (storage/media) sans exposer de dossier users/",
@@ -1056,18 +1056,18 @@ HTACCESS;
             in_array('public_gallery.jpg', $pub_file_names, true) &&
             !in_array('users', $pub_dir_names, true)
         );
-        $gal_guest = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => 'users/alice'], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
+        $gal_guest = \Atelier\Kernel\Actions\GalleryActions::getGallery(['dir' => 'users/alice'], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
         $this->assert("Phase 1: GalleryActions refuse users/alice à un invité (403)", ($gal_guest['status'] ?? 0) === 403);
 
         // 5. Authenticate as Bob: can open own home via GalleryActions (200) + see subfolders + write rights, blocked from Alice's home
-        $bob_auth = \SimpleGallery\Kernel\Auth\UserManager::authenticate($p1_root, 'bob', 'BobPass1!');
+        $bob_auth = \Atelier\Kernel\Auth\UserManager::authenticate($p1_root, 'bob', 'BobPass1!');
         $this->assert("Phase 1: Authentification valide de bob", is_array($bob_auth) && ($bob_auth['username'] ?? '') === 'bob');
-        $bad_auth = \SimpleGallery\Kernel\Auth\UserManager::authenticate($p1_root, 'bob', 'WrongPass');
+        $bad_auth = \Atelier\Kernel\Auth\UserManager::authenticate($p1_root, 'bob', 'WrongPass');
         $this->assert("Phase 1: Rejet d'un mauvais mot de passe pour bob", $bad_auth === null);
 
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($bob_auth);
-        $this->assert("Phase 1: Bob accède à son propre home users/bob", \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/bob', $p1_root) === true);
-        $gal_bob_home = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => 'users/bob'], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($bob_auth);
+        $this->assert("Phase 1: Bob accède à son propre home users/bob", \Atelier\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/bob', $p1_root) === true);
+        $gal_bob_home = \Atelier\Kernel\Actions\GalleryActions::getGallery(['dir' => 'users/bob'], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
         $bob_subdirs = array_column($gal_bob_home['data']['directories'] ?? [], 'raw_name');
         $this->assert("Phase 1: GalleryActions ouvre users/bob (200) avec ses sous-dossiers et droits d'écriture",
             ($gal_bob_home['status'] ?? 0) === 200 &&
@@ -1075,14 +1075,14 @@ HTACCESS;
             !empty($gal_bob_home['data']['user_rights']['can_upload']) &&
             !empty($gal_bob_home['data']['user_rights']['can_create_folder'])
         );
-        $this->assert("Phase 1: Bob est bloqué sur users/alice (isolation stricte)", \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/alice', $p1_root) === false);
-        $this->assert("Phase 1: Bob ne peut pas appeler delete_user (non-admin 403)", (\SimpleGallery\Kernel\Actions\UserActions::handle('delete_user', [], ['base_dir' => $p1_root, 'raw_body' => ['user_id' => $alice['id']]])['status'] ?? 0) === 403);
+        $this->assert("Phase 1: Bob est bloqué sur users/alice (isolation stricte)", \Atelier\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/alice', $p1_root) === false);
+        $this->assert("Phase 1: Bob ne peut pas appeler delete_user (non-admin 403)", (\Atelier\Kernel\Actions\UserActions::handle('delete_user', [], ['base_dir' => $p1_root, 'raw_body' => ['user_id' => $alice['id']]])['status'] ?? 0) === 403);
 
         // 6. Alice shares shared_ro (read) and shared_rw (write) with Bob
-        $alice_auth = \SimpleGallery\Kernel\Auth\UserManager::authenticate($p1_root, 'alice', 'AlicePass1!');
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($alice_auth);
+        $alice_auth = \Atelier\Kernel\Auth\UserManager::authenticate($p1_root, 'alice', 'AlicePass1!');
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($alice_auth);
 
-        $share_ro = \SimpleGallery\Kernel\Actions\UserActions::handle('create_user_share', [], [
+        $share_ro = \Atelier\Kernel\Actions\UserActions::handle('create_user_share', [], [
             'base_dir' => $p1_root,
             'raw_body' => [
                 'source_path' => 'users/alice/shared_ro',
@@ -1092,7 +1092,7 @@ HTACCESS;
                 'mount_name' => 'Alice RO'
             ]
         ]);
-        $share_rw = \SimpleGallery\Kernel\Actions\UserActions::handle('create_user_share', [], [
+        $share_rw = \Atelier\Kernel\Actions\UserActions::handle('create_user_share', [], [
             'base_dir' => $p1_root,
             'raw_body' => [
                 'source_path' => 'users/alice/shared_rw',
@@ -1105,28 +1105,28 @@ HTACCESS;
         $this->assert("Phase 1: Alice partage shared_ro (R) et shared_rw (RW) avec Bob", ($share_ro['status'] ?? 0) === 200 && ($share_rw['status'] ?? 0) === 200);
 
         // 7. Switch back to Bob: verify R vs RW enforcement + GalleryActions access + sibling isolation
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($bob_auth);
-        $this->assert("Phase 1: Bob peut lire users/alice/shared_ro", \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/alice/shared_ro', $p1_root) === true);
-        $gal_bob_ro = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => 'users/alice/shared_ro'], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($bob_auth);
+        $this->assert("Phase 1: Bob peut lire users/alice/shared_ro", \Atelier\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/alice/shared_ro', $p1_root) === true);
+        $gal_bob_ro = \Atelier\Kernel\Actions\GalleryActions::getGallery(['dir' => 'users/alice/shared_ro'], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
         $this->assert("Phase 1: GalleryActions ouvre le partage lecture seule users/alice/shared_ro (200, can_upload=false)",
             ($gal_bob_ro['status'] ?? 0) === 200 && empty($gal_bob_ro['data']['user_rights']['can_upload'])
         );
-        $this->assert("Phase 1: Bob reste bloqué sur users/alice/secret_only (dossier frère non partagé)", \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/alice/secret_only', $p1_root) === false);
+        $this->assert("Phase 1: Bob reste bloqué sur users/alice/secret_only (dossier frère non partagé)", \Atelier\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/alice/secret_only', $p1_root) === false);
 
-        $bob_write_ro = \SimpleGallery\Kernel\Actions\FileActions::handle('create_folder', [], [
+        $bob_write_ro = \Atelier\Kernel\Actions\FileActions::handle('create_folder', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['dir' => 'users/alice/shared_ro', 'name' => 'forbidden_sub']
         ]);
         $this->assert("Phase 1: Bob ne peut PAS écrire dans un partage lecture seule (403)", ($bob_write_ro['status'] ?? 0) === 403 && !is_dir($users_root . '/alice/shared_ro/forbidden_sub'));
 
-        $bob_write_rw = \SimpleGallery\Kernel\Actions\FileActions::handle('create_folder', [], [
+        $bob_write_rw = \Atelier\Kernel\Actions\FileActions::handle('create_folder', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['dir' => 'users/alice/shared_rw', 'name' => 'allowed_sub']
         ]);
         $this->assert("Phase 1: Bob PEUT créer un dossier dans un partage lecture/écriture (200)", ($bob_write_rw['status'] ?? 0) === 200 && is_dir($users_root . '/alice/shared_rw/allowed_sub'));
 
         // H1: Batch move_item MUST check can_move on EACH source item (prevent stealing files from RO share or public gallery into own home)
-        $batch_steal_ro = \SimpleGallery\Kernel\Actions\FileActions::handle('move_item', [], [
+        $batch_steal_ro = \Atelier\Kernel\Actions\FileActions::handle('move_item', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['source' => ['users/alice/shared_ro/note.txt'], 'target_dir' => 'users/bob']
         ]);
@@ -1136,7 +1136,7 @@ HTACCESS;
             !file_exists($users_root . '/bob/note.txt')
         );
 
-        $batch_steal_pub = \SimpleGallery\Kernel\Actions\FileActions::handle('move_item', [], [
+        $batch_steal_pub = \Atelier\Kernel\Actions\FileActions::handle('move_item', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['source' => ['public_gallery.jpg'], 'target_dir' => 'users/bob']
         ]);
@@ -1146,7 +1146,7 @@ HTACCESS;
         );
 
         // H2: Non-admin user cannot delete their own top-level home directory `users/bob` or use target_path bypass
-        $del_own_home = \SimpleGallery\Kernel\Actions\FileActions::handle('delete_item', [], [
+        $del_own_home = \Atelier\Kernel\Actions\FileActions::handle('delete_item', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['target_path' => 'users/bob']
         ]);
@@ -1154,7 +1154,7 @@ HTACCESS;
             ($del_own_home['status'] ?? 0) === 403 && is_dir($users_root . '/bob')
         );
 
-        $del_ro_via_tp = \SimpleGallery\Kernel\Actions\FileActions::handle('delete_item', [], [
+        $del_ro_via_tp = \Atelier\Kernel\Actions\FileActions::handle('delete_item', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['file' => 'users/bob/mes_docs', 'target_path' => 'users/alice/shared_ro/note.txt']
         ]);
@@ -1163,86 +1163,86 @@ HTACCESS;
         );
 
         // H4: Even if guest matrix enables can_upload / can_delete globally, users/... RO share MUST NEVER allow writes!
-        \SimpleGallery\Kernel\FS\PermissionsManager::savePermissions($p1_root, ['can_upload' => true, 'can_delete' => true, 'can_create_folder' => true]);
+        \Atelier\Kernel\FS\PermissionsManager::savePermissions($p1_root, ['can_upload' => true, 'can_delete' => true, 'can_create_folder' => true]);
         $this->assert("Audit H4: Matrice invité can_upload=true ne donne JAMAIS le droit d'écriture sur un partage lecture seule users/...",
-            \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root, 'users/alice/shared_ro') === false &&
-            \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_delete', $p1_root, 'users/alice/shared_ro/note.txt') === false
+            \Atelier\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root, 'users/alice/shared_ro') === false &&
+            \Atelier\Kernel\FS\PermissionsManager::hasPermission('can_delete', $p1_root, 'users/alice/shared_ro/note.txt') === false
         );
-        \SimpleGallery\Kernel\FS\PermissionsManager::savePermissions($p1_root, \SimpleGallery\Kernel\FS\PermissionsManager::DEFAULT_PERMISSIONS);
+        \Atelier\Kernel\FS\PermissionsManager::savePermissions($p1_root, \Atelier\Kernel\FS\PermissionsManager::DEFAULT_PERMISSIONS);
 
         // M1: Anti-IDOR on get_item_tags & list_tags
-        \SimpleGallery\Kernel\Auth\ShareManager::setItemTags($p1_root, 'users/alice/secret_only/private.txt', ['confidentiel']);
-        $bob_idor_tags = \SimpleGallery\Kernel\Actions\UserActions::handle('get_item_tags', [], [
+        \Atelier\Kernel\Auth\ShareManager::setItemTags($p1_root, 'users/alice/secret_only/private.txt', ['confidentiel']);
+        $bob_idor_tags = \Atelier\Kernel\Actions\UserActions::handle('get_item_tags', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['path' => 'users/alice/secret_only/private.txt']
         ]);
         $this->assert("Audit M1: get_item_tags bloque l'accès aux tags d'un fichier privé d'Alice par Bob (403)", ($bob_idor_tags['status'] ?? 0) === 403);
 
-        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
-        $guest_list_tags = \SimpleGallery\Kernel\Actions\UserActions::handle('list_tags', [], ['base_dir' => $p1_root]);
+        \Atelier\Kernel\Auth\AuthManager::logoutSession();
+        $guest_list_tags = \Atelier\Kernel\Actions\UserActions::handle('list_tags', [], ['base_dir' => $p1_root]);
         $this->assert("Audit M1: list_tags refuse un invité non connecté (403)", ($guest_list_tags['status'] ?? 0) === 403);
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($bob_auth);
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($bob_auth);
 
         // S1: Case-insensitive users/ namespace protection (anti Windows/macOS NTFS/APFS bypass)
-        \SimpleGallery\Kernel\FS\PermissionsManager::savePermissions($p1_root, ['can_upload' => true, 'can_delete' => true]);
+        \Atelier\Kernel\FS\PermissionsManager::savePermissions($p1_root, ['can_upload' => true, 'can_delete' => true]);
         $this->assert("Audit S1: Users/Alice/shared_ro (casse mixte) reste isolé de la matrice invité",
-            \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root, 'Users/Alice/shared_ro') === false &&
-            \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_delete', $p1_root, 'USERS/alice/shared_ro/note.txt') === false
+            \Atelier\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root, 'Users/Alice/shared_ro') === false &&
+            \Atelier\Kernel\FS\PermissionsManager::hasPermission('can_delete', $p1_root, 'USERS/alice/shared_ro/note.txt') === false
         );
-        \SimpleGallery\Kernel\FS\PermissionsManager::savePermissions($p1_root, \SimpleGallery\Kernel\FS\PermissionsManager::DEFAULT_PERMISSIONS);
+        \Atelier\Kernel\FS\PermissionsManager::savePermissions($p1_root, \Atelier\Kernel\FS\PermissionsManager::DEFAULT_PERMISSIONS);
 
         // S3: File Drop share link grants can_upload ONLY (NEVER can_delete or can_move!)
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($alice_auth);
-        $drop_link_res = \SimpleGallery\Kernel\Actions\UserActions::handle('create_share_link', [], [
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($alice_auth);
+        $drop_link_res = \Atelier\Kernel\Actions\UserActions::handle('create_share_link', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['target_path' => 'users/alice/shared_ro', 'mode' => 'drop']
         ]);
         $drop_token = $drop_link_res['data']['link']['token'] ?? '';
-        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
-        \SimpleGallery\Kernel\Actions\UserActions::handle('access_share_link', [], [
+        \Atelier\Kernel\Auth\AuthManager::logoutSession();
+        \Atelier\Kernel\Actions\UserActions::handle('access_share_link', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['token' => $drop_token]
         ]);
         $this->assert("Audit S3: Un lien File Drop (mode=drop) autorise uniquement can_upload, JAMAIS can_delete ni can_move",
-            \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root, 'users/alice/shared_ro') === true &&
-            \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_delete', $p1_root, 'users/alice/shared_ro/note.txt') === false &&
-            \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_move', $p1_root, 'users/alice/shared_ro/note.txt') === false
+            \Atelier\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root, 'users/alice/shared_ro') === true &&
+            \Atelier\Kernel\FS\PermissionsManager::hasPermission('can_delete', $p1_root, 'users/alice/shared_ro/note.txt') === false &&
+            \Atelier\Kernel\FS\PermissionsManager::hasPermission('can_move', $p1_root, 'users/alice/shared_ro/note.txt') === false
         );
 
         // S4: logoutSession purges unlocked folders & unlocked share links (shared browser safety)
-        $_SESSION['sg_unlocked_folders'] = ['locked' => true];
+        $_SESSION['atelier_unlocked_folders'] = ['locked' => true];
         $_SESSION['unlocked_dirs'] = ['locked' => true];
-        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
-        $this->assert("Audit S4: logoutSession purge sg_unlocked_folders, unlocked_dirs et sg_unlocked_shares",
-            empty($_SESSION['sg_unlocked_folders']) && empty($_SESSION['unlocked_dirs']) && empty($_SESSION['sg_unlocked_shares'])
+        \Atelier\Kernel\Auth\AuthManager::logoutSession();
+        $this->assert("Audit S4: logoutSession purge atelier_unlocked_folders, unlocked_dirs et atelier_unlocked_shares",
+            empty($_SESSION['atelier_unlocked_folders']) && empty($_SESSION['unlocked_dirs']) && empty($_SESSION['atelier_unlocked_shares'])
         );
 
         // S2: Disabling a logged-in user immediately revokes their active session on next request
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($bob_auth);
-        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, (int)$bob['id'], ['is_active' => 0]);
-        \SimpleGallery\Kernel\Auth\AuthManager::revalidateActiveUser($p1_root);
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($bob_auth);
+        \Atelier\Kernel\Auth\UserManager::updateUser($p1_root, (int)$bob['id'], ['is_active' => 0]);
+        \Atelier\Kernel\Auth\AuthManager::revalidateActiveUser($p1_root);
         $this->assert("Audit S2: Désactiver un utilisateur révoque immédiatement sa session active",
-            \SimpleGallery\Kernel\Auth\AuthManager::getCurrentUser() === null &&
-            \SimpleGallery\Kernel\Auth\AuthManager::isLoggedIn() === false
+            \Atelier\Kernel\Auth\AuthManager::getCurrentUser() === null &&
+            \Atelier\Kernel\Auth\AuthManager::isLoggedIn() === false
         );
         // Re-enable bob for remainder of test
-        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, (int)$bob['id'], ['is_active' => 1]);
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($bob_auth);
+        \Atelier\Kernel\Auth\UserManager::updateUser($p1_root, (int)$bob['id'], ['is_active' => 1]);
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($bob_auth);
 
         // 8. Revoke RO share as Alice -> Bob immediately loses access
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($alice_auth);
-        $rev_res = \SimpleGallery\Kernel\Actions\UserActions::handle('revoke_user_share', [], [
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($alice_auth);
+        $rev_res = \Atelier\Kernel\Actions\UserActions::handle('revoke_user_share', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['share_id' => (int)($share_ro['data']['share']['id'] ?? 0)]
         ]);
         $this->assert("Phase 1: Révocation du partage par Alice réussie (200)", ($rev_res['status'] ?? 0) === 200);
 
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($bob_auth);
-        $this->assert("Phase 1: Bob perd immédiatement l'accès après révocation", \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/alice/shared_ro', $p1_root) === false);
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($bob_auth);
+        $this->assert("Phase 1: Bob perd immédiatement l'accès après révocation", \Atelier\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/alice/shared_ro', $p1_root) === false);
 
         // 9. Signed Share Link with password protection & revocation
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($alice_auth);
-        $link_res = \SimpleGallery\Kernel\Actions\UserActions::handle('create_share_link', [], [
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($alice_auth);
+        $link_res = \Atelier\Kernel\Actions\UserActions::handle('create_share_link', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['target_path' => 'users/alice/shared_ro', 'password' => 'LinkSecret42!']
         ]);
@@ -1251,58 +1251,58 @@ HTACCESS;
         $this->assert("Phase 1: Alice génère un lien signé protégé par mot de passe", ($link_res['status'] ?? 0) === 200 && strlen($link_token) >= 24);
 
         // Access as Guest
-        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
-        $no_pwd = \SimpleGallery\Kernel\Actions\UserActions::handle('access_share_link', [], [
+        \Atelier\Kernel\Auth\AuthManager::logoutSession();
+        $no_pwd = \Atelier\Kernel\Actions\UserActions::handle('access_share_link', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['token' => $link_token]
         ]);
         $this->assert("Phase 1: Lien signé protégé demande le mot de passe", !empty($no_pwd['data']['requires_password']));
 
-        $wrong_pwd = \SimpleGallery\Kernel\Actions\UserActions::handle('access_share_link', [], [
+        $wrong_pwd = \Atelier\Kernel\Actions\UserActions::handle('access_share_link', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['token' => $link_token, 'password' => 'BadPassword']
         ]);
         $this->assert("Phase 1: Mauvais mot de passe sur lien signé rejeté (401)", ($wrong_pwd['status'] ?? 0) === 401);
 
-        $ok_pwd = \SimpleGallery\Kernel\Actions\UserActions::handle('access_share_link', [], [
+        $ok_pwd = \Atelier\Kernel\Actions\UserActions::handle('access_share_link', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['token' => $link_token, 'password' => 'LinkSecret42!']
         ]);
-        $this->assert("Phase 1: Bon mot de passe déverrouille l'accès en lecture au dossier partagé", ($ok_pwd['status'] ?? 0) === 200 && \SimpleGallery\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/alice/shared_ro', $p1_root) === true);
+        $this->assert("Phase 1: Bon mot de passe déverrouille l'accès en lecture au dossier partagé", ($ok_pwd['status'] ?? 0) === 200 && \Atelier\Kernel\FS\DotfileManager::isDirAccessible($users_root . '/alice/shared_ro', $p1_root) === true);
 
         // Revoke link as Alice -> Guest cannot reuse token
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($alice_auth);
-        \SimpleGallery\Kernel\Actions\UserActions::handle('revoke_share_link', [], [
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($alice_auth);
+        \Atelier\Kernel\Actions\UserActions::handle('revoke_share_link', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['link_id' => $link_id]
         ]);
-        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
-        $after_revoke = \SimpleGallery\Kernel\Actions\UserActions::handle('access_share_link', [], [
+        \Atelier\Kernel\Auth\AuthManager::logoutSession();
+        $after_revoke = \Atelier\Kernel\Actions\UserActions::handle('access_share_link', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['token' => $link_token, 'password' => 'LinkSecret42!']
         ]);
         $this->assert("Phase 1: Lien signé révoqué est rejeté (410/404)", in_array(($after_revoke['status'] ?? 0), [404, 410], true));
 
         // 10. Phase A.2 — Self-Registration, Email Verification, Invites, Approvals, Password Reset & RFC 6238 TOTP 2FA
-        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        \Atelier\Kernel\Auth\AuthManager::logoutSession();
         // 10.1 Secure-by-default: registration disabled
-        $reg_disabled = \SimpleGallery\Kernel\Actions\AuthActions::handle('register_account', [], [
+        $reg_disabled = \Atelier\Kernel\Actions\AuthActions::handle('register_account', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['username' => 'charlie', 'email' => 'charlie@studio.fr', 'password' => 'StrongPass99!']
         ]);
         $this->assert("Phase A.2: Inscription autonome refusée par défaut (registration_mode=disabled -> 403)", ($reg_disabled['status'] ?? 0) === 403);
 
         // Non-admin cannot modify auth settings or create invites
-        $unauth_cfg = \SimpleGallery\Kernel\Actions\AuthActions::handle('save_auth_settings', [], [
+        $unauth_cfg = \Atelier\Kernel\Actions\AuthActions::handle('save_auth_settings', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['settings' => ['registration_mode' => 'open']]
         ]);
         $this->assert("Phase A.2: Invité ne peut pas modifier auth_settings (403)", ($unauth_cfg['status'] ?? 0) === 403);
 
         // 10.2 Admin enables open registration + email verification + domain whitelist + outbox_log
-        $_SESSION['sg_admin_logged'] = true;
+        $_SESSION['atelier_admin_logged'] = true;
         $_SESSION['is_admin'] = true;
-        $save_cfg = \SimpleGallery\Kernel\Actions\AuthActions::handle('save_auth_settings', [], [
+        $save_cfg = \Atelier\Kernel\Actions\AuthActions::handle('save_auth_settings', [], [
             'base_dir' => $p1_root,
             'raw_body' => [
                 'settings' => [
@@ -1319,16 +1319,16 @@ HTACCESS;
         ]);
         $this->assert("Phase A.2: Admin configure registration_mode=open + domaine studio.fr + outbox_log", ($save_cfg['status'] ?? 0) === 200);
 
-        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        \Atelier\Kernel\Auth\AuthManager::logoutSession();
         // Domain filtering check
-        $bad_domain = \SimpleGallery\Kernel\Actions\AuthActions::handle('register_account', [], [
+        $bad_domain = \Atelier\Kernel\Actions\AuthActions::handle('register_account', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['username' => 'intruder', 'email' => 'intruder@evil.org', 'password' => 'StrongPass99!']
         ]);
         $this->assert("Phase A.2: Domaine e-mail hors liste blanche rejeté (403)", ($bad_domain['status'] ?? 0) === 403);
 
         // Valid self-registration -> inactive until email verified, home NOT created yet
-        $reg_ok = \SimpleGallery\Kernel\Actions\AuthActions::handle('register_account', [], [
+        $reg_ok = \Atelier\Kernel\Actions\AuthActions::handle('register_account', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['username' => 'charlie', 'display_name' => 'Charlie', 'email' => 'charlie@studio.fr', 'password' => 'StrongPass99!']
         ]);
@@ -1340,23 +1340,23 @@ HTACCESS;
         );
 
         // Login before email verification must fail (403 email_unverified) without elevating session
-        $pre_verify_login = \SimpleGallery\Kernel\Actions\AuthActions::handle('login', [], [
+        $pre_verify_login = \Atelier\Kernel\Actions\AuthActions::handle('login', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['username' => 'charlie', 'password' => 'StrongPass99!']
         ]);
         $this->assert("Phase A.2: Connexion avant vérification e-mail refusée (403 email_unverified)",
             ($pre_verify_login['status'] ?? 0) === 403 &&
             ($pre_verify_login['data']['code'] ?? '') === 'email_unverified' &&
-            \SimpleGallery\Kernel\Auth\AuthManager::isLoggedIn() === false
+            \Atelier\Kernel\Auth\AuthManager::isLoggedIn() === false
         );
 
         // Extract verification token from outbox_log & verify token is stored hashed in auth_tokens
-        $outbox_msgs = \SimpleGallery\Kernel\Mail\Mailer::listOutbox($p1_root, 5);
+        $outbox_msgs = \Atelier\Kernel\Mail\Mailer::listOutbox($p1_root, 5);
         $verify_token = '';
         if (!empty($outbox_msgs[0]['text']) && preg_match('/\?verify_email=([A-Za-z0-9_-]+)/', $outbox_msgs[0]['text'], $vm)) {
             $verify_token = $vm[1];
         }
-        $stored_tok = \SimpleGallery\Kernel\Data\AtelierStore::forRoot($p1_root)->selectOne('auth_tokens', ['type' => 'email_verify']);
+        $stored_tok = \Atelier\Kernel\Data\AtelierStore::forRoot($p1_root)->selectOne('auth_tokens', ['type' => 'email_verify']);
         $this->assert("Phase A.2: E-mail de vérification émis dans outbox_log et jeton stocké hashé SHA-256",
             $verify_token !== '' &&
             is_array($stored_tok) &&
@@ -1364,11 +1364,11 @@ HTACCESS;
         );
 
         // Verify email -> activates Charlie and creates storage/users/charlie; replay rejected
-        $ver_res = \SimpleGallery\Kernel\Actions\AuthActions::handle('verify_email', [], [
+        $ver_res = \Atelier\Kernel\Actions\AuthActions::handle('verify_email', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['token' => $verify_token]
         ]);
-        $ver_replay = \SimpleGallery\Kernel\Actions\AuthActions::handle('verify_email', [], [
+        $ver_replay = \Atelier\Kernel\Actions\AuthActions::handle('verify_email', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['token' => $verify_token]
         ]);
@@ -1380,18 +1380,18 @@ HTACCESS;
         );
 
         // 10.3 Password reset (anti-enumeration + functional token confirmation)
-        \SimpleGallery\Kernel\Security\RateLimiter::reset('pwd_reset_' . md5('charlie@studio.fr|' . $cli_ip));
-        \SimpleGallery\Kernel\Security\RateLimiter::reset('pwd_reset_' . md5('nobody@studio.fr|' . $cli_ip));
-        \SimpleGallery\Kernel\Security\RateLimiter::reset('dav_auth_' . md5('unknown|desk_alice'));
-        $reset_unknown = \SimpleGallery\Kernel\Actions\AuthActions::handle('request_password_reset', [], [
+        \Atelier\Kernel\Security\RateLimiter::reset('pwd_reset_' . md5('charlie@studio.fr|' . $cli_ip));
+        \Atelier\Kernel\Security\RateLimiter::reset('pwd_reset_' . md5('nobody@studio.fr|' . $cli_ip));
+        \Atelier\Kernel\Security\RateLimiter::reset('dav_auth_' . md5('unknown|desk_alice'));
+        $reset_unknown = \Atelier\Kernel\Actions\AuthActions::handle('request_password_reset', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['email' => 'nobody@studio.fr']
         ]);
-        $reset_charlie = \SimpleGallery\Kernel\Actions\AuthActions::handle('request_password_reset', [], [
+        $reset_charlie = \Atelier\Kernel\Actions\AuthActions::handle('request_password_reset', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['email' => 'charlie@studio.fr']
         ]);
-        $outbox_after_reset = \SimpleGallery\Kernel\Mail\Mailer::listOutbox($p1_root, 5);
+        $outbox_after_reset = \Atelier\Kernel\Mail\Mailer::listOutbox($p1_root, 5);
         $reset_token = '';
         foreach ($outbox_after_reset as $om) {
             if (preg_match('/\?reset_password=([A-Za-z0-9_-]+)/', (string)($om['text'] ?? ''), $rm)) {
@@ -1399,7 +1399,7 @@ HTACCESS;
                 break;
             }
         }
-        $reset_confirm = \SimpleGallery\Kernel\Actions\AuthActions::handle('confirm_password_reset', [], [
+        $reset_confirm = \Atelier\Kernel\Actions\AuthActions::handle('confirm_password_reset', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['token' => $reset_token, 'password' => 'NewCharliePass99!']
         ]);
@@ -1408,29 +1408,29 @@ HTACCESS;
             ($reset_charlie['status'] ?? 0) === 200 &&
             $reset_token !== '' &&
             ($reset_confirm['status'] ?? 0) === 200 &&
-            \SimpleGallery\Kernel\Auth\UserManager::authenticate($p1_root, 'charlie', 'StrongPass99!') === null &&
-            \SimpleGallery\Kernel\Auth\UserManager::authenticate($p1_root, 'charlie', 'NewCharliePass99!') !== null
+            \Atelier\Kernel\Auth\UserManager::authenticate($p1_root, 'charlie', 'StrongPass99!') === null &&
+            \Atelier\Kernel\Auth\UserManager::authenticate($p1_root, 'charlie', 'NewCharliePass99!') !== null
         );
 
         // 10.4 Invite-only mode & approval mode
-        $_SESSION['sg_admin_logged'] = true;
+        $_SESSION['atelier_admin_logged'] = true;
         $_SESSION['is_admin'] = true;
-        \SimpleGallery\Kernel\Auth\AuthSettings::save($p1_root, ['registration_mode' => 'invite_only', 'require_email_verification' => false]);
-        $inv_create = \SimpleGallery\Kernel\Actions\AuthActions::handle('create_invite', [], [
+        \Atelier\Kernel\Auth\AuthSettings::save($p1_root, ['registration_mode' => 'invite_only', 'require_email_verification' => false]);
+        $inv_create = \Atelier\Kernel\Actions\AuthActions::handle('create_invite', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['email' => 'eve@studio.fr', 'role' => 'user', 'ttl_days' => 5]
         ]);
         $inv_token = $inv_create['data']['invite']['token'] ?? '';
-        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
-        $no_inv = \SimpleGallery\Kernel\Actions\AuthActions::handle('register_account', [], [
+        \Atelier\Kernel\Auth\AuthManager::logoutSession();
+        $no_inv = \Atelier\Kernel\Actions\AuthActions::handle('register_account', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['username' => 'eve', 'email' => 'eve@studio.fr', 'password' => 'EveSecret99!']
         ]);
-        $with_inv = \SimpleGallery\Kernel\Actions\AuthActions::handle('register_account', [], [
+        $with_inv = \Atelier\Kernel\Actions\AuthActions::handle('register_account', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['username' => 'eve', 'email' => 'eve@studio.fr', 'password' => 'EveSecret99!', 'invite_token' => $inv_token]
         ]);
-        $replay_inv = \SimpleGallery\Kernel\Actions\AuthActions::handle('register_account', [], [
+        $replay_inv = \Atelier\Kernel\Actions\AuthActions::handle('register_account', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['username' => 'eve2', 'email' => 'eve@studio.fr', 'password' => 'EveSecret99!', 'invite_token' => $inv_token]
         ]);
@@ -1442,10 +1442,10 @@ HTACCESS;
         );
 
         // 10.5 RFC 6238 TOTP Reference Vector + Local QR SVG + 2-Step Login + Anti-Replay + Recovery Codes
-        $rfc_code = \SimpleGallery\Kernel\Auth\TotpManager::getCode('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', 59);
+        $rfc_code = \Atelier\Kernel\Auth\TotpManager::getCode('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', 59);
         $this->assert("Phase A.2: TotpManager conforme au vecteur RFC 6238 (t=59 -> 287082)", $rfc_code === '287082');
 
-        $qr_svg = \SimpleGallery\Kernel\Auth\QrCodeSvg::render('otpauth://totp/Atelier:charlie?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=Atelier');
+        $qr_svg = \Atelier\Kernel\Auth\QrCodeSvg::render('otpauth://totp/Atelier:charlie?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=Atelier');
         $this->assert("Phase A.2: QrCodeSvg génère un SVG local sans aucun appel externe",
             strpos($qr_svg, '<svg ') === 0 &&
             strpos($qr_svg, '<path d="') !== false &&
@@ -1455,12 +1455,12 @@ HTACCESS;
         );
 
         // Charlie logs in and enrolls 2FA
-        $charlie_user = \SimpleGallery\Kernel\Auth\UserManager::authenticate($p1_root, 'charlie', 'NewCharliePass99!');
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($charlie_user);
-        $setup_res = \SimpleGallery\Kernel\Actions\AuthActions::handle('begin_2fa_setup', [], ['base_dir' => $p1_root]);
+        $charlie_user = \Atelier\Kernel\Auth\UserManager::authenticate($p1_root, 'charlie', 'NewCharliePass99!');
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($charlie_user);
+        $setup_res = \Atelier\Kernel\Actions\AuthActions::handle('begin_2fa_setup', [], ['base_dir' => $p1_root]);
         $secret = $setup_res['data']['secret'] ?? '';
-        $now_code = \SimpleGallery\Kernel\Auth\TotpManager::getCode($secret);
-        $confirm_res = \SimpleGallery\Kernel\Actions\AuthActions::handle('confirm_2fa_setup', [], [
+        $now_code = \Atelier\Kernel\Auth\TotpManager::getCode($secret);
+        $confirm_res = \Atelier\Kernel\Actions\AuthActions::handle('confirm_2fa_setup', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['totp_code' => $now_code]
         ]);
@@ -1474,29 +1474,29 @@ HTACCESS;
         );
 
         // Logout & test 2-step login: Step 1 MUST NOT elevate session!
-        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
-        $step1 = \SimpleGallery\Kernel\Actions\AuthActions::handle('login', [], [
+        \Atelier\Kernel\Auth\AuthManager::logoutSession();
+        $step1 = \Atelier\Kernel\Actions\AuthActions::handle('login', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['username' => 'charlie', 'password' => 'NewCharliePass99!']
         ]);
         $this->assert("Phase A.2: Étape 1 du login 2FA renvoie requires_2fa sans authentifier la session",
             ($step1['status'] ?? 0) === 200 &&
             !empty($step1['data']['requires_2fa']) &&
-            \SimpleGallery\Kernel\Auth\AuthManager::isLoggedIn() === false
+            \Atelier\Kernel\Auth\AuthManager::isLoggedIn() === false
         );
 
         // Anti-replay: reusing exact same TOTP code from confirm_2fa_setup MUST fail!
-        $replay_totp = \SimpleGallery\Kernel\Actions\AuthActions::handle('verify_2fa_login', [], [
+        $replay_totp = \Atelier\Kernel\Actions\AuthActions::handle('verify_2fa_login', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['totp_code' => $now_code]
         ]);
         $this->assert("Phase A.2: Anti-replay rejette la réutilisation du même pas TOTP (401)",
             ($replay_totp['status'] ?? 0) === 401 &&
-            \SimpleGallery\Kernel\Auth\AuthManager::isLoggedIn() === false
+            \Atelier\Kernel\Auth\AuthManager::isLoggedIn() === false
         );
 
         // Step 2 with single-use recovery code succeeds and opens session; replaying same recovery code fails!
-        $step2_rec = \SimpleGallery\Kernel\Actions\AuthActions::handle('verify_2fa_login', [], [
+        $step2_rec = \Atelier\Kernel\Actions\AuthActions::handle('verify_2fa_login', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['totp_code' => $rec_codes[0]]
         ]);
@@ -1505,27 +1505,27 @@ HTACCESS;
             !empty($step2_rec['data']['success']) &&
             !empty($step2_rec['data']['used_recovery_code']) &&
             ($step2_rec['data']['remaining_recovery_codes'] ?? -1) === 7 &&
-            \SimpleGallery\Kernel\Auth\AuthManager::isLoggedIn() === true
+            \Atelier\Kernel\Auth\AuthManager::isLoggedIn() === true
         );
 
-        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
-        \SimpleGallery\Kernel\Actions\AuthActions::handle('login', [], [
+        \Atelier\Kernel\Auth\AuthManager::logoutSession();
+        \Atelier\Kernel\Actions\AuthActions::handle('login', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['username' => 'charlie', 'password' => 'NewCharliePass99!']
         ]);
-        $replay_rec = \SimpleGallery\Kernel\Actions\AuthActions::handle('verify_2fa_login', [], [
+        $replay_rec = \Atelier\Kernel\Actions\AuthActions::handle('verify_2fa_login', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['totp_code' => $rec_codes[0]]
         ]);
         $this->assert("Phase A.2: Un code de secours déjà consommé est rejeté (401)",
             ($replay_rec['status'] ?? 0) === 401 &&
-            \SimpleGallery\Kernel\Auth\AuthManager::isLoggedIn() === false
+            \Atelier\Kernel\Auth\AuthManager::isLoggedIn() === false
         );
 
         // 10.6 Active Sessions Tracking & Immediate Remote Revocation + Disk Quotas + /s/ Rewrite + OIDC Policy
-        $charlie_auth2 = \SimpleGallery\Kernel\Auth\UserManager::authenticate($p1_root, 'charlie', 'NewCharliePass99!');
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($charlie_auth2, $p1_root);
-        $sess_list = \SimpleGallery\Kernel\Actions\AuthActions::handle('list_sessions', [], ['base_dir' => $p1_root]);
+        $charlie_auth2 = \Atelier\Kernel\Auth\UserManager::authenticate($p1_root, 'charlie', 'NewCharliePass99!');
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($charlie_auth2, $p1_root);
+        $sess_list = \Atelier\Kernel\Actions\AuthActions::handle('list_sessions', [], ['base_dir' => $p1_root]);
         $active_sessions = $sess_list['data']['sessions'] ?? [];
         $cur_sid = (int)($active_sessions[0]['id'] ?? 0);
         $this->assert("Phase A.2: SessionRegistry suit la session active avec indicateur is_current",
@@ -1535,24 +1535,24 @@ HTACCESS;
         );
 
         // Revoke current session -> revalidateActiveUser immediately logs out!
-        $rev_sess = \SimpleGallery\Kernel\Actions\AuthActions::handle('revoke_session', [], [
+        $rev_sess = \Atelier\Kernel\Actions\AuthActions::handle('revoke_session', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['session_id' => $cur_sid]
         ]);
-        \SimpleGallery\Kernel\Auth\AuthManager::revalidateActiveUser($p1_root);
+        \Atelier\Kernel\Auth\AuthManager::revalidateActiveUser($p1_root);
         $this->assert("Phase A.2: Révoquer une session entraîne une déconnexion immédiate à la requête suivante",
             ($rev_sess['status'] ?? 0) === 200 &&
-            \SimpleGallery\Kernel\Auth\AuthManager::isLoggedIn() === false
+            \Atelier\Kernel\Auth\AuthManager::isLoggedIn() === false
         );
 
         // Disk quota computation check
-        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, (int)$charlie_auth2['id'], ['quota_bytes' => 10240]);
+        \Atelier\Kernel\Auth\UserManager::updateUser($p1_root, (int)$charlie_auth2['id'], ['quota_bytes' => 10240]);
         if (!is_dir($users_root . '/charlie')) {
             @mkdir($users_root . '/charlie', 0755, true);
         }
         file_put_contents($users_root . '/charlie/sample.bin', str_repeat('A', 2048));
-        $charlie_fresh = \SimpleGallery\Kernel\Auth\UserManager::findById($p1_root, (int)$charlie_auth2['id']);
-        $qinfo = \SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo($p1_root, $p1_root, $charlie_fresh);
+        $charlie_fresh = \Atelier\Kernel\Auth\UserManager::findById($p1_root, (int)$charlie_auth2['id']);
+        $qinfo = \Atelier\Kernel\Auth\UserManager::getUserQuotaInfo($p1_root, $p1_root, $charlie_fresh);
         $this->assert("Phase A.2: UserManager::getUserQuotaInfo calcule précisément l'espace utilisé et le pourcentage",
             $qinfo['is_limited'] === true &&
             $qinfo['used_bytes'] >= 2048 &&
@@ -1562,9 +1562,9 @@ HTACCESS;
 
         // Short share link rewrite in .htaccess + OIDC disabled guard
         $htaccess_src = @file_get_contents($this->base_dir . '/.htaccess') ?: '';
-        $oidc_off = \SimpleGallery\Kernel\Actions\AuthActions::handle('oidc_start', [], ['base_dir' => $p1_root]);
+        $oidc_off = \Atelier\Kernel\Actions\AuthActions::handle('oidc_start', [], ['base_dir' => $p1_root]);
         $jwt_sample = 'eyJhbGciOiJSUzI1NiJ9.' . rtrim(strtr(base64_encode(json_encode(['email' => 'sso@studio.fr', 'sub' => '123'])), '+/', '-_'), '=') . '.sig';
-        $jwt_claims = \SimpleGallery\Kernel\Auth\OidcProvider::decodeJwtPayload($jwt_sample);
+        $jwt_claims = \Atelier\Kernel\Auth\OidcProvider::decodeJwtPayload($jwt_sample);
         $this->assert("Phase A.2: Route courte /s/<token> dans .htaccess + garde OIDC désactivé + décodeur JWT",
             strpos($htaccess_src, 'index.php?share=$1') !== false &&
             ($oidc_off['status'] ?? 0) === 403 &&
@@ -1572,27 +1572,27 @@ HTACCESS;
         );
 
         // 10.7 Multi-User Per-User Desktop Shortcuts & Preferences Isolation
-        $desk_a = \SimpleGallery\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
+        $desk_a = \Atelier\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
             'username' => 'desk_alice',
             'password' => 'DeskPass123!',
             'role' => 'user',
             'display_name' => 'Desk Alice'
         ]);
-        $desk_b = \SimpleGallery\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
+        $desk_b = \Atelier\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
             'username' => 'desk_bob',
             'password' => 'DeskPass123!',
             'role' => 'user',
             'display_name' => 'Desk Bob'
         ]);
-        \SimpleGallery\Kernel\Config\ConfigStore::set('desktop', [
+        \Atelier\Kernel\Config\ConfigStore::set('desktop', [
             'shortcuts' => [
                 ['id' => 'sc_global_tpl', 'type' => 'app', 'appId' => 'explorer', 'name' => 'Explorer Global', 'enabled' => true]
             ]
         ], $p1_root);
 
         // Guest denied from saving desktop shortcuts
-        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
-        $guest_desk_save = \SimpleGallery\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', [], [
+        \Atelier\Kernel\Auth\AuthManager::logoutSession();
+        $guest_desk_save = \Atelier\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['shortcuts' => [['id' => 'sc_hack', 'type' => 'app', 'appId' => 'explorer']]]
         ]);
@@ -1601,8 +1601,8 @@ HTACCESS;
         );
 
         // Alice: malicious javascript: shortcut payload is rejected (400), valid personal desktop is saved (200)
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
-        $alice_desk_xss = \SimpleGallery\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', [], [
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
+        $alice_desk_xss = \Atelier\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', [], [
             'base_dir' => $p1_root,
             'raw_body' => [
                 'shortcuts' => [
@@ -1610,7 +1610,7 @@ HTACCESS;
                 ]
             ]
         ]);
-        $alice_desk_save = \SimpleGallery\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', [], [
+        $alice_desk_save = \Atelier\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', [], [
             'base_dir' => $p1_root,
             'raw_body' => [
                 'shortcuts' => [
@@ -1618,8 +1618,8 @@ HTACCESS;
                 ]
             ]
         ]);
-        $alice_desk_get = \SimpleGallery\Kernel\Actions\SystemActions::handle('get_desktop_shortcuts', [], ['base_dir' => $p1_root]);
-        $alice_pref_save = \SimpleGallery\Kernel\Actions\UserActions::handle('save_user_preferences', [], [
+        $alice_desk_get = \Atelier\Kernel\Actions\SystemActions::handle('get_desktop_shortcuts', [], ['base_dir' => $p1_root]);
+        $alice_pref_save = \Atelier\Kernel\Actions\UserActions::handle('save_user_preferences', [], [
             'base_dir' => $p1_root,
             'raw_body' => [
                 'preferences' => [
@@ -1630,7 +1630,7 @@ HTACCESS;
                 ]
             ]
         ]);
-        $alice_me = \SimpleGallery\Kernel\Actions\UserActions::handle('get_current_user', [], ['base_dir' => $p1_root]);
+        $alice_me = \Atelier\Kernel\Actions\UserActions::handle('get_current_user', [], ['base_dir' => $p1_root]);
 
         $this->assert("Multi-User Desktop: Alice sauvegarde son bureau personnel (XSS rejeté 400) et ses préférences UI",
             ($alice_desk_xss['status'] ?? 0) === 400 &&
@@ -1644,9 +1644,9 @@ HTACCESS;
         );
 
         // Bob must see the untouched global template and empty preferences (zero leak from Alice!)
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
-        $bob_desk_get = \SimpleGallery\Kernel\Actions\SystemActions::handle('get_desktop_shortcuts', [], ['base_dir' => $p1_root]);
-        $bob_me = \SimpleGallery\Kernel\Actions\UserActions::handle('get_current_user', [], ['base_dir' => $p1_root]);
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
+        $bob_desk_get = \Atelier\Kernel\Actions\SystemActions::handle('get_desktop_shortcuts', [], ['base_dir' => $p1_root]);
+        $bob_me = \Atelier\Kernel\Actions\UserActions::handle('get_current_user', [], ['base_dir' => $p1_root]);
         $this->assert("Multi-User Desktop: Bob hérite du modèle global sans aucune fuite du bureau ni des préférences d'Alice",
             ($bob_desk_get['data']['scope'] ?? '') === 'global' &&
             count($bob_desk_get['data']['shortcuts'] ?? []) === 1 &&
@@ -1656,10 +1656,10 @@ HTACCESS;
         );
 
         // 10.8 Legacy Admin Desktop Isolation & Global Desktop Template
-        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        \Atelier\Kernel\Auth\AuthManager::logoutSession();
         $_SESSION['is_admin'] = true;
-        $_SESSION['sg_admin_logged'] = true;
-        $legacy_admin_save = \SimpleGallery\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', [], [
+        $_SESSION['atelier_admin_logged'] = true;
+        $legacy_admin_save = \Atelier\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', [], [
             'base_dir' => $p1_root,
             'raw_body' => [
                 'shortcuts' => [
@@ -1667,9 +1667,9 @@ HTACCESS;
                 ]
             ]
         ]);
-        $legacy_admin_get = \SimpleGallery\Kernel\Actions\SystemActions::handle('get_desktop_shortcuts', [], ['base_dir' => $p1_root]);
-        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
-        $guest_after_admin_get = \SimpleGallery\Kernel\Actions\SystemActions::handle('get_desktop_shortcuts', [], ['base_dir' => $p1_root]);
+        $legacy_admin_get = \Atelier\Kernel\Actions\SystemActions::handle('get_desktop_shortcuts', [], ['base_dir' => $p1_root]);
+        \Atelier\Kernel\Auth\AuthManager::logoutSession();
+        $guest_after_admin_get = \Atelier\Kernel\Actions\SystemActions::handle('get_desktop_shortcuts', [], ['base_dir' => $p1_root]);
         $this->assert("Multi-User Desktop: Le bureau admin legacy (desktop_admin.json) est isolé du bureau invité (desktop.json)",
             ($legacy_admin_save['status'] ?? 0) === 200 &&
             ($legacy_admin_save['data']['scope'] ?? '') === 'admin' &&
@@ -1681,8 +1681,8 @@ HTACCESS;
 
         // Explicit scope=global updates guest template
         $_SESSION['is_admin'] = true;
-        $_SESSION['sg_admin_logged'] = true;
-        $pub_global_save = \SimpleGallery\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', [], [
+        $_SESSION['atelier_admin_logged'] = true;
+        $pub_global_save = \Atelier\Kernel\Actions\SystemActions::handle('save_desktop_shortcuts', [], [
             'base_dir' => $p1_root,
             'raw_body' => [
                 'scope' => 'global',
@@ -1691,8 +1691,8 @@ HTACCESS;
                 ]
             ]
         ]);
-        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
-        $guest_updated_get = \SimpleGallery\Kernel\Actions\SystemActions::handle('get_desktop_shortcuts', [], ['base_dir' => $p1_root]);
+        \Atelier\Kernel\Auth\AuthManager::logoutSession();
+        $guest_updated_get = \Atelier\Kernel\Actions\SystemActions::handle('get_desktop_shortcuts', [], ['base_dir' => $p1_root]);
         $this->assert("Multi-User Desktop: Un admin peut publier le modèle global (scope=global) servi aux invités",
             ($pub_global_save['status'] ?? 0) === 200 &&
             ($pub_global_save['data']['scope'] ?? '') === 'global' &&
@@ -1701,8 +1701,8 @@ HTACCESS;
 
         // 10.9 3-Tier Cascading Permissions Matrix (Role -> Group [deny beats allow] -> User override)
         $_SESSION['is_admin'] = true;
-        $_SESSION['sg_admin_logged'] = true;
-        $save_roles_res = \SimpleGallery\Kernel\Actions\AuthActions::handle('save_permissions', [], [
+        $_SESSION['atelier_admin_logged'] = true;
+        $save_roles_res = \Atelier\Kernel\Actions\AuthActions::handle('save_permissions', [], [
             'base_dir' => $p1_root,
             'raw_body' => [
                 'roles' => [
@@ -1713,35 +1713,35 @@ HTACCESS;
             ]
         ]);
 
-        $guest_acct = \SimpleGallery\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
+        $guest_acct = \Atelier\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
             'username' => 'guest_demo',
             'password' => 'GuestPass123!',
             'role' => 'guest'
         ]);
-        $grp_editors = \SimpleGallery\Kernel\Auth\UserManager::createGroup($p1_root, ['name' => 'editors', 'display_name' => 'Editors']);
-        $grp_restricted = \SimpleGallery\Kernel\Auth\UserManager::createGroup($p1_root, ['name' => 'restricted', 'display_name' => 'Restricted']);
+        $grp_editors = \Atelier\Kernel\Auth\UserManager::createGroup($p1_root, ['name' => 'editors', 'display_name' => 'Editors']);
+        $grp_restricted = \Atelier\Kernel\Auth\UserManager::createGroup($p1_root, ['name' => 'restricted', 'display_name' => 'Restricted']);
 
-        \SimpleGallery\Kernel\Actions\UserActions::handle('set_group_permissions', [], [
+        \Atelier\Kernel\Actions\UserActions::handle('set_group_permissions', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['group_id' => $grp_editors['group']['id'], 'permission_overrides' => ['can_upload' => 'allow', 'can_use_browser_proxy' => 'allow']]
         ]);
-        \SimpleGallery\Kernel\Actions\UserActions::handle('set_group_permissions', [], [
+        \Atelier\Kernel\Actions\UserActions::handle('set_group_permissions', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['group_id' => $grp_restricted['group']['id'], 'permission_overrides' => ['can_upload' => 'deny']]
         ]);
 
         // Level 1: Anonymous vs Guest account vs User role
-        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
-        $anon_dl = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_download_item', $p1_root);
-        $anon_cm = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_comment', $p1_root);
+        \Atelier\Kernel\Auth\AuthManager::logoutSession();
+        $anon_dl = \Atelier\Kernel\FS\PermissionsManager::hasPermission('can_download_item', $p1_root);
+        $anon_cm = \Atelier\Kernel\FS\PermissionsManager::hasPermission('can_comment', $p1_root);
 
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($guest_acct['user'], $p1_root);
-        $guest_dl = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_download_item', $p1_root);
-        $guest_cm = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_comment', $p1_root);
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($guest_acct['user'], $p1_root);
+        $guest_dl = \Atelier\Kernel\FS\PermissionsManager::hasPermission('can_download_item', $p1_root);
+        $guest_cm = \Atelier\Kernel\FS\PermissionsManager::hasPermission('can_comment', $p1_root);
 
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
-        $user_cm = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_comment', $p1_root);
-        $user_up_before = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root);
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
+        $user_cm = \Atelier\Kernel\FS\PermissionsManager::hasPermission('can_comment', $p1_root);
+        $user_up_before = \Atelier\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root);
 
         $this->assert("Permissions 3-Niveaux (Niveau 1 Rôles): anonymous / guest / user ont des matrices distinctes",
             ($save_roles_res['status'] ?? 0) === 200 &&
@@ -1751,12 +1751,12 @@ HTACCESS;
         );
 
         // Level 2: Group allow, then conflicting group deny beats allow
-        \SimpleGallery\Kernel\Auth\UserManager::setGroupMembers($p1_root, (int)$grp_editors['group']['id'], [(int)$desk_a['user']['id']]);
-        $user_up_grp_allow = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root);
-        $user_proxy_grp_allow = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_use_browser_proxy', $p1_root);
+        \Atelier\Kernel\Auth\UserManager::setGroupMembers($p1_root, (int)$grp_editors['group']['id'], [(int)$desk_a['user']['id']]);
+        $user_up_grp_allow = \Atelier\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root);
+        $user_proxy_grp_allow = \Atelier\Kernel\FS\PermissionsManager::hasPermission('can_use_browser_proxy', $p1_root);
 
-        \SimpleGallery\Kernel\Auth\UserManager::setGroupMembers($p1_root, (int)$grp_restricted['group']['id'], [(int)$desk_a['user']['id']]);
-        $user_up_grp_deny = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root);
+        \Atelier\Kernel\Auth\UserManager::setGroupMembers($p1_root, (int)$grp_restricted['group']['id'], [(int)$desk_a['user']['id']]);
+        $user_up_grp_deny = \Atelier\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root);
 
         $this->assert("Permissions 3-Niveaux (Niveau 2 Groupes): Surcharge groupe autorise puis deny l'emporte sur allow",
             $user_up_grp_allow === true &&
@@ -1766,18 +1766,18 @@ HTACCESS;
 
         // Level 3: Explicit User override beats Group & Role, while users/<other> ACL remains hermetically isolated!
         $_SESSION['is_admin'] = true;
-        $_SESSION['sg_admin_logged'] = true;
-        $user_ov_res = \SimpleGallery\Kernel\Actions\UserActions::handle('set_user_permissions', [], [
+        $_SESSION['atelier_admin_logged'] = true;
+        $user_ov_res = \Atelier\Kernel\Actions\UserActions::handle('set_user_permissions', [], [
             'base_dir' => $p1_root,
             'raw_body' => [
                 'user_id' => $desk_a['user']['id'],
                 'permission_overrides' => ['can_upload' => 'allow', 'can_comment' => 'deny']
             ]
         ]);
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
-        $user_up_override = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root);
-        $user_cm_override = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_comment', $p1_root);
-        $user_up_other_home = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root, 'users/desk_bob');
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
+        $user_up_override = \Atelier\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root);
+        $user_cm_override = \Atelier\Kernel\FS\PermissionsManager::hasPermission('can_comment', $p1_root);
+        $user_up_other_home = \Atelier\Kernel\FS\PermissionsManager::hasPermission('can_upload', $p1_root, 'users/desk_bob');
 
         $this->assert("Permissions 3-Niveaux (Niveau 3 Utilisateur): Surcharge utilisateur prioritaire sans jamais ouvrir le home d'un autre",
             ($user_ov_res['status'] ?? 0) === 200 &&
@@ -1787,7 +1787,7 @@ HTACCESS;
         );
 
         // 10.10 Self-Service Account Deletion + Signed Time-Limited ZIP Export + Complete Receipt Confirmation
-        $gdpr_res = \SimpleGallery\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
+        $gdpr_res = \Atelier\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
             'username'     => 'gdpr_user',
             'display_name' => 'GDPR User',
             'email'        => 'gdpr@studio.fr',
@@ -1798,8 +1798,8 @@ HTACCESS;
         @mkdir($users_root . '/gdpr_user/notes', 0755, true);
         file_put_contents($users_root . '/gdpr_user/notes/diary.txt', 'My private GDPR note 2026');
 
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($gdpr_user, $p1_root);
-        $del_bad_pwd = \SimpleGallery\Kernel\Actions\UserActions::handle('delete_own_account', [], [
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($gdpr_user, $p1_root);
+        $del_bad_pwd = \Atelier\Kernel\Actions\UserActions::handle('delete_own_account', [], [
             'base_dir' => $p1_root,
             'raw_body' => [
                 'password'             => 'WrongPassword!',
@@ -1808,7 +1808,7 @@ HTACCESS;
                 'create_export'        => true
             ]
         ]);
-        $del_bad_confirm = \SimpleGallery\Kernel\Actions\UserActions::handle('delete_own_account', [], [
+        $del_bad_confirm = \Atelier\Kernel\Actions\UserActions::handle('delete_own_account', [], [
             'base_dir' => $p1_root,
             'raw_body' => [
                 'password'             => 'GdprSecret99!',
@@ -1819,11 +1819,11 @@ HTACCESS;
         $this->assert("Self-Delete Account: Refuse mot de passe erroné (401) et confirmation username invalide (400)",
             ($del_bad_pwd['status'] ?? 0) === 401 &&
             ($del_bad_confirm['status'] ?? 0) === 400 &&
-            \SimpleGallery\Kernel\Auth\UserManager::findByUsername($p1_root, 'gdpr_user') !== null
+            \Atelier\Kernel\Auth\UserManager::findByUsername($p1_root, 'gdpr_user') !== null
         );
 
         // Valid self-deletion with signed 24h ZIP export
-        $del_ok = \SimpleGallery\Kernel\Actions\UserActions::handle('delete_own_account', [], [
+        $del_ok = \Atelier\Kernel\Actions\UserActions::handle('delete_own_account', [], [
             'base_dir' => $p1_root,
             'raw_body' => [
                 'password'             => 'GdprSecret99!',
@@ -1835,7 +1835,7 @@ HTACCESS;
         ]);
         $exp_info = $del_ok['data']['export'] ?? null;
         $exp_token = (string)($exp_info['token'] ?? '');
-        $inspected = \SimpleGallery\Kernel\Auth\AccountExportService::inspectByToken($p1_root, $exp_token);
+        $inspected = \Atelier\Kernel\Auth\AccountExportService::inspectByToken($p1_root, $exp_token);
         $zip_abs = (string)($inspected['abs_path'] ?? '');
 
         $zip_has_json = false;
@@ -1852,31 +1852,31 @@ HTACCESS;
         $this->assert("Self-Delete Account: Génère l'archive ZIP signée complète puis supprime home, compte et session",
             ($del_ok['status'] ?? 0) === 200 &&
             !empty($del_ok['data']['deleted']) &&
-            \SimpleGallery\Kernel\Auth\AuthManager::isLoggedIn() === false &&
-            \SimpleGallery\Kernel\Auth\UserManager::findByUsername($p1_root, 'gdpr_user') === null &&
+            \Atelier\Kernel\Auth\AuthManager::isLoggedIn() === false &&
+            \Atelier\Kernel\Auth\UserManager::findByUsername($p1_root, 'gdpr_user') === null &&
             !is_dir($users_root . '/gdpr_user') &&
             ($inspected['status'] ?? 0) === 200 &&
             strlen((string)($exp_info['sha256'] ?? '')) === 64 &&
             $zip_has_json === true &&
             $zip_note_content === 'My private GDPR note 2026' &&
-            file_exists(\SimpleGallery\Kernel\Auth\AccountExportService::getExportsDir($p1_root) . '/.htaccess')
+            file_exists(\Atelier\Kernel\Auth\AccountExportService::getExportsDir($p1_root) . '/.htaccess')
         );
 
         // Receipt confirmation blocked (409) before complete download, then succeeds (200) and purges ZIP -> 410 Gone
-        $premature_confirm = \SimpleGallery\Kernel\Actions\UserActions::handle('confirm_account_export_receipt', [], [
+        $premature_confirm = \Atelier\Kernel\Actions\UserActions::handle('confirm_account_export_receipt', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['token' => $exp_token]
         ]);
-        \SimpleGallery\Kernel\Auth\AccountExportService::markDownloadCompleted(
+        \Atelier\Kernel\Auth\AccountExportService::markDownloadCompleted(
             $p1_root,
             (int)$inspected['token_id'],
             (int)$exp_info['size_bytes']
         );
-        $final_confirm = \SimpleGallery\Kernel\Actions\UserActions::handle('confirm_account_export_receipt', [], [
+        $final_confirm = \Atelier\Kernel\Actions\UserActions::handle('confirm_account_export_receipt', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['token' => $exp_token]
         ]);
-        $after_purge = \SimpleGallery\Kernel\Auth\AccountExportService::inspectByToken($p1_root, $exp_token);
+        $after_purge = \Atelier\Kernel\Auth\AccountExportService::inspectByToken($p1_root, $exp_token);
 
         $this->assert("Self-Delete Account: Confirmation de réception exige transfert complet (409 -> 200), purge le ZIP et renvoie 410",
             ($premature_confirm['status'] ?? 0) === 409 &&
@@ -1884,16 +1884,16 @@ HTACCESS;
             !empty($final_confirm['data']['purged']) &&
             !file_exists($zip_abs) &&
             ($after_purge['status'] ?? 0) === 410 &&
-            in_array('delete_own_account', \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true) &&
-            in_array('create_account_export', \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true) &&
-            in_array('confirm_account_export_receipt', \SimpleGallery\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true) &&
+            in_array('delete_own_account', \Atelier\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true) &&
+            in_array('create_account_export', \Atelier\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true) &&
+            in_array('confirm_account_export_receipt', \Atelier\Kernel\Actions\ActionRouter::MUTATING_ACTIONS, true) &&
             strpos($htaccess_src, 'system/endpoints/export.php?token=$1') !== false
         );
 
         // 10.11 Phase B: CredentialVault, S3 SigV4, WebDAV XML, External Mounts, Chunked Uploads, Trash, Versioning & FileIndex
         $vault_secret = ['password' => 'UltraSecretDav99!', 'access_key' => 'AKIA_TEST'];
-        $vault_enc = \SimpleGallery\Kernel\Storage\CredentialVault::encryptJson($p1_root, $vault_secret);
-        $vault_dec = \SimpleGallery\Kernel\Storage\CredentialVault::decryptJson($p1_root, $vault_enc);
+        $vault_enc = \Atelier\Kernel\Storage\CredentialVault::encryptJson($p1_root, $vault_secret);
+        $vault_dec = \Atelier\Kernel\Storage\CredentialVault::decryptJson($p1_root, $vault_enc);
         $this->assert("Phase B: CredentialVault chiffre en AES-256-GCM au repos sans exposer le secret en clair",
             $vault_enc !== '' &&
             strpos($vault_enc, 'UltraSecretDav99!') === false &&
@@ -1901,7 +1901,7 @@ HTACCESS;
         );
 
         // S3 SigV4 presigned URL + WebDAV safe XML parser
-        $s3_drv = new \SimpleGallery\Kernel\Storage\S3StorageDriver([
+        $s3_drv = new \Atelier\Kernel\Storage\S3StorageDriver([
             'endpoint'   => 'https://r2.example.com',
             'region'     => 'auto',
             'bucket'     => 'atelier-media',
@@ -1909,7 +1909,7 @@ HTACCESS;
             'secret_key' => 'SECRETEXAMPLE'
         ]);
         $presigned = $s3_drv->buildPresignedGetUrl('studio/photo.jpg', 600, 1700000000);
-        $dav_drv = new \SimpleGallery\Kernel\Storage\WebDavStorageDriver(['endpoint' => 'https://cloud.example.com/dav/']);
+        $dav_drv = new \Atelier\Kernel\Storage\WebDavStorageDriver(['endpoint' => 'https://cloud.example.com/dav/']);
         $dav_xml = '<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">'
             . '<d:response><d:href>/dav/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat></d:response>'
             . '<d:response><d:href>/dav/Photos/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat></d:response>'
@@ -1930,16 +1930,16 @@ HTACCESS;
         file_put_contents($ext_disk . '/welcome.txt', 'Hello from external mount');
 
         // Non-admin cannot create local mount (403)
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
-        $non_admin_local = \SimpleGallery\Kernel\Actions\StorageActions::handle('create_external_mount', [], [
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
+        $non_admin_local = \Atelier\Kernel\Actions\StorageActions::handle('create_external_mount', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['driver' => 'local', 'mount_name' => 'HackLocal', 'config' => ['root_dir' => $ext_disk]]
         ]);
 
         // Admin creates personal/user external mount for Alice (`desk_alice`)
         $_SESSION['is_admin'] = true;
-        $_SESSION['sg_admin_logged'] = true;
-        $ext_create = \SimpleGallery\Kernel\Actions\StorageActions::handle('create_external_mount', [], [
+        $_SESSION['atelier_admin_logged'] = true;
+        $ext_create = \Atelier\Kernel\Actions\StorageActions::handle('create_external_mount', [], [
             'base_dir' => $p1_root,
             'raw_body' => [
                 'driver'      => 'local',
@@ -1954,49 +1954,49 @@ HTACCESS;
         $ext_path = 'ext://' . $ext_id;
 
         // Alice lists & creates folder/file in ext://<id>; Bob is denied (403)!
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
-        $alice_ext_gal = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => $ext_path], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
-        $alice_ext_mk = \SimpleGallery\Kernel\Actions\FileActions::handle('create_folder', [], [
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
+        $alice_ext_gal = \Atelier\Kernel\Actions\GalleryActions::getGallery(['dir' => $ext_path], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
+        $alice_ext_mk = \Atelier\Kernel\Actions\FileActions::handle('create_folder', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root,
             'raw_body' => ['dir' => $ext_path, 'name' => 'exports']
         ]);
-        $alice_ext_save = \SimpleGallery\Kernel\Actions\FileActions::handle('save_text_file', [], [
+        $alice_ext_save = \Atelier\Kernel\Actions\FileActions::handle('save_text_file', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root,
             'raw_body' => ['file' => $ext_path . '/exports/note.txt', 'content' => 'Saved via ext:// VFS']
         ]);
 
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
-        $bob_ext_gal = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => $ext_path], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
+        $bob_ext_gal = \Atelier\Kernel\Actions\GalleryActions::getGallery(['dir' => $ext_path], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
 
         // Strict isolation: when Alice logs out and Legacy Root Admin OR another Multi-User Admin logs in,
         // Alice's personal external mount MUST NOT appear in listAccessibleMounts() and MUST return 403 on access!
-        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        \Atelier\Kernel\Auth\AuthManager::logoutSession();
         $_SESSION['is_admin'] = true;
-        $_SESSION['sg_admin_logged'] = true;
-        $legacy_admin_mounts = \SimpleGallery\Kernel\Storage\ExternalMountManager::listAccessibleMounts($p1_root);
+        $_SESSION['atelier_admin_logged'] = true;
+        $legacy_admin_mounts = \Atelier\Kernel\Storage\ExternalMountManager::listAccessibleMounts($p1_root);
         $legacy_admin_sees_alice_mount = false;
         foreach ($legacy_admin_mounts as $mItem) {
             if ((int)($mItem['id'] ?? 0) === $ext_id) $legacy_admin_sees_alice_mount = true;
         }
-        $legacy_admin_ext_gal = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => $ext_path], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
+        $legacy_admin_ext_gal = \Atelier\Kernel\Actions\GalleryActions::getGallery(['dir' => $ext_path], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
 
         // Also test a multi-user admin account (separate user ID) -> must NOT see or open Alice's personal mount!
-        $adm_iso = \SimpleGallery\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
+        $adm_iso = \Atelier\Kernel\Auth\UserManager::createUser($p1_root, $p1_root, [
             'username' => 'admin_iso_test',
             'password' => 'AdminIsoPass99!',
             'role' => 'admin',
             'display_name' => 'Admin Iso'
         ]);
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($adm_iso['user'], $p1_root);
-        $multi_admin_mounts = \SimpleGallery\Kernel\Storage\ExternalMountManager::listAccessibleMounts($p1_root);
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($adm_iso['user'], $p1_root);
+        $multi_admin_mounts = \Atelier\Kernel\Storage\ExternalMountManager::listAccessibleMounts($p1_root);
         $multi_admin_sees_alice_mount = false;
         foreach ($multi_admin_mounts as $mItem) {
             if ((int)($mItem['id'] ?? 0) === $ext_id) $multi_admin_sees_alice_mount = true;
         }
-        $multi_admin_ext_gal = \SimpleGallery\Kernel\Actions\GalleryActions::getGallery(['dir' => $ext_path], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
+        $multi_admin_ext_gal = \Atelier\Kernel\Actions\GalleryActions::getGallery(['dir' => $ext_path], $p1_root, $mtypes, [], 'Atelier', '.thumbnails');
 
         // Meanwhile a global mount IS visible to both Admin and Alice
-        $global_mount_create = \SimpleGallery\Kernel\Actions\StorageActions::handle('create_external_mount', [], [
+        $global_mount_create = \Atelier\Kernel\Actions\StorageActions::handle('create_external_mount', [], [
             'base_dir' => $p1_root,
             'raw_body' => [
                 'driver'      => 'local',
@@ -2007,9 +2007,9 @@ HTACCESS;
             ]
         ]);
         $global_ext_id = (int)($global_mount_create['data']['mount']['id'] ?? 0);
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
         $alice_sees_global = false;
-        foreach (\SimpleGallery\Kernel\Storage\ExternalMountManager::listAccessibleMounts($p1_root) as $mItem) {
+        foreach (\Atelier\Kernel\Storage\ExternalMountManager::listAccessibleMounts($p1_root) as $mItem) {
             if ((int)($mItem['id'] ?? 0) === $global_ext_id) $alice_sees_global = true;
         }
 
@@ -2035,19 +2035,19 @@ HTACCESS;
 
         // Pre-mount config test & Google Drive OAuth2 wizard (PKCE state + anti-CSRF callback guard)
         $_SESSION['is_admin'] = true;
-        $_SESSION['sg_admin_logged'] = true;
-        $pre_test_ok = \SimpleGallery\Kernel\Actions\StorageActions::handle('test_external_mount_config', [], [
+        $_SESSION['atelier_admin_logged'] = true;
+        $pre_test_ok = \Atelier\Kernel\Actions\StorageActions::handle('test_external_mount_config', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['driver' => 'local', 'config' => ['root_dir' => $ext_disk]]
         ]);
-        $gd_start_no_cid = \SimpleGallery\Kernel\Actions\StorageActions::handle('gdrive_oauth_start', [], [
+        $gd_start_no_cid = \Atelier\Kernel\Actions\StorageActions::handle('gdrive_oauth_start', [], [
             'base_dir' => $p1_root, 'raw_body' => []
         ]);
-        $gd_start_ok = \SimpleGallery\Kernel\Actions\StorageActions::handle('gdrive_oauth_start', [], [
+        $gd_start_ok = \Atelier\Kernel\Actions\StorageActions::handle('gdrive_oauth_start', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['client_id' => 'test-client.apps.googleusercontent.com', 'mount_name' => 'Mon Drive', 'permission' => 'read']
         ]);
-        $gd_cb_bad_state = \SimpleGallery\Kernel\Actions\StorageActions::handle('gdrive_oauth_callback', [], [
+        $gd_cb_bad_state = \Atelier\Kernel\Actions\StorageActions::handle('gdrive_oauth_callback', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['code' => 'fake_code', 'state' => 'wrong_state_value']
         ]);
@@ -2058,33 +2058,33 @@ HTACCESS;
             strpos((string)($gd_start_ok['data']['auth_url'] ?? ''), 'code_challenge_method=S256') !== false &&
             strpos((string)($gd_start_ok['data']['auth_url'] ?? ''), 'drive.readonly') !== false &&
             ($gd_cb_bad_state['status'] ?? 0) === 403 &&
-            \SimpleGallery\Kernel\Storage\GoogleDriveStorageDriver::normalizeFolderId('https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOp?usp=sharing') === '1AbCdEfGhIjKlMnOp' &&
-            \SimpleGallery\Kernel\Storage\GoogleDriveStorageDriver::normalizeFolderId('') === 'root' &&
-            \SimpleGallery\Kernel\Storage\GoogleDriveStorageDriver::inferExtensionFromMime('application/vnd.google-apps.spreadsheet') === 'xlsx' &&
-            \SimpleGallery\Kernel\Storage\GoogleDriveStorageDriver::inferExtensionFromMime('application/vnd.google-apps.document') === 'pdf' &&
-            \SimpleGallery\Kernel\Storage\GoogleDriveStorageDriver::inferExtensionFromMime('application/vnd.ms-excel') === 'xls'
+            \Atelier\Kernel\Storage\GoogleDriveStorageDriver::normalizeFolderId('https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOp?usp=sharing') === '1AbCdEfGhIjKlMnOp' &&
+            \Atelier\Kernel\Storage\GoogleDriveStorageDriver::normalizeFolderId('') === 'root' &&
+            \Atelier\Kernel\Storage\GoogleDriveStorageDriver::inferExtensionFromMime('application/vnd.google-apps.spreadsheet') === 'xlsx' &&
+            \Atelier\Kernel\Storage\GoogleDriveStorageDriver::inferExtensionFromMime('application/vnd.google-apps.document') === 'pdf' &&
+            \Atelier\Kernel\Storage\GoogleDriveStorageDriver::inferExtensionFromMime('application/vnd.ms-excel') === 'xls'
         );
 
         // Chunked resumable upload (both rejected dangerous extension & valid 2-chunk reassembly into ext://)
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
-        $chunk_bad = \SimpleGallery\Kernel\Actions\StorageActions::handle('upload_chunk_init', [], [
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
+        $chunk_bad = \Atelier\Kernel\Actions\StorageActions::handle('upload_chunk_init', [], [
             'base_dir' => $p1_root, 'media_types' => $mtypes,
             'raw_body' => ['dir' => 'users/desk_alice', 'filename' => 'evil.php', 'total_size' => 10, 'total_chunks' => 1]
         ]);
-        $chunk_init = \SimpleGallery\Kernel\Actions\StorageActions::handle('upload_chunk_init', [], [
+        $chunk_init = \Atelier\Kernel\Actions\StorageActions::handle('upload_chunk_init', [], [
             'base_dir' => $p1_root, 'media_types' => $mtypes,
             'raw_body' => ['dir' => $ext_path, 'filename' => 'big_note.txt', 'total_size' => 12, 'total_chunks' => 2]
         ]);
         $up_id = (string)($chunk_init['data']['upload_id'] ?? '');
-        $ch0 = \SimpleGallery\Kernel\Actions\StorageActions::handle('upload_chunk', [], [
+        $ch0 = \Atelier\Kernel\Actions\StorageActions::handle('upload_chunk', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['upload_id' => $up_id, 'chunk_index' => 0, 'chunk_base64' => base64_encode('Hello ')]
         ]);
-        $ch1 = \SimpleGallery\Kernel\Actions\StorageActions::handle('upload_chunk', [], [
+        $ch1 = \Atelier\Kernel\Actions\StorageActions::handle('upload_chunk', [], [
             'base_dir' => $p1_root,
             'raw_body' => ['upload_id' => $up_id, 'chunk_index' => 1, 'chunk_base64' => base64_encode('World!')]
         ]);
-        $ch_done = \SimpleGallery\Kernel\Actions\StorageActions::handle('upload_chunk_complete', [], [
+        $ch_done = \Atelier\Kernel\Actions\StorageActions::handle('upload_chunk_complete', [], [
             'base_dir' => $p1_root, 'media_types' => $mtypes,
             'raw_body' => ['upload_id' => $up_id]
         ]);
@@ -2100,27 +2100,27 @@ HTACCESS;
         $v_file_rel = 'users/desk_alice/doc_ver.txt';
         $v_file_abs = $users_root . '/desk_alice/doc_ver.txt';
         file_put_contents($v_file_abs, 'Version 1 content');
-        \SimpleGallery\Kernel\Actions\FileActions::handle('save_text_file', [], [
+        \Atelier\Kernel\Actions\FileActions::handle('save_text_file', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root,
             'raw_body' => ['file' => $v_file_rel, 'content' => 'Version 2 content']
         ]);
-        $vers_list = \SimpleGallery\Kernel\Actions\StorageActions::handle('list_file_versions', [], [
+        $vers_list = \Atelier\Kernel\Actions\StorageActions::handle('list_file_versions', [], [
             'base_dir' => $p1_root, 'raw_body' => ['file' => $v_file_rel]
         ]);
         $v1_id = (string)($vers_list['data']['versions'][0]['version_id'] ?? '');
-        $v_restore = \SimpleGallery\Kernel\Actions\StorageActions::handle('restore_file_version', [], [
+        $v_restore = \Atelier\Kernel\Actions\StorageActions::handle('restore_file_version', [], [
             'base_dir' => $p1_root, 'raw_body' => ['file' => $v_file_rel, 'version_id' => $v1_id]
         ]);
         $after_v_restore = @file_get_contents($v_file_abs);
 
         // Soft-delete into Trash and restore back
-        $del_soft = \SimpleGallery\Kernel\Actions\FileActions::handle('delete_item', [], [
+        $del_soft = \Atelier\Kernel\Actions\FileActions::handle('delete_item', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root,
             'raw_body' => ['target' => $v_file_rel]
         ]);
         $trash_id = (string)($del_soft['data']['trash_item']['id'] ?? '');
         $gone_before_restore = !file_exists($v_file_abs);
-        $tr_restore = \SimpleGallery\Kernel\Actions\StorageActions::handle('restore_trash_item', [], [
+        $tr_restore = \Atelier\Kernel\Actions\StorageActions::handle('restore_trash_item', [], [
             'base_dir' => $p1_root, 'raw_body' => ['trash_id' => $trash_id]
         ]);
         $back_after_restore = file_exists($v_file_abs) && @file_get_contents($v_file_abs) === 'Version 1 content';
@@ -2137,19 +2137,19 @@ HTACCESS;
 
         // SQLite Incremental FileIndex & strict ACL search isolation
         $_SESSION['is_admin'] = true;
-        $_SESSION['sg_admin_logged'] = true;
-        $idx1 = \SimpleGallery\Kernel\Actions\StorageActions::handle('rebuild_file_index', [], [
+        $_SESSION['atelier_admin_logged'] = true;
+        $idx1 = \Atelier\Kernel\Actions\StorageActions::handle('rebuild_file_index', [], [
             'base_dir' => $p1_root, 'media_types' => $mtypes
         ]);
-        $idx2 = \SimpleGallery\Kernel\Actions\StorageActions::handle('rebuild_file_index', [], [
+        $idx2 = \Atelier\Kernel\Actions\StorageActions::handle('rebuild_file_index', [], [
             'base_dir' => $p1_root, 'media_types' => $mtypes
         ]);
         // Bob searching for Alice's doc_ver.txt via index must get ZERO results!
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
-        $bob_idx_search = \SimpleGallery\Kernel\Actions\StorageActions::handle('search_file_index', [], [
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
+        $bob_idx_search = \Atelier\Kernel\Actions\StorageActions::handle('search_file_index', [], [
             'base_dir' => $p1_root, 'raw_body' => ['q' => 'doc_ver']
         ]);
-        $pub_idx_search = \SimpleGallery\Kernel\Actions\StorageActions::handle('search_file_index', [], [
+        $pub_idx_search = \Atelier\Kernel\Actions\StorageActions::handle('search_file_index', [], [
             'base_dir' => $p1_root, 'raw_body' => ['q' => 'public_gallery']
         ]);
         $this->assert("Phase B: Index incrémental SQLite saute les fichiers inchangés et filtre strictement par ACL",
@@ -2175,7 +2175,7 @@ HTACCESS;
         ];
         $all_lot2_csrf = true;
         foreach ($lot2_mutating as $actName) {
-            if (!\SimpleGallery\Kernel\Actions\ActionRouter::isMutatingAction($actName, $p1_root)) {
+            if (!\Atelier\Kernel\Actions\ActionRouter::isMutatingAction($actName, $p1_root)) {
                 $all_lot2_csrf = false;
             }
         }
@@ -2184,10 +2184,10 @@ HTACCESS;
         );
 
         // 2. Standard non-admin user (Bob) must receive HTTP 403 on EVERY external app action
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
         $bob_denied_all = true;
         foreach (array_merge(['list_external_apps'], $lot2_mutating) as $actName) {
-            $r = \SimpleGallery\Kernel\Actions\SystemActions::handle($actName, [], [
+            $r = \Atelier\Kernel\Actions\SystemActions::handle($actName, [], [
                 'base_dir' => $p1_root,
                 'project_root' => $p1_root,
                 'raw_body' => ['app_id' => 'demoapp', 'url' => 'https://example.com/a.zip']
@@ -2201,7 +2201,7 @@ HTACCESS;
         );
 
         // 3. Per-user default_apps preferences persist cleanly and reject invalid keys
-        $def_save = \SimpleGallery\Kernel\Actions\UserActions::handle('save_user_preferences', [], [
+        $def_save = \Atelier\Kernel\Actions\UserActions::handle('save_user_preferences', [], [
             'base_dir' => $p1_root,
             'project_root' => $p1_root,
             'raw_body' => [
@@ -2215,7 +2215,7 @@ HTACCESS;
                 ]
             ]
         ]);
-        $bob_prefs_after = \SimpleGallery\Kernel\Auth\UserManager::getUserPreferences($p1_root, (int)$desk_b['user']['id']);
+        $bob_prefs_after = \Atelier\Kernel\Auth\UserManager::getUserPreferences($p1_root, (int)$desk_b['user']['id']);
         $this->assert("Lot 2: Préférences utilisateur default_apps sanitisées et persistées par compte",
             ($def_save['status'] ?? 0) === 200 &&
             ($bob_prefs_after['default_apps']['xls'] ?? '') === 'gridcraft' &&
@@ -2225,9 +2225,9 @@ HTACCESS;
         );
 
         // 4. Switch to Admin session & run ZIP security audit (Zip-Slip + PHP shell) & SSRF URL blocking
-        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        \Atelier\Kernel\Auth\AuthManager::logoutSession();
         $_SESSION['is_admin'] = true;
-        $_SESSION['sg_admin_logged'] = true;
+        $_SESSION['atelier_admin_logged'] = true;
 
         if (class_exists('ZipArchive')) {
             $slip_zip = $p1_root . '/slip_test.zip';
@@ -2235,7 +2235,7 @@ HTACCESS;
             $z1->open($slip_zip, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
             $z1->addFromString('../escape.html', '<h1>bad</h1>');
             $z1->close();
-            $res_slip = \SimpleGallery\Kernel\ExternalAppManager::installFromZipFile($p1_root, $slip_zip, 'slip.zip');
+            $res_slip = \Atelier\Kernel\ExternalAppManager::installFromZipFile($p1_root, $slip_zip, 'slip.zip');
 
             $php_zip = $p1_root . '/php_test.zip';
             $z2 = new \ZipArchive();
@@ -2243,9 +2243,9 @@ HTACCESS;
             $z2->addFromString('myapp/index.html', '<!doctype html><title>Bad</title>');
             $z2->addFromString('myapp/shell.php', '<?php system($_GET["c"]); ?>');
             $z2->close();
-            $res_php = \SimpleGallery\Kernel\ExternalAppManager::installFromZipFile($p1_root, $php_zip, 'badphp.zip');
+            $res_php = \Atelier\Kernel\ExternalAppManager::installFromZipFile($p1_root, $php_zip, 'badphp.zip');
 
-            $res_ssrf = \SimpleGallery\Kernel\ExternalAppManager::installFromUrl($p1_root, 'http://127.0.0.1/evil.zip');
+            $res_ssrf = \Atelier\Kernel\ExternalAppManager::installFromUrl($p1_root, 'http://127.0.0.1/evil.zip');
 
             $this->assert("Lot 2: Audit ZIP bloque Zip-Slip + exécutables .php et anti-SSRF bloque 127.0.0.1",
                 empty($res_slip['success']) &&
@@ -2265,9 +2265,9 @@ HTACCESS;
             $z3->addFromString('demo-studio-web-1.0.0/README.md', "# Demo Studio\nRepo: https://github.com/gallustech/demo-studio\nSupports `.csv` and `.tsv` files.\n");
             $z3->close();
 
-            $res_ok = \SimpleGallery\Kernel\ExternalAppManager::installFromZipFile($p1_root, $good_zip, 'demo-studio-web-1.0.0.zip');
+            $res_ok = \Atelier\Kernel\ExternalAppManager::installFromZipFile($p1_root, $good_zip, 'demo-studio-web-1.0.0.zip');
             $installed_id = (string)($res_ok['app']['id'] ?? '');
-            $ext_list_res = \SimpleGallery\Kernel\ExternalAppManager::listExternalApps($p1_root);
+            $ext_list_res = \Atelier\Kernel\ExternalAppManager::listExternalApps($p1_root);
             $found_app = null;
             foreach (($ext_list_res['apps'] ?? []) as $item) {
                 if (($item['id'] ?? '') === $installed_id) {
@@ -2292,31 +2292,31 @@ HTACCESS;
                     ]
                 ];
             };
-            $upd_check = \SimpleGallery\Kernel\ExternalAppManager::checkUpdates($p1_root, $installed_id, $mockFetcher);
-            $reg_after_check = \SimpleGallery\Kernel\ExternalAppManager::loadRegistry($p1_root);
+            $upd_check = \Atelier\Kernel\ExternalAppManager::checkUpdates($p1_root, $installed_id, $mockFetcher);
+            $reg_after_check = \Atelier\Kernel\ExternalAppManager::loadRegistry($p1_root);
             $pending = $reg_after_check[$installed_id]['pending_update'] ?? null;
 
             // Dismiss pending update
-            $upd_dismiss = \SimpleGallery\Kernel\ExternalAppManager::dismissUpdate($p1_root, $installed_id);
-            $reg_after_dismiss = \SimpleGallery\Kernel\ExternalAppManager::loadRegistry($p1_root);
+            $upd_dismiss = \Atelier\Kernel\ExternalAppManager::dismissUpdate($p1_root, $installed_id);
+            $reg_after_dismiss = \Atelier\Kernel\ExternalAppManager::loadRegistry($p1_root);
 
             // Save override into config/external_apps.json
-            $ov_res = \SimpleGallery\Kernel\ExternalAppManager::saveOverride($p1_root, $installed_id, [
+            $ov_res = \Atelier\Kernel\ExternalAppManager::saveOverride($p1_root, $installed_id, [
                 'icon' => '🧪',
                 'category' => 'productivity',
                 'extensions' => ['csv', 'tsv', 'xls'],
                 'github_repo' => 'gallustech/demo-studio',
                 'vfsBridge' => true
             ]);
-            $ov_loaded = \SimpleGallery\Kernel\ExternalAppManager::loadOverrides($p1_root);
+            $ov_loaded = \Atelier\Kernel\ExternalAppManager::loadOverrides($p1_root);
 
             // Create fake native app (with manifest.json) -> uninstallApp must refuse to remove it
             @mkdir($p1_root . '/apps/native-guard', 0755, true);
             file_put_contents($p1_root . '/apps/native-guard/manifest.json', json_encode(['id' => 'native-guard', 'name' => 'Native Guard']));
-            $refuse_native = \SimpleGallery\Kernel\ExternalAppManager::uninstallApp($p1_root, 'native-guard');
+            $refuse_native = \Atelier\Kernel\ExternalAppManager::uninstallApp($p1_root, 'native-guard');
 
             // Uninstall external app cleanly
-            $uninst_ok = \SimpleGallery\Kernel\ExternalAppManager::uninstallApp($p1_root, $installed_id);
+            $uninst_ok = \Atelier\Kernel\ExternalAppManager::uninstallApp($p1_root, $installed_id);
             $dir_gone = !is_dir($p1_root . '/apps/external/' . ($res_ok['app']['folder'] ?? '__none__'));
 
             // 6. Trunk / GitHub Pages bundle with hardcoded root-absolute `--public-url /my-reader/`
@@ -2327,8 +2327,8 @@ HTACCESS;
             file_put_contents($gh_dir . '/app.js', 'export default function() {}');
             file_put_contents($gh_dir . '/app_bg.wasm', "\x00asm\x01\x00\x00\x00");
             file_put_contents($gh_dir . '/logo-123.svg', '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
-            $gh_manifest = \SimpleGallery\Kernel\StandaloneWebAppManifestSynthesizer::synthesize($gh_dir, 'external/my-reader', $p1_root);
-            $gh_rewritten = \SimpleGallery\Kernel\StandaloneWebAppManifestSynthesizer::rewriteHtmlPublicBase(
+            $gh_manifest = \Atelier\Kernel\StandaloneWebAppManifestSynthesizer::synthesize($gh_dir, 'external/my-reader', $p1_root);
+            $gh_rewritten = \Atelier\Kernel\StandaloneWebAppManifestSynthesizer::rewriteHtmlPublicBase(
                 $gh_html,
                 (string)($gh_manifest['publicBase'] ?? ''),
                 '/apps/external/my-reader/'
@@ -2379,7 +2379,7 @@ HTACCESS;
         ];
         $all_pc_csrf = true;
         foreach ($phase_c_mutating as $actName) {
-            if (!\SimpleGallery\Kernel\Actions\ActionRouter::isMutatingAction($actName, $p1_root)) {
+            if (!\Atelier\Kernel\Actions\ActionRouter::isMutatingAction($actName, $p1_root)) {
                 $all_pc_csrf = false;
             }
         }
@@ -2389,53 +2389,53 @@ HTACCESS;
 
         // App Passwords + WebDAV Server RFC 4918 + ACL/Quota/Dotfile/Extension enforcement
         $alice_id = (int)$desk_a['user']['id'];
-        $ap_rw = \SimpleGallery\Kernel\Auth\AppPasswordManager::createForUser($p1_root, $alice_id, 'Finder Mac', 'write');
-        $ap_ro = \SimpleGallery\Kernel\Auth\AppPasswordManager::createForUser($p1_root, $alice_id, 'Mobile RO', 'read');
+        $ap_rw = \Atelier\Kernel\Auth\AppPasswordManager::createForUser($p1_root, $alice_id, 'Finder Mac', 'write');
+        $ap_ro = \Atelier\Kernel\Auth\AppPasswordManager::createForUser($p1_root, $alice_id, 'Mobile RO', 'read');
         $rw_secret = (string)($ap_rw['app_password']['secret'] ?? '');
         $ro_secret = (string)($ap_ro['app_password']['secret'] ?? '');
-        $ap_list = \SimpleGallery\Kernel\Auth\AppPasswordManager::listForUser($p1_root, $alice_id);
+        $ap_list = \Atelier\Kernel\Auth\AppPasswordManager::listForUser($p1_root, $alice_id);
         $no_secret_leak = count($ap_list) >= 2 && !isset($ap_list[0]['secret']) && !isset($ap_list[0]['secret_hash']);
 
-        $dav_unauth = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+        $dav_unauth = \Atelier\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
             'method' => 'PROPFIND', 'dav_path' => ''
         ]);
-        $dav_opts = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+        $dav_opts = \Atelier\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
             'method' => 'OPTIONS', 'dav_path' => '', 'auth_user' => 'desk_alice', 'auth_pass' => $rw_secret
         ]);
-        $dav_root = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+        $dav_root = \Atelier\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
             'method' => 'PROPFIND', 'dav_path' => '', 'depth' => '1', 'auth_user' => 'desk_alice', 'auth_pass' => $rw_secret
         ]);
-        $dav_mkcol = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+        $dav_mkcol = \Atelier\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
             'method' => 'MKCOL', 'dav_path' => 'home/dav_docs', 'auth_user' => 'desk_alice', 'auth_pass' => $rw_secret
         ]);
-        $dav_put = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+        $dav_put = \Atelier\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
             'method' => 'PUT', 'dav_path' => 'home/dav_docs/hello.txt', 'body' => 'Hello WebDAV!', 'auth_user' => 'desk_alice', 'auth_pass' => $rw_secret
         ]);
-        $dav_get = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+        $dav_get = \Atelier\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
             'method' => 'GET', 'dav_path' => 'home/dav_docs/hello.txt', 'auth_user' => 'desk_alice', 'auth_pass' => $rw_secret
         ]);
         $dav_get_content = (!empty($dav_get['file_path']) && is_file((string)$dav_get['file_path']))
             ? (string)@file_get_contents((string)$dav_get['file_path'])
             : '';
-        $dav_php_block = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+        $dav_php_block = \Atelier\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
             'method' => 'PUT', 'dav_path' => 'home/dav_docs/shell.php', 'body' => '<?php phpinfo();', 'auth_user' => 'desk_alice', 'auth_pass' => $rw_secret
         ]);
-        $dav_dot_block = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+        $dav_dot_block = \Atelier\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
             'method' => 'PUT', 'dav_path' => 'home/.htaccess', 'body' => 'Allow from all', 'auth_user' => 'desk_alice', 'auth_pass' => $rw_secret
         ]);
-        $dav_ro_put = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+        $dav_ro_put = \Atelier\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
             'method' => 'PUT', 'dav_path' => 'home/dav_docs/ro.txt', 'body' => 'nope', 'auth_user' => 'desk_alice', 'auth_pass' => $ro_secret
         ]);
-        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 256]);
-        $dav_quota_507 = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+        \Atelier\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 256]);
+        $dav_quota_507 = \Atelier\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
             'method' => 'PUT', 'dav_path' => 'home/dav_docs/huge.txt', 'body' => str_repeat('X', 2048), 'auth_user' => 'desk_alice', 'auth_pass' => $rw_secret
         ]);
-        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 0]);
-        $dav_del = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+        \Atelier\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 0]);
+        $dav_del = \Atelier\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
             'method' => 'DELETE', 'dav_path' => 'home/dav_docs/hello.txt', 'auth_user' => 'desk_alice', 'auth_pass' => $rw_secret
         ]);
-        \SimpleGallery\Kernel\Auth\AppPasswordManager::revoke($p1_root, (int)$ap_rw['app_password']['id'], $alice_id, false);
-        $dav_after_revoke = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+        \Atelier\Kernel\Auth\AppPasswordManager::revoke($p1_root, (int)$ap_rw['app_password']['id'], $alice_id, false);
+        $dav_after_revoke = \Atelier\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
             'method' => 'PROPFIND', 'dav_path' => 'home', 'auth_user' => 'desk_alice', 'auth_pass' => $rw_secret
         ]);
 
@@ -2457,26 +2457,26 @@ HTACCESS;
         );
 
         // Async Job Queue + Instance Backups (non-admin denied on system jobs/backups; admin enqueues & runs)
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
-        $bob_backup_403 = \SimpleGallery\Kernel\Actions\StorageActions::handle('create_instance_backup', [], ['base_dir' => $p1_root, 'project_root' => $p1_root]);
-        $bob_sysjob_403 = \SimpleGallery\Kernel\Actions\StorageActions::handle('enqueue_job', [], ['base_dir' => $p1_root, 'project_root' => $p1_root, 'raw_body' => ['job_type' => 'instance_backup']]);
-        $bob_runjob_403 = \SimpleGallery\Kernel\Actions\StorageActions::handle('run_next_job', [], ['base_dir' => $p1_root, 'project_root' => $p1_root]);
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
+        $bob_backup_403 = \Atelier\Kernel\Actions\StorageActions::handle('create_instance_backup', [], ['base_dir' => $p1_root, 'project_root' => $p1_root]);
+        $bob_sysjob_403 = \Atelier\Kernel\Actions\StorageActions::handle('enqueue_job', [], ['base_dir' => $p1_root, 'project_root' => $p1_root, 'raw_body' => ['job_type' => 'instance_backup']]);
+        $bob_runjob_403 = \Atelier\Kernel\Actions\StorageActions::handle('run_next_job', [], ['base_dir' => $p1_root, 'project_root' => $p1_root]);
 
-        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
+        \Atelier\Kernel\Auth\AuthManager::logoutSession();
         $_SESSION['is_admin'] = true;
-        $_SESSION['sg_admin_logged'] = true;
-        $enq_idx = \SimpleGallery\Kernel\Actions\StorageActions::handle('enqueue_job', [], [
+        $_SESSION['atelier_admin_logged'] = true;
+        $enq_idx = \Atelier\Kernel\Actions\StorageActions::handle('enqueue_job', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root, 'raw_body' => ['job_type' => 'rebuild_file_index']
         ]);
-        $enq_bkp = \SimpleGallery\Kernel\Actions\StorageActions::handle('enqueue_job', [], [
+        $enq_bkp = \Atelier\Kernel\Actions\StorageActions::handle('enqueue_job', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root, 'raw_body' => ['job_type' => 'instance_backup', 'include_media' => false]
         ]);
-        $ran1 = \SimpleGallery\Kernel\Actions\StorageActions::handle('run_next_job', [], ['base_dir' => $p1_root, 'project_root' => $p1_root, 'media_types' => $mtypes]);
-        $ran2 = \SimpleGallery\Kernel\Actions\StorageActions::handle('run_next_job', [], ['base_dir' => $p1_root, 'project_root' => $p1_root, 'media_types' => $mtypes]);
-        $bkp_list = \SimpleGallery\Kernel\Backup\InstanceBackupService::listBackups($p1_root);
+        $ran1 = \Atelier\Kernel\Actions\StorageActions::handle('run_next_job', [], ['base_dir' => $p1_root, 'project_root' => $p1_root, 'media_types' => $mtypes]);
+        $ran2 = \Atelier\Kernel\Actions\StorageActions::handle('run_next_job', [], ['base_dir' => $p1_root, 'project_root' => $p1_root, 'media_types' => $mtypes]);
+        $bkp_list = \Atelier\Kernel\Backup\InstanceBackupService::listBackups($p1_root);
         $bkp_ht = @file_get_contents($p1_root . '/storage/backups/.htaccess') ?: '';
         $bkp_del = !empty($bkp_list[0]['filename'])
-            ? \SimpleGallery\Kernel\Backup\InstanceBackupService::deleteBackup($p1_root, (string)$bkp_list[0]['filename'])
+            ? \Atelier\Kernel\Backup\InstanceBackupService::deleteBackup($p1_root, (string)$bkp_list[0]['filename'])
             : ['success' => false];
 
         $this->assert("Phase C: File de jobs asynchrones + Sauvegardes d'instance (403 non-admin, exécution SQLite/ZIP & .htaccess Deny)",
@@ -2496,16 +2496,16 @@ HTACCESS;
         $setup_root = $this->temp_test_dir . '/phase_c_fresh_setup';
         @mkdir($setup_root . '/storage/media', 0755, true);
         @mkdir($setup_root . '/config', 0755, true);
-        $setup_needed_before = \SimpleGallery\Kernel\Setup\SetupWizard::isSetupRequired($setup_root);
-        $setup_diag = \SimpleGallery\Kernel\Setup\SetupWizard::getEnvironmentDiagnostics($setup_root);
-        $setup_ok = \SimpleGallery\Kernel\Setup\SetupWizard::completeSetup($setup_root, $setup_root . '/storage/media', [
+        $setup_needed_before = \Atelier\Kernel\Setup\SetupWizard::isSetupRequired($setup_root);
+        $setup_diag = \Atelier\Kernel\Setup\SetupWizard::getEnvironmentDiagnostics($setup_root);
+        $setup_ok = \Atelier\Kernel\Setup\SetupWizard::completeSetup($setup_root, $setup_root . '/storage/media', [
             'username' => 'founder',
             'display_name' => 'Studio Founder',
             'email' => 'founder@studio.fr',
             'password' => 'SuperSecureFounder2026!'
         ]);
-        $setup_needed_after = \SimpleGallery\Kernel\Setup\SetupWizard::isSetupRequired($setup_root);
-        $setup_locked_403 = \SimpleGallery\Kernel\Setup\SetupWizard::completeSetup($setup_root, $setup_root . '/storage/media', [
+        $setup_needed_after = \Atelier\Kernel\Setup\SetupWizard::isSetupRequired($setup_root);
+        $setup_locked_403 = \Atelier\Kernel\Setup\SetupWizard::completeSetup($setup_root, $setup_root . '/storage/media', [
             'username' => 'attacker',
             'password' => 'AttackerPass999!'
         ]);
@@ -2523,42 +2523,42 @@ HTACCESS;
         // =====================================================================
 
         // SEC-A01: FileActions move_item / copy_item / save_text_file forbidden ext, double-ext, self-copy & quota
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
         $alice_home_rel = 'users/desk_alice';
         $alice_home_abs = $p1_root . '/storage/users/desk_alice';
         @mkdir($alice_home_abs . '/sub_dir', 0755, true);
         @file_put_contents($alice_home_abs . '/note.txt', 'hello safe text');
-        $mv_php = \SimpleGallery\Kernel\Actions\FileActions::handle('move_item', [], [
+        $mv_php = \Atelier\Kernel\Actions\FileActions::handle('move_item', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root,
             'raw_body' => ['source' => $alice_home_rel . '/note.txt', 'target_dir' => $alice_home_rel, 'new_name' => 'pwn.php']
         ]);
-        $mv_dbl = \SimpleGallery\Kernel\Actions\FileActions::handle('move_item', [], [
+        $mv_dbl = \Atelier\Kernel\Actions\FileActions::handle('move_item', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root,
             'raw_body' => ['source' => $alice_home_rel . '/note.txt', 'target_dir' => $alice_home_rel, 'new_name' => 'pwn.php.jpg']
         ]);
-        $cp_php = \SimpleGallery\Kernel\Actions\FileActions::handle('copy_item', [], [
+        $cp_php = \Atelier\Kernel\Actions\FileActions::handle('copy_item', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root,
             'raw_body' => ['source' => $alice_home_rel . '/note.txt', 'target_dir' => $alice_home_rel, 'new_name' => 'shell.php']
         ]);
-        $cp_self = \SimpleGallery\Kernel\Actions\FileActions::handle('copy_item', [], [
+        $cp_self = \Atelier\Kernel\Actions\FileActions::handle('copy_item', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root,
             'raw_body' => ['source' => $alice_home_rel . '/sub_dir', 'target_dir' => $alice_home_rel . '/sub_dir']
         ]);
-        $sv_dbl = \SimpleGallery\Kernel\Actions\FileActions::handle('save_text_file', [], [
+        $sv_dbl = \Atelier\Kernel\Actions\FileActions::handle('save_text_file', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root,
             'raw_body' => ['file' => $alice_home_rel . '/bad.php.txt', 'content' => '<?php echo 1;']
         ]);
-        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 128]);
-        $sv_quota = \SimpleGallery\Kernel\Actions\FileActions::handle('save_text_file', [], [
+        \Atelier\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 128]);
+        $sv_quota = \Atelier\Kernel\Actions\FileActions::handle('save_text_file', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root,
             'raw_body' => ['file' => $alice_home_rel . '/big.txt', 'content' => str_repeat('Q', 512)]
         ]);
         @file_put_contents($alice_home_abs . '/medium.txt', str_repeat('M', 100));
-        $cp_quota = \SimpleGallery\Kernel\Actions\FileActions::handle('copy_item', [], [
+        $cp_quota = \Atelier\Kernel\Actions\FileActions::handle('copy_item', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root,
             'raw_body' => ['source' => $alice_home_rel . '/medium.txt', 'target_dir' => $alice_home_rel, 'new_name' => 'medium2.txt']
         ]);
-        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 0]);
+        \Atelier\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 0]);
 
         $this->assert("SEC-A01: FileActions bloque renommage/copie vers .php/double-ext (403), copie récursive dans soi-même (400) & contournement quota (413)",
             ($mv_php['status'] ?? 0) === 403 &&
@@ -2575,27 +2575,27 @@ HTACCESS;
         @file_put_contents($p1_root . '/pub_job_dir/public_ok.txt', 'public');
         @file_put_contents($p1_root . '/pub_job_dir/secret_sub/.private', "1\n");
         @file_put_contents($p1_root . '/pub_job_dir/secret_sub/hidden.txt', 'TOP_SECRET');
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
-        $bob_zip_alice = \SimpleGallery\Kernel\Actions\StorageActions::handle('enqueue_job', [], [
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
+        $bob_zip_alice = \Atelier\Kernel\Actions\StorageActions::handle('enqueue_job', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root,
             'raw_body' => ['job_type' => 'build_zip_archive', 'dir' => 'users/desk_alice']
         ]);
-        $bob_zip_root = \SimpleGallery\Kernel\Actions\StorageActions::handle('enqueue_job', [], [
+        $bob_zip_root = \Atelier\Kernel\Actions\StorageActions::handle('enqueue_job', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root,
             'raw_body' => ['job_type' => 'build_zip_archive', 'dir' => '']
         ]);
-        $bob_zip_priv = \SimpleGallery\Kernel\Actions\StorageActions::handle('enqueue_job', [], [
+        $bob_zip_priv = \Atelier\Kernel\Actions\StorageActions::handle('enqueue_job', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root,
             'raw_body' => ['job_type' => 'build_zip_archive', 'dir' => 'pub_job_dir/secret_sub']
         ]);
-        $bob_zip_pub = \SimpleGallery\Kernel\Actions\StorageActions::handle('enqueue_job', [], [
+        $bob_zip_pub = \Atelier\Kernel\Actions\StorageActions::handle('enqueue_job', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root,
             'raw_body' => ['job_type' => 'build_zip_archive', 'dir' => 'pub_job_dir']
         ]);
-        $bob_jobs_list = \SimpleGallery\Kernel\Actions\StorageActions::handle('list_jobs', [], [
+        $bob_jobs_list = \Atelier\Kernel\Actions\StorageActions::handle('list_jobs', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root
         ]);
-        $bob_ran = \SimpleGallery\Kernel\Jobs\JobQueueManager::runNextJob($p1_root, $p1_root, $mtypes);
+        $bob_ran = \Atelier\Kernel\Jobs\JobQueueManager::runNextJob($p1_root, $p1_root, $mtypes);
         $zip_has_secret = false;
         if (!empty($bob_ran['result']['rel_path'])) {
             $zabs = $p1_root . '/' . ltrim((string)$bob_ran['result']['rel_path'], '/');
@@ -2623,31 +2623,31 @@ HTACCESS;
         );
 
         // SEC-A03: WebDAV /dav/public/users/ blocked (403), COPY quota (507), self-copy (409), SVG sanitize & CSP sandbox
-        $ap_a2 = \SimpleGallery\Kernel\Auth\AppPasswordManager::createForUser($p1_root, $alice_id, 'Audit DAV', 'write');
+        $ap_a2 = \Atelier\Kernel\Auth\AppPasswordManager::createForUser($p1_root, $alice_id, 'Audit DAV', 'write');
         $a2_sec = (string)($ap_a2['app_password']['secret'] ?? '');
-        $dav_pub_users = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+        $dav_pub_users = \Atelier\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
             'method' => 'PROPFIND', 'dav_path' => 'public/users/desk_bob', 'auth_user' => 'desk_alice', 'auth_pass' => $a2_sec
         ]);
-        $dav_svg_put = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+        $dav_svg_put = \Atelier\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
             'method' => 'PUT', 'dav_path' => 'home/audit_xss.svg',
             'body' => '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(2)</script><circle r="5"/></svg>',
             'auth_user' => 'desk_alice', 'auth_pass' => $a2_sec
         ]);
-        $dav_svg_get = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+        $dav_svg_get = \Atelier\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
             'method' => 'GET', 'dav_path' => 'home/audit_xss.svg', 'auth_user' => 'desk_alice', 'auth_pass' => $a2_sec
         ]);
         $dav_svg_disk = (!empty($dav_svg_get['file_path']) && is_file((string)$dav_svg_get['file_path']))
             ? (string)@file_get_contents((string)$dav_svg_get['file_path']) : '';
-        $dav_self_copy = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+        $dav_self_copy = \Atelier\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
             'method' => 'COPY', 'dav_path' => 'home/sub_dir', 'destination' => '/dav/home/sub_dir/nested',
             'auth_user' => 'desk_alice', 'auth_pass' => $a2_sec
         ]);
-        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 150]);
-        $dav_copy_507 = \SimpleGallery\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
+        \Atelier\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 150]);
+        $dav_copy_507 = \Atelier\Kernel\Dav\WebDavServer::handleRequest($p1_root, $p1_root, [
             'method' => 'COPY', 'dav_path' => 'home/medium.txt', 'destination' => '/dav/home/medium_copy.txt',
             'auth_user' => 'desk_alice', 'auth_pass' => $a2_sec
         ]);
-        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 0]);
+        \Atelier\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 0]);
 
         $this->assert("SEC-A03: WebDAV bloque /dav/public/users (403), COPY quota (507), auto-copie (409), sanitise SVG PUT & ajoute CSP sandbox sur GET",
             ($dav_pub_users['status'] ?? 0) === 403 &&
@@ -2660,32 +2660,32 @@ HTACCESS;
         );
 
         // SEC-A04: Trash restore enforces quota (413) & post-revocation ACL (403)
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
         @file_put_contents($alice_home_abs . '/trash_quota.txt', str_repeat('T', 300));
-        $tr_move = \SimpleGallery\Kernel\FS\TrashAndVersioningManager::moveToTrash($p1_root, $alice_home_abs . '/trash_quota.txt', $alice_home_rel . '/trash_quota.txt');
-        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 200]);
-        $tr_restore_413 = \SimpleGallery\Kernel\FS\TrashAndVersioningManager::restoreItem($p1_root, $p1_root, (string)($tr_move['item']['id'] ?? ''));
-        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 0]);
+        $tr_move = \Atelier\Kernel\FS\TrashAndVersioningManager::moveToTrash($p1_root, $alice_home_abs . '/trash_quota.txt', $alice_home_rel . '/trash_quota.txt');
+        \Atelier\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 200]);
+        $tr_restore_413 = \Atelier\Kernel\FS\TrashAndVersioningManager::restoreItem($p1_root, $p1_root, (string)($tr_move['item']['id'] ?? ''));
+        \Atelier\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 0]);
 
         // SEC-A05: ChunkedUploadManager blocks lying total_size in storeChunk (413) and sanitizes chunked SVG cleanly
-        $alice_cur_used = (int)(\SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo($p1_root, $p1_root, $desk_a['user'])['used_bytes'] ?? 0);
-        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => $alice_cur_used + 100]);
-        $ch_lie_init = \SimpleGallery\Kernel\FS\ChunkedUploadManager::initUpload($p1_root, $p1_root, $mtypes, [
+        $alice_cur_used = (int)(\Atelier\Kernel\Auth\UserManager::getUserQuotaInfo($p1_root, $p1_root, $desk_a['user'])['used_bytes'] ?? 0);
+        \Atelier\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => $alice_cur_used + 100]);
+        $ch_lie_init = \Atelier\Kernel\FS\ChunkedUploadManager::initUpload($p1_root, $p1_root, $mtypes, [
             'dir' => $alice_home_rel, 'filename' => 'lie.txt', 'total_size' => 1, 'total_chunks' => 1
         ]);
-        $ch_lie_413 = \SimpleGallery\Kernel\FS\ChunkedUploadManager::storeChunk(
+        $ch_lie_413 = \Atelier\Kernel\FS\ChunkedUploadManager::storeChunk(
             $p1_root, (string)($ch_lie_init['upload_id'] ?? ''), 0, null, str_repeat('Z', 400), $p1_root
         );
-        \SimpleGallery\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 0]);
+        \Atelier\Kernel\Auth\UserManager::updateUser($p1_root, $alice_id, ['quota_bytes' => 0]);
 
-        $ch_svg_init = \SimpleGallery\Kernel\FS\ChunkedUploadManager::initUpload($p1_root, $p1_root, $mtypes, [
+        $ch_svg_init = \Atelier\Kernel\FS\ChunkedUploadManager::initUpload($p1_root, $p1_root, $mtypes, [
             'dir' => $alice_home_rel, 'filename' => 'chunk_ok.svg', 'total_size' => 95, 'total_chunks' => 1
         ]);
-        \SimpleGallery\Kernel\FS\ChunkedUploadManager::storeChunk(
+        \Atelier\Kernel\FS\ChunkedUploadManager::storeChunk(
             $p1_root, (string)($ch_svg_init['upload_id'] ?? ''), 0, null,
             '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script><rect width="10" height="10"/></svg>', $p1_root
         );
-        $ch_svg_done = \SimpleGallery\Kernel\FS\ChunkedUploadManager::completeUpload($p1_root, $p1_root, $mtypes, (string)($ch_svg_init['upload_id'] ?? ''));
+        $ch_svg_done = \Atelier\Kernel\FS\ChunkedUploadManager::completeUpload($p1_root, $p1_root, $mtypes, (string)($ch_svg_init['upload_id'] ?? ''));
         $ch_svg_saved = is_file($alice_home_abs . '/chunk_ok.svg') ? (string)@file_get_contents($alice_home_abs . '/chunk_ok.svg') : '';
 
         $this->assert("SEC-A04/A05: Corbeille applique le quota à la restauration (413), ChunkedUpload bloque total_size falsifié (413) & sanitise SVG",
@@ -2702,22 +2702,22 @@ HTACCESS;
         $ht_blocked = false;
         if (class_exists('\ZipArchive')) {
             $_SESSION['is_admin'] = true;
-            $_SESSION['sg_admin_logged'] = true;
+            $_SESSION['atelier_admin_logged'] = true;
             $za2 = new \ZipArchive();
             if ($za2->open($ht_zip, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) === true) {
                 $za2->addFromString('app/index.html', '<html><body>hi</body></html>');
                 $za2->addFromString('app/.htaccess', 'ForceType application/x-httpd-php');
                 $za2->close();
-                $ht_res = \SimpleGallery\Kernel\ExternalAppManager::installFromZipFile($p1_root, $ht_zip, 'ht.zip');
+                $ht_res = \Atelier\Kernel\ExternalAppManager::installFromZipFile($p1_root, $ht_zip, 'ht.zip');
                 $ht_blocked = (($ht_res['status'] ?? 0) === 400);
             }
             @unlink($ht_zip);
         } else {
             $ht_blocked = true;
         }
-        $gd_norm_inj = \SimpleGallery\Kernel\Storage\GoogleDriveStorageDriver::normalizeFolderId("root' or '1'='1");
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
-        $raw_local_403 = \SimpleGallery\Kernel\Storage\ExternalMountManager::testRawConfig($p1_root, [
+        $gd_norm_inj = \Atelier\Kernel\Storage\GoogleDriveStorageDriver::normalizeFolderId("root' or '1'='1");
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
+        $raw_local_403 = \Atelier\Kernel\Storage\ExternalMountManager::testRawConfig($p1_root, [
             'driver' => 'local', 'config' => ['path' => '/etc']
         ]);
 
@@ -2745,21 +2745,21 @@ HTACCESS;
         $ai_mutating = ['ai_save_user_config', 'ai_save_admin_policy', 'ai_test_profile', 'ai_chat'];
         $all_ai_csrf = true;
         foreach ($ai_mutating as $am) {
-            if (!\SimpleGallery\Kernel\Actions\ActionRouter::isMutatingAction($am, $p1_root)) {
+            if (!\Atelier\Kernel\Actions\ActionRouter::isMutatingAction($am, $p1_root)) {
                 $all_ai_csrf = false;
             }
         }
-        \SimpleGallery\Kernel\Auth\AuthManager::logoutSession();
-        $ai_guest_403 = \SimpleGallery\Kernel\Actions\AiAgentActions::handle('ai_get_config', [], ['base_dir' => $p1_root, 'project_root' => $p1_root]);
+        \Atelier\Kernel\Auth\AuthManager::logoutSession();
+        $ai_guest_403 = \Atelier\Kernel\Actions\AiAgentActions::handle('ai_get_config', [], ['base_dir' => $p1_root, 'project_root' => $p1_root]);
 
         // Alice saves an encrypted LLM profile; verify AES-256-GCM at rest & zero plaintext leak
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
-        $ai_alice_adm_403 = \SimpleGallery\Kernel\Actions\AiAgentActions::handle('ai_save_admin_policy', [], [
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($desk_a['user'], $p1_root);
+        $ai_alice_adm_403 = \Atelier\Kernel\Actions\AiAgentActions::handle('ai_save_admin_policy', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root,
             'raw_body' => ['policy' => ['allow_private_lan' => true]]
         ]);
         $ai_secret = 'sk-super-secret-alice-token-987654';
-        $ai_alice_save = \SimpleGallery\Kernel\Actions\AiAgentActions::handle('ai_save_user_config', [], [
+        $ai_alice_save = \Atelier\Kernel\Actions\AiAgentActions::handle('ai_save_user_config', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root,
             'raw_body' => [
                 'config' => [
@@ -2773,28 +2773,28 @@ HTACCESS;
                 ]
             ]
         ]);
-        $ai_alice_get = \SimpleGallery\Kernel\Actions\AiAgentActions::handle('ai_get_config', [], ['base_dir' => $p1_root, 'project_root' => $p1_root]);
+        $ai_alice_get = \Atelier\Kernel\Actions\AiAgentActions::handle('ai_get_config', [], ['base_dir' => $p1_root, 'project_root' => $p1_root]);
         $ai_disk_raw = @file_get_contents($p1_root . '/storage/ai_profiles/u_' . $alice_id . '.enc.json') ?: '';
         $ai_ui_json = json_encode($ai_alice_get['data'] ?? []);
         $ai_ht = @file_get_contents($p1_root . '/storage/ai_profiles/.htaccess') ?: '';
 
         // Update profile label without sending api_key -> existing encrypted key must be preserved
-        \SimpleGallery\Kernel\Actions\AiAgentActions::handle('ai_save_user_config', [], [
+        \Atelier\Kernel\Actions\AiAgentActions::handle('ai_save_user_config', [], [
             'base_dir' => $p1_root, 'project_root' => $p1_root,
             'raw_body' => ['config' => ['profiles' => [['id' => 'p_alice_1', 'label' => 'Alice OpenAI v2']]]]
         ]);
-        $ai_resolved = \SimpleGallery\Kernel\AI\AiSettings::resolveProfileForExecution($p1_root, 'p_alice_1');
+        $ai_resolved = \Atelier\Kernel\AI\AiSettings::resolveProfileForExecution($p1_root, 'p_alice_1');
 
         // Cross-user isolation: Bob must see 0 profiles
-        \SimpleGallery\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
-        $ai_bob_get = \SimpleGallery\Kernel\Actions\AiAgentActions::handle('ai_get_config', [], ['base_dir' => $p1_root, 'project_root' => $p1_root]);
+        \Atelier\Kernel\Auth\AuthManager::loginUserSession($desk_b['user'], $p1_root);
+        $ai_bob_get = \Atelier\Kernel\Actions\AiAgentActions::handle('ai_get_config', [], ['base_dir' => $p1_root, 'project_root' => $p1_root]);
 
         // SSRF, cloud metadata, LAN opt-in & domain allowlist checks
-        $ssrf_lan_blocked = \SimpleGallery\Kernel\AI\LlmGateway::validateEndpointUrl('http://127.0.0.1:11434/api/tags', false, []) === null;
-        $ssrf_lan_allowed = \SimpleGallery\Kernel\AI\LlmGateway::validateEndpointUrl('http://127.0.0.1:11434/api/tags', true, []) !== null;
-        $ssrf_meta_blocked = \SimpleGallery\Kernel\AI\LlmGateway::validateEndpointUrl('http://169.254.169.254/latest/meta-data', true, []) === null;
-        $ssrf_file_blocked = \SimpleGallery\Kernel\AI\LlmGateway::validateEndpointUrl('file:///etc/passwd', true, []) === null;
-        $ssrf_dom_blocked = \SimpleGallery\Kernel\AI\LlmGateway::validateEndpointUrl('https://evil.example.org/v1/chat', true, ['api.openai.com']) === null;
+        $ssrf_lan_blocked = \Atelier\Kernel\AI\LlmGateway::validateEndpointUrl('http://127.0.0.1:11434/api/tags', false, []) === null;
+        $ssrf_lan_allowed = \Atelier\Kernel\AI\LlmGateway::validateEndpointUrl('http://127.0.0.1:11434/api/tags', true, []) !== null;
+        $ssrf_meta_blocked = \Atelier\Kernel\AI\LlmGateway::validateEndpointUrl('http://169.254.169.254/latest/meta-data', true, []) === null;
+        $ssrf_file_blocked = \Atelier\Kernel\AI\LlmGateway::validateEndpointUrl('file:///etc/passwd', true, []) === null;
+        $ssrf_dom_blocked = \Atelier\Kernel\AI\LlmGateway::validateEndpointUrl('https://evil.example.org/v1/chat', true, ['api.openai.com']) === null;
 
         // Multi-provider request/response normalization (OpenAI, Anthropic, Gemini, Ollama)
         $mockAnth = function ($m, $u, $h, $b) {
@@ -2806,7 +2806,7 @@ HTACCESS;
                 ]
             ]];
         };
-        $chat_anth = \SimpleGallery\Kernel\AI\LlmGateway::chat(
+        $chat_anth = \Atelier\Kernel\AI\LlmGateway::chat(
             ['type' => 'anthropic', 'base_url' => 'https://api.anthropic.com', 'api_key' => 'k', 'model' => 'claude-sonnet-4'],
             [['role' => 'system', 'content' => 'Be helpful'], ['role' => 'user', 'content' => 'Set A1']],
             [['name' => 'craft_execute', 'description' => 'Run Craft command', 'parameters' => ['type' => 'object']]],
@@ -2815,11 +2815,11 @@ HTACCESS;
             ['api.anthropic.com'],
             $mockAnth
         );
-        $parsed_gem = \SimpleGallery\Kernel\AI\LlmGateway::parseProviderResponse('gemini', [
+        $parsed_gem = \Atelier\Kernel\AI\LlmGateway::parseProviderResponse('gemini', [
             'modelVersion' => 'gemini-2.5-flash',
             'candidates' => [['content' => ['parts' => [['functionCall' => ['name' => 'vfs_list', 'args' => ['dir' => '']]]]]]]
         ], 'gemini-2.5-flash');
-        $disc_ollama = \SimpleGallery\Kernel\AI\LlmGateway::extractDiscoveredModels('ollama', [
+        $disc_ollama = \Atelier\Kernel\AI\LlmGateway::extractDiscoveredModels('ollama', [
             'models' => [['name' => 'llama3.2:latest'], ['name' => 'qwen2.5-coder:7b']]
         ]);
 
@@ -2837,11 +2837,11 @@ HTACCESS;
             ['role' => 'tool', 'tool_call_id' => 'c1', 'name' => 'os_list_windows', 'content' => '[UNTRUSTED_TOOL_OUTPUT]{"windows":[]}[/UNTRUSTED_TOOL_OUTPUT]'],
             ['role' => 'tool', 'tool_call_id' => 'c2', 'name' => 'vfs_list_dir', 'content' => '[UNTRUSTED_TOOL_OUTPUT]{"files":[]}[/UNTRUSTED_TOOL_OUTPUT]']
         ];
-        $gemReq = \SimpleGallery\Kernel\AI\LlmGateway::buildProviderRequest('gemini', 'https://generativelanguage.googleapis.com', 'k', 'gemini-2.5-flash', $multiTurnMsgs, $sampleTools);
+        $gemReq = \Atelier\Kernel\AI\LlmGateway::buildProviderRequest('gemini', 'https://generativelanguage.googleapis.com', 'k', 'gemini-2.5-flash', $multiTurnMsgs, $sampleTools);
         $gemJson = json_encode($gemReq['body'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        $oaReq = \SimpleGallery\Kernel\AI\LlmGateway::buildProviderRequest('openai_compat', 'https://api.openai.com/v1', 'k', 'gpt-4o-mini', $multiTurnMsgs, $sampleTools);
+        $oaReq = \Atelier\Kernel\AI\LlmGateway::buildProviderRequest('openai_compat', 'https://api.openai.com/v1', 'k', 'gpt-4o-mini', $multiTurnMsgs, $sampleTools);
         $oaJson = json_encode($oaReq['body'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        $anthReq = \SimpleGallery\Kernel\AI\LlmGateway::buildProviderRequest('anthropic', 'https://api.anthropic.com', 'k', 'claude-sonnet-4', $multiTurnMsgs, $sampleTools);
+        $anthReq = \Atelier\Kernel\AI\LlmGateway::buildProviderRequest('anthropic', 'https://api.anthropic.com', 'k', 'claude-sonnet-4', $multiTurnMsgs, $sampleTools);
         $anthJson = json_encode($anthReq['body'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $gemDecls = $gemReq['body']['tools'][0]['functionDeclarations'] ?? [];
         $gemToolTurnParts = $gemReq['body']['contents'][2]['parts'] ?? [];
@@ -2883,11 +2883,11 @@ HTACCESS;
         );
 
         $_SESSION = $saved_sess;
-        \SimpleGallery\Kernel\Security\RateLimiter::reset('register_' . $cli_ip);
-        \SimpleGallery\Kernel\Security\RateLimiter::reset('login_' . $cli_ip);
-        \SimpleGallery\Kernel\Security\RateLimiter::reset('2fa_' . $cli_ip);
-        \SimpleGallery\Kernel\Security\RateLimiter::reset('pwd_reset_' . md5('charlie@studio.fr|' . $cli_ip));
-        \SimpleGallery\Kernel\Data\AtelierStore::resetCache();
+        \Atelier\Kernel\Security\RateLimiter::reset('register_' . $cli_ip);
+        \Atelier\Kernel\Security\RateLimiter::reset('login_' . $cli_ip);
+        \Atelier\Kernel\Security\RateLimiter::reset('2fa_' . $cli_ip);
+        \Atelier\Kernel\Security\RateLimiter::reset('pwd_reset_' . md5('charlie@studio.fr|' . $cli_ip));
+        \Atelier\Kernel\Data\AtelierStore::resetCache();
     }
 }
 

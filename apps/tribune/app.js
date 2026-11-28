@@ -1,5 +1,5 @@
 /**
- * SimpleGallery WebOS - Tribune Libre / Bouchot Client (`apps/tribune`)
+ * Atelier WebOS - Tribune Libre / Bouchot Client (`apps/tribune`)
  * Multi-board support, Horloges tracking, Totoz engine, Trollometer, BAK archive & Identity Auth Manager
  */
 
@@ -143,7 +143,7 @@
       if (window.sys && window.sys.storage && typeof window.sys.storage.getUserScope === 'function') {
         return window.sys.storage.getUserScope();
       }
-      const u = window.SG_CURRENT_USER;
+      const u = window.ATELIER_CURRENT_USER;
       if (u && u.id) return `u_${u.id}`;
       if (u && u.username) return `u_${String(u.username).toLowerCase()}`;
       return window.IS_ADMIN ? 'admin' : 'guest';
@@ -194,8 +194,8 @@
       const saved = this.lsGet('user_login');
       if (saved && saved.trim() !== '') return saved.trim();
 
-      if (window.SG_CURRENT_USER) {
-        const uName = window.SG_CURRENT_USER.display_name || window.SG_CURRENT_USER.username || window.SG_CURRENT_USER.login;
+      if (window.ATELIER_CURRENT_USER) {
+        const uName = window.ATELIER_CURRENT_USER.display_name || window.ATELIER_CURRENT_USER.username || window.ATELIER_CURRENT_USER.login;
         if (uName && String(uName).trim() !== '') return String(uName).trim();
       }
 
@@ -2154,7 +2154,7 @@
 
     async postMessage(message, login, isRetry = false) {
       try {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || window.SG_CSRF_TOKEN || '';
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || window.ATELIER_CSRF_TOKEN || '';
         const boardConfig = this.boards[this.currentBoard] || {};
         const isLocal = (this.currentBoard === 'local' || boardConfig?.type === 'local' || boardConfig?.backend_type === 'local');
 

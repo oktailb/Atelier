@@ -1,4 +1,4 @@
-# SimpleGallery 2026 - Apache Web Server Security Rules
+# Atelier by GallusTech - Apache Web Server Security Rules
 
 # Disable Directory Browsing
 Options -Indexes

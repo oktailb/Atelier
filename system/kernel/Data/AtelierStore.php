@@ -5,9 +5,9 @@
  * and seamlessly falls back to atomic locked JSON tables (`storage/atelier_db/`) on minimal PHP hosts.
  */
 
-namespace SimpleGallery\Kernel\Data;
+namespace Atelier\Kernel\Data;
 
-use SimpleGallery\Kernel\Config\ConfigStore;
+use Atelier\Kernel\Config\ConfigStore;
 
 class AtelierStore {
 

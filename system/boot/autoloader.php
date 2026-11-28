@@ -1,11 +1,11 @@
 <?php
 /**
- * SimpleGallery 2026 - System Kernel Autoloader
+ * Atelier by GallusTech - System Kernel Autoloader
  */
 
 spl_autoload_register(function ($class) {
-    // Map SimpleGallery\Kernel\* or SimpleGallery\* to system/kernel/
-    $prefix = 'SimpleGallery\\Kernel\\';
+    // Map Atelier\Kernel\* or Atelier\* to system/kernel/
+    $prefix = 'Atelier\\Kernel\\';
     $base_dir = dirname(__DIR__) . '/kernel/';
 
     $len = strlen($prefix);

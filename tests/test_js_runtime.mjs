@@ -1,5 +1,5 @@
 /**
- * SimpleGallery - Automated JavaScript Runtime & Iso-Functionality Verification Suite
+ * Atelier - Automated JavaScript Runtime & Iso-Functionality Verification Suite
  * Executes in Node.js (v22+) to test DOM templates, scripts, i18n completeness, and method conformance.
  */
 import fs from 'fs';
@@ -588,8 +588,13 @@ assert("QUAL-02: Zéro appel fetch() brut dans apps/ (passage par SyscallClient)
 
 const galleryCssSrc = fs.readFileSync(path.join(rootDir, 'css', 'gallery.css'), 'utf8');
 const qualIndexPhpSrc = fs.readFileSync(path.join(rootDir, 'index.php'), 'utf8');
-assert("QUAL-03: Aucun @import Google Fonts dupliqué dans css/gallery.css", !galleryCssSrc.includes('fonts.googleapis.com'));
-assert("QUAL-03: index.php applique SRI integrity sur leaflet.markercluster", qualIndexPhpSrc.includes('leaflet.markercluster.js" integrity="sha384-'));
+assert("QUAL-03: Aucun @import Google Fonts dans css/gallery.css ni index.php", !galleryCssSrc.includes('fonts.googleapis.com') && !qualIndexPhpSrc.includes('fonts.googleapis.com'));
+assert("QUAL-03: index.php charge Leaflet & MarkerCluster en local (zéro CDN unpkg) avec SRI integrity",
+  !qualIndexPhpSrc.includes('unpkg.com') &&
+  qualIndexPhpSrc.includes('assets/vendor/leaflet/leaflet.js') &&
+  qualIndexPhpSrc.includes('leaflet.markercluster.js" integrity="sha384-') &&
+  fs.existsSync(path.join(rootDir, 'assets', 'vendor', 'leaflet', 'leaflet.js')) &&
+  fs.existsSync(path.join(rootDir, 'assets', 'vendor', 'leaflet', 'LICENSE-LEAFLET')));
 assert("QUAL-04: Modèle storage/tribune_messages.example.json présent", fs.existsSync(path.join(rootDir, 'storage', 'tribune_messages.example.json')));
 assert("QUAL-05: Contrôleurs backend Tribune extraits (Upload, Scheduler, Proxy)",
   fs.existsSync(path.join(rootDir, 'apps', 'tribune', 'backend', 'TribuneUploadController.php')) &&
@@ -690,8 +695,8 @@ try {
     innerHeight: 900,
     document: fakeDom,
     localStorage: { getItem: () => null, setItem: () => { } },
-    SG_DISABLED_APPS: [],
-    SG_DISCOVERED_APPS: {
+    ATELIER_DISABLED_APPS: [],
+    ATELIER_DISCOVERED_APPS: {
       'image-viewer': {
         id: 'image-viewer',
         name: 'Image Viewer',
@@ -804,7 +809,7 @@ try {
   const querySrc = hostInst.getEffectiveSrc({ name: 'doc.pdf', path: 'docs/doc.pdf', file_url: 'system/endpoints/thumb.php?file=docs%2Fdoc.pdf&raw=1' });
   assert("WebAppHost.getEffectiveSrc injecte ?file=... quand openFileParam est déclaré", querySrc.includes('?file=') && querySrc.includes('doc.pdf'));
   hostInst.hostBridge = { mode: 'parent', prefix: 'gridcraft', supportsAuthor: true, supportsChrome: true, supportsBlank: true };
-  sandboxWin.SG_CURRENT_USER = { username: 'alice', display_name: 'Alice' };
+  sandboxWin.ATELIER_CURRENT_USER = { username: 'alice', display_name: 'Alice' };
   const hostBridgeSrc = hostInst.getEffectiveSrc({ name: 'budget.xlsx', path: 'ext://1/budget.xlsx', file_url: 'system/endpoints/thumb.php?file=ext%3A%2F%2F1%2Fbudget.xlsx&raw=1' });
   assert("Lot 1 WebAppHost: ?host=parent injecte host=parent, chrome=notitlebar, blank et author=<user>",
     hostBridgeSrc.includes('host=parent') &&
@@ -950,7 +955,7 @@ try {
   // Test FilePickerService accept matcher
   const pickerWin = {
     sys: {},
-    SG_MIME_MAP: {
+    ATELIER_MIME_MAP: {
       'application/x-wordcraft': ['wcraft'],
       'application/vnd.oasis.opendocument.text': ['odt']
     },
@@ -963,7 +968,7 @@ try {
     typeof pickerWin.sys.pickFolder === 'function' &&
     typeof pickerWin.sys.pickSaveLocation === 'function'
   );
-  assert("FEAT-06: FilePickerService.matchesAccept gère extensions, wildcards et MIME dynamiques SG_MIME_MAP",
+  assert("FEAT-06: FilePickerService.matchesAccept gère extensions, wildcards et MIME dynamiques ATELIER_MIME_MAP",
     fp.matchesAccept({ name: 'art.psd', extension: 'psd', category: 'image' }, '.psd,.png') &&
     fp.matchesAccept({ name: 'doc.pdf', extension: 'pdf', category: 'doc' }, 'application/pdf') &&
     fp.matchesAccept({ name: 'note.odt', extension: 'odt', category: 'doc' }, 'application/vnd.oasis.opendocument.text') &&
@@ -1112,7 +1117,8 @@ try {
 try {
   const guideSrc = fs.readFileSync(path.join(rootDir, 'docs', 'apps-guide.md'), 'utf8');
   const tmplJs = fs.readFileSync(path.join(appsDir, 'template-app', 'app.js'), 'utf8');
-  const tmplApi = fs.readFileSync(path.join(appsDir, 'template-app', 'api.php'), 'utf8');
+  const tmplBackend = fs.readFileSync(path.join(appsDir, 'template-app', 'backend', 'TemplateAppActions.php'), 'utf8');
+  const tmplManifest = JSON.parse(fs.readFileSync(path.join(appsDir, 'template-app', 'manifest.json'), 'utf8'));
   const tFr = Object.keys(JSON.parse(fs.readFileSync(path.join(appsDir, 'template-app', 'locales', 'fr.json'), 'utf8')));
   const tEn = Object.keys(JSON.parse(fs.readFileSync(path.join(appsDir, 'template-app', 'locales', 'en.json'), 'utf8')));
   const tJa = Object.keys(JSON.parse(fs.readFileSync(path.join(appsDir, 'template-app', 'locales', 'ja.json'), 'utf8')));
@@ -1125,8 +1131,10 @@ try {
     tmplJs.includes('registerAppMenu(') && !tmplJs.includes('registerAppMenus(') &&
     tmplJs.includes("this.subscribe('theme:changed'") && tmplJs.includes("this.subscribe('locale:changed'")
   );
-  assert("FEAT-09: apps/template-app/api.php utilise project_root (ARCH-01) et protège les écritures par is_admin",
-    tmplApi.includes("project_root") && tmplApi.includes("is_admin")
+  assert("FEAT-09: apps/template-app/backend/TemplateAppActions.php utilise project_root (ARCH-01), manifest.backend et protège les écritures par is_admin",
+    tmplBackend.includes("project_root") && tmplBackend.includes("is_admin") &&
+    tmplManifest.backend && Array.isArray(tmplManifest.backend.actions) &&
+    tmplManifest.backend.mutating_actions && tmplManifest.backend.mutating_actions.includes('template_save_note')
   );
   assert("FEAT-09: apps/template-app/locales/{fr,en,ja}.json en parité stricte",
     tFr.length === tEn.length && tEn.length === tJa.length && tFr.length >= 50
@@ -1145,11 +1153,11 @@ try {
   assert("Phase 1: ShareVolumesService.js et apps/settings/users-panel.js présents",
     fs.existsSync(shareSvcPath) && fs.existsSync(usersPanelPath)
   );
-  assert("Phase 1: index.php charge ShareVolumesService.js et injecte SG_CURRENT_USER / SG_MOUNTED_VOLUMES",
+  assert("Phase 1: index.php charge ShareVolumesService.js et injecte ATELIER_CURRENT_USER / ATELIER_MOUNTED_VOLUMES",
     indexPhpSrc.includes('system/userland/services/ShareVolumesService.js') &&
     indexPhpSrc.includes('system/userland/services/AuthModalService.js') &&
-    indexPhpSrc.includes('window.SG_CURRENT_USER') &&
-    indexPhpSrc.includes('window.SG_MOUNTED_VOLUMES')
+    indexPhpSrc.includes('window.ATELIER_CURRENT_USER') &&
+    indexPhpSrc.includes('window.ATELIER_MOUNTED_VOLUMES')
   );
 
   // Verify dedicated AuthModalService renders centered frosted login & account overlay
@@ -1173,7 +1181,7 @@ try {
   const authOverlayHost = { appendChild: (el) => { el.parentNode = authOverlayHost; } };
   const authWin = {
     IS_ADMIN: false,
-    SG_CURRENT_USER: null,
+    ATELIER_CURRENT_USER: null,
     localStorage: { getItem: () => null, setItem: () => { }, removeItem: () => { } },
     requestAnimationFrame: (fn) => fn(),
     sys: { i18n: { t: (k, p) => p ? Object.entries(p).reduce((s, [a, b]) => s + ':' + b, k) : k } }
@@ -1200,7 +1208,7 @@ try {
   );
 
   // Phase A.2: Enable registration policy -> Register tab, 2FA setup (local SVG QR), recovery codes & forgot password
-  authWin.SG_AUTH_POLICY = {
+  authWin.ATELIER_AUTH_POLICY = {
     registration_mode: 'open',
     registration_enabled: true,
     invite_required: false,
@@ -1234,17 +1242,17 @@ try {
   );
   authWin.sys.authModal.close(true);
 
-  // Verify I18nEngine hydrates synchronously from window.SG_I18N_CONFIG at boot (fixes early modal/toast i18n race)
+  // Verify I18nEngine hydrates synchronously from window.ATELIER_I18N_CONFIG at boot (fixes early modal/toast i18n race)
   const i18nEngineCode = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'i18n', 'I18nEngine.js'), 'utf8');
   const bootI18nWin = {
-    SG_I18N_CONFIG: {
+    ATELIER_I18N_CONFIG: {
       default: 'fr',
       locales: { fr: { code: 'fr', name: 'Français' } },
       translations: { 'auth_modal.verify_email_title': "Vérification de l'adresse e-mail" }
     }
   };
   new Function('window', 'document', i18nEngineCode)(bootI18nWin, { getElementById: () => null });
-  assert("I18nEngine hydrate immédiatement depuis window.SG_I18N_CONFIG avant le boot de desktop.js",
+  assert("I18nEngine hydrate immédiatement depuis window.ATELIER_I18N_CONFIG avant le boot de desktop.js",
     bootI18nWin.I18nEngine.t('auth_modal.verify_email_title') === "Vérification de l'adresse e-mail"
   );
 
@@ -1252,9 +1260,9 @@ try {
   const shareCode = fs.readFileSync(shareSvcPath, 'utf8');
   const mockVolWin = {
     IS_ADMIN: false,
-    SG_CURRENT_USER: { id: 2, username: 'bob', display_name: 'Bob', role: 'user', home_dir: 'users/bob' },
-    SG_USER_QUOTA: { used_bytes: 52428800, quota_bytes: 104857600, percent: 50, is_limited: true },
-    SG_MOUNTED_VOLUMES: [
+    ATELIER_CURRENT_USER: { id: 2, username: 'bob', display_name: 'Bob', role: 'user', home_dir: 'users/bob' },
+    ATELIER_USER_QUOTA: { used_bytes: 52428800, quota_bytes: 104857600, percent: 50, is_limited: true },
+    ATELIER_MOUNTED_VOLUMES: [
       { id: 'home_2', kind: 'home', path: 'users/bob', mount_name: 'Bob', mount_icon: '🏠', permission: 'manage', show_on_desktop: true, is_encrypted: false },
       { id: 'share_9', kind: 'shared', path: 'users/alice/studio', mount_name: 'Studio Drive', mount_icon: '💽', permission: 'write', owner_username: 'alice', show_on_desktop: true, is_encrypted: true },
       { id: 'share_10', kind: 'shared', path: 'users/alice/hidden_desk', mount_name: 'NoDesk', mount_icon: '📁', permission: 'read', owner_username: 'alice', show_on_desktop: false, is_encrypted: false }
@@ -1302,8 +1310,8 @@ try {
   // Verify DesktopShortcutsManager mounts volumes as desktop disk icons
   const shortcutsCode = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'desktop', 'DesktopShortcuts.js'), 'utf8');
   const scWin = {
-    SG_MOUNTED_VOLUMES: mockVolWin.SG_MOUNTED_VOLUMES,
-    SG_DESKTOP_CONFIG: { shortcuts: [] },
+    ATELIER_MOUNTED_VOLUMES: mockVolWin.ATELIER_MOUNTED_VOLUMES,
+    ATELIER_DESKTOP_CONFIG: { shortcuts: [] },
     localStorage: { getItem: () => null, setItem: () => { } },
     EventBus: { on: () => { } }
   };
@@ -1323,7 +1331,7 @@ try {
   );
 
   // Authenticated multi-user CAN edit their own personal desktop shortcuts
-  scWin.SG_CURRENT_USER = { id: 2, username: 'bob', role: 'user' };
+  scWin.ATELIER_CURRENT_USER = { id: 2, username: 'bob', role: 'user' };
   assert("Multi-User Desktop: Un utilisateur connecté peut personnaliser son propre bureau",
     scMgr.canEditShortcuts() === true
   );
@@ -1332,7 +1340,7 @@ try {
   const servicesCode = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'services', 'WebOSServices.js'), 'utf8');
   const lsStore = new Map([
     ['webos_app_graphing-calc_history', JSON.stringify(['legacy_guest'])],
-    ['sg_active_theme', 'guest-legacy-theme']
+    ['atelier_active_theme', 'guest-legacy-theme']
   ]);
   const mockLocalStorage = {
     get length() { return lsStore.size; },
@@ -1342,8 +1350,8 @@ try {
     removeItem: (k) => lsStore.delete(k)
   };
   const svcWin = {
-    SG_CURRENT_USER: { id: 1, username: 'alice' },
-    SG_USER_PREFERENCES: { theme: 'light-studio' },
+    ATELIER_CURRENT_USER: { id: 1, username: 'alice' },
+    ATELIER_USER_PREFERENCES: { theme: 'light-studio' },
     localStorage: mockLocalStorage,
     sys: {}
   };
@@ -1352,21 +1360,21 @@ try {
   const aliceCalc = store.forApp('graphing-calc');
   aliceCalc.set('history', ['2+2']);
   store.setPref('wallpaper', 'ocean', { sync: false });
-  const aliceTheme = store.getPref('theme', 'dark-glass', 'sg_active_theme');
+  const aliceTheme = store.getPref('theme', 'dark-glass', 'atelier_active_theme');
 
   // Switch to Bob: must NOT see Alice's data nor Guest's legacy data
-  svcWin.SG_CURRENT_USER = { id: 2, username: 'bob' };
-  svcWin.SG_USER_PREFERENCES = {};
+  svcWin.ATELIER_CURRENT_USER = { id: 2, username: 'bob' };
+  svcWin.ATELIER_USER_PREFERENCES = {};
   const bobCalc = store.forApp('graphing-calc');
   const bobSeesAlice = bobCalc.get('history', null);
-  const bobTheme = store.getPref('theme', 'dark-glass', 'sg_active_theme');
+  const bobTheme = store.getPref('theme', 'dark-glass', 'atelier_active_theme');
   bobCalc.set('history', ['9*9']);
 
   // Switch back to Alice and clear ONLY Alice's scope: Bob's data must survive!
-  svcWin.SG_CURRENT_USER = { id: 1, username: 'alice' };
+  svcWin.ATELIER_CURRENT_USER = { id: 1, username: 'alice' };
   store.clearUserScope();
   const aliceAfterClear = aliceCalc.get('history', null);
-  svcWin.SG_CURRENT_USER = { id: 2, username: 'bob' };
+  svcWin.ATELIER_CURRENT_USER = { id: 2, username: 'bob' };
   const bobAfterAliceClear = bobCalc.get('history', null);
 
   assert("Multi-User Storage: sys.storage cloisonne données apps, préférences et clearUserScope() par utilisateur",
@@ -1447,12 +1455,12 @@ try {
   // Execute AppManager + MediaViewerRegistry in isolated sandbox to prove per-user default_apps takes priority
   const lot2Store = {};
   const lot2Win = {
-    SG_DISCOVERED_APPS: {
+    ATELIER_DISCOVERED_APPS: {
       'doc-viewer': { id: 'doc-viewer', name: 'Doc Viewer', extensions: ['pdf', 'xls'], fallbackExtensions: ['xls'] },
       'gridcraft': { id: 'gridcraft', name: 'GridCraft', runtime: 'iframe', distribution: 'standalone-web', extensions: ['xls', 'xlsx'] },
       'pdfcraft': { id: 'pdfcraft', name: 'PdfCraft', runtime: 'iframe', distribution: 'standalone-web', extensions: ['pdf'] }
     },
-    SG_USER_PREFERENCES: {},
+    ATELIER_USER_PREFERENCES: {},
     EventBus: { emit: () => {} },
     document: { getElementById: () => null, head: { appendChild: () => {} }, createElement: () => ({}) },
     sys: {
@@ -1708,8 +1716,8 @@ try {
   const postedApiCalls = [];
   const launchedApps = [];
   const regMockWin = {
-    SG_CURRENT_USER: { username: 'alice', display_name: 'Alice', home_dir: 'users/alice' },
-    SG_DISCOVERED_APPS: {
+    ATELIER_CURRENT_USER: { username: 'alice', display_name: 'Alice', home_dir: 'users/alice' },
+    ATELIER_DISCOVERED_APPS: {
       explorer: { name: 'Explorer', category: 'system', manifest: { extensions: [] } },
       secretapp: { name: 'SecretApp', category: 'other', manifest: { extensions: [] } },
       taskbar: { name: 'Taskbar', category: 'system', manifest: {} }

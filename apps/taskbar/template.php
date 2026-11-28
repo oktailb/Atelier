@@ -1,5 +1,5 @@
 <?php
-// SimpleGallery WebOS - Taskbar Application Template
+// Atelier WebOS - Taskbar Application Template
 // Mounted into the DOM when the taskbar app is enabled.
 ?>
 <footer id="webosTaskbar" class="webos-taskbar app-footer">

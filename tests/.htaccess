@@ -1,4 +1,4 @@
-# SimpleGallery 2026 - Deny Direct External Web Access to Test Suite
+# Atelier by GallusTech - Deny Direct External Web Access to Test Suite
 <IfModule mod_authz_core.c>
     Require all denied
 </IfModule>

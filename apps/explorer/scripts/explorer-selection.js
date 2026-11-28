@@ -1,5 +1,5 @@
 /**
- * SimpleGallery - Explorer Selection & Marquee Manager (apps/explorer/scripts/explorer-selection.js)
+ * Atelier - Explorer Selection & Marquee Manager (apps/explorer/scripts/explorer-selection.js)
  * Handles item selection (single, Shift-range, toggle), rubber-band marquee selection, and keyboard navigation.
  */
 (function(window) {

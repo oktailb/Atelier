@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - WebOS Window Manager (WindowManager.js)
+ * Atelier by GallusTech - WebOS Window Manager (WindowManager.js)
  * Universal, high-performance window manager with multi-window stacking,
  * snappy hardware-accelerated dragging, 8-direction resizing, and taskbar docking.
  */
@@ -22,21 +22,21 @@
     readSavedWindowStyle() {
       try {
         if (window.sys && window.sys.storage && typeof window.sys.storage.getPref === 'function') {
-          return window.sys.storage.getPref('window_style', 'macos', 'sg_window_style') || 'macos';
+          return window.sys.storage.getPref('window_style', 'macos', 'atelier_window_style') || 'macos';
         }
-        if (window.SG_USER_PREFERENCES && window.SG_USER_PREFERENCES.window_style) {
-          return window.SG_USER_PREFERENCES.window_style;
+        if (window.ATELIER_USER_PREFERENCES && window.ATELIER_USER_PREFERENCES.window_style) {
+          return window.ATELIER_USER_PREFERENCES.window_style;
         }
         if (typeof localStorage !== 'undefined') {
-          return localStorage.getItem('sg_window_style') || 'macos';
+          return localStorage.getItem('atelier_window_style') || 'macos';
         }
       } catch (e) {}
       return 'macos';
     }
 
     getWindowStyles() {
-      if (window.SG_DISCOVERED_WM_STYLES && Array.isArray(window.SG_DISCOVERED_WM_STYLES) && window.SG_DISCOVERED_WM_STYLES.length > 0) {
-        return window.SG_DISCOVERED_WM_STYLES;
+      if (window.ATELIER_DISCOVERED_WM_STYLES && Array.isArray(window.ATELIER_DISCOVERED_WM_STYLES) && window.ATELIER_DISCOVERED_WM_STYLES.length > 0) {
+        return window.ATELIER_DISCOVERED_WM_STYLES;
       }
       if (this.stylesCache && Array.isArray(this.stylesCache) && this.stylesCache.length > 0) {
         return this.stylesCache;
@@ -50,7 +50,7 @@
           const res = await window.sys.api.get('get_wm_styles');
           if (res && res.success && Array.isArray(res.styles) && res.styles.length > 0) {
             this.stylesCache = res.styles;
-            window.SG_DISCOVERED_WM_STYLES = res.styles;
+            window.ATELIER_DISCOVERED_WM_STYLES = res.styles;
             return this.stylesCache;
           }
         }
@@ -77,9 +77,9 @@
       if (persist) {
         try {
           if (window.sys && window.sys.storage && typeof window.sys.storage.setPref === 'function') {
-            window.sys.storage.setPref('window_style', this.currentWindowStyle, { legacyLocalKey: 'sg_window_style' });
+            window.sys.storage.setPref('window_style', this.currentWindowStyle, { legacyLocalKey: 'atelier_window_style' });
           } else {
-            localStorage.setItem('sg_window_style', this.currentWindowStyle);
+            localStorage.setItem('atelier_window_style', this.currentWindowStyle);
           }
         } catch (e) {}
       }
@@ -564,7 +564,7 @@
       el.className = `webos-window app-${win.appId} ${win.state === 'maximized' ? 'is-maximized' : ''}`;
       el.style.zIndex = win.zIndex;
       
-      const curTheme = document.documentElement.getAttribute('data-theme') || (window.localStorage && window.localStorage.getItem('sg_active_theme')) || 'dark-glass';
+      const curTheme = document.documentElement.getAttribute('data-theme') || (window.localStorage && window.localStorage.getItem('atelier_active_theme')) || 'dark-glass';
       el.setAttribute('data-theme', curTheme);
 
       const curWmStyle = this.currentWindowStyle || document.documentElement.getAttribute('data-wm-style') || 'macos';

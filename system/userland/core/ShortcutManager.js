@@ -1,5 +1,5 @@
 /**
- * SimpleGallery WebOS - Global Keyboard Shortcut Manager (`sys.shortcuts`)
+ * Atelier WebOS - Global Keyboard Shortcut Manager (`sys.shortcuts`)
  * Centralized keybinding registry for desktop navigation, window management, and file operations.
  */
 

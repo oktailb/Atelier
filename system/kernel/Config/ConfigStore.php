@@ -1,8 +1,8 @@
 <?php
-namespace SimpleGallery\Kernel\Config;
+namespace Atelier\Kernel\Config;
 
 /**
- * SimpleGallery WebOS - Centralized System Configuration Store
+ * Atelier WebOS - Centralized System Configuration Store
  * Handles persistence for system preferences, OS settings, autostart, permissions, and shortcuts into `config/`.
  */
 class ConfigStore {

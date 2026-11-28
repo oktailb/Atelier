@@ -1,5 +1,5 @@
 /**
- * SimpleGallery Userland - Theme & Wallpaper Engine
+ * Atelier Userland - Theme & Wallpaper Engine
  */
 class ThemeEngine {
   constructor() {

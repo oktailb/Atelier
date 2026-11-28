@@ -5,9 +5,9 @@
  * Sensitive credentials (`smtp_password`) are never leaked to the browser UI.
  */
 
-namespace SimpleGallery\Kernel\Auth;
+namespace Atelier\Kernel\Auth;
 
-use SimpleGallery\Kernel\Config\ConfigStore;
+use Atelier\Kernel\Config\ConfigStore;
 
 class AuthSettings {
 
@@ -87,7 +87,7 @@ class AuthSettings {
     }
 
     /**
-     * Returns minimal public policy safe to inject into `window.SG_AUTH_POLICY` for guests.
+     * Returns minimal public policy safe to inject into `window.ATELIER_AUTH_POLICY` for guests.
      */
     public static function getPublicPolicy(string $baseOrRoot): array {
         $cfg = self::load($baseOrRoot);

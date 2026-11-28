@@ -1,14 +1,14 @@
 <?php
 /**
- * SimpleGallery 2026 - System Bootstrap & BIOS
+ * Atelier by GallusTech - System Bootstrap & BIOS
  * Handles low-level initialization, environment diagnostics, storage mounting and loads Kernel.
  */
 
-if (!defined('SIMPLE_GALLERY_BOOTED')) {
-    define('SIMPLE_GALLERY_BOOTED', true);
+if (!defined('ATELIER_BOOTED')) {
+    define('ATELIER_BOOTED', true);
 }
-if (!defined('SG_EXEC')) {
-    define('SG_EXEC', true);
+if (!defined('ATELIER_EXEC')) {
+    define('ATELIER_EXEC', true);
 }
 
 // 1. Ensure minimal PHP version (PHP 7.2+)
@@ -55,11 +55,11 @@ require_once $project_root . '/config/mime_types.php';
 require_once $project_root . '/config/themes.php';
 
 // 5.1 Dynamically merge formats registered by active native & external/WASM apps
-$media_types = \SimpleGallery\Kernel\Media\FormatRegistry::getMediaTypes($project_root, $media_types ?? []);
+$media_types = \Atelier\Kernel\Media\FormatRegistry::getMediaTypes($project_root, $media_types ?? []);
 
 // 6. Theme Initialization (supports user cookie override)
-if (!empty($_COOKIE['sg_theme']) && isset($theme_colors[$_COOKIE['sg_theme']])) {
-    $theme_preset = $_COOKIE['sg_theme'];
+if (!empty($_COOKIE['atelier_theme']) && isset($theme_colors[$_COOKIE['atelier_theme']])) {
+    $theme_preset = $_COOKIE['atelier_theme'];
 } else {
     $theme_preset = $theme_preset ?? 'polaroid-classic';
 }
@@ -130,5 +130,5 @@ $ignore_list = ['.', '..', '.git', '.thumbnails', '.comment', '.admin_password_h
 
 // 9. Start secure session
 if (php_sapi_name() !== 'cli') {
-    \SimpleGallery\Kernel\Security\SecurityManager::ensureSessionStarted($storage_session_dir);
+    \Atelier\Kernel\Security\SecurityManager::ensureSessionStarted($storage_session_dir);
 }

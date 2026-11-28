@@ -5,7 +5,7 @@
 
 require_once __DIR__ . '/../boot/bootstrap.php';
 
-use SimpleGallery\Kernel\Dav\WebDavServer;
+use Atelier\Kernel\Dav\WebDavServer;
 
 $projectRoot = rtrim(str_replace('\\', '/', dirname(__DIR__, 2)), '/');
 $mediaDir = $real_base_dir ?? ($projectRoot . '/storage/media');

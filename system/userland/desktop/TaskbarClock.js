@@ -1,5 +1,5 @@
 /**
- * SimpleGallery WebOS - Taskbar Clock & Interactive Calendar Popover
+ * Atelier WebOS - Taskbar Clock & Interactive Calendar Popover
  */
 
 (function (window, document) {

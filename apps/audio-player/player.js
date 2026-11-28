@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - Audio Player Application
+ * Atelier by GallusTech - Audio Player Application
  * Autonomous audio player widget with playback controls, glowing frequency wave animation, and ID3 tags.
  */
 (function (window) {

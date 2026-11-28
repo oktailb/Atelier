@@ -1,5 +1,5 @@
 /**
- * SimpleGallery Userland - Application Manager
+ * Atelier Userland - Application Manager
  * Registers, lifecycle-manages, and launches semi-autonomous apps from apps/
  */
 class AppManager {
@@ -15,10 +15,10 @@ class AppManager {
     }
 
     /**
-     * Ingests all auto-discovered application manifests provided by PluginDiscovery via window.SG_DISCOVERED_APPS
+     * Ingests all auto-discovered application manifests provided by PluginDiscovery via window.ATELIER_DISCOVERED_APPS
      */
     initDefaultApps() {
-        const discovered = (typeof window !== 'undefined' && window.SG_DISCOVERED_APPS) || {};
+        const discovered = (typeof window !== 'undefined' && window.ATELIER_DISCOVERED_APPS) || {};
         if (typeof discovered === 'object' && Object.keys(discovered).length > 0) {
             Object.values(discovered).forEach(appInfo => {
                 if (appInfo && appInfo.manifest && appInfo.id) {
@@ -31,7 +31,7 @@ class AppManager {
     }
 
     /**
-     * Re-scans and synchronizes discovered apps from window.SG_DISCOVERED_APPS
+     * Re-scans and synchronizes discovered apps from window.ATELIER_DISCOVERED_APPS
      */
     refreshDiscoveredApps() {
         this.initDefaultApps();
@@ -151,8 +151,8 @@ class AppManager {
         let raw = null;
         if (typeof window !== 'undefined' && window.sys && window.sys.storage && typeof window.sys.storage.getPref === 'function') {
             raw = window.sys.storage.getPref('default_apps', {});
-        } else if (typeof window !== 'undefined' && window.SG_USER_PREFERENCES && typeof window.SG_USER_PREFERENCES.default_apps === 'object') {
-            raw = window.SG_USER_PREFERENCES.default_apps;
+        } else if (typeof window !== 'undefined' && window.ATELIER_USER_PREFERENCES && typeof window.ATELIER_USER_PREFERENCES.default_apps === 'object') {
+            raw = window.ATELIER_USER_PREFERENCES.default_apps;
         }
         if (typeof raw === 'string') {
             try { raw = JSON.parse(raw); } catch (e) { raw = {}; }
@@ -189,8 +189,8 @@ class AppManager {
         if (typeof window !== 'undefined' && window.sys && window.sys.storage && typeof window.sys.storage.setPref === 'function') {
             window.sys.storage.setPref('default_apps', next);
         } else if (typeof window !== 'undefined') {
-            window.SG_USER_PREFERENCES = window.SG_USER_PREFERENCES || {};
-            window.SG_USER_PREFERENCES.default_apps = next;
+            window.ATELIER_USER_PREFERENCES = window.ATELIER_USER_PREFERENCES || {};
+            window.ATELIER_USER_PREFERENCES.default_apps = next;
         }
         if (typeof window !== 'undefined' && window.EventBus && typeof window.EventBus.emit === 'function') {
             window.EventBus.emit('apps:defaults_changed', { ext: cleanExt, appId: appId || null, defaults: next });
@@ -333,7 +333,7 @@ class AppManager {
     getAppIcon(appId) {
         const entry = this.apps.get(appId);
         const manifest = entry ? entry.manifest : null;
-        const discovered = (typeof window !== 'undefined' && window.SG_DISCOVERED_APPS && window.SG_DISCOVERED_APPS[appId]) || null;
+        const discovered = (typeof window !== 'undefined' && window.ATELIER_DISCOVERED_APPS && window.ATELIER_DISCOVERED_APPS[appId]) || null;
         const iconObj = {
             icon: (manifest && manifest.icon) || (discovered && discovered.icon) || '🗔',
             icon_url: (manifest && manifest.icon_url) || (discovered && discovered.icon_url) || null
@@ -348,11 +348,11 @@ class AppManager {
      * Get list of disabled application IDs
      */
     getDisabledAppIds() {
-        if (Array.isArray(window.SG_DISABLED_APPS)) {
-            return window.SG_DISABLED_APPS;
+        if (Array.isArray(window.ATELIER_DISABLED_APPS)) {
+            return window.ATELIER_DISABLED_APPS;
         }
         try {
-            const stored = localStorage.getItem('sg_disabled_apps');
+            const stored = localStorage.getItem('atelier_disabled_apps');
             if (stored) return JSON.parse(stored);
         } catch (e) {}
         return [];
@@ -384,8 +384,8 @@ class AppManager {
                 disabledList.push(appId);
             }
         }
-        window.SG_DISABLED_APPS = disabledList;
-        localStorage.setItem('sg_disabled_apps', JSON.stringify(disabledList));
+        window.ATELIER_DISABLED_APPS = disabledList;
+        localStorage.setItem('atelier_disabled_apps', JSON.stringify(disabledList));
 
         // Sync with server if sys.api available
         if (window.sys && window.sys.api && typeof window.sys.api.post === 'function') {
@@ -421,7 +421,7 @@ class AppManager {
             if (!includeDisabled && !isEnabled) return;
 
             const manifestCat = (entry.manifest && entry.manifest.category) ? String(entry.manifest.category).trim() : '';
-            const discoveredCat = (window.SG_DISCOVERED_APPS && window.SG_DISCOVERED_APPS[id] && window.SG_DISCOVERED_APPS[id].category) ? window.SG_DISCOVERED_APPS[id].category : '';
+            const discoveredCat = (window.ATELIER_DISCOVERED_APPS && window.ATELIER_DISCOVERED_APPS[id] && window.ATELIER_DISCOVERED_APPS[id].category) ? window.ATELIER_DISCOVERED_APPS[id].category : '';
             const cat = manifestCat || discoveredCat || '';
 
             list.push({

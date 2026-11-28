@@ -8,12 +8,12 @@
  *   - Local folder mounts (admin-only, sandboxed)
  */
 
-namespace SimpleGallery\Kernel\Storage;
+namespace Atelier\Kernel\Storage;
 
-use SimpleGallery\Kernel\Auth\AuditLogger;
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\Auth\UserManager;
-use SimpleGallery\Kernel\Data\AtelierStore;
+use Atelier\Kernel\Auth\AuditLogger;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\Auth\UserManager;
+use Atelier\Kernel\Data\AtelierStore;
 
 class ExternalMountManager {
 

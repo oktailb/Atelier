@@ -4,7 +4,7 @@
  * Implemented by LocalFilesystemDriver, WebDavStorageDriver, S3StorageDriver, and GoogleDriveStorageDriver.
  */
 
-namespace SimpleGallery\Kernel\Storage;
+namespace Atelier\Kernel\Storage;
 
 interface StorageDriverInterface {
 

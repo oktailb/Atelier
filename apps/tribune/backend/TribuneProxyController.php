@@ -1,9 +1,9 @@
 <?php
-namespace SimpleGallery\Apps\Tribune\Backend;
+namespace Atelier\Apps\Tribune\Backend;
 
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\Security\RateLimiter;
-use SimpleGallery\Kernel\Security\UrlValidator;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\Security\RateLimiter;
+use Atelier\Kernel\Security\UrlValidator;
 
 /**
  * Tribune Remote Proxy, Totoz & URL Preview Controller
@@ -142,7 +142,7 @@ class TribuneProxyController {
 
         $remote_url = trim($_GET['url'] ?? $_POST['url'] ?? $raw_body['url'] ?? '');
         $cookie_hdr = trim($_GET['cookie'] ?? $_POST['cookie'] ?? $raw_body['cookie'] ?? '');
-        $user_agent = trim($_GET['user_agent'] ?? $_POST['user_agent'] ?? $raw_body['user_agent'] ?? 'SimpleGallery-TribuneProxy/1.0');
+        $user_agent = trim($_GET['user_agent'] ?? $_POST['user_agent'] ?? $raw_body['user_agent'] ?? 'Atelier-TribuneProxy/1.0');
 
         if (empty($remote_url) || !filter_var($remote_url, FILTER_VALIDATE_URL)) {
             return ['status' => 400, 'data' => ['success' => false, 'error' => 'URL distante invalide.']];
@@ -186,7 +186,7 @@ class TribuneProxyController {
         $msg_text        = trim($_POST['message'] ?? $raw_body['message'] ?? '');
         $login           = trim($_POST['login'] ?? $raw_body['login'] ?? 'Anonyme');
         $cookie_hdr      = trim($_POST['cookie'] ?? $raw_body['cookie'] ?? '');
-        $user_agent      = trim($_POST['user_agent'] ?? $raw_body['user_agent'] ?? 'Mozilla/5.0 (SimpleGallery Tribune)');
+        $user_agent      = trim($_POST['user_agent'] ?? $raw_body['user_agent'] ?? 'Mozilla/5.0 (Atelier Tribune)');
 
         $all_boards = TribuneActions::getBoardsConfig($base_dir);
         $board_cfg  = $all_boards[$board_id] ?? null;
@@ -403,7 +403,7 @@ class TribuneProxyController {
             'follow_redirects' => true,
             'max_redirects'    => 3,
             'max_bytes'        => 1024 * 1024,
-            'user_agent'       => 'SimpleGallery-WebOS/1.0'
+            'user_agent'       => 'Atelier-WebOS/1.0'
         ]);
         $img_data = (!empty($fetch['success']) && !empty($fetch['body'])) ? $fetch['body'] : false;
 
@@ -435,7 +435,7 @@ class TribuneProxyController {
             'follow_redirects' => true,
             'max_redirects'    => 2,
             'max_bytes'        => 256 * 1024,
-            'user_agent'       => 'SimpleGallery-WebOS/1.0'
+            'user_agent'       => 'Atelier-WebOS/1.0'
         ]);
         $xml_data = (!empty($fetch['success']) && !empty($fetch['body'])) ? $fetch['body'] : false;
 

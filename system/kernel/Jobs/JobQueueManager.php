@@ -12,14 +12,14 @@
  *   - `instance_backup`     : Admin automated instance snapshot (`InstanceBackupService`)
  */
 
-namespace SimpleGallery\Kernel\Jobs;
+namespace Atelier\Kernel\Jobs;
 
-use SimpleGallery\Kernel\Auth\AuditLogger;
-use SimpleGallery\Kernel\Backup\InstanceBackupService;
-use SimpleGallery\Kernel\Config\ConfigStore;
-use SimpleGallery\Kernel\Data\AtelierStore;
-use SimpleGallery\Kernel\FS\FileIndexManager;
-use SimpleGallery\Kernel\Security\PathValidator;
+use Atelier\Kernel\Auth\AuditLogger;
+use Atelier\Kernel\Backup\InstanceBackupService;
+use Atelier\Kernel\Config\ConfigStore;
+use Atelier\Kernel\Data\AtelierStore;
+use Atelier\Kernel\FS\FileIndexManager;
+use Atelier\Kernel\Security\PathValidator;
 
 class JobQueueManager {
 

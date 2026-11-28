@@ -11,13 +11,13 @@
  *   allowed domains, rate limits, max tool steps, and optional instance-wide shared provider.
  */
 
-namespace SimpleGallery\Kernel\AI;
+namespace Atelier\Kernel\AI;
 
-use SimpleGallery\Kernel\Auth\AuditLogger;
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\Config\ConfigStore;
-use SimpleGallery\Kernel\FS\PermissionsManager;
-use SimpleGallery\Kernel\Storage\CredentialVault;
+use Atelier\Kernel\Auth\AuditLogger;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\Config\ConfigStore;
+use Atelier\Kernel\FS\PermissionsManager;
+use Atelier\Kernel\Storage\CredentialVault;
 
 class AiSettings {
 

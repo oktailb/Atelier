@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - Central Gallery View Registry
+ * Atelier by GallusTech - Central Gallery View Registry
  * Modular architecture for pluggable gallery layouts (Polaroid, Grid, Mosaic, List, etc.)
  */
 (function(window) {

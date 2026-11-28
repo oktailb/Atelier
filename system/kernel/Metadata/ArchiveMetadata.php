@@ -1,11 +1,11 @@
 <?php
 /**
- * SimpleGallery 2026 - Archive Metadata Extractor Module
+ * Atelier by GallusTech - Archive Metadata Extractor Module
  * Zero-dependency pure PHP parser for ZIP and Compressed Archive inspections.
  */
 
-if (!defined('SIMPLE_GALLERY_CORE')) {
-    define('SIMPLE_GALLERY_CORE', true);
+if (!defined('ATELIER_CORE')) {
+    define('ATELIER_CORE', true);
 }
 
 /**

@@ -1,11 +1,11 @@
 <?php
 /**
- * SimpleGallery 2026 - Internationalization Engine (Backend)
+ * Atelier by GallusTech - Internationalization Engine (Backend)
  */
 
-namespace SimpleGallery\Kernel\I18n;
+namespace Atelier\Kernel\I18n;
 
-use SimpleGallery\Kernel\PluginDiscovery;
+use Atelier\Kernel\PluginDiscovery;
 
 class I18nEngine {
     private static ?array $cached_translations = null;
@@ -101,8 +101,8 @@ class I18nEngine {
      * Detect preferred locale from browser HTTP_ACCEPT_LANGUAGE
      */
     public static function detectBrowserLocale(array $available_locales, string $default = 'fr'): string {
-        if (!empty($_COOKIE['sg_locale'])) {
-            $cookie_code = strtolower(trim((string)$_COOKIE['sg_locale']));
+        if (!empty($_COOKIE['atelier_locale'])) {
+            $cookie_code = strtolower(trim((string)$_COOKIE['atelier_locale']));
             if (isset($available_locales[$cookie_code])) {
                 return $cookie_code;
             }
@@ -176,10 +176,10 @@ class I18nEngine {
 
         if ($locale === null) {
             global $default_locale;
-            if (session_status() === PHP_SESSION_ACTIVE && !empty($_SESSION['sg_locale'])) {
-                $locale = $_SESSION['sg_locale'];
-            } elseif (!empty($_COOKIE['sg_locale'])) {
-                $locale = $_COOKIE['sg_locale'];
+            if (session_status() === PHP_SESSION_ACTIVE && !empty($_SESSION['atelier_locale'])) {
+                $locale = $_SESSION['atelier_locale'];
+            } elseif (!empty($_COOKIE['atelier_locale'])) {
+                $locale = $_COOKIE['atelier_locale'];
             } else {
                 $locale = $default_locale ?? 'fr';
             }

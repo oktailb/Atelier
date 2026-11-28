@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - Explorer Polaroid View Plugin (apps/explorer/views/polaroid/view.js)
+ * Atelier by GallusTech - Explorer Polaroid View Plugin (apps/explorer/views/polaroid/view.js)
  */
 (function(window) {
   'use strict';

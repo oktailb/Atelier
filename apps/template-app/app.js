@@ -1,5 +1,5 @@
 /**
- * SimpleGallery WebOS - Development Reference Application (`TemplateApp` v2.1)
+ * Atelier WebOS - Development Reference Application (`TemplateApp` v2.1)
  * Exemplary reference implementation adhering to all WebOS guidelines:
  * - WebOSApp lifecycle (renderTab, bindEvents, onOpen, onClose, onLocaleChanged)
  * - SyscallClient (System API + App Private Backend `forApp()`)
@@ -32,7 +32,7 @@
       const syscall = (window.sys && window.sys.syscall) || (window.sys && window.sys.api);
       this.appApi = syscall
         ? syscall.forApp('template-app')
-        : new window.SyscallClient('apps/template-app/api.php');
+        : new window.SyscallClient('system/endpoints/api.php');
 
       this.selectedFile = null;
       this.selectedSaveDest = null;
@@ -145,7 +145,7 @@
             <p>${this.escapeHtml(this.t('template.guide_intro'))}</p>
             <ul style="margin:0; padding-left:20px; font-size:0.875rem; color:var(--text-muted); line-height:1.65;">
               <li><strong>FilePickerService</strong> : <code>window.sys.pickFile()</code> / <code>window.sys.pickSaveLocation()</code></li>
-              <li><strong>SyscallClient</strong> : <code>window.sys.api.forApp('template-app')</code> → <code>apps/template-app/api.php</code></li>
+              <li><strong>SyscallClient</strong> : <code>window.sys.api.forApp('template-app')</code> → <code>system/endpoints/api.php</code> (<code>manifest.backend</code>)</li>
               <li><strong>StorageRepository</strong> : <code>StorageRepository::forApp('id', $context['project_root'])</code></li>
               <li><strong>EventBus IPC</strong> : <code>this.subscribe('event', cb)</code> &amp; <code>window.sys.events.emit()</code></li>
               <li><strong>App Locales</strong> : <code>apps/&lt;id&gt;/locales/{fr,en,ja}.json</code></li>

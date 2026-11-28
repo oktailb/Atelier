@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - Document Viewer Application
+ * Atelier by GallusTech - Document Viewer Application
  * Autonomous viewer supporting embedded PDF preview, interactive Text/Markdown/Code reader,
  * and integrated WYSIWYG / Markdown Editor (Toast UI Editor) in WebOS Windows.
  */
@@ -95,12 +95,12 @@
       };
 
       loadLink('katex-css', 'https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css', 'sha384-GvrOXuhMATgEsSwCs4smul74iXGOixntILdUW9XmUC6+HX0sLNAK3q71HotJqlAn');
-      loadLink('prism-theme-css', 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css', 'sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A');
+      loadLink('prism-theme-css', 'assets/vendor/doc-viewer/prism-tomorrow.min.css', 'sha384-wFjoQjtV1y5jVHbt0p35Ui8aV8GVpEZkyF99OXWqP/eNJDU93D3Ugxkoyh6Y2I4A');
 
       Promise.all([
-        loadScript('marked-js', 'https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js', 'sha384-odPBjvtXVM/5hOYIr3A1dB+flh0c3wAT3bSesIOqEGmyUA4JoKf/YTWy0XKOYAY7'),
+        loadScript('marked-js', 'assets/vendor/doc-viewer/marked.min.js', 'sha384-odPBjvtXVM/5hOYIr3A1dB+flh0c3wAT3bSesIOqEGmyUA4JoKf/YTWy0XKOYAY7'),
         loadScript('katex-js', 'https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js', 'sha384-cpW21h6RZv/phavutF+AuVYrr+dA8xD9zs6FwLpaCct6O9ctzYFfFr4dgmgccOTx'),
-        loadScript('prism-js', 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js', 'sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf')
+        loadScript('prism-js', 'assets/vendor/doc-viewer/prism.min.js', 'sha384-BGaNxfftg+9+TtC098wxawPFVEUpKYvaiCgbB0iqAMjK/4jDdmUY+oGxrPNvnXEf')
       ]).then(() => {
         resolve();
       });

@@ -1,16 +1,16 @@
 <?php
-namespace SimpleGallery\Apps\Tribune\Backend;
+namespace Atelier\Apps\Tribune\Backend;
 
 require_once __DIR__ . '/TribuneUploadController.php';
 require_once __DIR__ . '/TribuneSchedulerController.php';
 require_once __DIR__ . '/TribuneProxyController.php';
 
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\Config\ConfigStore;
-use SimpleGallery\Kernel\Security\UrlValidator;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\Config\ConfigStore;
+use Atelier\Kernel\Security\UrlValidator;
 
 /**
- * SimpleGallery WebOS - Tribune Backend Facade & Local Feed / OAuth2 Controller
+ * Atelier WebOS - Tribune Backend Facade & Local Feed / OAuth2 Controller
  * Delegates upload, scheduler, and remote proxy/totoz actions to dedicated controllers.
  */
 class TribuneActions {
@@ -260,7 +260,7 @@ class TribuneActions {
             }
 
             $client_id = !empty($oauth_cfg['client_id']) ? $oauth_cfg['client_id'] : self::getOauthSecret($board_id, 'client_id', $base_dir);
-            if (empty($client_id)) $client_id = 'simplegallery_webos';
+            if (empty($client_id)) $client_id = 'atelier_webos';
 
             AuthManager::ensureSessionStarted();
             $state = bin2hex(random_bytes(16));
@@ -352,13 +352,13 @@ class TribuneActions {
                 'redirect_uri'  => $redirect_uri
             ];
 
-            $res = self::httpRequestProxy($oauth_cfg['token_url'], 'POST', ["Content-Type: application/x-www-form-urlencoded", "User-Agent: SimpleGallery-WebOS/1.0"], http_build_query($post_fields), 10);
+            $res = self::httpRequestProxy($oauth_cfg['token_url'], 'POST', ["Content-Type: application/x-www-form-urlencoded", "User-Agent: Atelier-WebOS/1.0"], http_build_query($post_fields), 10);
             $data = @json_decode($res['body'], true) ?: [];
             $token = $data['access_token'] ?? '';
             $login = $data['login'] ?? '';
 
             if (empty($login) && !empty($token)) {
-                $me_res = self::httpRequestProxy("https://linuxfr.org/api/v1/me?bearer_token=" . urlencode($token), 'GET', ["User-Agent: SimpleGallery-WebOS/1.0"], null, 5);
+                $me_res = self::httpRequestProxy("https://linuxfr.org/api/v1/me?bearer_token=" . urlencode($token), 'GET', ["User-Agent: Atelier-WebOS/1.0"], null, 5);
                 $me_data = @json_decode($me_res['body'], true) ?: [];
                 $login = $me_data['login'] ?? $me_data['account']['login'] ?? '';
             }
@@ -399,7 +399,7 @@ class TribuneActions {
             $client_secret = self::getOauthSecret($board_id, 'client_secret', $base_dir);
 
             $post_fields = [
-                'client_id'     => $client_id ?: 'simplegallery_webos',
+                'client_id'     => $client_id ?: 'atelier_webos',
                 'client_secret' => $client_secret ?? '',
                 'refresh_token' => $refresh_token,
                 'grant_type'    => 'refresh_token'
@@ -407,7 +407,7 @@ class TribuneActions {
 
             $res = self::httpRequestProxy($oauth_cfg['token_url'], 'POST', [
                 'Content-Type: application/x-www-form-urlencoded',
-                'User-Agent: SimpleGallery-WebOS/1.0'
+                'User-Agent: Atelier-WebOS/1.0'
             ], http_build_query($post_fields), 8);
 
             $data = @json_decode($res['body'] ?? '', true) ?: [];
@@ -511,7 +511,7 @@ class TribuneActions {
         if ($action === 'tribune_post') {
             $msg_text = trim($_POST['message'] ?? $raw_body['message'] ?? '');
             $login    = trim($_POST['login'] ?? $raw_body['login'] ?? 'Anonyme');
-            $info     = trim($_POST['info'] ?? $raw_body['info'] ?? ($_SERVER['HTTP_USER_AGENT'] ?? 'SimpleGallery Client'));
+            $info     = trim($_POST['info'] ?? $raw_body['info'] ?? ($_SERVER['HTTP_USER_AGENT'] ?? 'Atelier Client'));
 
             if (empty($msg_text)) {
                 return ['status' => 400, 'data' => ['success' => false, 'error' => 'Le message ne peut pas être vide.']];

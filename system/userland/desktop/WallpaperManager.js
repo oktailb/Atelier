@@ -1,5 +1,5 @@
 /**
- * SimpleGallery WebOS - Central Wallpaper Manager
+ * Atelier WebOS - Central Wallpaper Manager
  * Handles desktop background customization, presets, solid/gradient fills, and image wallpapers.
  */
 
@@ -27,8 +27,8 @@
     restoreSavedWallpaper() {
       try {
         const saved = (window.sys && window.sys.storage && typeof window.sys.storage.getPref === 'function')
-          ? window.sys.storage.getPref('wallpaper', null, 'sg_desktop_wallpaper')
-          : localStorage.getItem('sg_desktop_wallpaper');
+          ? window.sys.storage.getPref('wallpaper', null, 'atelier_desktop_wallpaper')
+          : localStorage.getItem('atelier_desktop_wallpaper');
         if (saved) {
           this.apply(saved);
         }
@@ -41,9 +41,9 @@
       if (save) {
         try {
           if (window.sys && window.sys.storage && typeof window.sys.storage.setPref === 'function') {
-            window.sys.storage.setPref('wallpaper', val, { legacyLocalKey: 'sg_desktop_wallpaper' });
+            window.sys.storage.setPref('wallpaper', val, { legacyLocalKey: 'atelier_desktop_wallpaper' });
           } else {
-            localStorage.setItem('sg_desktop_wallpaper', val);
+            localStorage.setItem('atelier_desktop_wallpaper', val);
           }
         } catch (e) {}
       }

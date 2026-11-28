@@ -1,5 +1,5 @@
 /**
- * SimpleGallery Userland - i18n Internationalization Engine
+ * Atelier Userland - i18n Internationalization Engine
  */
 class I18nEngine {
     constructor() {
@@ -11,11 +11,11 @@ class I18nEngine {
 
     /**
      * Synchronously hydrates translations from the server-injected bootstrap payload
-     * (`window.SG_I18N_CONFIG` or `<script id="initialLocalesConfig">`) so early boot
+     * (`window.ATELIER_I18N_CONFIG` or `<script id="initialLocalesConfig">`) so early boot
      * services, modals, and toasts NEVER see an empty dictionary before `desktop.js` runs.
      */
     hydrateFromBootstrap() {
-        let cfg = (typeof window !== 'undefined' && window.SG_I18N_CONFIG) ? window.SG_I18N_CONFIG : null;
+        let cfg = (typeof window !== 'undefined' && window.ATELIER_I18N_CONFIG) ? window.ATELIER_I18N_CONFIG : null;
         if (!cfg && typeof document !== 'undefined' && typeof document.getElementById === 'function') {
             const el = document.getElementById('initialLocalesConfig');
             if (el && el.textContent) {
@@ -38,7 +38,7 @@ class I18nEngine {
     }
 
     async init(defaultLocale = 'fr') {
-        this.currentLocale = localStorage.getItem('sg_locale') || defaultLocale;
+        this.currentLocale = localStorage.getItem('atelier_locale') || defaultLocale;
         await this.loadTranslations(this.currentLocale);
     }
 
@@ -50,7 +50,7 @@ class I18nEngine {
             if (data && data.success && data.translations) {
                 this.translations = data.translations;
                 this.currentLocale = code;
-                localStorage.setItem('sg_locale', code);
+                localStorage.setItem('atelier_locale', code);
                 window.sys.events.emit('locale:changed', { code, translations: this.translations });
             }
         } catch (err) {

@@ -1,10 +1,10 @@
 <?php
-namespace SimpleGallery\Kernel\Actions;
+namespace Atelier\Kernel\Actions;
 
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\FS\CacheManager;
-use SimpleGallery\Kernel\I18n\I18nEngine;
-use SimpleGallery\Kernel\Media\ExifParser;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\FS\CacheManager;
+use Atelier\Kernel\I18n\I18nEngine;
+use Atelier\Kernel\Media\ExifParser;
 
 class SystemActions {
 
@@ -12,7 +12,7 @@ class SystemActions {
         $base_dir = is_array($context) ? ($context['base_dir'] ?? '') : (string)$context;
         $project_root = (is_array($context) && !empty($context['project_root']))
             ? (string)$context['project_root']
-            : \SimpleGallery\Kernel\Config\ConfigStore::resolveRoot($base_dir);
+            : \Atelier\Kernel\Config\ConfigStore::resolveRoot($base_dir);
         $raw_body = is_array($context) ? ($context['raw_body'] ?? $params) : $params;
 
         if ($action === 'get_locales') {
@@ -165,7 +165,7 @@ class SystemActions {
             if (!is_array($shortcuts)) {
                 return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_invalid_data')]];
             }
-            $sanitized_shortcuts = \SimpleGallery\Kernel\Auth\UserManager::sanitizeDesktopShortcuts($shortcuts);
+            $sanitized_shortcuts = \Atelier\Kernel\Auth\UserManager::sanitizeDesktopShortcuts($shortcuts);
             if ($sanitized_shortcuts === null) {
                 return ['status' => 400, 'data' => ['success' => false, 'error' => __t('api.err_invalid_data')]];
             }
@@ -178,7 +178,7 @@ class SystemActions {
                 if (!AuthManager::isAdminLoggedIn()) {
                     return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
                 }
-                $saved = \SimpleGallery\Kernel\Config\ConfigStore::set('desktop', ['shortcuts' => $sanitized_shortcuts], $project_root);
+                $saved = \Atelier\Kernel\Config\ConfigStore::set('desktop', ['shortcuts' => $sanitized_shortcuts], $project_root);
                 if ($saved) {
                     return ['status' => 200, 'data' => [
                         'success'   => true,
@@ -192,7 +192,7 @@ class SystemActions {
 
             // Multi-user accounts persist their OWN isolated desktop in `users.preferences_json`
             if ($curUser) {
-                $res = \SimpleGallery\Kernel\Auth\UserManager::saveUserPreferences($project_root, (int)$curUser['id'], [
+                $res = \Atelier\Kernel\Auth\UserManager::saveUserPreferences($project_root, (int)$curUser['id'], [
                     'desktop' => ['shortcuts' => $sanitized_shortcuts]
                 ]);
                 if (!empty($res['success'])) {
@@ -212,7 +212,7 @@ class SystemActions {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
             }
 
-            $saved = \SimpleGallery\Kernel\Config\ConfigStore::set('desktop_admin', ['shortcuts' => $sanitized_shortcuts], $project_root);
+            $saved = \Atelier\Kernel\Config\ConfigStore::set('desktop_admin', ['shortcuts' => $sanitized_shortcuts], $project_root);
             if ($saved) {
                 return ['status' => 200, 'data' => [
                     'success'   => true,
@@ -227,9 +227,9 @@ class SystemActions {
         if ($action === 'get_desktop_shortcuts') {
             $reqScope = strtolower(trim((string)($_GET['scope'] ?? $raw_body['scope'] ?? '')));
             if ($reqScope === 'global') {
-                $effective = \SimpleGallery\Kernel\Auth\UserManager::getGlobalDesktopTemplate($project_root);
+                $effective = \Atelier\Kernel\Auth\UserManager::getGlobalDesktopTemplate($project_root);
             } else {
-                $effective = \SimpleGallery\Kernel\Auth\UserManager::getEffectiveDesktopConfig(
+                $effective = \Atelier\Kernel\Auth\UserManager::getEffectiveDesktopConfig(
                     $project_root,
                     AuthManager::getCurrentUser(),
                     AuthManager::isAdminLoggedIn()
@@ -243,7 +243,7 @@ class SystemActions {
         }
 
         if ($action === 'get_disabled_apps') {
-            $disabled = \SimpleGallery\Kernel\PluginDiscovery::getDisabledAppIds($project_root);
+            $disabled = \Atelier\Kernel\PluginDiscovery::getDisabledAppIds($project_root);
             return ['status' => 200, 'data' => ['success' => true, 'disabled_apps' => $disabled]];
         }
 
@@ -258,7 +258,7 @@ class SystemActions {
                 return ['status' => 400, 'data' => ['success' => false, 'error' => 'App ID required']];
             }
 
-            $disabled = \SimpleGallery\Kernel\PluginDiscovery::getDisabledAppIds($project_root);
+            $disabled = \Atelier\Kernel\PluginDiscovery::getDisabledAppIds($project_root);
             if ($enabled) {
                 $disabled = array_values(array_filter($disabled, function ($id) use ($app_id) {
                     return $id !== $app_id;
@@ -269,7 +269,7 @@ class SystemActions {
                 }
             }
 
-            $storage_dir = \SimpleGallery\Kernel\Config\ConfigStore::getStorageDir($project_root);
+            $storage_dir = \Atelier\Kernel\Config\ConfigStore::getStorageDir($project_root);
             $saved = @file_put_contents($storage_dir . '/disabled_apps.json', json_encode($disabled, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), LOCK_EX) !== false;
 
             return ['status' => 200, 'data' => [
@@ -281,7 +281,7 @@ class SystemActions {
         }
 
         if ($action === 'get_wm_styles') {
-            $styles = \SimpleGallery\Kernel\PluginDiscovery::getDiscoveredWindowStyles($project_root);
+            $styles = \Atelier\Kernel\PluginDiscovery::getDiscoveredWindowStyles($project_root);
             return ['status' => 200, 'data' => ['success' => true, 'styles' => $styles]];
         }
 
@@ -292,7 +292,7 @@ class SystemActions {
             if (!AuthManager::isAdminLoggedIn()) {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
             }
-            $res = \SimpleGallery\Kernel\ExternalAppManager::listExternalApps($project_root);
+            $res = \Atelier\Kernel\ExternalAppManager::listExternalApps($project_root);
             return ['status' => (int)($res['status'] ?? 200), 'data' => $res];
         }
 
@@ -309,7 +309,7 @@ class SystemActions {
                 'asset_pattern' => trim((string)($raw_body['asset_pattern'] ?? $_POST['asset_pattern'] ?? '')),
                 'source_type'   => 'zip'
             ];
-            $res = \SimpleGallery\Kernel\ExternalAppManager::installFromZipFile(
+            $res = \Atelier\Kernel\ExternalAppManager::installFromZipFile(
                 $project_root,
                 (string)$file['tmp_name'],
                 (string)($file['name'] ?? 'app.zip'),
@@ -328,7 +328,7 @@ class SystemActions {
                 'asset_pattern' => trim((string)($raw_body['asset_pattern'] ?? $_POST['asset_pattern'] ?? '')),
                 'source_type'   => 'url'
             ];
-            $res = \SimpleGallery\Kernel\ExternalAppManager::installFromUrl($project_root, $url, $meta);
+            $res = \Atelier\Kernel\ExternalAppManager::installFromUrl($project_root, $url, $meta);
             return ['status' => (int)($res['status'] ?? (!empty($res['success']) ? 200 : 400)), 'data' => $res];
         }
 
@@ -337,7 +337,7 @@ class SystemActions {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
             }
             $onlyAppId = trim((string)($raw_body['app_id'] ?? $_POST['app_id'] ?? ''));
-            $res = \SimpleGallery\Kernel\ExternalAppManager::checkUpdates($project_root, $onlyAppId !== '' ? $onlyAppId : null);
+            $res = \Atelier\Kernel\ExternalAppManager::checkUpdates($project_root, $onlyAppId !== '' ? $onlyAppId : null);
             return ['status' => (int)($res['status'] ?? 200), 'data' => $res];
         }
 
@@ -346,7 +346,7 @@ class SystemActions {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
             }
             $appId = trim((string)($raw_body['app_id'] ?? $_POST['app_id'] ?? ''));
-            $res = \SimpleGallery\Kernel\ExternalAppManager::approveUpdate($project_root, $appId);
+            $res = \Atelier\Kernel\ExternalAppManager::approveUpdate($project_root, $appId);
             return ['status' => (int)($res['status'] ?? (!empty($res['success']) ? 200 : 400)), 'data' => $res];
         }
 
@@ -355,7 +355,7 @@ class SystemActions {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
             }
             $appId = trim((string)($raw_body['app_id'] ?? $_POST['app_id'] ?? ''));
-            $res = \SimpleGallery\Kernel\ExternalAppManager::dismissUpdate($project_root, $appId);
+            $res = \Atelier\Kernel\ExternalAppManager::dismissUpdate($project_root, $appId);
             return ['status' => (int)($res['status'] ?? (!empty($res['success']) ? 200 : 400)), 'data' => $res];
         }
 
@@ -365,7 +365,7 @@ class SystemActions {
             }
             $appId = trim((string)($raw_body['app_id'] ?? $_POST['app_id'] ?? ''));
             $input = is_array($raw_body['override'] ?? null) ? $raw_body['override'] : $raw_body;
-            $res = \SimpleGallery\Kernel\ExternalAppManager::saveOverride($project_root, $appId, $input);
+            $res = \Atelier\Kernel\ExternalAppManager::saveOverride($project_root, $appId, $input);
             return ['status' => (int)($res['status'] ?? (!empty($res['success']) ? 200 : 400)), 'data' => $res];
         }
 
@@ -374,7 +374,7 @@ class SystemActions {
                 return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_admin_required')]];
             }
             $appId = trim((string)($raw_body['app_id'] ?? $_POST['app_id'] ?? ''));
-            $res = \SimpleGallery\Kernel\ExternalAppManager::uninstallApp($project_root, $appId);
+            $res = \Atelier\Kernel\ExternalAppManager::uninstallApp($project_root, $appId);
             return ['status' => (int)($res['status'] ?? (!empty($res['success']) ? 200 : 400)), 'data' => $res];
         }
 

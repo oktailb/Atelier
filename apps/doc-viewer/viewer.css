@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - Document Viewer App Stylesheet
+ * Atelier by GallusTech - Document Viewer App Stylesheet
  * Fully Theme-Adaptive Markdown, Code, PDF, and Document Reader/Editor
  */
 
@@ -225,7 +225,7 @@
   flex-wrap: wrap;
 }
 
-/* Toast UI Editor Theme overrides for SimpleGallery WebOS */
+/* Toast UI Editor Theme overrides for Atelier WebOS */
 .doc-editor-container {
   width: 100%;
   height: 100%;

@@ -1,6 +1,6 @@
 <?php
 /**
- * SimpleGallery 2026 - Image Viewer App UI Template
+ * Atelier by GallusTech - Image Viewer App UI Template
  * Injected automatically by the Kernel into the workspace.
  */
 ?>

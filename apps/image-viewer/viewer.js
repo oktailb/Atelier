@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - Image Viewer Application
+ * Atelier by GallusTech - Image Viewer Application
  * Fully autonomous Image Lightbox Explorer + Canvas Retouching Studio + Filter/Save Engine.
  */
 (function (window) {
@@ -864,7 +864,7 @@
       const currentCtx = ctx || this.currentCtx || window.explorerApp || window.galleryApp;
       const csrfToken = (currentCtx && currentCtx.state && currentCtx.state.csrfToken)
         || (typeof window !== 'undefined' && window.CSRF_TOKEN)
-        || (typeof window !== 'undefined' && window.SG_CSRF_TOKEN)
+        || (typeof window !== 'undefined' && window.ATELIER_CSRF_TOKEN)
         || document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
         || (window.explorerApp && window.explorerApp.state && window.explorerApp.state.csrfToken)
         || (window.galleryApp && window.galleryApp.state && window.galleryApp.state.csrfToken)

@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - Pipe Connect & Netwalk Game
+ * Atelier by GallusTech - Pipe Connect & Netwalk Game
  * Modern WebOS multi-instance puzzle app with procedural spanning-tree generation,
  * wrap-around circular map (torus) mode, real-time energy flow propagation, hint solver, and sound FX.
  */

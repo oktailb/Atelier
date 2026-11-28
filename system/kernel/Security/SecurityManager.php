@@ -1,7 +1,7 @@
 <?php
-namespace SimpleGallery\Kernel\Security;
+namespace Atelier\Kernel\Security;
 
-use SimpleGallery\Kernel\Auth\AuthManager;
+use Atelier\Kernel\Auth\AuthManager;
 
 /**
  * Kernel Security Manager
@@ -20,10 +20,10 @@ class SecurityManager {
     public static function setAdminLoggedIn(bool $state): void {
         AuthManager::ensureSessionStarted();
         if ($state) {
-            $_SESSION['sg_admin_logged'] = true;
+            $_SESSION['atelier_admin_logged'] = true;
             $_SESSION['is_admin'] = true;
         } else {
-            unset($_SESSION['sg_admin_logged']);
+            unset($_SESSION['atelier_admin_logged']);
             unset($_SESSION['is_admin']);
         }
     }

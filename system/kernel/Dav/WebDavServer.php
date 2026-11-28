@@ -12,21 +12,21 @@
  * via HTTP Basic Auth (compatible with 2FA-protected accounts and isolated from web sessions).
  */
 
-namespace SimpleGallery\Kernel\Dav;
+namespace Atelier\Kernel\Dav;
 
-use SimpleGallery\Kernel\Auth\AppPasswordManager;
-use SimpleGallery\Kernel\Auth\AuditLogger;
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\Auth\ShareManager;
-use SimpleGallery\Kernel\Auth\UserManager;
-use SimpleGallery\Kernel\FS\CacheManager;
-use SimpleGallery\Kernel\FS\DotfileManager;
-use SimpleGallery\Kernel\FS\FileIndexManager;
-use SimpleGallery\Kernel\FS\PermissionsManager;
-use SimpleGallery\Kernel\FS\TrashAndVersioningManager;
-use SimpleGallery\Kernel\Media\FormatRegistry;
-use SimpleGallery\Kernel\Security\PathValidator;
-use SimpleGallery\Kernel\Security\SecurityManager;
+use Atelier\Kernel\Auth\AppPasswordManager;
+use Atelier\Kernel\Auth\AuditLogger;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\Auth\ShareManager;
+use Atelier\Kernel\Auth\UserManager;
+use Atelier\Kernel\FS\CacheManager;
+use Atelier\Kernel\FS\DotfileManager;
+use Atelier\Kernel\FS\FileIndexManager;
+use Atelier\Kernel\FS\PermissionsManager;
+use Atelier\Kernel\FS\TrashAndVersioningManager;
+use Atelier\Kernel\Media\FormatRegistry;
+use Atelier\Kernel\Security\PathValidator;
+use Atelier\Kernel\Security\SecurityManager;
 
 class WebDavServer {
 
@@ -96,9 +96,9 @@ class WebDavServer {
         $isAdmin = in_array($user['role'] ?? '', ['superadmin', 'admin'], true);
         $tokenCanWrite = (($auth['scope'] ?? 'read') === 'write');
 
-        $_SESSION['sg_user'] = $user;
+        $_SESSION['atelier_user'] = $user;
         $_SESSION['is_admin'] = $isAdmin;
-        $_SESSION['sg_admin_logged'] = $isAdmin;
+        $_SESSION['atelier_admin_logged'] = $isAdmin;
 
         try {
             $davPath = self::normalizeDavPath($rawDavPath);

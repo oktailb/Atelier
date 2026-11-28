@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - WebOS Contextual Menu Bar Manager (MenuBarManager.js)
+ * Atelier by GallusTech - WebOS Contextual Menu Bar Manager (MenuBarManager.js)
  * Manages the top contextual action/menu bar under the breadcrumbs, inspired by macOS.
  * Allows whichever application is active/focused to colonize the top menu with its tools.
  */

@@ -1,5 +1,5 @@
 /**
- * SimpleGallery WebOS - Secure Mathematical Expression Parser, Evaluator & Numerical Analyzer
+ * Atelier WebOS - Secure Mathematical Expression Parser, Evaluator & Numerical Analyzer
  * 100% Pure JavaScript recursive-descent AST parser without dynamic code execution.
  * Supports Scientific mode (DEG/RAD/GRAD), Numerical Analysis (roots, extrema, intersections),
  * and arbitrary-width BigInt Programmer Bitwise mode (8/16/32/64-bit).

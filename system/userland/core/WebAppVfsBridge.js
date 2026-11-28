@@ -1,9 +1,9 @@
 /**
- * SimpleGallery Userland - Bidirectional VFS Bridge for Embedded Standalone Web Apps
+ * Atelier Userland - Bidirectional VFS Bridge for Embedded Standalone Web Apps
  * (FEAT-06: WebAppVfsBridge)
  *
  * Bridges same-origin third-party HTML/JS/WASM applications (e.g. ArtCraft, PdfCraft, PixelCraft)
- * directly to the SimpleGallery VFS so users can open and save gallery files natively without
+ * directly to the Atelier VFS so users can open and save gallery files natively without
  * manual download/upload round-trips:
  *   1. Open Hook  : Intercepts <input type="file">.click() and window.showOpenFilePicker()
  *   2. Save Hook  : Intercepts window.showSaveFilePicker() and <a download href="blob:..."> clicks
@@ -13,7 +13,7 @@
 (function (window) {
   'use strict';
 
-  const STORAGE_PREFIX = 'sg_vfs_bridge_enabled_';
+  const STORAGE_PREFIX = 'atelier_vfs_bridge_enabled_';
   const MAX_TRACKED_BLOBS = 32;
 
   function translate(key, replacements = {}) {
@@ -115,8 +115,8 @@
       if (appInstance && appInstance.id && window.localStorage) {
         const scope = (window.sys && window.sys.storage && typeof window.sys.storage.getUserScope === 'function')
           ? window.sys.storage.getUserScope()
-          : (window.SG_CURRENT_USER && window.SG_CURRENT_USER.id ? `u_${window.SG_CURRENT_USER.id}` : (window.IS_ADMIN ? 'admin' : 'guest'));
-        let stored = window.localStorage.getItem(`sg_vfs_bridge_${scope}_${appInstance.id}`);
+          : (window.ATELIER_CURRENT_USER && window.ATELIER_CURRENT_USER.id ? `u_${window.ATELIER_CURRENT_USER.id}` : (window.IS_ADMIN ? 'admin' : 'guest'));
+        let stored = window.localStorage.getItem(`atelier_vfs_bridge_${scope}_${appInstance.id}`);
         if (stored === null && !scope.startsWith('u_')) {
           stored = window.localStorage.getItem(STORAGE_PREFIX + appInstance.id);
         }
@@ -133,8 +133,8 @@
       if (appId && window.localStorage) {
         const scope = (window.sys && window.sys.storage && typeof window.sys.storage.getUserScope === 'function')
           ? window.sys.storage.getUserScope()
-          : (window.SG_CURRENT_USER && window.SG_CURRENT_USER.id ? `u_${window.SG_CURRENT_USER.id}` : (window.IS_ADMIN ? 'admin' : 'guest'));
-        window.localStorage.setItem(`sg_vfs_bridge_${scope}_${appId}`, enabled ? '1' : '0');
+          : (window.ATELIER_CURRENT_USER && window.ATELIER_CURRENT_USER.id ? `u_${window.ATELIER_CURRENT_USER.id}` : (window.IS_ADMIN ? 'admin' : 'guest'));
+        window.localStorage.setItem(`atelier_vfs_bridge_${scope}_${appId}`, enabled ? '1' : '0');
       }
     } catch (e) {}
   }
@@ -210,7 +210,7 @@
   }
 
   /**
-   * Builds a W3C-compatible FileSystemFileHandle backed by the SimpleGallery VFS.
+   * Builds a W3C-compatible FileSystemFileHandle backed by the Atelier VFS.
    * Supports both reading (`getFile()`) and saving back to the gallery (`createWritable()`).
    * All Promise-returning methods return `cw.Promise` instances for cross-realm WASM compatibility.
    */

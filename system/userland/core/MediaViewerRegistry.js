@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - Central Media Viewer Registry
+ * Atelier by GallusTech - Central Media Viewer Registry
  * Modular architecture for file viewers (Images, Videos, Audios, Docs, Archives, etc.)
  */
 (function(window) {

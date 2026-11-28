@@ -1,20 +1,20 @@
 <?php
-namespace SimpleGallery\Kernel\Actions;
+namespace Atelier\Kernel\Actions;
 
-use SimpleGallery\Kernel\Auth\AuditLogger;
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\Auth\AuthSettings;
-use SimpleGallery\Kernel\Auth\OidcProvider;
-use SimpleGallery\Kernel\Auth\RegistrationService;
-use SimpleGallery\Kernel\Auth\SessionRegistry;
-use SimpleGallery\Kernel\Auth\ShareManager;
-use SimpleGallery\Kernel\Auth\TotpManager;
-use SimpleGallery\Kernel\Auth\UserManager;
-use SimpleGallery\Kernel\Config\ConfigStore;
-use SimpleGallery\Kernel\Data\AtelierStore;
-use SimpleGallery\Kernel\FS\PermissionsManager;
-use SimpleGallery\Kernel\Mail\Mailer;
-use SimpleGallery\Kernel\Security\RateLimiter;
+use Atelier\Kernel\Auth\AuditLogger;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\Auth\AuthSettings;
+use Atelier\Kernel\Auth\OidcProvider;
+use Atelier\Kernel\Auth\RegistrationService;
+use Atelier\Kernel\Auth\SessionRegistry;
+use Atelier\Kernel\Auth\ShareManager;
+use Atelier\Kernel\Auth\TotpManager;
+use Atelier\Kernel\Auth\UserManager;
+use Atelier\Kernel\Config\ConfigStore;
+use Atelier\Kernel\Data\AtelierStore;
+use Atelier\Kernel\FS\PermissionsManager;
+use Atelier\Kernel\Mail\Mailer;
+use Atelier\Kernel\Security\RateLimiter;
 
 class AuthActions {
 
@@ -25,7 +25,7 @@ class AuthActions {
             : ConfigStore::resolveRoot($base_dir);
         $raw_body = is_array($context) ? ($context['raw_body'] ?? $params) : $params;
         $in = array_merge($_GET, $_POST, is_array($raw_body) ? $raw_body : []);
-        $lang = strtolower(trim((string)($in['lang'] ?? $_COOKIE['sg_lang'] ?? 'fr')));
+        $lang = strtolower(trim((string)($in['lang'] ?? $_COOKIE['atelier_lang'] ?? 'fr')));
         if (!in_array($lang, ['fr', 'en', 'ja'], true)) {
             $lang = 'fr';
         }
@@ -65,7 +65,7 @@ class AuthActions {
                                 ]];
                             }
                             RateLimiter::reset($ip_key);
-                            unset($_SESSION['sg_2fa_pending']);
+                            unset($_SESSION['atelier_2fa_pending']);
                             $freshUser = UserManager::sanitizeUserForOutput(UserManager::findById($project_root, (int)$rawUser['id']));
                             AuthManager::loginUserSession($freshUser, $project_root);
                             AuditLogger::log($project_root, 'user_login', $freshUser['home_dir'], 'ok', ['username' => $freshUser['username'], '2fa' => true]);
@@ -83,7 +83,7 @@ class AuthActions {
 
                         // Step 1 complete: create pending 2FA challenge ONLY (do NOT elevate session yet!)
                         AuthManager::ensureSessionStarted();
-                        $_SESSION['sg_2fa_pending'] = [
+                        $_SESSION['atelier_2fa_pending'] = [
                             'user_id'    => (int)$rawUser['id'],
                             'mode'       => 'verify',
                             'expires_at' => time() + 300
@@ -98,7 +98,7 @@ class AuthActions {
                     // Case B: Admin policy mandates 2FA enrollment for this role before granting full access
                     if ($totpRequired && ($cfg['totp_policy'] ?? 'optional') !== 'disabled') {
                         AuthManager::ensureSessionStarted();
-                        $_SESSION['sg_2fa_pending'] = [
+                        $_SESSION['atelier_2fa_pending'] = [
                             'user_id'    => (int)$rawUser['id'],
                             'mode'       => 'setup',
                             'expires_at' => time() + 600
@@ -118,7 +118,7 @@ class AuthActions {
                     $now = time();
                     $store->update('users', ['last_login_at' => $now], ['id' => (int)$rawUser['id']]);
                     $authUser['last_login_at'] = $now;
-                    unset($_SESSION['sg_2fa_pending']);
+                    unset($_SESSION['atelier_2fa_pending']);
                     AuthManager::loginUserSession($authUser, $project_root);
                     AuditLogger::log($project_root, 'user_login', $authUser['home_dir'], 'ok', ['username' => $authUser['username']]);
                     return ['status' => 200, 'data' => [
@@ -173,8 +173,8 @@ class AuthActions {
                 if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_ACTIVE && !headers_sent()) {
                     @session_regenerate_id(true);
                 }
-                unset($_SESSION['sg_user'], $_SESSION['sg_2fa_pending']);
-                $_SESSION['sg_admin_logged'] = true;
+                unset($_SESSION['atelier_user'], $_SESSION['atelier_2fa_pending']);
+                $_SESSION['atelier_admin_logged'] = true;
                 $_SESSION['is_admin'] = true;
                 SessionRegistry::registerCurrentSession($project_root, null, 'admin');
                 AuditLogger::log($project_root, 'admin_login', '', 'ok');
@@ -194,9 +194,9 @@ class AuthActions {
 
         if ($action === 'verify_2fa_login') {
             AuthManager::ensureSessionStarted();
-            $pending = $_SESSION['sg_2fa_pending'] ?? null;
+            $pending = $_SESSION['atelier_2fa_pending'] ?? null;
             if (!is_array($pending) || empty($pending['user_id']) || (int)($pending['expires_at'] ?? 0) < time()) {
-                unset($_SESSION['sg_2fa_pending']);
+                unset($_SESSION['atelier_2fa_pending']);
                 return ['status' => 401, 'data' => ['success' => false, 'error' => '2FA session expired. Please sign in again.']];
             }
 
@@ -210,7 +210,7 @@ class AuthActions {
             $mode = (string)($pending['mode'] ?? 'verify');
             $rawUser = UserManager::findById($project_root, $userId);
             if (!$rawUser || empty($rawUser['is_active'])) {
-                unset($_SESSION['sg_2fa_pending']);
+                unset($_SESSION['atelier_2fa_pending']);
                 return ['status' => 401, 'data' => ['success' => false, 'error' => 'Account unavailable.']];
             }
 
@@ -221,7 +221,7 @@ class AuthActions {
                     return ['status' => $res['status'] ?? 400, 'data' => $res];
                 }
                 RateLimiter::reset($ip_key);
-                unset($_SESSION['sg_2fa_pending']);
+                unset($_SESSION['atelier_2fa_pending']);
                 $store = AtelierStore::forRoot($project_root);
                 $store->update('users', ['last_login_at' => time()], ['id' => $userId]);
                 $freshUser = UserManager::sanitizeUserForOutput(UserManager::findById($project_root, $userId));
@@ -246,7 +246,7 @@ class AuthActions {
             }
 
             RateLimiter::reset($ip_key);
-            unset($_SESSION['sg_2fa_pending']);
+            unset($_SESSION['atelier_2fa_pending']);
             $freshUser = UserManager::sanitizeUserForOutput(UserManager::findById($project_root, $userId));
             AuthManager::loginUserSession($freshUser, $project_root);
             AuditLogger::log($project_root, 'user_login', $freshUser['home_dir'], 'ok', ['username' => $freshUser['username'], '2fa' => true]);
@@ -390,7 +390,7 @@ class AuthActions {
             $code = trim((string)($in['totp_code'] ?? $in['code'] ?? ''));
             $res = TotpManager::confirmSetup($project_root, (int)$cur['id'], $code);
             if (!empty($res['success']) && !empty($res['user'])) {
-                $_SESSION['sg_user'] = $res['user'];
+                $_SESSION['atelier_user'] = $res['user'];
             }
             return ['status' => $res['status'], 'data' => $res];
         }
@@ -409,7 +409,7 @@ class AuthActions {
             $pwd = isset($in['password']) ? (string)$in['password'] : null;
             $res = TotpManager::disable($project_root, $targetId, $pwd, $adminBypass);
             if (!empty($res['success']) && $cur && (int)$cur['id'] === $targetId && !empty($res['user'])) {
-                $_SESSION['sg_user'] = $res['user'];
+                $_SESSION['atelier_user'] = $res['user'];
             }
             return ['status' => $res['status'], 'data' => $res];
         }

@@ -1,4 +1,4 @@
-/* SimpleGallery WebOS - Extracted Gallery Features Stylesheet (PiP, Favorites, Archives, Search, Permissions, Map) */
+/* Atelier WebOS - Extracted Gallery Features Stylesheet (PiP, Favorites, Archives, Search, Permissions, Map) */
 
 /* -------------------------------------------------------------
  * 1. FLOATING PICTURE-IN-PICTURE (PiP) PLAYER WIDGET
@@ -874,7 +874,7 @@
 }
 
 /* Custom Leaflet Popups */
-.sg-leaflet-popup .leaflet-popup-content-wrapper {
+.atelier-leaflet-popup .leaflet-popup-content-wrapper {
   background: #182030;
   background-image: linear-gradient(180deg, #1e293b 0%, #111827 100%);
   color: #f8fafc;
@@ -885,22 +885,22 @@
   overflow: hidden;
 }
 
-.sg-leaflet-popup .leaflet-popup-content {
+.atelier-leaflet-popup .leaflet-popup-content {
   margin: 0;
   line-height: 1.4;
 }
 
-.sg-leaflet-popup .leaflet-popup-tip {
+.atelier-leaflet-popup .leaflet-popup-tip {
   background: #111827;
   border: 1px solid rgba(255, 255, 255, 0.16);
 }
 
-.sg-leaflet-popup a.leaflet-popup-close-button {
+.atelier-leaflet-popup a.leaflet-popup-close-button {
   color: #94a3b8;
   padding: 6px;
 }
 
-.sg-leaflet-popup a.leaflet-popup-close-button:hover {
+.atelier-leaflet-popup a.leaflet-popup-close-button:hover {
   color: #ffffff;
 }
 

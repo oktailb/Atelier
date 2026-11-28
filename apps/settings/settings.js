@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - Settings & Control Panel Application (apps/settings/settings.js)
+ * Atelier by GallusTech - Settings & Control Panel Application (apps/settings/settings.js)
  * Modernized Control Panel inheriting from WebOSApp (window.sys.App)
  */
 (function (window) {
@@ -55,14 +55,14 @@
           testResults: null,
           isTesting: false,
           activeWallpaper: (window.sys && window.sys.storage && typeof window.sys.storage.getPref === 'function')
-            ? (window.sys.storage.getPref('wallpaper', 'nebula', 'sg_desktop_wallpaper') || 'nebula')
-            : (localStorage.getItem('sg_desktop_wallpaper') || 'nebula'),
+            ? (window.sys.storage.getPref('wallpaper', 'nebula', 'atelier_desktop_wallpaper') || 'nebula')
+            : (localStorage.getItem('atelier_desktop_wallpaper') || 'nebula'),
           activeTheme: (window.sys && window.sys.storage && typeof window.sys.storage.getPref === 'function')
-            ? (window.sys.storage.getPref('theme', 'dark-glass', 'sg_active_theme') || 'dark-glass')
-            : (localStorage.getItem('sg_active_theme') || 'dark-glass'),
+            ? (window.sys.storage.getPref('theme', 'dark-glass', 'atelier_active_theme') || 'dark-glass')
+            : (localStorage.getItem('atelier_active_theme') || 'dark-glass'),
           activeWmStyle: (window.sys && window.sys.storage && typeof window.sys.storage.getPref === 'function')
-            ? (window.sys.storage.getPref('window_style', 'macos', 'sg_window_style') || 'macos')
-            : (localStorage.getItem('sg_window_style') || 'macos')
+            ? (window.sys.storage.getPref('window_style', 'macos', 'atelier_window_style') || 'macos')
+            : (localStorage.getItem('atelier_window_style') || 'macos')
         }
       });
 
@@ -303,7 +303,7 @@
     // TAB 1: SECURITY & GUEST PERMISSIONS MATRIX
     // -------------------------------------------------------------
     renderSecurityTab() {
-      const currentUser = (window.sys && window.sys.shares && window.sys.shares.getCurrentUser()) || window.SG_CURRENT_USER || null;
+      const currentUser = (window.sys && window.sys.shares && window.sys.shares.getCurrentUser()) || window.ATELIER_CURRENT_USER || null;
       const isLoggedIn = this.isAdmin || Boolean(currentUser);
       const connectedLabel = currentUser
         ? `${currentUser.display_name || currentUser.username} (@${currentUser.username} · ${currentUser.role})`
@@ -432,16 +432,16 @@
         if (json.success) {
           const isAdmin = json.is_admin !== undefined ? Boolean(json.is_admin) : true;
           window.IS_ADMIN = isAdmin;
-          window.SG_CURRENT_USER = json.user || null;
+          window.ATELIER_CURRENT_USER = json.user || null;
           if (Array.isArray(json.mounted_volumes)) {
-            window.SG_MOUNTED_VOLUMES = json.mounted_volumes;
+            window.ATELIER_MOUNTED_VOLUMES = json.mounted_volumes;
           }
           if (window.desktop) {
             window.desktop.state.isAdmin = isAdmin;
             if (json.csrf_token) {
               window.desktop.state.csrfToken = json.csrf_token;
               window.CSRF_TOKEN = json.csrf_token;
-              window.SG_CSRF_TOKEN = json.csrf_token;
+              window.ATELIER_CSRF_TOKEN = json.csrf_token;
             }
             const adminBtn = document.getElementById('adminBtn');
             if (adminBtn) adminBtn.classList.add('active');
@@ -479,9 +479,9 @@
       try {
         await this.api.post('logout', {});
         window.IS_ADMIN = false;
-        window.SG_CURRENT_USER = null;
-        window.SG_MOUNTED_VOLUMES = [];
-        window.SG_USER_PREFERENCES = {};
+        window.ATELIER_CURRENT_USER = null;
+        window.ATELIER_MOUNTED_VOLUMES = [];
+        window.ATELIER_USER_PREFERENCES = {};
         if (window.desktop) {
           window.desktop.state.isAdmin = false;
           const adminBtn = document.getElementById('adminBtn');
@@ -599,7 +599,7 @@
         ? this.state.windowStyles
         : ((window.WindowManager && typeof window.WindowManager.getWindowStyles === 'function')
           ? window.WindowManager.getWindowStyles()
-          : (window.SG_DISCOVERED_WM_STYLES || []));
+          : (window.ATELIER_DISCOVERED_WM_STYLES || []));
 
       const windowStyleContent = `
         <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:12px;">
@@ -663,7 +663,7 @@
         const json = await this.api.get('get_autostart_settings');
         if (json && json.success && json.config) {
           this.state.autostartConfig = json.config;
-          window.SG_AUTOSTART_CONFIG = json.config;
+          window.ATELIER_AUTOSTART_CONFIG = json.config;
         }
       } catch (e) { }
     }
@@ -671,7 +671,7 @@
     renderAutostartTab() {
       const discoveredApps = (window.sys && window.sys.appManager) ? window.sys.appManager.getAllApps(true) : [];
 
-      const autostartCfg = this.state.autostartConfig || (window.SG_AUTOSTART_CONFIG || { enabled: true, apps: [{ appId: 'explorer', state: 'normal', enabled: true }] });
+      const autostartCfg = this.state.autostartConfig || (window.ATELIER_AUTOSTART_CONFIG || { enabled: true, apps: [{ appId: 'explorer', state: 'normal', enabled: true }] });
       const masterEnabled = autostartCfg.enabled !== false;
       const appsList = autostartCfg.apps || [];
 
@@ -830,7 +830,7 @@
 
       const configData = { enabled: isMasterEnabled, apps };
       this.state.autostartConfig = configData;
-      window.SG_AUTOSTART_CONFIG = configData;
+      window.ATELIER_AUTOSTART_CONFIG = configData;
 
       try {
         const json = await this.api.post('save_autostart_settings', { autostart: configData, config: configData });
@@ -1026,7 +1026,7 @@
     renderPrivacyTab() {
       let cookieConsent = { necessary: true, preferences: true, cdn: true };
       try {
-        const stored = localStorage.getItem('sg_cookie_consent');
+        const stored = localStorage.getItem('atelier_cookie_consent');
         if (stored) cookieConsent = { ...cookieConsent, ...JSON.parse(stored) };
       } catch (e) { }
 
@@ -1092,7 +1092,7 @@
         cdn: cdn ? cdn.checked : true,
         timestamp: Date.now()
       };
-      localStorage.setItem('sg_cookie_consent', JSON.stringify(payload));
+      localStorage.setItem('atelier_cookie_consent', JSON.stringify(payload));
 
       const banner = document.getElementById('cookieConsentBanner');
       if (banner) banner.style.display = 'none';
@@ -1113,11 +1113,11 @@
         if (window.sys && window.sys.storage && typeof window.sys.storage.clearUserScope === 'function') {
           window.sys.storage.clearUserScope();
         } else {
-          localStorage.removeItem('sg_desktop_wallpaper');
-          localStorage.removeItem('sg_active_theme');
-          localStorage.removeItem('sg_favorites');
-          localStorage.removeItem('sg_view_mode');
-          localStorage.removeItem('sg_cookie_consent');
+          localStorage.removeItem('atelier_desktop_wallpaper');
+          localStorage.removeItem('atelier_active_theme');
+          localStorage.removeItem('atelier_favorites');
+          localStorage.removeItem('atelier_view_mode');
+          localStorage.removeItem('atelier_cookie_consent');
         }
         window.location.reload();
       }
@@ -1196,8 +1196,8 @@
 
     async publishCurrentDesktopAsGlobal() {
       if (!this.isAdmin) return;
-      const currentShortcuts = (window.SG_DESKTOP_CONFIG && Array.isArray(window.SG_DESKTOP_CONFIG.shortcuts))
-        ? window.SG_DESKTOP_CONFIG.shortcuts
+      const currentShortcuts = (window.ATELIER_DESKTOP_CONFIG && Array.isArray(window.ATELIER_DESKTOP_CONFIG.shortcuts))
+        ? window.ATELIER_DESKTOP_CONFIG.shortcuts
         : [];
       const res = await this.api.post('save_desktop_shortcuts', { scope: 'global', shortcuts: currentShortcuts });
       if (res && res.success) {
@@ -1234,9 +1234,9 @@
       try {
         const json = await this.api.get('get_disabled_apps');
         if (json && json.success && Array.isArray(json.disabled_apps)) {
-          window.SG_DISABLED_APPS = json.disabled_apps;
+          window.ATELIER_DISABLED_APPS = json.disabled_apps;
           try {
-            localStorage.setItem('sg_disabled_apps', JSON.stringify(json.disabled_apps));
+            localStorage.setItem('atelier_disabled_apps', JSON.stringify(json.disabled_apps));
           } catch (e) { }
           if (this.currentTab === 'plugins') this.render();
         }
@@ -1252,7 +1252,7 @@
 
       this.state.activeWallpaper = wallpaperId;
       if (persist) {
-        this._setUserPref('wallpaper', wallpaperId, 'sg_desktop_wallpaper');
+        this._setUserPref('wallpaper', wallpaperId, 'atelier_desktop_wallpaper');
       }
 
       const surface = document.getElementById('desktopSurface') || document.getElementById('webosDesktop');
@@ -1269,7 +1269,7 @@
     setCustomWallpaper(customStyle, persist = true) {
       this.state.activeWallpaper = 'custom';
       if (persist) {
-        this._setUserPref('wallpaper', `custom:${customStyle}`, 'sg_desktop_wallpaper');
+        this._setUserPref('wallpaper', `custom:${customStyle}`, 'atelier_desktop_wallpaper');
       }
 
       const surface = document.getElementById('desktopSurface') || document.getElementById('webosDesktop');
@@ -1287,7 +1287,7 @@
     }
 
     applySavedWallpaper(persist = false) {
-      const saved = this._getUserPref('wallpaper', 'nebula', 'sg_desktop_wallpaper') || 'nebula';
+      const saved = this._getUserPref('wallpaper', 'nebula', 'atelier_desktop_wallpaper') || 'nebula';
       if (saved.startsWith('custom:')) {
         const custom = saved.replace('custom:', '');
         this.setCustomWallpaper(custom, persist);
@@ -1302,8 +1302,8 @@
 
       this.state.activeTheme = themeId;
       if (persist) {
-        this._setUserPref('theme', themeId, 'sg_active_theme');
-        document.cookie = `sg_theme=${encodeURIComponent(themeId)};path=/;max-age=31536000;SameSite=Lax`;
+        this._setUserPref('theme', themeId, 'atelier_active_theme');
+        document.cookie = `atelier_theme=${encodeURIComponent(themeId)};path=/;max-age=31536000;SameSite=Lax`;
       }
 
       document.documentElement.setAttribute('data-theme', themeId);
@@ -1362,7 +1362,7 @@
     }
 
     applySavedTheme(silent = true) {
-      const saved = this._getUserPref('theme', 'dark-glass', 'sg_active_theme') || 'dark-glass';
+      const saved = this._getUserPref('theme', 'dark-glass', 'atelier_active_theme') || 'dark-glass';
       this.setTheme(saved, silent, false);
     }
 
@@ -1371,7 +1371,7 @@
       if (window.WindowManager && typeof window.WindowManager.setWindowStyle === 'function') {
         window.WindowManager.setWindowStyle(styleId, persist);
       } else {
-        if (persist) this._setUserPref('window_style', styleId, 'sg_window_style');
+        if (persist) this._setUserPref('window_style', styleId, 'atelier_window_style');
         document.documentElement.setAttribute('data-wm-style', styleId);
       }
       if (!silent) {
@@ -1381,19 +1381,19 @@
     }
 
     applySavedWindowStyle(silent = true) {
-      const saved = this._getUserPref('window_style', 'macos', 'sg_window_style') || 'macos';
+      const saved = this._getUserPref('window_style', 'macos', 'atelier_window_style') || 'macos';
       this.setWindowStyle(saved, silent, false);
     }
 
     async loadWindowStyles() {
-      if (window.SG_DISCOVERED_WM_STYLES && window.SG_DISCOVERED_WM_STYLES.length > 0) {
-        this.state.windowStyles = window.SG_DISCOVERED_WM_STYLES;
+      if (window.ATELIER_DISCOVERED_WM_STYLES && window.ATELIER_DISCOVERED_WM_STYLES.length > 0) {
+        this.state.windowStyles = window.ATELIER_DISCOVERED_WM_STYLES;
       }
       try {
         const json = await this.api.get('get_wm_styles');
         if (json && json.success && Array.isArray(json.styles) && json.styles.length > 0) {
           this.state.windowStyles = json.styles;
-          window.SG_DISCOVERED_WM_STYLES = json.styles;
+          window.ATELIER_DISCOVERED_WM_STYLES = json.styles;
           if (window.WindowManager) window.WindowManager.stylesCache = json.styles;
           this.render();
         }

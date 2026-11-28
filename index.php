@@ -49,11 +49,7 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
     ], JSON_HEX_TAG | JSON_HEX_AMP); ?>
   </script>
 
-  <!-- Google Fonts: Inter, Outfit, and Caveat for Polaroid handwriting -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  
+  <!-- Native System Typography (Zero external font CDN requests — GDPR & offline friendly) -->
   <link rel="stylesheet" href="themes/base.css?v=<?php echo filemtime(__DIR__ . '/themes/base.css'); ?>">
   <link rel="stylesheet" id="activeThemeStylesheet" href="themes/<?php echo htmlspecialchars($theme_preset, ENT_QUOTES, 'UTF-8'); ?>/theme.css?v=<?php echo file_exists(__DIR__ . '/themes/' . $theme_preset . '/theme.css') ? filemtime(__DIR__ . '/themes/' . $theme_preset . '/theme.css') : '1'; ?>">
   <link rel="stylesheet" href="css/gallery.css?v=<?php echo filemtime(__DIR__ . '/css/gallery.css'); ?>">
@@ -62,12 +58,12 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
   <link rel="stylesheet" href="css/window-manager.css?v=<?php echo file_exists(__DIR__ . '/css/window-manager.css') ? filemtime(__DIR__ . '/css/window-manager.css') : '1'; ?>">
   <link rel="stylesheet" href="system/userland/ui/styles/toolkit.css?v=<?php echo file_exists(__DIR__ . '/system/userland/ui/styles/toolkit.css') ? filemtime(__DIR__ . '/system/userland/ui/styles/toolkit.css') : '1'; ?>">
 
-  <!-- Leaflet & MarkerCluster for Interactive Maps (100% Free, Zero API Key, Subresource Integrity verified) -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" integrity="sha384-pmjIAcz2bAn0xukfxADbZIb3t8oRT9Sv0rvO+BR5Csr6Dhqq+nZs59P0pPKQJkEV" crossorigin="anonymous"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" integrity="sha384-wgw+aLYNQ7dlhK47ZPK7FRACiq7ROZwgFNg0m04avm4CaXS+Z9Y7nMu8yNjBKYC+" crossorigin="anonymous"/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
-  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" integrity="sha384-eXVCORTRlv4FUUgS/xmOyr66XBVraen8ATNLMESp92FKXLAMiKkerixTiBvXriZr" crossorigin="anonymous"></script>
+  <!-- Leaflet 1.9.4 (BSD-2-Clause) & MarkerCluster 1.5.3 (MIT) — Locally vendored (zero external CDN) -->
+  <link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
+  <link rel="stylesheet" href="assets/vendor/leaflet/MarkerCluster.css" integrity="sha384-pmjIAcz2bAn0xukfxADbZIb3t8oRT9Sv0rvO+BR5Csr6Dhqq+nZs59P0pPKQJkEV" crossorigin="anonymous"/>
+  <link rel="stylesheet" href="assets/vendor/leaflet/MarkerCluster.Default.css" integrity="sha384-wgw+aLYNQ7dlhK47ZPK7FRACiq7ROZwgFNg0m04avm4CaXS+Z9Y7nMu8yNjBKYC+" crossorigin="anonymous"/>
+  <script src="assets/vendor/leaflet/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+  <script src="assets/vendor/leaflet/leaflet.markercluster.js" integrity="sha384-eXVCORTRlv4FUUgS/xmOyr66XBVraen8ATNLMESp92FKXLAMiKkerixTiBvXriZr" crossorigin="anonymous"></script>
 
   <!-- Userland System Runtime (Core OS Bus, WindowManager, MenuBar, Registries, Syscalls, AppManager, I18n, WebOSToolkit) -->
   <script src="system/userland/core/IconHelper.js?v=<?php echo filemtime(__DIR__ . '/system/userland/core/IconHelper.js'); ?>" defer></script>
@@ -105,13 +101,13 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
   <script>
     (function() {
       try {
-        var t = localStorage.getItem('sg_active_theme') || (document.cookie.match(/(?:^|;\s*)sg_theme=([^;]+)/) || [])[1];
+        var t = localStorage.getItem('atelier_active_theme') || (document.cookie.match(/(?:^|;\s*)atelier_theme=([^;]+)/) || [])[1];
         if (t) {
           document.documentElement.setAttribute('data-theme', t);
         }
       } catch(e) {}
     })();
-    window.SG_DISABLED_APPS = <?php echo json_encode(\SimpleGallery\Kernel\PluginDiscovery::getDisabledAppIds(__DIR__)); ?>;
+    window.ATELIER_DISABLED_APPS = <?php echo json_encode(\Atelier\Kernel\PluginDiscovery::getDisabledAppIds(__DIR__)); ?>;
   </script>
 
   <!-- Dynamic Theme Injection from config/themes.php -->
@@ -138,18 +134,18 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
   </style>
 
   <?php
-  use SimpleGallery\Kernel\PluginDiscovery;
-  use SimpleGallery\Kernel\Media\FormatRegistry;
+  use Atelier\Kernel\PluginDiscovery;
+  use Atelier\Kernel\Media\FormatRegistry;
   $discovered_apps = PluginDiscovery::getDiscoveredApps(__DIR__, false);
   $all_apps_manifests = PluginDiscovery::getDiscoveredApps(__DIR__, true);
   $discovered_views = PluginDiscovery::getDiscoveredViews(__DIR__);
   $discovered_wm_styles = PluginDiscovery::getDiscoveredWindowStyles(__DIR__);
-  $sg_format_registry = FormatRegistry::resolve(__DIR__, $media_types ?? [], $discovered_apps);
+  $atelier_format_registry = FormatRegistry::resolve(__DIR__, $media_types ?? [], $discovered_apps);
   ?>
   <script>
-    window.SG_DISCOVERED_WM_STYLES = <?php echo json_encode($discovered_wm_styles); ?>;
-    window.SG_MIME_MAP = <?php echo json_encode($sg_format_registry['mime_to_extensions'], JSON_UNESCAPED_SLASHES); ?>;
-    window.SG_ALLOWED_UPLOAD_EXTENSIONS = <?php echo json_encode($sg_format_registry['allowed_upload_extensions']); ?>;
+    window.ATELIER_DISCOVERED_WM_STYLES = <?php echo json_encode($discovered_wm_styles); ?>;
+    window.ATELIER_MIME_MAP = <?php echo json_encode($atelier_format_registry['mime_to_extensions'], JSON_UNESCAPED_SLASHES); ?>;
+    window.ATELIER_ALLOWED_UPLOAD_EXTENSIONS = <?php echo json_encode($atelier_format_registry['allowed_upload_extensions']); ?>;
   </script>
 
   <!-- Auto-Discovered Explorer Views (apps/explorer/views/<name>/manifest.json) -->
@@ -185,29 +181,29 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
   <?php endforeach; ?>
 
   <?php
-  \SimpleGallery\Kernel\Auth\AuthManager::revalidateActiveUser(__DIR__);
-  $sg_boot_user = \SimpleGallery\Kernel\Auth\AuthManager::getCurrentUser();
-  $sg_boot_quota = $sg_boot_user ? \SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo(__DIR__, $real_base_dir, $sg_boot_user) : null;
-  $sg_boot_prefs = $sg_boot_user ? \SimpleGallery\Kernel\Auth\UserManager::getUserPreferences(__DIR__, (int)$sg_boot_user['id']) : [];
-  $desktop_config = \SimpleGallery\Kernel\Auth\UserManager::getEffectiveDesktopConfig(__DIR__, $sg_boot_user, is_admin_logged_in());
+  \Atelier\Kernel\Auth\AuthManager::revalidateActiveUser(__DIR__);
+  $atelier_boot_user = \Atelier\Kernel\Auth\AuthManager::getCurrentUser();
+  $atelier_boot_quota = $atelier_boot_user ? \Atelier\Kernel\Auth\UserManager::getUserQuotaInfo(__DIR__, $real_base_dir, $atelier_boot_user) : null;
+  $atelier_boot_prefs = $atelier_boot_user ? \Atelier\Kernel\Auth\UserManager::getUserPreferences(__DIR__, (int)$atelier_boot_user['id']) : [];
+  $desktop_config = \Atelier\Kernel\Auth\UserManager::getEffectiveDesktopConfig(__DIR__, $atelier_boot_user, is_admin_logged_in());
   ?>
   <script>
-    window.SG_DISCOVERED_APPS = <?php echo json_encode($discovered_apps, JSON_HEX_TAG | JSON_HEX_AMP); ?>;
-    window.SG_I18N_CONFIG = <?php echo json_encode([
+    window.ATELIER_DISCOVERED_APPS = <?php echo json_encode($discovered_apps, JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+    window.ATELIER_I18N_CONFIG = <?php echo json_encode([
       'locales'      => $available_locales,
       'default'      => $default_locale,
       'translations' => $initial_translations
     ], JSON_HEX_TAG | JSON_HEX_AMP); ?>;
-    window.SG_DESKTOP_CONFIG = <?php echo json_encode($desktop_config, JSON_HEX_TAG | JSON_HEX_AMP); ?>;
-    window.SG_AUTOSTART_CONFIG = <?php echo json_encode(get_autostart_config(__DIR__), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+    window.ATELIER_DESKTOP_CONFIG = <?php echo json_encode($desktop_config, JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+    window.ATELIER_AUTOSTART_CONFIG = <?php echo json_encode(get_autostart_config(__DIR__), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
     window.CSRF_TOKEN = <?php echo json_encode(get_csrf_token()); ?>;
-    window.SG_CSRF_TOKEN = window.CSRF_TOKEN;
+    window.ATELIER_CSRF_TOKEN = window.CSRF_TOKEN;
     window.IS_ADMIN = <?php echo is_admin_logged_in() ? 'true' : 'false'; ?>;
-    window.SG_CURRENT_USER = <?php echo json_encode($sg_boot_user, JSON_HEX_TAG | JSON_HEX_AMP); ?>;
-    window.SG_USER_QUOTA = <?php echo json_encode($sg_boot_quota, JSON_HEX_TAG | JSON_HEX_AMP); ?>;
-    window.SG_USER_PREFERENCES = <?php echo json_encode($sg_boot_prefs, JSON_HEX_TAG | JSON_HEX_AMP); ?>;
-    window.SG_MOUNTED_VOLUMES = <?php echo json_encode(\SimpleGallery\Kernel\Auth\ShareManager::getMountedVolumesForCurrentUser($real_base_dir), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
-    window.SG_AUTH_POLICY = <?php echo json_encode(\SimpleGallery\Kernel\Auth\AuthSettings::getPublicPolicy(__DIR__), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+    window.ATELIER_CURRENT_USER = <?php echo json_encode($atelier_boot_user, JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+    window.ATELIER_USER_QUOTA = <?php echo json_encode($atelier_boot_quota, JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+    window.ATELIER_USER_PREFERENCES = <?php echo json_encode($atelier_boot_prefs, JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+    window.ATELIER_MOUNTED_VOLUMES = <?php echo json_encode(\Atelier\Kernel\Auth\ShareManager::getMountedVolumesForCurrentUser($real_base_dir), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+    window.ATELIER_AUTH_POLICY = <?php echo json_encode(\Atelier\Kernel\Auth\AuthSettings::getPublicPolicy(__DIR__), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
   </script>
 
   <!-- WebOS Desktop Host Environment -->
@@ -261,7 +257,7 @@ $initial_translations = load_locale_translations($real_base_dir, $default_locale
         </div>
 
         <?php
-          $hdr_user = \SimpleGallery\Kernel\Auth\AuthManager::getCurrentUser();
+          $hdr_user = \Atelier\Kernel\Auth\AuthManager::getCurrentUser();
           $hdr_is_admin = is_admin_logged_in();
           $hdr_icon = $hdr_user ? ($hdr_is_admin ? '🛡️' : '👤') : '🔑';
           $hdr_label = $hdr_user

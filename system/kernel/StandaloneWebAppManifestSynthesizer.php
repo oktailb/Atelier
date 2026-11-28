@@ -1,12 +1,12 @@
 <?php
-namespace SimpleGallery\Kernel;
+namespace Atelier\Kernel;
 
-use SimpleGallery\Kernel\Media\FormatRegistry;
+use Atelier\Kernel\Media\FormatRegistry;
 
 /**
- * Synthesizes a full SimpleGallery WebOS manifest for third-party standalone
+ * Synthesizes a full Atelier WebOS manifest for third-party standalone
  * web application distributions (static HTML/JS/WASM/PWA folders dropped into
- * `apps/` without a native SimpleGallery `manifest.json` or `app.js`).
+ * `apps/` without a native Atelier `manifest.json` or `app.js`).
  */
 class StandaloneWebAppManifestSynthesizer {
 
@@ -135,7 +135,7 @@ class StandaloneWebAppManifestSynthesizer {
 
     /**
      * Checks whether a directory is a standalone third-party web distribution
-     * (has index.html/index.htm and no native SimpleGallery manifest.json / app.js).
+     * (has index.html/index.htm and no native Atelier manifest.json / app.js).
      */
     public static function isStandaloneWebApp(string $app_path, string $folder): bool {
         if (file_exists($app_path . '/manifest.json')) {
@@ -156,7 +156,7 @@ class StandaloneWebAppManifestSynthesizer {
         foreach ([$app_path . '/app.js', $app_path . '/' . $folder . '.js'] as $nativeJs) {
             if (file_exists($nativeJs)) {
                 $head = @file_get_contents($nativeJs, false, null, 0, 8192) ?: '';
-                if (preg_match('/\b(extends\s+(?:window\.)?WebOSApp|appManager\.register|SG_APP_REGISTRY)\b/', $head)) {
+                if (preg_match('/\b(extends\s+(?:window\.)?WebOSApp|appManager\.register|ATELIER_APP_REGISTRY)\b/', $head)) {
                     return false;
                 }
             }
@@ -196,7 +196,7 @@ class StandaloneWebAppManifestSynthesizer {
     }
 
     /**
-     * Synthesizes a complete SimpleGallery manifest array from a standalone web app directory.
+     * Synthesizes a complete Atelier manifest array from a standalone web app directory.
      */
     public static function synthesize(string $app_path, string $rel_key, string $project_root = ''): array {
         $folder = basename($app_path);

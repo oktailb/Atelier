@@ -1,6 +1,6 @@
 <?php
 /**
- * SimpleGallery 2026 - CLI Utility to Set / Change Admin Password Hash in config.php
+ * Atelier by GallusTech - CLI Utility to Set / Change Admin Password Hash in config.php
  * Usage: php bin/set_admin_password.php [new_password]
  */
 

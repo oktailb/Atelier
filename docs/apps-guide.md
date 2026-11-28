@@ -16,8 +16,7 @@ apps/mon-outil/
 ├── app.js               # OBLIGATOIRE — Classe héritant de WebOSApp
 ├── engine.js            # (Optionnel) — Sous-modules JS déclarés dans manifest.scripts
 ├── style.css            # (Recommandé) — Styles CSS adaptatifs aux thèmes WebOS
-├── api.php              # (Optionnel) — Endpoint PHP privé (AppEndpoint::handle)
-├── backend/             # (Optionnel) — Contrôleurs PHP enregistrés dans ActionRouter
+├── backend/             # (Optionnel) — Contrôleurs PHP routés via manifest.backend (ActionRouter)
 │   └── MonOutilActions.php
 ├── template.php         # (Optionnel) — Fragment HTML statique monté au chargement
 └── locales/             # OBLIGATOIRE dès qu'il y a des textes UI — i18n isolée FR/EN/JA
@@ -110,10 +109,10 @@ Hériter de `WebOSApp` gère automatiquement la création de fenêtre (`WindowMa
         ]
       });
 
-      // Client API isolé vers apps/mon-outil/api.php (ou this.api pour le Kernel)
+      // Client API routé via la passerelle unifiée system/endpoints/api.php (manifest.backend)
       this.appApi = (window.sys && window.sys.api)
         ? window.sys.api.forApp('mon-outil')
-        : new window.SyscallClient('apps/mon-outil/api.php');
+        : new window.SyscallClient('system/endpoints/api.php');
     }
 
     onInit() {
@@ -196,7 +195,7 @@ Hériter de `WebOSApp` gère automatiquement la création de fenêtre (`WindowMa
 | Service | Accès | Usage |
 |---|---|---|
 | **Syscalls Système** | `this.api` (`window.sys.api`) | `get(action, params)`, `post(action, payload)`, `upload(action, formData)`, `getText(url)`. Gère automatiquement `credentials: 'same-origin'`, `X-Requested-With` et `X-CSRF-Token`. |
-| **API Privée App** | `window.sys.api.forApp('id')` | Pointe vers `apps/<id>/api.php` avec la même protection CSRF. |
+| **API App (Backend)** | `window.sys.api.forApp('id')` | Route les actions déclarées dans `manifest.backend` via la passerelle unifiée `system/endpoints/api.php` avec la même protection CSRF. |
 | **Sélecteur VFS** | `window.sys.pickFile()`, `pickFolder()`, `pickSaveLocation()` | Ouvre une boîte de dialogue modale sur les dossiers de la galerie (avec filtrage `accept` par extension/MIME et option repli PC). |
 | **Stockage Client** | `this.storage` | `localStorage` namespacé sous `webos_app_<id>_<key>` (`get`, `set`, `remove`). |
 | **Notifications** | `this.toast` | `.info()`, `.success()`, `.warning()`, `.error()`. |
@@ -258,57 +257,55 @@ const isLight = activeTheme.includes('light');
 
 ## 6. Backend PHP & Exigences de Sécurité
 
-Deux modèles officiels existent selon votre besoin :
+> [!IMPORTANT]
+> Pour empêcher toute exécution de code PHP arbitraire dans les bundles d'applications déposés sous `apps/`, Apache (`.htaccess`) et Nginx (`docker/nginx.conf`) bloquent strictement tout accès HTTP direct à `^/apps/.*\.php$` (`HTTP 403`).
+> **Modèle unique recommandé** : déclarez votre contrôleur PHP dans `manifest.json` → `backend` ; le noyau le charge côté serveur via `system/endpoints/api.php` et `ActionRouter` avec vérification CSRF automatique.
 
-### Option A — Endpoint privé `apps/<id>/api.php` *(recommandé pour toute nouvelle app)*
-
-```php
-<?php
-if (!defined('SIMPLE_GALLERY_CORE')) {
-    define('SIMPLE_GALLERY_CORE', true);
-}
-require_once dirname(__DIR__, 2) . '/system/boot/bootstrap.php';
-require_once dirname(__DIR__, 2) . '/system/kernel/Api/AppEndpoint.php';
-require_once dirname(__DIR__, 2) . '/system/kernel/FS/StorageRepository.php';
-
-use SimpleGallery\Kernel\Api\AppEndpoint;
-use SimpleGallery\Kernel\FS\StorageRepository;
-
-AppEndpoint::handle('mon-outil', function (string $action, array $params, array $context): ?array {
-    // IMPORTANT (ARCH-01) : toujours utiliser project_root pour storage/, jamais base_dir (storage/media)
-    $project_root = $context['project_root'] ?? $context['base_dir'];
-    $storage = StorageRepository::forApp('mon-outil', $project_root);
-
-    switch ($action) {
-        case 'mon_outil_list':
-            return ['status' => 200, 'data' => ['success' => true, 'items' => $storage->getJson('items.json', [])]];
-
-        case 'mon_outil_save':
-            if (empty($context['is_admin'])) {
-                return ['status' => 403, 'data' => ['success' => false, 'error' => 'Admin required']];
-            }
-            // Valider les entrées puis écrire atomiquement dans storage/apps/mon-outil/items.json
-            $storage->saveJson('items.json', []);
-            return ['status' => 200, 'data' => ['success' => true]];
-
-        default:
-            return null; // Retourne HTTP 404 JSON
-    }
-}, [
-    // Toute action listée ici impose automatiquement POST + vérification CSRF
-    'mutating_actions' => ['mon_outil_save']
-]);
-```
-
-### Option B — Actions routées par le Kernel (`manifest.json` → `backend`)
-Pour exposer des actions via `system/endpoints/api.php?action=...` sans modifier `ActionRouter.php`, déclarez le bloc `backend` dans `manifest.json` (voir `apps/browser/manifest.json` et `apps/tribune/manifest.json`) :
+### 1. Déclaration dans `manifest.json`
+Déclarez le bloc `backend` dans `apps/<id>/manifest.json` (voir `apps/template-app/manifest.json`, `apps/browser/manifest.json` et `apps/tribune/manifest.json`) :
 
 ```json
 "backend": {
   "file": "backend/MonOutilActions.php",
-  "class": "\\SimpleGallery\\Apps\\MonOutil\\Backend\\MonOutilActions",
+  "class": "Atelier\\Apps\\MonOutil\\Backend\\MonOutilActions",
   "actions": ["mon_outil_list", "mon_outil_save"],
   "mutating_actions": ["mon_outil_save"]
+}
+```
+
+### 2. Contrôleur `apps/<id>/backend/MonOutilActions.php`
+
+```php
+<?php
+namespace Atelier\Apps\MonOutil\Backend;
+
+use Atelier\Kernel\FS\StorageRepository;
+use Atelier\Kernel\Security\SecurityManager;
+
+class MonOutilActions {
+    public static function handle(string $action, array $params, array $context): ?array {
+        // IMPORTANT (ARCH-01) : toujours utiliser project_root pour storage/, jamais base_dir (storage/media)
+        $project_root = $context['project_root'] ?? $context['base_dir'];
+        $storage = StorageRepository::forApp('mon-outil', $project_root);
+        $is_admin = isset($context['is_admin']) ? !empty($context['is_admin']) : SecurityManager::isAdminLoggedIn();
+
+        switch ($action) {
+            case 'mon_outil_list':
+                return ['status' => 200, 'data' => ['success' => true, 'items' => $storage->getJson('items.json', [])]];
+
+            case 'mon_outil_save':
+                // Action déclarée dans manifest.backend.mutating_actions -> POST + CSRF vérifiés automatiquement
+                if (!$is_admin) {
+                    return ['status' => 403, 'data' => ['success' => false, 'error' => 'Admin required']];
+                }
+                // Valider les entrées puis écrire atomiquement dans storage/apps/mon-outil/items.json
+                $storage->saveJson('items.json', []);
+                return ['status' => 200, 'data' => ['success' => true]];
+
+            default:
+                return null; // Retourne HTTP 404 JSON
+        }
+    }
 }
 ```
 

@@ -1,5 +1,5 @@
 /**
- * SimpleGallery Userland - Generic Standalone Web Application Host (WebAppHost.js)
+ * Atelier Userland - Generic Standalone Web Application Host (WebAppHost.js)
  * Automatically mounts third-party static/HTML/WASM/PWA applications discovered
  * by PluginDiscovery (distribution === 'standalone-web' / runtime === 'iframe')
  * with full WindowManager, MenuBarManager, AppManager, MediaViewerRegistry,
@@ -108,7 +108,7 @@
         if (this.hostBridge.supportsAuthor) {
           const u = (window.sys && window.sys.shares && typeof window.sys.shares.getCurrentUser === 'function')
             ? window.sys.shares.getCurrentUser()
-            : window.SG_CURRENT_USER;
+            : window.ATELIER_CURRENT_USER;
           const author = u && (u.display_name || u.username);
           if (author) {
             params.push(`author=${encodeURIComponent(author)}`);
@@ -910,7 +910,7 @@
     }
 
     /**
-     * Bridges a SimpleGallery file into the embedded standalone web app via:
+     * Bridges a Atelier file into the embedded standalone web app via:
      * 1. Synthetic HTML5 DragEvent('dragenter'/'dragover'/'drop') with a real File object
      * 2. Standard postMessage({ type: 'webos:open-file', ... })
      */
@@ -1076,7 +1076,7 @@
     }
 
     mountDiscoveredApps(discoveredMap) {
-      const discovered = discoveredMap || (typeof window !== 'undefined' && window.SG_DISCOVERED_APPS) || {};
+      const discovered = discoveredMap || (typeof window !== 'undefined' && window.ATELIER_DISCOVERED_APPS) || {};
       if (!discovered || typeof discovered !== 'object') return [];
 
       const mounted = [];
@@ -1113,7 +1113,7 @@
   window.sys = window.sys || {};
   window.sys.webAppHost = hostManager;
 
-  // Mount immediately if SG_DISCOVERED_APPS is already available, and also on DOMContentLoaded
+  // Mount immediately if ATELIER_DISCOVERED_APPS is already available, and also on DOMContentLoaded
   hostManager.mountDiscoveredApps();
   if (document && typeof document.addEventListener === 'function') {
     if (document.readyState === 'loading') {

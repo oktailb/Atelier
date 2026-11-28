@@ -19,10 +19,11 @@ Atelier by GallusTech adopte une architecture **Micro-Kernel + Userland** :
 | Point d'Entrée | Rôle | Sécurité / Comportement |
 |---|---|---|
 | `index.php` | Shell HTML du bureau WebOS | Injecte le DOM racine, les variables de thème, le token CSRF et charge les scripts découverts. |
-| `system/endpoints/api.php` | Passerelle API REST / Syscall | Vérifie le jeton CSRF sur toutes les actions mutantes (`POST`), dispatche via `ActionRouter`. |
+| `system/endpoints/api.php` | Passerelle API REST / Syscall | Vérifie le jeton CSRF sur toutes les actions mutantes (`POST`), dispatche les actions noyau et les contrôleurs d'applications (`manifest.backend`) via `ActionRouter`. |
 | `system/endpoints/thumb.php` | Moteur de distribution média et miniatures | Sert les flux bruts (`raw=1`), les téléchargements (`download=1`) et calcule les vignettes GD/FFmpeg en cache. |
 | `system/endpoints/archive.php` | Générateur d'archives à la volée | Crée des ZIP/TAR en streaming à la demande pour un sous-dossier sélectionné. |
-| `apps/<id>/api.php` | API privée optionnelle d'application | Endpoint autonome géré par `AppEndpoint::handle()` pour les besoins spécifiques d'une app. |
+| `system/endpoints/dav.php` | Passerelle WebDAV (`/dav/`) | Montage natif OS RFC 4918 authentifié par *App Passwords*. |
+| `apps/<id>/backend/*.php` | Contrôleur backend optionnel d'application | Chargé côté serveur par `ActionRouter` via la déclaration `manifest.json` → `backend` (l'accès HTTP direct aux `.php` dans `apps/` est bloqué en 403 par `.htaccess` et `nginx.conf`). |
 
 ![Pipeline Média et Virtual File System](assets/vfs-media-pipeline.svg)
 
@@ -46,7 +47,7 @@ Le projet sépare strictement la configuration système des données applicative
 ## 4. Système de Découverte Dynamique (`PluginDiscovery`)
 
 Atelier by GallusTech ne possède aucun registre d'applications codé en dur :
-1. Au démarrage, `SimpleGallery\Kernel\PluginDiscovery::getDiscoveredApps()` scanne le dossier `apps/` (ainsi que les sous-dossiers de niveau 1 comme `apps/games/*` ou `apps/ffs-apps/*`).
+1. Au démarrage, `Atelier\Kernel\PluginDiscovery::getDiscoveredApps()` scanne le dossier `apps/` (ainsi que les sous-dossiers de niveau 1 comme `apps/games/*` ou `apps/ffs-apps/*`).
 2. Pour chaque sous-dossier contenant un `manifest.json` ou un fichier `<nom>.js` / `app.js` :
    - Les scripts auxiliaires (`manifest.scripts`) et le script principal (`manifest.entry.js` ou `app.js`) sont indexés.
    - La feuille de style (`manifest.entry.css` ou `style.css`) est indexée.
@@ -62,7 +63,7 @@ Atelier by GallusTech ne possède aucun registre d'applications codé en dur :
 
 ## 5. Virtual File System (VFS) & Isolation
 
-Le système de fichiers virtuel ([system/kernel/FS/](file:///c:/Users/ec135/AndroidStudioProjects/SimpleGallery/system/kernel/FS)) isole l'utilisateur du système hôte :
+Le système de fichiers virtuel ([system/kernel/FS/](../system/kernel/FS/)) isole l'utilisateur du système hôte :
 - **Sandboxing strict** : Tout chemin d'accès relatif est résolu via `realpath()` et doit obligatoirement résider sous `$real_base_dir` (`storage/media` par défaut).
 - **Protection contre le Directory Traversal** : Toute tentative d'évasion (`../`, chemins absolus Windows/Unix, encodages nuls `%00`) est rejetée avec une erreur 403 ou 404.
 - **Gestion des Dotfiles Unix** : Les fichiers de configuration locaux (`.title`, `.desc`, `.comment`, `.bg`, `.theme`, `.private`, `.password`) sont interprétés par le VFS et protégés contre l'accès direct en lecture par le serveur web via `.htaccess`.

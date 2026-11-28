@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - Explorer Fluid Mosaic View Plugin (apps/explorer/views/mosaic/view.js)
+ * Atelier by GallusTech - Explorer Fluid Mosaic View Plugin (apps/explorer/views/mosaic/view.js)
  */
 (function(window) {
   'use strict';

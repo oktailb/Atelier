@@ -5,11 +5,11 @@
  * tracking path, category, size, mtime, comments, tags, and GPS coordinates.
  */
 
-namespace SimpleGallery\Kernel\FS;
+namespace Atelier\Kernel\FS;
 
-use SimpleGallery\Kernel\Data\AtelierStore;
-use SimpleGallery\Kernel\Media\ExifParser;
-use SimpleGallery\Kernel\Security\PathValidator;
+use Atelier\Kernel\Data\AtelierStore;
+use Atelier\Kernel\Media\ExifParser;
+use Atelier\Kernel\Security\PathValidator;
 
 class FileIndexManager {
 

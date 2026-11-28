@@ -4,9 +4,9 @@
  * Compatible with Nextcloud, ownCloud, Synology DSM, kDrive, Infomaniak, Apache/Nginx WebDAV.
  */
 
-namespace SimpleGallery\Kernel\Storage;
+namespace Atelier\Kernel\Storage;
 
-use SimpleGallery\Kernel\Security\UrlValidator;
+use Atelier\Kernel\Security\UrlValidator;
 
 class WebDavStorageDriver implements StorageDriverInterface {
 

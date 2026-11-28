@@ -1,4 +1,4 @@
-# SimpleGallery 2026 - Deny all direct web access to storage files
+# Atelier by GallusTech - Deny all direct web access to storage files
 <IfModule mod_authz_core.c>
     Require all denied
 </IfModule>

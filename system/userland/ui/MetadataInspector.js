@@ -1,5 +1,5 @@
 /**
- * SimpleGallery Userland - Metadata Inspector UI Component
+ * Atelier Userland - Metadata Inspector UI Component
  * Multi-format asynchronous metadata viewer for images (EXIF/GPS), videos, audio, documents, and archives.
  */
 (function(window) {

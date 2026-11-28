@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - Explorer Application (apps/explorer/explorer.js)
+ * Atelier by GallusTech - Explorer Application (apps/explorer/explorer.js)
  * Fully modular, autonomous, multi-instance Gallery Explorer with Cross-Window Drag & Drop.
  */
 (function (window) {
@@ -35,7 +35,7 @@
         currentBreadcrumbs: null,
         isAdmin: false,
         adminEnabled: false,
-        csrfToken: (typeof window !== 'undefined' && (window.CSRF_TOKEN || window.SG_CSRF_TOKEN)) || '',
+        csrfToken: (typeof window !== 'undefined' && (window.CSRF_TOKEN || window.ATELIER_CSRF_TOKEN)) || '',
         userRights: {},
         availableArchives: [],
         viewMode: 'polaroid',
@@ -284,7 +284,7 @@
     getUserStorageScope() {
       const u = (window.sys && window.sys.shares && typeof window.sys.shares.getCurrentUser === 'function')
         ? window.sys.shares.getCurrentUser()
-        : window.SG_CURRENT_USER;
+        : window.ATELIER_CURRENT_USER;
       if (u && u.username) return `user_${u.username}`;
       return window.IS_ADMIN ? 'admin' : 'guest';
     }
@@ -294,13 +294,13 @@
         const scope = this.getUserStorageScope();
         let savedView = null;
         if (window.sys && window.sys.storage && typeof window.sys.storage.getPref === 'function') {
-          savedView = window.sys.storage.getPref('explorer_view_mode', null, 'sg_explorer_view_mode');
+          savedView = window.sys.storage.getPref('explorer_view_mode', null, 'atelier_explorer_view_mode');
         }
         if (!savedView && !scope.startsWith('user_')) {
-          savedView = localStorage.getItem('sg_explorer_view_mode') || localStorage.getItem('gallery_view_mode');
+          savedView = localStorage.getItem('atelier_explorer_view_mode') || localStorage.getItem('gallery_view_mode');
         }
         if (savedView) this.state.viewMode = savedView;
-        const rawFavs = localStorage.getItem(`sg_favorites_${scope}`) || (scope === 'guest' ? localStorage.getItem('sg_favorites') : null) || '[]';
+        const rawFavs = localStorage.getItem(`atelier_favorites_${scope}`) || (scope === 'guest' ? localStorage.getItem('atelier_favorites') : null) || '[]';
         const savedFavs = JSON.parse(rawFavs);
         this.state.favorites = Array.isArray(savedFavs) ? savedFavs : [];
       } catch (e) { }
@@ -405,7 +405,7 @@
         if (json.csrf_token) {
           this.state.csrfToken = json.csrf_token;
           window.CSRF_TOKEN = json.csrf_token;
-          window.SG_CSRF_TOKEN = json.csrf_token;
+          window.ATELIER_CSRF_TOKEN = json.csrf_token;
         }
         if (json.available_archives) this.state.availableArchives = json.available_archives;
 
@@ -588,11 +588,11 @@
           e.preventDefault();
           e.stopPropagation();
           btn.classList.remove('drag-over');
-          if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0 && !window.SG_DRAGGING_PATHS) {
+          if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0 && !window.ATELIER_DRAGGING_PATHS) {
             this.handleUploadFiles(e.dataTransfer.files, destPath);
             return;
           }
-          let paths = this.state.draggingPaths || window.SG_DRAGGING_PATHS;
+          let paths = this.state.draggingPaths || window.ATELIER_DRAGGING_PATHS;
           if (!paths) {
             try {
               const text = e.dataTransfer.getData('application/json') || e.dataTransfer.getData('text/plain');
@@ -693,8 +693,8 @@
         card.ondragstart = (e) => {
           this.state.draggingPaths = [folderPath];
           this.state.draggingItemPath = folderPath;
-          window.SG_DRAGGING_PATHS = [folderPath];
-          window.SG_DRAG_SOURCE_INSTANCE = this.id;
+          window.ATELIER_DRAGGING_PATHS = [folderPath];
+          window.ATELIER_DRAG_SOURCE_INSTANCE = this.id;
 
           const folderData = {
             type: 'folder',
@@ -703,11 +703,11 @@
             icon: folderObj.icon || '📁',
             cover_url: folderCover
           };
-          window.SG_DRAGGING_ITEM_DATA = folderData;
+          window.ATELIER_DRAGGING_ITEM_DATA = folderData;
 
           e.dataTransfer.setData('text/plain', JSON.stringify([folderPath]));
           e.dataTransfer.setData('application/json', JSON.stringify([folderPath]));
-          e.dataTransfer.setData('application/sg-item', JSON.stringify(folderData));
+          e.dataTransfer.setData('application/atelier-item', JSON.stringify(folderData));
           e.dataTransfer.effectAllowed = 'copyMove';
           card.classList.add('is-dragging');
         };
@@ -716,9 +716,9 @@
           this.state.draggingPaths = null;
           this.state.draggingItemPath = null;
           setTimeout(() => {
-            window.SG_DRAGGING_PATHS = null;
-            window.SG_DRAG_SOURCE_INSTANCE = null;
-            window.SG_DRAGGING_ITEM_DATA = null;
+            window.ATELIER_DRAGGING_PATHS = null;
+            window.ATELIER_DRAG_SOURCE_INSTANCE = null;
+            window.ATELIER_DRAGGING_ITEM_DATA = null;
           }, 300);
           document.querySelectorAll('.is-dragging').forEach(c => c.classList.remove('is-dragging'));
           document.querySelectorAll('.drag-over').forEach(c => c.classList.remove('drag-over'));
@@ -741,12 +741,12 @@
           e.stopPropagation();
           card.classList.remove('drag-over');
 
-          if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0 && !window.SG_DRAGGING_PATHS) {
+          if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0 && !window.ATELIER_DRAGGING_PATHS) {
             this.handleUploadFiles(e.dataTransfer.files, folderPath);
             return;
           }
 
-          let pathsToMove = this.state.draggingPaths || window.SG_DRAGGING_PATHS;
+          let pathsToMove = this.state.draggingPaths || window.ATELIER_DRAGGING_PATHS;
           if (!pathsToMove) {
             try {
               const data = e.dataTransfer.getData('application/json') || e.dataTransfer.getData('text/plain');
@@ -890,9 +890,9 @@
       this.state.viewMode = mode;
       try {
         if (window.sys && window.sys.storage && typeof window.sys.storage.setPref === 'function') {
-          window.sys.storage.setPref('explorer_view_mode', mode, { legacyLocalKey: 'sg_explorer_view_mode' });
+          window.sys.storage.setPref('explorer_view_mode', mode, { legacyLocalKey: 'atelier_explorer_view_mode' });
         } else {
-          localStorage.setItem(`sg_explorer_view_mode_${this.getUserStorageScope()}`, mode);
+          localStorage.setItem(`atelier_explorer_view_mode_${this.getUserStorageScope()}`, mode);
         }
       } catch (e) { }
 
@@ -1024,8 +1024,8 @@
 
         this.state.draggingPaths = pathsToMove;
         this.state.draggingItemPath = file.path;
-        window.SG_DRAGGING_PATHS = pathsToMove;
-        window.SG_DRAG_SOURCE_INSTANCE = this.id;
+        window.ATELIER_DRAGGING_PATHS = pathsToMove;
+        window.ATELIER_DRAG_SOURCE_INSTANCE = this.id;
 
         const fileIcon = window.IconHelper ? window.IconHelper.getFileIcon(file) : '📄';
         const fileUrl = file.file_url || (`system/endpoints/thumb.php?file=${encodeURIComponent(file.path)}&raw=1`);
@@ -1041,11 +1041,11 @@
           size_formatted: file.size_formatted || '',
           icon: fileIcon
         };
-        window.SG_DRAGGING_ITEM_DATA = fileData;
+        window.ATELIER_DRAGGING_ITEM_DATA = fileData;
 
         e.dataTransfer.setData('text/plain', JSON.stringify(pathsToMove));
         e.dataTransfer.setData('application/json', JSON.stringify(pathsToMove));
-        e.dataTransfer.setData('application/sg-item', JSON.stringify(fileData));
+        e.dataTransfer.setData('application/atelier-item', JSON.stringify(fileData));
         e.dataTransfer.effectAllowed = 'copyMove';
 
         card.classList.add('is-dragging');
@@ -1059,9 +1059,9 @@
         this.state.draggingPaths = null;
         this.state.draggingItemPath = null;
         setTimeout(() => {
-          window.SG_DRAGGING_PATHS = null;
-          window.SG_DRAG_SOURCE_INSTANCE = null;
-          window.SG_DRAGGING_ITEM_DATA = null;
+          window.ATELIER_DRAGGING_PATHS = null;
+          window.ATELIER_DRAG_SOURCE_INSTANCE = null;
+          window.ATELIER_DRAGGING_ITEM_DATA = null;
         }, 300);
         document.querySelectorAll('.is-dragging').forEach(c => c.classList.remove('is-dragging'));
         document.querySelectorAll('.drag-over').forEach(c => c.classList.remove('drag-over'));
@@ -1303,7 +1303,7 @@
 
     saveFolderSort(dirPath, sortBy, sortOrder) {
       try {
-        const key = `sg_folder_sorts_${this.getUserStorageScope()}`;
+        const key = `atelier_folder_sorts_${this.getUserStorageScope()}`;
         const sorts = JSON.parse(localStorage.getItem(key) || '{}');
         sorts[dirPath || '__root__'] = { sortBy, sortOrder };
         localStorage.setItem(key, JSON.stringify(sorts));
@@ -1312,7 +1312,7 @@
 
     getFolderSort(dirPath) {
       try {
-        const key = `sg_folder_sorts_${this.getUserStorageScope()}`;
+        const key = `atelier_folder_sorts_${this.getUserStorageScope()}`;
         const sorts = JSON.parse(localStorage.getItem(key) || '{}');
         return sorts[dirPath || '__root__'] || null;
       } catch (e) {
@@ -1330,7 +1330,7 @@
         this.showToast(this.t('lightbox.favorite_added'), 'success');
       }
       try {
-        localStorage.setItem(`sg_favorites_${this.getUserStorageScope()}`, JSON.stringify(this.state.favorites));
+        localStorage.setItem(`atelier_favorites_${this.getUserStorageScope()}`, JSON.stringify(this.state.favorites));
       } catch (e) { }
 
       this.manager.updateMenuBarForActiveInstance();
@@ -2355,7 +2355,7 @@
       this.containerEl.addEventListener('dragover', (e) => {
         e.preventDefault();
         const hasExternalFiles = e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files');
-        const hasInternalItems = !!window.SG_DRAGGING_PATHS;
+        const hasInternalItems = !!window.ATELIER_DRAGGING_PATHS;
 
         if (hasInternalItems) {
           e.dataTransfer.dropEffect = 'move';
@@ -2374,7 +2374,7 @@
         e.stopPropagation();
 
         // 1. External files from OS
-        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0 && !window.SG_DRAGGING_PATHS) {
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0 && !window.ATELIER_DRAGGING_PATHS) {
           const canUpload = this.state.isAdmin || (this.state.userRights && this.state.userRights.can_upload);
           if (canUpload) {
             this.handleUploadFiles(e.dataTransfer.files, this.state.currentPath);
@@ -2383,7 +2383,7 @@
         }
 
         // 2. Internal Drag & Drop from another explorer window or same window
-        let pathsToMove = this.state.draggingPaths || window.SG_DRAGGING_PATHS;
+        let pathsToMove = this.state.draggingPaths || window.ATELIER_DRAGGING_PATHS;
         if (!pathsToMove) {
           try {
             const data = e.dataTransfer.getData('application/json') || e.dataTransfer.getData('text/plain');
@@ -2842,7 +2842,7 @@
       }
 
       // Initial window on DOMContentLoaded handled by OS Boot / Autostart Processor
-      if (!window.SG_AUTOSTART_CONFIG) {
+      if (!window.ATELIER_AUTOSTART_CONFIG) {
         this.createInstance();
       }
     }

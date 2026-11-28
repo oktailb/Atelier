@@ -9,7 +9,7 @@
   "css": "style.css",
   "backend": {
     "file": "backend/BrowserProxyAction.php",
-    "class": "SimpleGallery\\Apps\\Browser\\Backend\\BrowserProxyAction",
+    "class": "Atelier\\Apps\\Browser\\Backend\\BrowserProxyAction",
     "actions": [
       "browser_proxy"
     ],

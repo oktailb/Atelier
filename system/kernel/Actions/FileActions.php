@@ -1,15 +1,15 @@
 <?php
-namespace SimpleGallery\Kernel\Actions;
+namespace Atelier\Kernel\Actions;
 
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\FS\CacheManager;
-use SimpleGallery\Kernel\FS\DotfileManager;
-use SimpleGallery\Kernel\FS\PermissionsManager;
-use SimpleGallery\Kernel\Media\ExifParser;
-use SimpleGallery\Kernel\Media\FormatRegistry;
-use SimpleGallery\Kernel\Security\PathValidator;
-use SimpleGallery\Kernel\Security\RateLimiter;
-use SimpleGallery\Kernel\Security\SecurityManager;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\FS\CacheManager;
+use Atelier\Kernel\FS\DotfileManager;
+use Atelier\Kernel\FS\PermissionsManager;
+use Atelier\Kernel\Media\ExifParser;
+use Atelier\Kernel\Media\FormatRegistry;
+use Atelier\Kernel\Security\PathValidator;
+use Atelier\Kernel\Security\RateLimiter;
+use Atelier\Kernel\Security\SecurityManager;
 
 class FileActions {
 
@@ -51,7 +51,7 @@ class FileActions {
             if (empty($hash) || password_verify($password, $hash)) {
                 RateLimiter::reset($unlock_rl_key);
                 AuthManager::ensureSessionStarted();
-                $_SESSION['sg_unlocked_folders'][$rel] = true;
+                $_SESSION['atelier_unlocked_folders'][$rel] = true;
                 $_SESSION['unlocked_dirs'][$rel] = true;
 
                 return ['status' => 200, 'data' => [
@@ -71,7 +71,7 @@ class FileActions {
             if ($dir_target && is_dir($dir_target)) {
                 AuthManager::ensureSessionStarted();
                 $rel = PathValidator::getRelativePath($dir_target, $base_dir);
-                unset($_SESSION['sg_unlocked_folders'][$rel]);
+                unset($_SESSION['atelier_unlocked_folders'][$rel]);
                 unset($_SESSION['unlocked_dirs'][$rel]);
             }
 
@@ -230,9 +230,9 @@ class FileActions {
             $dir_param = $_POST['dir'] ?? $_GET['dir'] ?? '';
 
             // Phase B: Direct upload into an external mount (`ext://<mount_id>/...`)
-            $ext_up = \SimpleGallery\Kernel\Storage\ExternalMountManager::parseExternalPath((string)$dir_param);
+            $ext_up = \Atelier\Kernel\Storage\ExternalMountManager::parseExternalPath((string)$dir_param);
             if ($ext_up !== null) {
-                $resolved = \SimpleGallery\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, (int)$ext_up['mount_id']);
+                $resolved = \Atelier\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, (int)$ext_up['mount_id']);
                 if (!$resolved || empty($resolved['can_write'])) {
                     return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_upload_denied')]];
                 }
@@ -308,9 +308,9 @@ class FileActions {
             // Enforce personal disk quota when uploading inside a user's `users/<username>` space
             $rel_target = PathValidator::getRelativePath($target_dir, $base_dir);
             if (preg_match('#^users/([^/]+)(?:/|$)#i', $rel_target, $um)) {
-                $owner = \SimpleGallery\Kernel\Auth\UserManager::findByUsername($project_root, $um[1]);
+                $owner = \Atelier\Kernel\Auth\UserManager::findByUsername($project_root, $um[1]);
                 if ($owner && (int)($owner['quota_bytes'] ?? 0) > 0) {
-                    $quotaInfo = \SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo($project_root, $base_dir, $owner);
+                    $quotaInfo = \Atelier\Kernel\Auth\UserManager::getUserQuotaInfo($project_root, $base_dir, $owner);
                     $incomingBytes = 0;
                     if (isset($files_input['size'])) {
                         $sizes = is_array($files_input['size']) ? $files_input['size'] : [$files_input['size']];
@@ -378,7 +378,7 @@ class FileActions {
 
                 if (file_exists($dest_path) && $overwrite) {
                     $rel_existing = PathValidator::getRelativePath($dest_path, $base_dir);
-                    \SimpleGallery\Kernel\FS\TrashAndVersioningManager::snapshotBeforeOverwrite($project_root, $dest_path, $rel_existing);
+                    \Atelier\Kernel\FS\TrashAndVersioningManager::snapshotBeforeOverwrite($project_root, $dest_path, $rel_existing);
                 }
 
                 if (@move_uploaded_file($tmp_name, $dest_path)) {
@@ -386,7 +386,7 @@ class FileActions {
                     if ($ext === 'svg') {
                         SecurityManager::sanitizeSvgContent($dest_path);
                     }
-                    \SimpleGallery\Kernel\FS\FileIndexManager::upsertFile($project_root, $base_dir, $dest_path, $media_types);
+                    \Atelier\Kernel\FS\FileIndexManager::upsertFile($project_root, $base_dir, $dest_path, $media_types);
                     $uploaded_results[] = [
                         'original_name' => $raw_name,
                         'saved_name'    => $target_file_name,
@@ -419,9 +419,9 @@ class FileActions {
             $dir_param = $_POST['dir'] ?? $raw_body['dir'] ?? '';
             $name_param = trim($_POST['name'] ?? $raw_body['name'] ?? '');
 
-            $ext_mk = \SimpleGallery\Kernel\Storage\ExternalMountManager::parseExternalPath((string)$dir_param);
+            $ext_mk = \Atelier\Kernel\Storage\ExternalMountManager::parseExternalPath((string)$dir_param);
             if ($ext_mk !== null) {
-                $resolved = \SimpleGallery\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, (int)$ext_mk['mount_id']);
+                $resolved = \Atelier\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, (int)$ext_mk['mount_id']);
                 if (!$resolved || empty($resolved['can_write'])) {
                     return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_create_folder_denied')]];
                 }
@@ -534,9 +534,9 @@ class FileActions {
                 if (preg_match('#^users/([^/]+)(?:/|$)#i', $target_dir_rel, $um_dst)) {
                     $same_home = preg_match('#^users/' . preg_quote($um_dst[1], '#') . '(?:/|$)#i', $source_rel);
                     if (!$same_home) {
-                        $owner = \SimpleGallery\Kernel\Auth\UserManager::findByUsername($project_root, $um_dst[1]);
+                        $owner = \Atelier\Kernel\Auth\UserManager::findByUsername($project_root, $um_dst[1]);
                         if ($owner && (int)($owner['quota_bytes'] ?? 0) > 0) {
-                            $quotaInfo = \SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo($project_root, $base_dir, $owner);
+                            $quotaInfo = \Atelier\Kernel\Auth\UserManager::getUserQuotaInfo($project_root, $base_dir, $owner);
                             $movingBytes = is_dir($source_full) ? self::computePathBytes($source_full) : max(0, (int)@filesize($source_full));
                             if (($quotaInfo['used_bytes'] + $movingBytes) > $quotaInfo['quota_bytes']) {
                                 return ['status' => 413, 'data' => ['success' => false, 'error' => 'Quota disque dépassé pour cet espace personnel.']];
@@ -671,9 +671,9 @@ class FileActions {
 
             // Enforce personal disk quota when copying inside `users/<username>`
             if (preg_match('#^users/([^/]+)(?:/|$)#i', $target_dir_rel, $um_cp)) {
-                $owner = \SimpleGallery\Kernel\Auth\UserManager::findByUsername($project_root, $um_cp[1]);
+                $owner = \Atelier\Kernel\Auth\UserManager::findByUsername($project_root, $um_cp[1]);
                 if ($owner && (int)($owner['quota_bytes'] ?? 0) > 0) {
-                    $quotaInfo = \SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo($project_root, $base_dir, $owner);
+                    $quotaInfo = \Atelier\Kernel\Auth\UserManager::getUserQuotaInfo($project_root, $base_dir, $owner);
                     $copyBytes = is_dir($source_full) ? self::computePathBytes($source_full) : max(0, (int)@filesize($source_full));
                     if (($quotaInfo['used_bytes'] + $copyBytes) > $quotaInfo['quota_bytes']) {
                         return ['status' => 413, 'data' => ['success' => false, 'error' => 'Quota disque dépassé pour cet espace personnel.']];
@@ -731,9 +731,9 @@ class FileActions {
                 ?? $_POST['file'] ?? $raw_body['file'] ?? '';
 
             // Phase B: Delete inside an external mount (`ext://<mount_id>/...`)
-            $ext_del = \SimpleGallery\Kernel\Storage\ExternalMountManager::parseExternalPath((string)$target_param);
+            $ext_del = \Atelier\Kernel\Storage\ExternalMountManager::parseExternalPath((string)$target_param);
             if ($ext_del !== null) {
-                $resolved = \SimpleGallery\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, (int)$ext_del['mount_id']);
+                $resolved = \Atelier\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, (int)$ext_del['mount_id']);
                 if (!$resolved || empty($resolved['can_write']) || $ext_del['rel_path'] === '') {
                     return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_delete_denied')]];
                 }
@@ -771,7 +771,7 @@ class FileActions {
             $trash_item = null;
 
             if (!$permanent) {
-                $tr_res = \SimpleGallery\Kernel\FS\TrashAndVersioningManager::moveToTrash($project_root, $target_full, $target_rel_clean);
+                $tr_res = \Atelier\Kernel\FS\TrashAndVersioningManager::moveToTrash($project_root, $target_full, $target_rel_clean);
                 if (!empty($tr_res['success'])) {
                     $success = true;
                     $trash_item = $tr_res['item'] ?? null;
@@ -802,7 +802,7 @@ class FileActions {
 
             if ($success) {
                 CacheManager::invalidateDirCache($parent_dir, $base_dir, $thumb_dir_name);
-                \SimpleGallery\Kernel\FS\FileIndexManager::removePath($project_root, $target_rel_clean);
+                \Atelier\Kernel\FS\FileIndexManager::removePath($project_root, $target_rel_clean);
                 return ['status' => 200, 'data' => [
                     'success'    => true,
                     'trashed'    => $trash_item !== null,
@@ -867,9 +867,9 @@ class FileActions {
 
             // Enforce user disk quota when saving edited image inside `users/<username>`
             if (preg_match('#^users/([^/]+)(?:/|$)#i', $target_rel, $um_ed)) {
-                $owner = \SimpleGallery\Kernel\Auth\UserManager::findByUsername($project_root, $um_ed[1]);
+                $owner = \Atelier\Kernel\Auth\UserManager::findByUsername($project_root, $um_ed[1]);
                 if ($owner && (int)($owner['quota_bytes'] ?? 0) > 0) {
-                    $quotaInfo = \SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo($project_root, $base_dir, $owner);
+                    $quotaInfo = \Atelier\Kernel\Auth\UserManager::getUserQuotaInfo($project_root, $base_dir, $owner);
                     $existingSz = (!$is_copy && is_file($target_file)) ? (int)@filesize($target_file) : 0;
                     $delta = max(0, strlen($decoded_image) - $existingSz);
                     if (($quotaInfo['used_bytes'] + $delta) > $quotaInfo['quota_bytes']) {
@@ -933,9 +933,9 @@ class FileActions {
             $content    = $raw_body['content'] ?? $_POST['content'] ?? '';
 
             // Phase B: Save text file inside an external mount (`ext://<mount_id>/...`)
-            $ext_save = \SimpleGallery\Kernel\Storage\ExternalMountManager::parseExternalPath((string)$file_param);
+            $ext_save = \Atelier\Kernel\Storage\ExternalMountManager::parseExternalPath((string)$file_param);
             if ($ext_save !== null) {
-                $resolved = \SimpleGallery\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, (int)$ext_save['mount_id']);
+                $resolved = \Atelier\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, (int)$ext_save['mount_id']);
                 if (!$resolved || empty($resolved['can_write']) || $ext_save['rel_path'] === '') {
                     return ['status' => 403, 'data' => ['success' => false, 'error' => __t('api.err_save_denied')]];
                 }
@@ -977,9 +977,9 @@ class FileActions {
             // Enforce user disk quota when saving inside `users/<username>`
             $rel_save = PathValidator::getRelativePath($file_full, $base_dir);
             if (preg_match('#^users/([^/]+)(?:/|$)#i', $rel_save, $um_sv)) {
-                $owner = \SimpleGallery\Kernel\Auth\UserManager::findByUsername($project_root, $um_sv[1]);
+                $owner = \Atelier\Kernel\Auth\UserManager::findByUsername($project_root, $um_sv[1]);
                 if ($owner && (int)($owner['quota_bytes'] ?? 0) > 0) {
-                    $quotaInfo = \SimpleGallery\Kernel\Auth\UserManager::getUserQuotaInfo($project_root, $base_dir, $owner);
+                    $quotaInfo = \Atelier\Kernel\Auth\UserManager::getUserQuotaInfo($project_root, $base_dir, $owner);
                     $existingSz = is_file($file_full) ? (int)@filesize($file_full) : 0;
                     $delta = max(0, strlen((string)$content) - $existingSz);
                     if (($quotaInfo['used_bytes'] + $delta) > $quotaInfo['quota_bytes']) {
@@ -997,14 +997,14 @@ class FileActions {
 
             if (is_file($file_full)) {
                 $rel_v = PathValidator::getRelativePath($file_full, $base_dir);
-                \SimpleGallery\Kernel\FS\TrashAndVersioningManager::snapshotBeforeOverwrite($project_root, $file_full, $rel_v);
+                \Atelier\Kernel\FS\TrashAndVersioningManager::snapshotBeforeOverwrite($project_root, $file_full, $rel_v);
             }
 
             if (@file_put_contents($file_full, (string)$content, LOCK_EX) !== false) {
                 if ($ext === 'svg') {
                     SecurityManager::sanitizeSvgContent($file_full);
                 }
-                \SimpleGallery\Kernel\FS\FileIndexManager::upsertFile($project_root, $base_dir, $file_full, $media_types);
+                \Atelier\Kernel\FS\FileIndexManager::upsertFile($project_root, $base_dir, $file_full, $media_types);
                 if ($is_allowed_dotfile) {
                     $dir = dirname($file_full);
                     $alt_name = (strtolower($filename) === '.autorun.json') ? 'autorun.json' : '.autorun.json';

@@ -48,7 +48,7 @@ Depuis **Panneau de configuration → Apparence → Bureau par défaut (Invités
 
 ### 3.2 Stockage navigateur (`localStorage` & préférences UI)
 - `window.sys.storage` et les services WebOS isolent toutes les clés par scope utilisateur :
-  - Utilisateur nommé : `u_<id>` (ex. `webos_u_4_app_graphing-calc_history`, `sg_pref_u_4_theme`, `tribune_u_4_board_auth`).
+  - Utilisateur nommé : `u_<id>` (ex. `webos_u_4_app_graphing-calc_history`, `atelier_pref_u_4_theme`, `tribune_u_4_board_auth`).
   - Admin legacy : `admin`.
   - Visiteur anonyme : `guest`.
 - Les préférences principales (`theme`, `wallpaper`, `window_style`, `locale`, `explorer_view_mode`) sont également **synchronisées côté serveur** dans `users.preferences_json` (limite 128 Ko) et réappliquées à chaud lors d'un changement de session (`auth:changed`).

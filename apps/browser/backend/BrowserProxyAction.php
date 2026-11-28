@@ -1,10 +1,10 @@
 <?php
-namespace SimpleGallery\Apps\Browser\Backend;
+namespace Atelier\Apps\Browser\Backend;
 
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\FS\PermissionsManager;
-use SimpleGallery\Kernel\Security\RateLimiter;
-use SimpleGallery\Kernel\Security\UrlValidator;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\FS\PermissionsManager;
+use Atelier\Kernel\Security\RateLimiter;
+use Atelier\Kernel\Security\UrlValidator;
 
 class BrowserProxyAction {
 
@@ -18,7 +18,7 @@ class BrowserProxyAction {
     /**
      * Security headers enforced on all proxied responses.
      * CSP sandbox without allow-same-origin forces an opaque origin ('null'),
-     * preventing proxied scripts from accessing SimpleGallery cookies, storage,
+     * preventing proxied scripts from accessing Atelier cookies, storage,
      * CSRF tokens, or DOM even if opened directly as a top-level document.
      */
     public static function getProxySecurityHeaders(): array {
@@ -247,7 +247,7 @@ class BrowserProxyAction {
             'follow_redirects' => true,
             'max_redirects'    => 5,
             'max_bytes'        => 5 * 1024 * 1024,
-            'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 SimpleGallery-WebOSBrowser/1.0',
+            'user_agent'       => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Atelier-WebOSBrowser/1.0',
             'headers'          => [
                 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
                 'Accept-Language: fr,fr-FR;q=0.9,en;q=0.8',

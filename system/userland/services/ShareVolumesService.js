@@ -1,7 +1,7 @@
 /**
  * Atelier by GallusTech - Share, Mounted Volumes & Multi-User Session Service
  * Manages:
- * - Current user identity (`window.SG_CURRENT_USER`) and mounted volumes (`window.SG_MOUNTED_VOLUMES`)
+ * - Current user identity (`window.ATELIER_CURRENT_USER`) and mounted volumes (`window.ATELIER_MOUNTED_VOLUMES`)
  * - Explorer "Mounted Volumes & Shared Drives" bar with 1-click navigation & Share button
  * - Modal Share Dialog (User/Group mounted disk shares + Signed External Share Links)
  * - Automatic `?share=<token>` URL link handler (with password prompt if protected)
@@ -59,14 +59,14 @@
 
   class ShareVolumesService {
     constructor() {
-      this.currentUser = window.SG_CURRENT_USER || null;
-      this.volumes = Array.isArray(window.SG_MOUNTED_VOLUMES) ? window.SG_MOUNTED_VOLUMES : [];
-      this.quota = window.SG_USER_QUOTA || null;
+      this.currentUser = window.ATELIER_CURRENT_USER || null;
+      this.volumes = Array.isArray(window.ATELIER_MOUNTED_VOLUMES) ? window.ATELIER_MOUNTED_VOLUMES : [];
+      this.quota = window.ATELIER_USER_QUOTA || null;
       this.storeDriver = '';
     }
 
     getCurrentUser() {
-      return this.currentUser || window.SG_CURRENT_USER || null;
+      return this.currentUser || window.ATELIER_CURRENT_USER || null;
     }
 
     getVolumes() {
@@ -74,7 +74,7 @@
     }
 
     getQuota() {
-      return this.quota || window.SG_USER_QUOTA || null;
+      return this.quota || window.ATELIER_USER_QUOTA || null;
     }
 
     isLoggedIn() {
@@ -92,12 +92,12 @@
         this.volumes = Array.isArray(res.mounted_volumes) ? res.mounted_volumes : [];
         this.quota = res.quota || null;
         this.storeDriver = res.store_driver || '';
-        window.SG_CURRENT_USER = this.currentUser;
-        window.SG_MOUNTED_VOLUMES = this.volumes;
-        window.SG_USER_QUOTA = this.quota;
-        window.SG_USER_PREFERENCES = (res.preferences && typeof res.preferences === 'object') ? res.preferences : {};
+        window.ATELIER_CURRENT_USER = this.currentUser;
+        window.ATELIER_MOUNTED_VOLUMES = this.volumes;
+        window.ATELIER_USER_QUOTA = this.quota;
+        window.ATELIER_USER_PREFERENCES = (res.preferences && typeof res.preferences === 'object') ? res.preferences : {};
         if (res.desktop_config && typeof res.desktop_config === 'object') {
-          window.SG_DESKTOP_CONFIG = res.desktop_config;
+          window.ATELIER_DESKTOP_CONFIG = res.desktop_config;
         }
         window.IS_ADMIN = Boolean(res.is_admin);
         this.updateHeaderUserBadge();

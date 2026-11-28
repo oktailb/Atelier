@@ -5,7 +5,7 @@
  * completely offline so sensitive TOTP secrets NEVER leave the server to third-party APIs.
  */
 
-namespace SimpleGallery\Kernel\Auth;
+namespace Atelier\Kernel\Auth;
 
 class QrCodeSvg {
 

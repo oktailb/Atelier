@@ -4,9 +4,9 @@
  * Protects external storage credentials, S3 secrets, WebDAV passwords, and OAuth2 refresh tokens at rest.
  */
 
-namespace SimpleGallery\Kernel\Storage;
+namespace Atelier\Kernel\Storage;
 
-use SimpleGallery\Kernel\Config\ConfigStore;
+use Atelier\Kernel\Config\ConfigStore;
 
 class CredentialVault {
 

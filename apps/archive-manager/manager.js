@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - Archive Manager Application
+ * Atelier by GallusTech - Archive Manager Application
  * Autonomous archive inspector displaying internal file structures, unpacked sizes, search filter, and compression stats in WebOS Windows.
  */
 (function (window) {

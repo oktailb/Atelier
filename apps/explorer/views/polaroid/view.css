@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - Explorer Polaroid View Stylesheet (apps/explorer/views/polaroid/view.css)
+ * Atelier by GallusTech - Explorer Polaroid View Stylesheet (apps/explorer/views/polaroid/view.css)
  */
 .polaroid-grid {
   display: grid;
@@ -80,7 +80,7 @@
   margin-top: 12px;
   color: var(--polaroid-text, #1e293b);
   text-align: center;
-  font-family: var(--font-handwriting, 'Caveat', cursive);
+  font-family: var(--font-handwriting, "Segoe Print", "Bradley Hand", "Chalkboard SE", cursive);
   font-size: 1.25rem;
   white-space: nowrap;
   overflow: hidden;

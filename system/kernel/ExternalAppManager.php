@@ -11,13 +11,13 @@
  *   for explicit administrator validation (`approveUpdate()`).
  */
 
-namespace SimpleGallery\Kernel;
+namespace Atelier\Kernel;
 
-use SimpleGallery\Kernel\Auth\AuditLogger;
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\Config\ConfigStore;
-use SimpleGallery\Kernel\Media\FormatRegistry;
-use SimpleGallery\Kernel\Security\UrlValidator;
+use Atelier\Kernel\Auth\AuditLogger;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\Config\ConfigStore;
+use Atelier\Kernel\Media\FormatRegistry;
+use Atelier\Kernel\Security\UrlValidator;
 
 class ExternalAppManager {
 

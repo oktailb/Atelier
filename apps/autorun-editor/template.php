@@ -1,6 +1,6 @@
 <?php
 /**
- * SimpleGallery - Autorun Studio Application Template
+ * Atelier - Autorun Studio Application Template
  */
 ?>
 <template id="autorunEditorAppTemplate">

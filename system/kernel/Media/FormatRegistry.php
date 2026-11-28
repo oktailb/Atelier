@@ -1,7 +1,7 @@
 <?php
-namespace SimpleGallery\Kernel\Media;
+namespace Atelier\Kernel\Media;
 
-use SimpleGallery\Kernel\PluginDiscovery;
+use Atelier\Kernel\PluginDiscovery;
 
 /**
  * Centralized Format & MIME Registry (Single Source of Truth)

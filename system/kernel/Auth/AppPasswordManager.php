@@ -8,10 +8,10 @@
  * Plaintext secrets are returned ONCE at creation time and stored strictly hashed (`password_hash`).
  */
 
-namespace SimpleGallery\Kernel\Auth;
+namespace Atelier\Kernel\Auth;
 
-use SimpleGallery\Kernel\Data\AtelierStore;
-use SimpleGallery\Kernel\Security\RateLimiter;
+use Atelier\Kernel\Data\AtelierStore;
+use Atelier\Kernel\Security\RateLimiter;
 
 class AppPasswordManager {
 

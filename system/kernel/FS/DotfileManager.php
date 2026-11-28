@@ -1,8 +1,8 @@
 <?php
-namespace SimpleGallery\Kernel\FS;
+namespace Atelier\Kernel\FS;
 
-use SimpleGallery\Kernel\Security\PathValidator;
-use SimpleGallery\Kernel\Security\SecurityManager;
+use Atelier\Kernel\Security\PathValidator;
+use Atelier\Kernel\Security\SecurityManager;
 
 /**
  * Kernel Dotfile Manager
@@ -14,7 +14,7 @@ class DotfileManager {
      * Evaluates local dotfile access state for a single directory (without walking parents).
      */
     public static function getDirAccessInfo(string $dir_path, string $base_dir): array {
-        \SimpleGallery\Kernel\Auth\AuthManager::ensureSessionStarted();
+        \Atelier\Kernel\Auth\AuthManager::ensureSessionStarted();
         $rel = PathValidator::getRelativePath($dir_path, $base_dir);
 
         $has_password = file_exists($dir_path . '/.password');
@@ -41,7 +41,7 @@ class DotfileManager {
         } elseif ($is_private) {
             $is_unlocked = false;
         } elseif ($is_protected) {
-            $is_unlocked = (!empty($_SESSION['sg_unlocked_folders'][$rel]) || !empty($_SESSION['unlocked_dirs'][$rel]));
+            $is_unlocked = (!empty($_SESSION['atelier_unlocked_folders'][$rel]) || !empty($_SESSION['unlocked_dirs'][$rel]));
         } else {
             $is_unlocked = true;
         }
@@ -141,7 +141,7 @@ class DotfileManager {
         // Phase 1 Multi-User / Share override: if blocked by a .private/.password ancestor,
         // check whether the logged-in user owns this home path, holds an active user/group share,
         // or has unlocked a valid signed share link covering this path.
-        if ($blocking_mode !== null && \SimpleGallery\Kernel\Auth\ShareManager::canReadPath($rel, $base_dir)) {
+        if ($blocking_mode !== null && \Atelier\Kernel\Auth\ShareManager::canReadPath($rel, $base_dir)) {
             return [
                 'mode'              => $leaf['mode'],
                 'access_mode'       => $leaf['access_mode'],

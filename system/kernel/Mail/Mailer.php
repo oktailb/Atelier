@@ -7,11 +7,11 @@
  *  - `outbox_log` : Local file outbox (`storage/mail_outbox/`) for local dev, diagnostics & tests
  */
 
-namespace SimpleGallery\Kernel\Mail;
+namespace Atelier\Kernel\Mail;
 
-use SimpleGallery\Kernel\Auth\AuditLogger;
-use SimpleGallery\Kernel\Auth\AuthSettings;
-use SimpleGallery\Kernel\Config\ConfigStore;
+use Atelier\Kernel\Auth\AuditLogger;
+use Atelier\Kernel\Auth\AuthSettings;
+use Atelier\Kernel\Config\ConfigStore;
 
 class Mailer {
 

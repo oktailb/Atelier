@@ -4,7 +4,7 @@
  * Shared contract implemented by both SqliteStoreDriver (PDO SQLite WAL) and JsonStoreDriver (atomic fallback).
  */
 
-namespace SimpleGallery\Kernel\Data;
+namespace Atelier\Kernel\Data;
 
 interface AtelierStoreInterface {
     public function getDriverName(): string;

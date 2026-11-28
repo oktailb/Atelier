@@ -1,5 +1,5 @@
 <?php
-namespace SimpleGallery\Kernel\Media;
+namespace Atelier\Kernel\Media;
 
 /**
  * Kernel Binary Locator

@@ -1,6 +1,6 @@
-# 🧪 Suites de Tests Unitaires - SimpleGallery
+# 🧪 Suites de Tests Unitaires - Atelier
 
-Ce dossier contient les suites de tests unitaires automatisées de **SimpleGallery**.
+Ce dossier contient les suites de tests unitaires automatisées de **Atelier**.
 La suite est conçue **sans aucune dépendance externe** et s'exécute directement en PHP CLI.
 
 ---

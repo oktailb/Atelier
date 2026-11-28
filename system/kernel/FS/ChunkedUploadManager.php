@@ -5,15 +5,15 @@
  * enforcing quotas/FormatRegistry rules, and saving to either Local VFS or `ext://` mounts.
  */
 
-namespace SimpleGallery\Kernel\FS;
+namespace Atelier\Kernel\FS;
 
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\Auth\UserManager;
-use SimpleGallery\Kernel\Config\ConfigStore;
-use SimpleGallery\Kernel\Media\FormatRegistry;
-use SimpleGallery\Kernel\Security\PathValidator;
-use SimpleGallery\Kernel\Security\SecurityManager;
-use SimpleGallery\Kernel\Storage\ExternalMountManager;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\Auth\UserManager;
+use Atelier\Kernel\Config\ConfigStore;
+use Atelier\Kernel\Media\FormatRegistry;
+use Atelier\Kernel\Security\PathValidator;
+use Atelier\Kernel\Security\SecurityManager;
+use Atelier\Kernel\Storage\ExternalMountManager;
 
 class ChunkedUploadManager {
 

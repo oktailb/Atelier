@@ -703,7 +703,7 @@
       };
       const res = await settingsApp.api.post('save_auth_settings', { settings: payload });
       if (res && res.success) {
-        if (res.policy) window.SG_AUTH_POLICY = res.policy;
+        if (res.policy) window.ATELIER_AUTH_POLICY = res.policy;
         settingsApp.toast.success(t('users.policy_saved_toast'));
         rerender();
       } else {
@@ -724,7 +724,7 @@
       if (sec !== '') payload.oidc_client_secret = sec;
       const res = await settingsApp.api.post('save_auth_settings', { settings: payload });
       if (res && res.success) {
-        if (res.policy) window.SG_AUTH_POLICY = res.policy;
+        if (res.policy) window.ATELIER_AUTH_POLICY = res.policy;
         settingsApp.toast.success(t('users.oidc_saved_toast'));
         rerender();
       } else {
@@ -1027,7 +1027,7 @@
     const t = (k, p) => settingsApp.t(k, p);
     const currentUser = (window.sys && window.sys.shares && typeof window.sys.shares.getCurrentUser === 'function')
       ? window.sys.shares.getCurrentUser()
-      : window.SG_CURRENT_USER;
+      : window.ATELIER_CURRENT_USER;
     if (!settingsApp.isAdmin && !currentUser) {
       return renderAdminRequired(container, settingsApp, 'settings.tab_storage', '☁️');
     }
@@ -1742,7 +1742,7 @@
     const t = (k, p) => settingsApp.t(k, p);
     const currentUser = (window.sys && window.sys.shares && typeof window.sys.shares.getCurrentUser === 'function')
       ? window.sys.shares.getCurrentUser()
-      : window.SG_CURRENT_USER;
+      : window.ATELIER_CURRENT_USER;
     if (!currentUser || !currentUser.id) {
       container.innerHTML = '';
       return;
@@ -1972,9 +1972,9 @@
           window.sys.storage.clearUserScope();
         }
         window.IS_ADMIN = false;
-        window.SG_CURRENT_USER = null;
-        window.SG_MOUNTED_VOLUMES = [];
-        window.SG_USER_PREFERENCES = {};
+        window.ATELIER_CURRENT_USER = null;
+        window.ATELIER_MOUNTED_VOLUMES = [];
+        window.ATELIER_USER_PREFERENCES = {};
         if (window.desktop) window.desktop.state.isAdmin = false;
         if (window.sys && window.sys.shares && typeof window.sys.shares.refreshIdentity === 'function') {
           await window.sys.shares.refreshIdentity();

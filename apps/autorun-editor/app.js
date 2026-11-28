@@ -1,5 +1,5 @@
 /**
- * SimpleGallery - Autorun Studio Application (apps/autorun-editor/app.js)
+ * Atelier - Autorun Studio Application (apps/autorun-editor/app.js)
  * Autonomous timeline authoring and orchestrating studio for multimodal narratives.
  */
 (function(window, document) {
@@ -450,8 +450,8 @@
       if (window.sys && window.sys.appManager && typeof window.sys.appManager.getAppManifest === 'function') {
         const m = window.sys.appManager.getAppManifest('doc-viewer');
         if (m && Array.isArray(m.extensions)) docExts = m.extensions;
-      } else if (window.SG_DISCOVERED_APPS && window.SG_DISCOVERED_APPS['doc-viewer'] && Array.isArray(window.SG_DISCOVERED_APPS['doc-viewer'].extensions)) {
-        docExts = window.SG_DISCOVERED_APPS['doc-viewer'].extensions;
+      } else if (window.ATELIER_DISCOVERED_APPS && window.ATELIER_DISCOVERED_APPS['doc-viewer'] && Array.isArray(window.ATELIER_DISCOVERED_APPS['doc-viewer'].extensions)) {
+        docExts = window.ATELIER_DISCOVERED_APPS['doc-viewer'].extensions;
       }
       const docRegex = new RegExp(`\\.(${docExts.join('|')})$`, 'i');
       const docFiles = files.filter(f => f.category === 'doc' || (f.name && f.name.match(docRegex)));
@@ -1122,7 +1122,7 @@
           path: savePath,
           file: savePath,
           content: JSON.stringify(this.currentConfig, null, 2),
-          csrf_token: window.CSRF_TOKEN || window.SG_CSRF_TOKEN || ''
+          csrf_token: window.CSRF_TOKEN || window.ATELIER_CSRF_TOKEN || ''
         });
 
         if (res && res.success) {

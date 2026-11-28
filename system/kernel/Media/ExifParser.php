@@ -1,5 +1,5 @@
 <?php
-namespace SimpleGallery\Kernel\Media;
+namespace Atelier\Kernel\Media;
 
 use DateTime;
 
@@ -512,7 +512,7 @@ class ExifParser {
             if (is_file($full)) {
                 $ext = strtolower(pathinfo($item, PATHINFO_EXTENSION));
                 if (in_array($ext, $image_exts, true)) {
-                    $rel = \SimpleGallery\Kernel\Security\PathValidator::getRelativePath($full, $base_dir);
+                    $rel = \Atelier\Kernel\Security\PathValidator::getRelativePath($full, $base_dir);
                     return 'system/endpoints/thumb.php?file=' . rawurlencode($rel);
                 }
             }

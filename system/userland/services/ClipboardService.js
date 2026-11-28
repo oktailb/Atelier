@@ -1,5 +1,5 @@
 /**
- * SimpleGallery WebOS - Universal Clipboard Service (`sys.clipboard`)
+ * Atelier WebOS - Universal Clipboard Service (`sys.clipboard`)
  * Supports copying and cutting files, text, structured JSON objects and browser interoperability.
  */
 

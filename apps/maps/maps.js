@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - Maps & GPS Route Explorer App (Multi-Instance)
+ * Atelier by GallusTech - Maps & GPS Route Explorer App (Multi-Instance)
  * Modular WebOS Map Application with Leaflet, Multi-layer Tiles, Chronological Trajectory & Smart Timeline AI Deduction.
  * Supports concurrent multi-instances to compare trajectories from multiple folders side-by-side.
  */
@@ -443,7 +443,7 @@
         `;
 
         marker.bindPopup(popupHtml, {
-          className: 'sg-leaflet-popup',
+          className: 'atelier-leaflet-popup',
           maxWidth: 240,
           autoClose: false,
           closeOnClick: false

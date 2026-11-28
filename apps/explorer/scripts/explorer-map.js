@@ -1,5 +1,5 @@
 /**
- * SimpleGallery - Explorer Map & Smart GPS Manager (apps/explorer/scripts/explorer-map.js)
+ * Atelier - Explorer Map & Smart GPS Manager (apps/explorer/scripts/explorer-map.js)
  * Coordinates Leaflet interactive map modal, tile providers, route tracing and timeline GPS interpolation.
  */
 (function(window) {

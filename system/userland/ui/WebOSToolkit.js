@@ -1,5 +1,5 @@
 /**
- * SimpleGallery WebOS - WebOSToolkit Engine (`window.sys.ui` / `window.WebOSToolkit`)
+ * Atelier WebOS - WebOSToolkit Engine (`window.sys.ui` / `window.WebOSToolkit`)
  * Standardized IHM Toolkit offering UI components, widgets, feedback mechanisms, and interactions.
  */
 

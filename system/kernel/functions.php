@@ -1,23 +1,23 @@
 <?php
 /**
- * SimpleGallery 2026 - System Functions Façade & Backward Compatibility Layer
+ * Atelier by GallusTech - System Functions Façade & Backward Compatibility Layer
  * Thin, high-performance procedural wrapper forwarding calls to Object-Oriented Kernel modules.
  */
 
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\FS\ArchiveEngine;
-use SimpleGallery\Kernel\FS\CacheManager;
-use SimpleGallery\Kernel\FS\DotfileManager;
-use SimpleGallery\Kernel\FS\PermissionsManager;
-use SimpleGallery\Kernel\FS\VFS;
-use SimpleGallery\Kernel\I18n\I18nEngine;
-use SimpleGallery\Kernel\Media\BinaryLocator;
-use SimpleGallery\Kernel\Media\ExifParser;
-use SimpleGallery\Kernel\Search\SearchEngine;
-use SimpleGallery\Kernel\Security\CsrfManager;
-use SimpleGallery\Kernel\Security\PathValidator;
-use SimpleGallery\Kernel\Security\RateLimiter;
-use SimpleGallery\Kernel\Security\SecurityManager;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\FS\ArchiveEngine;
+use Atelier\Kernel\FS\CacheManager;
+use Atelier\Kernel\FS\DotfileManager;
+use Atelier\Kernel\FS\PermissionsManager;
+use Atelier\Kernel\FS\VFS;
+use Atelier\Kernel\I18n\I18nEngine;
+use Atelier\Kernel\Media\BinaryLocator;
+use Atelier\Kernel\Media\ExifParser;
+use Atelier\Kernel\Search\SearchEngine;
+use Atelier\Kernel\Security\CsrfManager;
+use Atelier\Kernel\Security\PathValidator;
+use Atelier\Kernel\Security\RateLimiter;
+use Atelier\Kernel\Security\SecurityManager;
 
 $project_root = dirname(dirname(__DIR__));
 require_once __DIR__ . '/../boot/bootstrap.php';
@@ -305,7 +305,7 @@ function get_autostart_config(string $base_dir): array {
         ]
     ];
 
-    $cfg = \SimpleGallery\Kernel\Config\ConfigStore::get('autostart', null, $base_dir);
+    $cfg = \Atelier\Kernel\Config\ConfigStore::get('autostart', null, $base_dir);
     if (is_array($cfg)) {
         return array_merge($default, $cfg);
     }

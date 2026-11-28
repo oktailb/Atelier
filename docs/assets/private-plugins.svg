@@ -36,7 +36,7 @@
     <rect width="380" height="150" rx="10" fill="#0f172a" stroke="#0284c7" stroke-width="1.5"/>
     <rect width="380" height="28" rx="10" fill="url(#pubGrad)"/>
     <rect y="16" width="380" height="12" fill="url(#pubGrad)"/>
-    <text x="190" y="19" fill="#ffffff" font-size="11" font-weight="700" text-anchor="middle" font-family="sans-serif">🌐 DÉPÔT PUBLIC GITHUB (SimpleGallery)</text>
+    <text x="190" y="19" fill="#ffffff" font-size="11" font-weight="700" text-anchor="middle" font-family="sans-serif">🌐 DÉPÔT PUBLIC GITHUB (Atelier)</text>
 
     <text x="16" y="52" fill="#bae6fd" font-size="10" font-weight="700" font-family="sans-serif">✓ 100% Open Source / Zéro Secret Métier</text>
     <text x="16" y="70" fill="#cbd5e1" font-size="9" font-family="sans-serif">• Micro-Kernel PHP, VFS, Gateway api.php</text>
@@ -81,7 +81,7 @@
     <!-- Local Path Tree -->
     <g transform="translate(20, 42)">
       <rect x="0" y="0" width="380" height="95" rx="6" fill="#133d26" stroke="#10b981" stroke-width="1"/>
-      <text x="14" y="20" fill="#a7f3d0" font-size="11" font-weight="700" font-family="monospace">SimpleGallery/ (WebOS Racine)</text>
+      <text x="14" y="20" fill="#a7f3d0" font-size="11" font-weight="700" font-family="monospace">Atelier/ (WebOS Racine)</text>
       <text x="14" y="38" fill="#ecfdf5" font-size="9" font-family="sans-serif">├── system/ &amp; config/ &amp; index.php</text>
       <text x="14" y="54" fill="#ecfdf5" font-size="9" font-family="sans-serif">├── apps/explorer/, image-viewer/, games/...</text>
       <text x="14" y="70" fill="#6ee7b7" font-size="9" font-family="sans-serif">└── apps/ffs-apps/ (Dossier ignoré par git public)</text>

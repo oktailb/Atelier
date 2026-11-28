@@ -1,6 +1,6 @@
 <?php
 /**
- * SimpleGallery 2026 - Security & Access Policies Configuration
+ * Atelier by GallusTech - Security & Access Policies Configuration
  */
 
 // Rate limiting parameters (IP based)

@@ -1,14 +1,14 @@
 <?php
 /**
- * SimpleGallery WebOS - Tribune Libre Standalone Entry Point
+ * Atelier WebOS - Tribune Libre Standalone Entry Point
  * Fullscreen Touch & Desktop Optimized Standalone Bouchot Client
  */
 $project_root = dirname(dirname(__DIR__));
 require_once $project_root . '/system/boot/bootstrap.php';
 require_once $project_root . '/system/kernel/functions.php';
 
-$theme = isset($_COOKIE['sg_theme']) ? $_COOKIE['sg_theme'] : 'light-minimal';
-$lang = isset($_COOKIE['sg_locale']) ? $_COOKIE['sg_locale'] : (isset($_COOKIE['sg_lang']) ? $_COOKIE['sg_lang'] : 'fr');
+$theme = isset($_COOKIE['atelier_theme']) ? $_COOKIE['atelier_theme'] : 'light-minimal';
+$lang = isset($_COOKIE['atelier_locale']) ? $_COOKIE['atelier_locale'] : (isset($_COOKIE['atelier_lang']) ? $_COOKIE['atelier_lang'] : 'fr');
 
 $locales = ['fr' => [], 'en' => [], 'ja' => []];
 foreach (['fr', 'en', 'ja'] as $l) {
@@ -79,11 +79,11 @@ foreach (['fr', 'en', 'ja'] as $l) {
         window.sys = window.sys || {};
         (function() {
             var locales = <?php echo json_encode($locales, JSON_UNESCAPED_UNICODE); ?>;
-            var curLang = localStorage.getItem('sg_locale') || '<?php echo $lang; ?>' || 'fr';
+            var curLang = localStorage.getItem('atelier_locale') || '<?php echo $lang; ?>' || 'fr';
             if (!locales[curLang]) curLang = 'fr';
 
-            // 1. Syscall API for Standalone Mode pointing to local api.php
-            window.sys.api = new SyscallClient('api.php');
+            // 1. Syscall API for Standalone Mode pointing to unified kernel API gateway
+            window.sys.api = new SyscallClient('../../system/endpoints/api.php');
             window.sys.api.forApp = function(appId) {
                 return window.sys.api;
             };
@@ -106,8 +106,8 @@ foreach (['fr', 'en', 'ja'] as $l) {
                         this.currentLocale = code;
                         this.translations = locales[code];
                         try {
-                            localStorage.setItem('sg_locale', code);
-                            document.cookie = 'sg_locale=' + encodeURIComponent(code) + '; path=/; max-age=31536000';
+                            localStorage.setItem('atelier_locale', code);
+                            document.cookie = 'atelier_locale=' + encodeURIComponent(code) + '; path=/; max-age=31536000';
                             document.documentElement.lang = code;
                         } catch (e) {}
                         if (window.tribuneApp && typeof window.tribuneApp.onLocaleChanged === 'function') {

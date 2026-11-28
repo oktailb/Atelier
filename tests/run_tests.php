@@ -1,6 +1,6 @@
 <?php
 /**
- * SimpleGallery 2026 - CLI Test Suite Runner
+ * Atelier by GallusTech - CLI Test Suite Runner
  * Executes both Security & General Functional unit test suites.
  * Usage: php tests/run_tests.php
  */

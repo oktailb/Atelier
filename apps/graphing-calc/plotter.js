@@ -1,5 +1,5 @@
 /**
- * SimpleGallery WebOS - Interactive Canvas 2D Function Plotter
+ * Atelier WebOS - Interactive Canvas 2D Function Plotter
  * Supports multi-curve plotting, adaptive 1-2-5 grid, pan/zoom, live trace crosshair,
  * automatic display of roots, local extrema & intersections, and high-res PNG export.
  */

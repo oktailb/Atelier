@@ -1,6 +1,6 @@
 <?php
 /**
- * SimpleGallery 2026 - High Performance Thumbnail Generator
+ * Atelier by GallusTech - High Performance Thumbnail Generator
  * Supports GD image resizing, FFmpeg video frame extraction, & instant direct fallback.
  */
 
@@ -53,7 +53,7 @@ function send_cached_file(string $file_path, string $content_type, int $max_age 
 function get_full_mime_type(string $ext): string {
     global $project_root, $media_types;
     $root = is_string($project_root ?? null) ? $project_root : dirname(dirname(__DIR__));
-    return \SimpleGallery\Kernel\Media\FormatRegistry::getHttpContentType($ext, $root, is_array($media_types ?? null) ? $media_types : []);
+    return \Atelier\Kernel\Media\FormatRegistry::getHttpContentType($ext, $root, is_array($media_types ?? null) ? $media_types : []);
 }
 
 function serve_raw_file(string $file_path, string $ext, bool $as_attachment = false, bool $is_restricted = false): void {
@@ -318,18 +318,18 @@ function generate_imagemagick_frame_thumbnail(string $file_path, string $output_
 }
 
 ensure_session_started();
-\SimpleGallery\Kernel\Auth\AuthManager::revalidateActiveUser($project_root);
+\Atelier\Kernel\Auth\AuthManager::revalidateActiveUser($project_root);
 
 
 $requested_file = $_GET['file'] ?? '';
 
 // Phase B: Stream & cache thumbnails for external cloud/storage mount files (`ext://<mount_id>/...`)
-$ext_parsed = \SimpleGallery\Kernel\Storage\ExternalMountManager::parseExternalPath((string)$requested_file);
+$ext_parsed = \Atelier\Kernel\Storage\ExternalMountManager::parseExternalPath((string)$requested_file);
 if ($ext_parsed !== null) {
     ensure_session_started();
-    \SimpleGallery\Kernel\Auth\AuthManager::revalidateActiveUser($project_root);
+    \Atelier\Kernel\Auth\AuthManager::revalidateActiveUser($project_root);
     $mount_id = (int)$ext_parsed['mount_id'];
-    $resolved_mount = \SimpleGallery\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, $mount_id);
+    $resolved_mount = \Atelier\Kernel\Storage\ExternalMountManager::resolveMountForCurrentUser($project_root, $mount_id);
     if (!$resolved_mount) {
         http_response_code(403);
         echo "403 Forbidden: Access denied.";
@@ -337,7 +337,7 @@ if ($ext_parsed !== null) {
     }
     $ext_rel = (string)$ext_parsed['rel_path'];
     $ext = strtolower(pathinfo($ext_rel, PATHINFO_EXTENSION));
-    if (\SimpleGallery\Kernel\Media\FormatRegistry::isForbiddenExtension($ext)) {
+    if (\Atelier\Kernel\Media\FormatRegistry::isForbiddenExtension($ext)) {
         http_response_code(403);
         echo "403 Forbidden: Access denied.";
         exit;
@@ -372,7 +372,7 @@ if ($ext_parsed !== null) {
             exit;
         }
         // Re-verify resolved extension AFTER driver metadata inference (e.g. Google Drive files without filename extension)
-        if (\SimpleGallery\Kernel\Media\FormatRegistry::isForbiddenExtension($effective_ext)) {
+        if (\Atelier\Kernel\Media\FormatRegistry::isForbiddenExtension($effective_ext)) {
             http_response_code(403);
             header('Content-Type: text/plain; charset=utf-8');
             header('X-Content-Type-Options: nosniff');
@@ -464,7 +464,7 @@ if ($ext_parsed !== null) {
     if ($effective_ext === '' && method_exists($driver, 'stat')) {
         $st = $driver->stat($ext_rel);
         if (is_array($st) && !empty($st['mime'])) {
-            $effective_ext = \SimpleGallery\Kernel\Storage\GoogleDriveStorageDriver::inferExtensionFromMime((string)$st['mime']);
+            $effective_ext = \Atelier\Kernel\Storage\GoogleDriveStorageDriver::inferExtensionFromMime((string)$st['mime']);
         }
     }
     $is_ext_image = in_array($effective_ext, $media_types['image'] ?? [], true);
@@ -557,7 +557,7 @@ if (!is_dir_accessible(dirname($file_path), $real_base_dir)) {
 
 // Determine whether the file lives inside a .private or .password-protected subtree
 // so proxies/CDNs never publicly cache restricted media or thumbnails (SEC-10)
-$effective_access = \SimpleGallery\Kernel\FS\DotfileManager::getEffectiveAccessInfo(dirname($file_path), $real_base_dir);
+$effective_access = \Atelier\Kernel\FS\DotfileManager::getEffectiveAccessInfo(dirname($file_path), $real_base_dir);
 $is_restricted = !empty($effective_access['requires_auth']);
 
 // Direct original raw media delivery: Inline View/Stream (raw=1) vs Attachment Download (download=1)
@@ -567,12 +567,12 @@ $is_raw_req = !empty($_GET['raw']);
 if ($is_download_req || $is_raw_req) {
     // Check if direct download (saving as attachment) is permitted
     $can_download = false;
-    if (\SimpleGallery\Kernel\Auth\AuthManager::isAdminLoggedIn()) {
+    if (\Atelier\Kernel\Auth\AuthManager::isAdminLoggedIn()) {
         $can_download = true;
     } else {
         $allow_cfg = isset($allow_direct_download) ? (bool)$allow_direct_download : true;
-        $rel_for_perm = \SimpleGallery\Kernel\Security\PathValidator::getRelativePath($file_path, $real_base_dir);
-        $can_perm = \SimpleGallery\Kernel\FS\PermissionsManager::hasPermission('can_download_item', $real_base_dir, $rel_for_perm);
+        $rel_for_perm = \Atelier\Kernel\Security\PathValidator::getRelativePath($file_path, $real_base_dir);
+        $can_perm = \Atelier\Kernel\FS\PermissionsManager::hasPermission('can_download_item', $real_base_dir, $rel_for_perm);
         $can_download = ($allow_cfg && $can_perm);
     }
 

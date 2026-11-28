@@ -1,5 +1,5 @@
 /**
- * SimpleGallery WebOS - Unified VFS File, Folder & Save Location Picker Service
+ * Atelier WebOS - Unified VFS File, Folder & Save Location Picker Service
  * Provides modal browsing, opening, and saving dialogs for native & embedded applications
  * (`window.sys.pickFile`, `window.sys.pickFolder`, `window.sys.pickSaveLocation`).
  */
@@ -8,8 +8,8 @@
 
   window.sys = window.sys || {};
 
-  // Minimal fallback used only if window.SG_MIME_MAP was not injected (e.g., isolated unit tests).
-  // In production, index.php injects window.SG_MIME_MAP dynamically from Kernel FormatRegistry.
+  // Minimal fallback used only if window.ATELIER_MIME_MAP was not injected (e.g., isolated unit tests).
+  // In production, index.php injects window.ATELIER_MIME_MAP dynamically from Kernel FormatRegistry.
   const FALLBACK_MIME_TO_EXTENSIONS = {
     'image/png': ['png'],
     'image/jpeg': ['jpg', 'jpeg'],
@@ -31,8 +31,8 @@
 
   function getExtensionsForMime(mime) {
     if (!mime) return null;
-    if (window.SG_MIME_MAP && Array.isArray(window.SG_MIME_MAP[mime])) {
-      return window.SG_MIME_MAP[mime];
+    if (window.ATELIER_MIME_MAP && Array.isArray(window.ATELIER_MIME_MAP[mime])) {
+      return window.ATELIER_MIME_MAP[mime];
     }
     return FALLBACK_MIME_TO_EXTENSIONS[mime] || null;
   }
@@ -193,12 +193,12 @@
           if (window.sys && window.sys.shares && typeof window.sys.shares.getVolumes === 'function') {
             return window.sys.shares.getVolumes();
           }
-          return Array.isArray(window.SG_MOUNTED_VOLUMES) ? window.SG_MOUNTED_VOLUMES : [];
+          return Array.isArray(window.ATELIER_MOUNTED_VOLUMES) ? window.ATELIER_MOUNTED_VOLUMES : [];
         };
 
         const currentUser = (window.sys && window.sys.shares && typeof window.sys.shares.getCurrentUser === 'function')
           ? window.sys.shares.getCurrentUser()
-          : (window.SG_CURRENT_USER || null);
+          : (window.ATELIER_CURRENT_USER || null);
 
         // In Save mode, default a standard user to their personal home when no explicit folder was requested
         let currentPath = options.initialPath || '';

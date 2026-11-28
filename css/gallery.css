@@ -1,5 +1,5 @@
-/* SimpleGallery 2026 Modern Design System */
-/* Note: Google Fonts (Caveat, Inter, Outfit) are loaded once in index.php */
+/* Atelier by GallusTech Modern Design System */
+/* Native system typography stack (zero external Google Fonts dependency) */
 
 :root {
   --bg-main: #0f141c;
@@ -23,9 +23,9 @@
   --shadow-md: 0 8px 30px rgba(0, 0, 0, 0.4);
   --shadow-glow: 0 0 25px rgba(99, 102, 241, 0.25);
 
-  --font-title: 'Outfit', -apple-system, sans-serif;
-  --font-body: 'Inter', -apple-system, sans-serif;
-  --font-handwriting: 'Caveat', cursive, 'Outfit', sans-serif;
+  --font-title: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-body: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-handwriting: "Segoe Print", "Bradley Hand", "Chalkboard SE", "Marker Felt", cursive, sans-serif;
 }
 
 *, *::before, *::after {

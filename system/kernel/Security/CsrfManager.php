@@ -1,5 +1,5 @@
 <?php
-namespace SimpleGallery\Kernel\Security;
+namespace Atelier\Kernel\Security;
 
 /**
  * Kernel CSRF Protection Manager

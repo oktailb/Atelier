@@ -5,12 +5,12 @@
  * isolated personal home directories (`users/<username>`), and quotas.
  */
 
-namespace SimpleGallery\Kernel\Auth;
+namespace Atelier\Kernel\Auth;
 
-use SimpleGallery\Kernel\Config\ConfigStore;
-use SimpleGallery\Kernel\Data\AtelierStore;
-use SimpleGallery\Kernel\FS\CacheManager;
-use SimpleGallery\Kernel\Security\PathValidator;
+use Atelier\Kernel\Config\ConfigStore;
+use Atelier\Kernel\Data\AtelierStore;
+use Atelier\Kernel\FS\CacheManager;
+use Atelier\Kernel\Security\PathValidator;
 
 class UserManager {
 
@@ -46,7 +46,7 @@ class UserManager {
             'has_2fa'              => $hasConfirmed2fa,
             'totp_pending'         => !empty($user['totp_secret']) && empty($user['totp_confirmed_at']),
             'has_e2ee_key'         => !empty($user['public_key']),
-            'permission_overrides' => \SimpleGallery\Kernel\FS\PermissionsManager::decodeOverrides($user['permissions_json'] ?? null),
+            'permission_overrides' => \Atelier\Kernel\FS\PermissionsManager::decodeOverrides($user['permissions_json'] ?? null),
             'created_at'           => (int)($user['created_at'] ?? 0),
             'last_login_at'        => isset($user['last_login_at']) ? (int)$user['last_login_at'] : null
         ];
@@ -279,7 +279,7 @@ class UserManager {
             $patch['is_active'] = !empty($input['is_active']) ? 1 : 0;
         }
         if (array_key_exists('permission_overrides', $input)) {
-            $cleanOv = \SimpleGallery\Kernel\FS\PermissionsManager::sanitizeOverrides($input['permission_overrides']);
+            $cleanOv = \Atelier\Kernel\FS\PermissionsManager::sanitizeOverrides($input['permission_overrides']);
             $patch['permissions_json'] = json_encode($cleanOv, JSON_UNESCAPED_SLASHES);
         }
         if (!empty($input['password'])) {
@@ -390,7 +390,7 @@ class UserManager {
             $gid = (int)$g['id'];
             $g['id'] = $gid;
             $g['member_ids'] = $byGroup[$gid] ?? [];
-            $g['permission_overrides'] = \SimpleGallery\Kernel\FS\PermissionsManager::decodeOverrides($g['permissions_json'] ?? null);
+            $g['permission_overrides'] = \Atelier\Kernel\FS\PermissionsManager::decodeOverrides($g['permissions_json'] ?? null);
         }
         return $groups;
     }
@@ -448,7 +448,7 @@ class UserManager {
         if (!$group) {
             return ['success' => false, 'status' => 404, 'error' => 'Group not found.'];
         }
-        $clean = \SimpleGallery\Kernel\FS\PermissionsManager::sanitizeOverrides($overrides);
+        $clean = \Atelier\Kernel\FS\PermissionsManager::sanitizeOverrides($overrides);
         $store->update('groups', [
             'permissions_json' => json_encode($clean, JSON_UNESCAPED_SLASHES)
         ], ['id' => $groupId]);
@@ -467,7 +467,7 @@ class UserManager {
         if (!$user) {
             return ['success' => false, 'status' => 404, 'error' => 'User not found.'];
         }
-        $clean = \SimpleGallery\Kernel\FS\PermissionsManager::sanitizeOverrides($overrides);
+        $clean = \Atelier\Kernel\FS\PermissionsManager::sanitizeOverrides($overrides);
         $store->update('users', [
             'permissions_json' => json_encode($clean, JSON_UNESCAPED_SLASHES),
             'updated_at'       => time()

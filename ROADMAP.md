@@ -156,17 +156,17 @@ flowchart TB
 - [x] **Générateur de QR Code SVG 100 % local (`QrCodeSvg.php`)** :
   - **Invariant sécurité** : le secret TOTP ne transite jamais par un service QR externe ; rendu SVG purement local côté serveur.
 - [x] **Flux de connexion sécurisé en 2 temps (`AuthActions.php`)** :
-  - Étape 1 (`login`) : si mot de passe valide et 2FA actif, création uniquement d'un challenge de session temporaire (TTL 5 min, **sans** authentifier `$_SESSION['sg_user']` ni `$_SESSION['is_admin']`) et retour `{ requires_2fa: true }`.
+  - Étape 1 (`login`) : si mot de passe valide et 2FA actif, création uniquement d'un challenge de session temporaire (TTL 5 min, **sans** authentifier `$_SESSION['atelier_user']` ni `$_SESSION['is_admin']`) et retour `{ requires_2fa: true }`.
   - Étape 2 (`verify_2fa_login`) : validation du code TOTP ou d'un code de secours, puis ouverture réelle de la session avec `session_regenerate_id(true)`.
   - Enrôlement forcé (`requires_2fa_setup: true`) si la politique admin impose le 2FA (`required_admins` / `required_all`) sur un compte non encore équipé.
   - Endpoints self-service utilisateur : `begin_2fa_setup`, `confirm_2fa_setup`, `disable_2fa` (avec confirmation du mot de passe), `regenerate_recovery_codes`.
 
 ##### 4. Parcours UX complet dans `AuthModalService.js` & Routes URL (`index.php`)
-- [x] **Onglet / Mode *Créer un compte*** dans [AuthModalService.js](file:///c:/Users/ec135/AndroidStudioProjects/SimpleGallery/system/userland/services/AuthModalService.js) :
-  - Visible uniquement si l'inscription est autorisée (`window.SG_AUTH_POLICY`) ou lorsqu'un lien `?invite=<token>` est ouvert.
+- [x] **Onglet / Mode *Créer un compte*** dans [AuthModalService.js](system/userland/services/AuthModalService.js) :
+  - Visible uniquement si l'inscription est autorisée (`window.ATELIER_AUTH_POLICY`) ou lorsqu'un lien `?invite=<token>` est ouvert.
   - Champs : identifiant, nom affiché, email, mot de passe + confirmation (indicateur de robustesse), code d'invitation (si requis), honeypot invisible.
   - Écran post-inscription clair (*« Vérifiez votre boîte mail »* + bouton *« Renvoyer le lien »*).
-- [x] **Prise en charge automatique des liens URL** au chargement d'[index.php](file:///c:/Users/ec135/AndroidStudioProjects/SimpleGallery/index.php) :
+- [x] **Prise en charge automatique des liens URL** au chargement d'[index.php](index.php) :
   - `?verify_email=<token>` → ouvre la box dédiée, valide le lien et propose la connexion (ou l'enrôlement 2FA si imposé).
   - `?reset_password=<token>` → ouvre directement le formulaire de définition du nouveau mot de passe.
   - `?invite=<token>` → ouvre la création de compte avec le jeton d'invitation pré-validé.
@@ -175,7 +175,7 @@ flowchart TB
   - Lien **« Mot de passe oublié ? »** intégré à l'écran de connexion.
 
 ##### 5. Panneau Admin, i18n, Qualité & Extensions Phase A.2
-- [x] **Panneau Admin dans [apps/settings/users-panel.js](file:///c:/Users/ec135/AndroidStudioProjects/SimpleGallery/apps/settings/users-panel.js)** :
+- [x] **Panneau Admin dans [apps/settings/users-panel.js](apps/settings/users-panel.js)** :
   - Carte **Inscriptions & Politique 2FA** (mode d'inscription, politique 2FA, domaines autorisés/bloqués, quota & groupes par défaut, longueur min mot de passe).
   - Carte **Email & SMTP** (choix driver, paramètres SMTP, URL publique, bouton **« Envoyer un email de test »**, aperçu des derniers emails en mode `outbox_log`).
   - File des **comptes en attente d'approbation** (*Approuver* / *Refuser*) et gestionnaire de **liens d'invitation** (générer, copier le lien, révoquer).

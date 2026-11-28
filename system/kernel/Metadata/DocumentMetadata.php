@@ -1,11 +1,11 @@
 <?php
 /**
- * SimpleGallery 2026 - Document Metadata Extractor Module
+ * Atelier by GallusTech - Document Metadata Extractor Module
  * Zero-dependency pure PHP parser for PDF headers, Text, and Markdown statistics.
  */
 
-if (!defined('SIMPLE_GALLERY_CORE')) {
-    define('SIMPLE_GALLERY_CORE', true);
+if (!defined('ATELIER_CORE')) {
+    define('ATELIER_CORE', true);
 }
 
 /**

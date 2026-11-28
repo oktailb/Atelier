@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - Explorer Modern Grid View Plugin (apps/explorer/views/grid/view.js)
+ * Atelier by GallusTech - Explorer Modern Grid View Plugin (apps/explorer/views/grid/view.js)
  */
 (function(window) {
   'use strict';

@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - WebOS Native Web Browser Application
+ * Atelier by GallusTech - WebOS Native Web Browser Application
  * Features:
  * - Multi-tab browsing with isolated per-tab navigation & history (Back, Forward, Reload, Home)
  * - Smart Omnibar with protocol badge, URL detection & DuckDuckGo search integration

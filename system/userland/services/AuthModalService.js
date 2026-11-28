@@ -28,8 +28,8 @@
     } else if (window.desktop && typeof window.desktop.t === 'function') {
       val = window.desktop.t(key, replacements);
     }
-    if (val === key && window.SG_I18N_CONFIG && window.SG_I18N_CONFIG.translations && window.SG_I18N_CONFIG.translations[key]) {
-      val = window.SG_I18N_CONFIG.translations[key];
+    if (val === key && window.ATELIER_I18N_CONFIG && window.ATELIER_I18N_CONFIG.translations && window.ATELIER_I18N_CONFIG.translations[key]) {
+      val = window.ATELIER_I18N_CONFIG.translations[key];
       Object.entries(replacements).forEach(([k, v]) => {
         val = val.replace(new RegExp(`\\{${k}\\}`, 'g'), v);
       });
@@ -48,7 +48,7 @@
     if (window.I18nEngine && window.I18nEngine.currentLocale) {
       return window.I18nEngine.currentLocale;
     }
-    return (window.SG_I18N_CONFIG && window.SG_I18N_CONFIG.default) || 'fr';
+    return (window.ATELIER_I18N_CONFIG && window.ATELIER_I18N_CONFIG.default) || 'fr';
   }
 
   function getBrandInfo() {
@@ -108,7 +108,7 @@
     }
 
     getAuthPolicy() {
-      const p = window.SG_AUTH_POLICY;
+      const p = window.ATELIER_AUTH_POLICY;
       if (p && typeof p === 'object') return p;
       return {
         registration_mode: 'disabled',
@@ -131,7 +131,7 @@
       if (window.sys && window.sys.shares && typeof window.sys.shares.getCurrentUser === 'function') {
         return window.sys.shares.getCurrentUser();
       }
-      return window.SG_CURRENT_USER || null;
+      return window.ATELIER_CURRENT_USER || null;
     }
 
     isLoggedIn() {
@@ -242,11 +242,11 @@
       const policy = this.getAuthPolicy();
 
       const savedUser = (() => {
-        try { return localStorage.getItem('sg_auth_last_username') || ''; } catch (e) { return ''; }
+        try { return localStorage.getItem('atelier_auth_last_username') || ''; } catch (e) { return ''; }
       })();
       const openHomePref = (() => {
         try {
-          const v = localStorage.getItem('sg_auth_open_home');
+          const v = localStorage.getItem('atelier_auth_open_home');
           return v === null ? true : (v === '1');
         } catch (e) { return true; }
       })();
@@ -356,11 +356,11 @@
       const avatarIcon = user ? (isAdmin ? '🛡️' : '👤') : '🔑';
       const volumes = (window.sys && window.sys.shares && typeof window.sys.shares.getVolumes === 'function')
         ? window.sys.shares.getVolumes()
-        : (Array.isArray(window.SG_MOUNTED_VOLUMES) ? window.SG_MOUNTED_VOLUMES : []);
+        : (Array.isArray(window.ATELIER_MOUNTED_VOLUMES) ? window.ATELIER_MOUNTED_VOLUMES : []);
 
       const quota = (window.sys && window.sys.shares && typeof window.sys.shares.getQuota === 'function')
         ? window.sys.shares.getQuota()
-        : (window.SG_USER_QUOTA || null);
+        : (window.ATELIER_USER_QUOTA || null);
       const fmtB = (b) => {
         const n = Number(b) || 0;
         if (n >= 1024 * 1024 * 1024) return (n / (1024 * 1024 * 1024)).toFixed(1) + ' Go';
@@ -1008,13 +1008,13 @@
     async finalizeSuccessfulLogin(json, openHome = false) {
       const isAdmin = json.is_admin !== undefined ? Boolean(json.is_admin) : true;
       window.IS_ADMIN = isAdmin;
-      window.SG_CURRENT_USER = json.user || null;
+      window.ATELIER_CURRENT_USER = json.user || null;
       if (Array.isArray(json.mounted_volumes)) {
-        window.SG_MOUNTED_VOLUMES = json.mounted_volumes;
+        window.ATELIER_MOUNTED_VOLUMES = json.mounted_volumes;
       }
       if (json.csrf_token) {
         window.CSRF_TOKEN = json.csrf_token;
-        window.SG_CSRF_TOKEN = json.csrf_token;
+        window.ATELIER_CSRF_TOKEN = json.csrf_token;
       }
       if (window.desktop) {
         window.desktop.state.isAdmin = isAdmin;
@@ -1064,11 +1064,11 @@
       if (!password) return;
 
       try {
-        localStorage.setItem('sg_auth_open_home', openHome ? '1' : '0');
+        localStorage.setItem('atelier_auth_open_home', openHome ? '1' : '0');
         if (rememberUser && username) {
-          localStorage.setItem('sg_auth_last_username', username);
+          localStorage.setItem('atelier_auth_last_username', username);
         } else {
-          localStorage.removeItem('sg_auth_last_username');
+          localStorage.removeItem('atelier_auth_last_username');
         }
       } catch (e) {}
 
@@ -1175,7 +1175,7 @@
         if (isLoginFlow) {
           await this.finalizeSuccessfulLogin(json, Boolean(this.pendingContext && this.pendingContext.openHome));
         } else {
-          if (json.user) window.SG_CURRENT_USER = json.user;
+          if (json.user) window.ATELIER_CURRENT_USER = json.user;
           if (window.sys && window.sys.shares && typeof window.sys.shares.refreshIdentity === 'function') {
             await window.sys.shares.refreshIdentity();
           }
@@ -1196,7 +1196,7 @@
       if (!pwd) return;
       const res = await window.sys.api.post('disable_2fa', { password: pwd });
       if (res && res.success) {
-        if (res.user) window.SG_CURRENT_USER = res.user;
+        if (res.user) window.ATELIER_CURRENT_USER = res.user;
         if (window.sys && window.sys.shares) await window.sys.shares.refreshIdentity();
         toast('info', t('auth_modal.totp_disabled_toast'));
         this.render();
@@ -1373,9 +1373,9 @@
       } catch (e) {}
 
       window.IS_ADMIN = false;
-      window.SG_CURRENT_USER = null;
-      window.SG_MOUNTED_VOLUMES = [];
-      window.SG_USER_PREFERENCES = {};
+      window.ATELIER_CURRENT_USER = null;
+      window.ATELIER_MOUNTED_VOLUMES = [];
+      window.ATELIER_USER_PREFERENCES = {};
       if (window.desktop) {
         window.desktop.state.isAdmin = false;
       }

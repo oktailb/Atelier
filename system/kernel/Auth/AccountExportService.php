@@ -12,13 +12,13 @@
  *    and aborts cleanly if pre-deletion export generation fails so users never lose data unexpectedly.
  */
 
-namespace SimpleGallery\Kernel\Auth;
+namespace Atelier\Kernel\Auth;
 
-use SimpleGallery\Kernel\Config\ConfigStore;
-use SimpleGallery\Kernel\Data\AtelierStore;
-use SimpleGallery\Kernel\Mail\Mailer;
-use SimpleGallery\Kernel\Security\PathValidator;
-use SimpleGallery\Kernel\Security\RateLimiter;
+use Atelier\Kernel\Config\ConfigStore;
+use Atelier\Kernel\Data\AtelierStore;
+use Atelier\Kernel\Mail\Mailer;
+use Atelier\Kernel\Security\PathValidator;
+use Atelier\Kernel\Security\RateLimiter;
 
 class AccountExportService {
 

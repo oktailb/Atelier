@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - 8 Queens Chess Puzzle App
+ * Atelier by GallusTech - 8 Queens Chess Puzzle App
  * Modern WebOS multi-instance puzzle game with real-time threat detection,
  * complete backtracking solver (92 solutions for 8x8), hint system, and customizable board sizes.
  */

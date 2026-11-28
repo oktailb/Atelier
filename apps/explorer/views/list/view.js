@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - Explorer Tabular List View Plugin (apps/explorer/views/list/view.js)
+ * Atelier by GallusTech - Explorer Tabular List View Plugin (apps/explorer/views/list/view.js)
  */
 (function(window) {
   'use strict';

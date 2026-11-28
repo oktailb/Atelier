@@ -1,17 +1,17 @@
 <?php
 /**
- * SimpleGallery 2026 - Standalone Archive Download Controller
+ * Atelier by GallusTech - Standalone Archive Download Controller
  */
 
 $project_root = dirname(dirname(__DIR__));
 require_once $project_root . '/system/boot/bootstrap.php';
 require_once $project_root . '/system/kernel/functions.php';
 
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\FS\ArchiveEngine;
-use SimpleGallery\Kernel\FS\PermissionsManager;
-use SimpleGallery\Kernel\Media\BinaryLocator;
-use SimpleGallery\Kernel\Security\PathValidator;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\FS\ArchiveEngine;
+use Atelier\Kernel\FS\PermissionsManager;
+use Atelier\Kernel\Media\BinaryLocator;
+use Atelier\Kernel\Security\PathValidator;
 
 ensure_session_started();
 AuthManager::revalidateActiveUser($project_root);
@@ -49,7 +49,7 @@ if (!isset($available_formats[$format])) {
     $format = 'zip';
 }
 
-$tmp_dir = sys_get_temp_dir() . '/simplegallery_archives';
+$tmp_dir = sys_get_temp_dir() . '/atelier_archives';
 if (!is_dir($tmp_dir)) {
     @mkdir($tmp_dir, 0755, true);
 }

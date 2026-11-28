@@ -1,5 +1,5 @@
 /**
- * SimpleGallery WebOS - Towers of Hanoi Puzzle
+ * Atelier WebOS - Towers of Hanoi Puzzle
  * Stylesheet with 3D-styled Pegs, Gradient Disks, Floating Animations & Victory Cards.
  */
 
@@ -10,7 +10,7 @@
   width: 100%;
   background: var(--window-bg, var(--bg-main, radial-gradient(circle at 50% 25%, #312e81 0%, #1e1b4b 60%, #0f172a 100%)));
   color: var(--text-main, #f8fafc);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   user-select: none;
   overflow: hidden;
   position: relative;

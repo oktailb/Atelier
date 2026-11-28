@@ -129,10 +129,10 @@
       });
 
       return {
-        user: window.SG_CURRENT_USER ? {
-          username: window.SG_CURRENT_USER.username,
-          display_name: window.SG_CURRENT_USER.display_name,
-          home_dir: window.SG_CURRENT_USER.home_dir
+        user: window.ATELIER_CURRENT_USER ? {
+          username: window.ATELIER_CURRENT_USER.username,
+          display_name: window.ATELIER_CURRENT_USER.display_name,
+          home_dir: window.ATELIER_CURRENT_USER.home_dir
         } : null,
         active_window: activeWindow,
         open_windows: windows,
@@ -294,7 +294,7 @@
           }
         },
         handler: (args, ctx) => {
-          const discovered = window.SG_DISCOVERED_APPS || {};
+          const discovered = window.ATELIER_DISCOVERED_APPS || {};
           const catFilter = String(args.category || '').toLowerCase();
           const apps = [];
           for (const [id, info] of Object.entries(discovered)) {

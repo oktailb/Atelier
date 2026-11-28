@@ -1,13 +1,13 @@
 <?php
-namespace SimpleGallery\Kernel\Actions;
+namespace Atelier\Kernel\Actions;
 
-use SimpleGallery\Kernel\Auth\AuthManager;
-use SimpleGallery\Kernel\FS\ArchiveEngine;
-use SimpleGallery\Kernel\FS\PermissionsManager;
-use SimpleGallery\Kernel\Media\BinaryLocator;
-use SimpleGallery\Kernel\Media\ExifParser;
-use SimpleGallery\Kernel\Search\SearchEngine;
-use SimpleGallery\Kernel\Security\PathValidator;
+use Atelier\Kernel\Auth\AuthManager;
+use Atelier\Kernel\FS\ArchiveEngine;
+use Atelier\Kernel\FS\PermissionsManager;
+use Atelier\Kernel\Media\BinaryLocator;
+use Atelier\Kernel\Media\ExifParser;
+use Atelier\Kernel\Search\SearchEngine;
+use Atelier\Kernel\Security\PathValidator;
 
 class MediaActions {
 
@@ -83,7 +83,7 @@ class MediaActions {
                 $format = 'zip';
             }
 
-            $tmp_dir = sys_get_temp_dir() . '/simplegallery_archives';
+            $tmp_dir = sys_get_temp_dir() . '/atelier_archives';
             if (!is_dir($tmp_dir)) @mkdir($tmp_dir, 0755, true);
 
             $ext_map = ['zip' => '.zip', '7z' => '.7z', 'tar' => '.tar.gz'];

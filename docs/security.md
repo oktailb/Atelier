@@ -37,7 +37,7 @@ Pour concilier la protection des droits d'auteur et l'expérience utilisateur, A
 
 ## 3. Matrice des Permissions Invités
 
-Dans [config/security.php](file:///c:/Users/ec135/AndroidStudioProjects/SimpleGallery/config/security.php), l'administrateur peut affiner les droits des utilisateurs non authentifiés :
+Dans [config/security.php](../config/security.php), l'administrateur peut affiner les droits des utilisateurs non authentifiés :
 
 | Permission | Clé | Valeur par défaut | Effet si `false` |
 |---|---|:---:|---|

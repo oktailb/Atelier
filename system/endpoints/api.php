@@ -1,6 +1,6 @@
 <?php
 /**
- * SimpleGallery WebOS - Kernel API Gateway
+ * Atelier WebOS - Kernel API Gateway
  * Minimal, secure, modular REST/JSON syscall dispatcher.
  */
 
@@ -8,8 +8,8 @@ $project_root = dirname(dirname(__DIR__));
 require_once $project_root . '/system/boot/bootstrap.php';
 require_once $project_root . '/system/kernel/functions.php';
 
-use SimpleGallery\Kernel\Actions\ActionRouter;
-use SimpleGallery\Kernel\Security\SecurityManager;
+use Atelier\Kernel\Actions\ActionRouter;
+use Atelier\Kernel\Security\SecurityManager;
 
 ensure_session_started();
 
@@ -69,7 +69,7 @@ if ($result === null) {
     if (!headers_sent()) {
         header('Content-Type: application/json; charset=utf-8');
     }
-    echo json_encode(['success' => false, 'error' => __t('api.err_unknown_action', [], null, $real_base_dir)]);
+    echo json_encode(['success' => false, 'error' => __t('api.err_unknown_action', [], null, $project_root)]);
     exit;
 }
 

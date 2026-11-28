@@ -1,14 +1,14 @@
 <?php
 /**
- * SimpleGallery 2026 - Search Engine (Recursive multi-filter gallery search)
+ * Atelier by GallusTech - Search Engine (Recursive multi-filter gallery search)
  */
 
-namespace SimpleGallery\Kernel\Search;
+namespace Atelier\Kernel\Search;
 
-use SimpleGallery\Kernel\FS\DotfileManager;
-use SimpleGallery\Kernel\Media\ExifParser;
-use SimpleGallery\Kernel\Security\PathValidator;
-use SimpleGallery\Kernel\Security\SecurityManager;
+use Atelier\Kernel\FS\DotfileManager;
+use Atelier\Kernel\Media\ExifParser;
+use Atelier\Kernel\Security\PathValidator;
+use Atelier\Kernel\Security\SecurityManager;
 
 class SearchEngine {
     /**

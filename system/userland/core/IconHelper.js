@@ -1,5 +1,5 @@
 /**
- * SimpleGallery 2026 - Centralized Icon & Thumbnail Helper
+ * Atelier by GallusTech - Centralized Icon & Thumbnail Helper
  * Factorizes media categories, file extensions, and folder icon resolution across Explorer and Desktop.
  */
 (function(window) {

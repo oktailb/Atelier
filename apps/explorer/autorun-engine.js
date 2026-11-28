@@ -1,5 +1,5 @@
 /**
- * SimpleGallery WebOS - Multimodal Synchronized Presentation Engine (AutorunSyncEngine.js)
+ * Atelier WebOS - Multimodal Synchronized Presentation Engine (AutorunSyncEngine.js)
  * Coordinates synchronized playback of video/audio/timer with live WebOS applications:
  * Maps (GPS flyTo), Document Viewer (Markdown/PDF), Image Viewer, and any registered app.
  * Powers VLogs, multimodal blogs, guided tours, and interactive audio-guided photo albums.

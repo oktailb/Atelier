@@ -1,5 +1,5 @@
 <?php
-namespace SimpleGallery\Kernel\Security;
+namespace Atelier\Kernel\Security;
 
 /**
  * Kernel Rate Limiter
@@ -14,7 +14,7 @@ class RateLimiter {
     public static function getStorageFile(string $key): string {
         $ip = self::getClientIp();
         $hash = md5($ip . '_' . $key);
-        return sys_get_temp_dir() . '/sg_limit_' . $hash . '.json';
+        return sys_get_temp_dir() . '/atelier_limit_' . $hash . '.json';
     }
 
     public static function getRateLimitFile(string $key): string {

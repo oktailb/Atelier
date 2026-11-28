@@ -1,5 +1,5 @@
 /**
- * SimpleGallery WebOS - Centralized WebOS Services Engine (`window.sys.services` / `window.sys.*`)
+ * Atelier WebOS - Centralized WebOS Services Engine (`window.sys.services` / `window.sys.*`)
  * High-level system abstractions for Filesystem, UI Dialogs, Toasts, WebAudio Sound Synthesis, and Storage.
  */
 
@@ -23,7 +23,7 @@
 
     const u = (window.sys && window.sys.shares && typeof window.sys.shares.getCurrentUser === 'function')
       ? window.sys.shares.getCurrentUser()
-      : window.SG_CURRENT_USER;
+      : window.ATELIER_CURRENT_USER;
     if (!u || !u.id) return;
 
     const api = (window.sys && window.sys.api) || window.SyscallClient;
@@ -36,7 +36,7 @@
     getUserScope() {
       const u = (window.sys && window.sys.shares && typeof window.sys.shares.getCurrentUser === 'function')
         ? window.sys.shares.getCurrentUser()
-        : window.SG_CURRENT_USER;
+        : window.ATELIER_CURRENT_USER;
       if (u && u.id) return `u_${u.id}`;
       if (u && u.username) return `u_${String(u.username).toLowerCase()}`;
       if (window.IS_ADMIN || (window.desktop && window.desktop.state && window.desktop.state.isAdmin)) {
@@ -86,8 +86,8 @@
       try {
         const scope = this.getUserScope();
         const expectsObject = defaultValue !== null && typeof defaultValue === 'object';
-        if (this.isNamedUserScope(scope) && window.SG_USER_PREFERENCES && typeof window.SG_USER_PREFERENCES === 'object') {
-          const serverVal = window.SG_USER_PREFERENCES[key];
+        if (this.isNamedUserScope(scope) && window.ATELIER_USER_PREFERENCES && typeof window.ATELIER_USER_PREFERENCES === 'object') {
+          const serverVal = window.ATELIER_USER_PREFERENCES[key];
           if (serverVal !== undefined && serverVal !== null && serverVal !== '') {
             if (expectsObject && typeof serverVal === 'string') {
               try { return JSON.parse(serverVal); } catch (e) { return defaultValue; }
@@ -95,7 +95,7 @@
             return serverVal;
           }
         }
-        const scopedVal = localStorage.getItem(`sg_pref_${scope}_${key}`);
+        const scopedVal = localStorage.getItem(`atelier_pref_${scope}_${key}`);
         if (scopedVal !== null) {
           if (expectsObject) {
             try { return JSON.parse(scopedVal); } catch (e) { return defaultValue; }
@@ -121,13 +121,13 @@
         const scope = this.getUserScope();
         const isObj = value !== null && typeof value === 'object';
         const strVal = (value === null || value === undefined) ? '' : (isObj ? JSON.stringify(value) : String(value));
-        localStorage.setItem(`sg_pref_${scope}_${key}`, strVal);
+        localStorage.setItem(`atelier_pref_${scope}_${key}`, strVal);
         if (!this.isNamedUserScope(scope) && opts.legacyLocalKey) {
           localStorage.setItem(opts.legacyLocalKey, strVal);
         }
         if (this.isNamedUserScope(scope)) {
-          window.SG_USER_PREFERENCES = window.SG_USER_PREFERENCES || {};
-          window.SG_USER_PREFERENCES[key] = isObj ? value : strVal;
+          window.ATELIER_USER_PREFERENCES = window.ATELIER_USER_PREFERENCES || {};
+          window.ATELIER_USER_PREFERENCES[key] = isObj ? value : strVal;
           if (opts.sync !== false && SYNCABLE_PREFS.includes(key)) {
             _prefSyncQueue[key] = isObj ? value : strVal;
             if (_prefSyncTimer) clearTimeout(_prefSyncTimer);
@@ -142,12 +142,12 @@
     removePref(key, legacyLocalKey = null) {
       try {
         const scope = this.getUserScope();
-        localStorage.removeItem(`sg_pref_${scope}_${key}`);
+        localStorage.removeItem(`atelier_pref_${scope}_${key}`);
         if (!this.isNamedUserScope(scope) && legacyLocalKey) {
           localStorage.removeItem(legacyLocalKey);
         }
-        if (this.isNamedUserScope(scope) && window.SG_USER_PREFERENCES && typeof window.SG_USER_PREFERENCES === 'object') {
-          delete window.SG_USER_PREFERENCES[key];
+        if (this.isNamedUserScope(scope) && window.ATELIER_USER_PREFERENCES && typeof window.ATELIER_USER_PREFERENCES === 'object') {
+          delete window.ATELIER_USER_PREFERENCES[key];
         }
       } catch (e) {}
     },
@@ -156,19 +156,19 @@
         const scope = this.getUserScope();
         const u = (window.sys && window.sys.shares && typeof window.sys.shares.getCurrentUser === 'function')
           ? window.sys.shares.getCurrentUser()
-          : window.SG_CURRENT_USER;
+          : window.ATELIER_CURRENT_USER;
         const username = u && u.username ? String(u.username) : '';
 
         const prefixes = [
           `webos_${scope}_`,
-          `sg_pref_${scope}_`,
+          `atelier_pref_${scope}_`,
           `tribune_${scope}_`,
-          `sg_vfs_bridge_${scope}_`,
-          `sg_favorites_${scope}`,
-          `sg_folder_sorts_${scope}`
+          `atelier_vfs_bridge_${scope}_`,
+          `atelier_favorites_${scope}`,
+          `atelier_folder_sorts_${scope}`
         ];
         if (username) {
-          prefixes.push(`sg_favorites_user_${username}`, `sg_folder_sorts_user_${username}`);
+          prefixes.push(`atelier_favorites_user_${username}`, `atelier_folder_sorts_user_${username}`);
         }
 
         const keysToRemove = [];
@@ -183,14 +183,14 @@
 
         if (!this.isNamedUserScope(scope)) {
           [
-            'sg_desktop_wallpaper',
-            'sg_active_theme',
-            'sg_window_style',
-            'sg_favorites',
-            'sg_view_mode',
-            'sg_explorer_view_mode',
+            'atelier_desktop_wallpaper',
+            'atelier_active_theme',
+            'atelier_window_style',
+            'atelier_favorites',
+            'atelier_view_mode',
+            'atelier_explorer_view_mode',
             'gallery_view_mode',
-            'sg_cookie_consent'
+            'atelier_cookie_consent'
           ].forEach(k => localStorage.removeItem(k));
         }
         return keysToRemove.length;
