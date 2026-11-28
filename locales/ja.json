@@ -960,6 +960,26 @@
     "copilot.max_steps_reached": "ステップ上限に達しました（{max}/{max}）。続けるには「continue」と送信するか、設定 → AI・エージェント で上限を上げてください。",
     "copilot.model_family_title": "モデルファミリー / バージョン",
     "copilot.model_variant_title": "モデルバリエーション",
-    "copilot.variant_default": "標準"
+    "copilot.variant_default": "標準",
+    "copilot.history_btn": "過去の会話とメモリ",
+    "copilot.history_tab_chats": "会話履歴",
+    "copilot.history_tab_memory": "メモリ",
+    "copilot.history_search_ph": "会話を検索…",
+    "copilot.history_empty": "保存された会話はまだありません。",
+    "copilot.history_untitled": "新しい会話",
+    "copilot.history_msgs_count": "{count} 件",
+    "copilot.history_pin": "ピン留め切替",
+    "copilot.history_rename": "名前変更",
+    "copilot.history_rename_prompt": "この会話の新しいタイトル：",
+    "copilot.history_export": "Markdown で出力",
+    "copilot.history_delete": "削除",
+    "copilot.history_delete_confirm": "この会話を削除しますか？",
+    "copilot.history_clear_all": "すべて削除",
+    "copilot.history_clear_all_confirm": "保存されている {count} 件の会話をすべて削除しますか？",
+    "copilot.memory_recall_toggle": "過去の会話内容を記憶する",
+    "copilot.memory_notes_desc": "セッションをまたいで記憶するメモ（いつでも編集・削除できます）。",
+    "copilot.memory_add_ph": "例：主に /work フォルダで作業します…",
+    "copilot.memory_add_btn": "記憶",
+    "copilot.memory_empty": "メモリに保存された項目はありません。"
   }
 }

@@ -2781,6 +2781,60 @@ try {
     readmeSrc.includes('Quick Look') &&
     readmeSrc.includes('Simple ou Double Clic')
   );
+
+  // Compagnon Multi-Conversations History & Cross-Discussion Memory runtime tests
+  const copilotSrc = fs.readFileSync(path.join(rootDir, 'system/userland/services/AiCopilotService.js'), 'utf8');
+  const agentRegSrc = fs.readFileSync(path.join(rootDir, 'system/userland/services/AgentToolRegistry.js'), 'utf8');
+  const copMemStore = new Map();
+  copMemStore.set('copilot:messages', [
+    { role: 'user', content: 'Construis un tableau budget Q4' },
+    { role: 'assistant', content: 'Tableau budget Q4 prêt dans GridCraft.' }
+  ]);
+  const copWin = {
+    ATELIER_CURRENT_USER: { username: 'oktail' },
+    I18nEngine: { t: (k) => k },
+    sys: {
+      storage: {
+        getAppData(app, k, def) { return copMemStore.has(`${app}:${k}`) ? copMemStore.get(`${app}:${k}`) : def; },
+        setAppData(app, k, v) { copMemStore.set(`${app}:${k}`, v); }
+      }
+    }
+  };
+  const copDoc = { readyState: 'loading', addEventListener() {}, getElementById() { return null; }, querySelector() { return null; } };
+  new Function('window', 'document', copilotSrc)(copWin, copDoc);
+  const copInst = copWin.sys.copilot;
+  copInst.loadSavedHistory();
+  const migratedCount = copInst.conversations.length;
+  const firstId = copInst.activeConversationId;
+  // Start a 2nd conversation and persist a turn
+  copInst.startNewConversation();
+  copInst.messages.push({ role: 'user', content: 'Organise mes photos de Kobe' });
+  copInst.messages.push({ role: 'assistant', content: 'Dossier Kobe trié par date EXIF.' });
+  copInst.persistHistory();
+  const twoConvs = copInst.conversations.length === 2;
+  // Pin the older conversation and verify sort puts it first
+  copInst.togglePinConversation(firstId);
+  const pinnedFirst = copInst.conversations[0].id === firstId;
+  // Search past discussions & persistent memory notes
+  const searchHits = copInst.searchConversations('budget');
+  const addedNote = copInst.addMemoryNote('Je préfère les réponses en français.');
+  const sysPromptWithMem = copInst._buildSystemPrompt(null);
+  copInst.removeMemoryNote(addedNote.id);
+
+  assert("Compagnon (Historique & Mémoire): Multi-conversations, migration auto, épinglage, recherche, mémoire persistante & outils copilot_search_history/copilot_remember",
+    !/\bfetch\s*\(/.test(copilotSrc) &&
+    migratedCount === 1 &&
+    twoConvs &&
+    pinnedFirst &&
+    searchHits.length === 1 &&
+    searchHits[0].title.includes('budget') &&
+    sysPromptWithMem.includes('User persistent memory notes') &&
+    sysPromptWithMem.includes('Je préfère les réponses en français.') &&
+    sysPromptWithMem.includes('[UNTRUSTED_HISTORY_DIGEST]') &&
+    copInst.memoryNotes.length === 0 &&
+    agentRegSrc.includes("name: 'copilot_search_history'") &&
+    agentRegSrc.includes("name: 'copilot_remember'")
+  );
 } catch (e) {
   assert("Phase 1 exécution runtime UI", false, e.stack);
 }

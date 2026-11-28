@@ -80,6 +80,20 @@
     return { family: raw, variant: defaultVariantLabel };
   }
 
+  const MAX_CONVERSATIONS = 40;
+  const MAX_MESSAGES_PER_CONVERSATION = 60;
+  const MAX_MEMORY_NOTES = 30;
+
+  function makeConvId() {
+    return 'conv_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  }
+
+  function deriveConvTitle(text, fallback) {
+    const cleaned = String(text || '').replace(/\s+/g, ' ').trim();
+    if (!cleaned) return fallback || 'Discussion';
+    return cleaned.length > 52 ? cleaned.slice(0, 51) + '…' : cleaned;
+  }
+
   class AiCopilotService {
     constructor() {
       this.isOpen = false;
@@ -94,7 +108,14 @@
       this.modelChoices = [];
       this.selectedModelKey = ''; // "<profile_id>::<model>"
       this.autonomyLevel = 'assisted';
-      this.messages = []; // UI display messages + conversation history
+      this.messages = []; // Active conversation UI display messages + history
+      this.conversations = []; // Multi-conversation persistent store per user
+      this.activeConversationId = null;
+      this.showHistoryPanel = false;
+      this.historyPanelTab = 'chats'; // 'chats' | 'memory'
+      this.historySearchQuery = '';
+      this.rememberHistory = true;
+      this.memoryNotes = []; // [{ id, text, createdAt }]
       this.pendingApproval = null; // { id, toolName, risk, args, resolve }
       this._bound = false;
       this._boundEvents = false;
@@ -113,10 +134,14 @@
         window.EventBus.on('auth:changed', () => {
           this.stop();
           this.messages = [];
+          this.conversations = [];
+          this.activeConversationId = null;
+          this.memoryNotes = [];
+          this.showHistoryPanel = false;
           this.configLoaded = false;
           this.loadConfig().then(() => {
             this.loadSavedHistory();
-            this.renderPopupBody();
+            this.renderAll();
             this.updateTaskbarVisibility();
           });
         });
@@ -289,22 +314,295 @@
     loadSavedHistory() {
       try {
         if (window.sys && window.sys.storage && typeof window.sys.storage.getAppData === 'function') {
-          const saved = window.sys.storage.getAppData('copilot', 'messages', []);
-          this.messages = Array.isArray(saved) ? saved.slice(-30) : [];
           const savedPin = window.sys.storage.getAppData('copilot', 'pinned', true);
           this.isPinned = savedPin !== false;
+          const savedRecall = window.sys.storage.getAppData('copilot', 'remember_history', true);
+          this.rememberHistory = savedRecall !== false;
+          const savedMem = window.sys.storage.getAppData('copilot', 'memory_notes', []);
+          this.memoryNotes = Array.isArray(savedMem) ? savedMem.slice(0, MAX_MEMORY_NOTES) : [];
+
+          let convs = window.sys.storage.getAppData('copilot', 'conversations', null);
+          if (!Array.isArray(convs)) {
+            convs = [];
+            // Seamless one-time migration from legacy single-thread `messages`
+            const legacyMsgs = window.sys.storage.getAppData('copilot', 'messages', []);
+            if (Array.isArray(legacyMsgs) && legacyMsgs.length > 0) {
+              const firstUser = legacyMsgs.find(m => m && m.role === 'user' && m.content);
+              const now = Date.now();
+              convs.push({
+                id: makeConvId(),
+                title: deriveConvTitle(firstUser ? firstUser.content : '', this.t('copilot.history_untitled')),
+                createdAt: now,
+                updatedAt: now,
+                pinned: false,
+                messages: legacyMsgs.slice(-MAX_MESSAGES_PER_CONVERSATION)
+              });
+            }
+          }
+          this.conversations = convs.slice(0, MAX_CONVERSATIONS);
+
+          const savedActiveId = window.sys.storage.getAppData('copilot', 'active_conversation_id', null);
+          const activeConv = this.conversations.find(c => c.id === savedActiveId) || this.conversations[0] || null;
+          if (activeConv) {
+            this.activeConversationId = activeConv.id;
+            this.messages = Array.isArray(activeConv.messages) ? activeConv.messages.slice(-MAX_MESSAGES_PER_CONVERSATION) : [];
+          } else {
+            this.activeConversationId = null;
+            this.messages = [];
+          }
         }
       } catch (e) {
+        this.conversations = [];
+        this.activeConversationId = null;
         this.messages = [];
+        this.memoryNotes = [];
+      }
+    }
+
+    _sortConversations() {
+      this.conversations.sort((a, b) => {
+        if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+        return (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0);
+      });
+    }
+
+    _syncActiveConversation() {
+      if (this.messages.length === 0) return;
+      const now = Date.now();
+      let conv = this.conversations.find(c => c.id === this.activeConversationId);
+      if (!conv) {
+        const firstUser = this.messages.find(m => m && m.role === 'user' && m.content);
+        conv = {
+          id: this.activeConversationId || makeConvId(),
+          title: deriveConvTitle(firstUser ? firstUser.content : '', this.t('copilot.history_untitled')),
+          createdAt: now,
+          updatedAt: now,
+          pinned: false,
+          messages: []
+        };
+        this.activeConversationId = conv.id;
+        this.conversations.unshift(conv);
+      } else if (!conv.customTitle) {
+        const firstUser = this.messages.find(m => m && m.role === 'user' && m.content);
+        if (firstUser && (!conv.title || conv.title === this.t('copilot.history_untitled'))) {
+          conv.title = deriveConvTitle(firstUser.content, this.t('copilot.history_untitled'));
+        }
+      }
+      conv.messages = this.messages.slice(-MAX_MESSAGES_PER_CONVERSATION);
+      conv.updatedAt = now;
+      this._sortConversations();
+      if (this.conversations.length > MAX_CONVERSATIONS) {
+        this.conversations = this.conversations.slice(0, MAX_CONVERSATIONS);
       }
     }
 
     persistHistory() {
       try {
+        this._syncActiveConversation();
         if (window.sys && window.sys.storage && typeof window.sys.storage.setAppData === 'function') {
-          window.sys.storage.setAppData('copilot', 'messages', this.messages.slice(-30));
+          window.sys.storage.setAppData('copilot', 'conversations', this.conversations.slice(0, MAX_CONVERSATIONS));
+          window.sys.storage.setAppData('copilot', 'active_conversation_id', this.activeConversationId);
+          window.sys.storage.setAppData('copilot', 'messages', this.messages.slice(-MAX_MESSAGES_PER_CONVERSATION));
+          window.sys.storage.setAppData('copilot', 'remember_history', this.rememberHistory);
+          window.sys.storage.setAppData('copilot', 'memory_notes', this.memoryNotes.slice(0, MAX_MEMORY_NOTES));
         }
       } catch (e) {}
+    }
+
+    getActiveConversation() {
+      return this.conversations.find(c => c.id === this.activeConversationId) || null;
+    }
+
+    startNewConversation() {
+      this.stop();
+      if (this.messages.length > 0) {
+        this.persistHistory();
+      }
+      this.activeConversationId = null;
+      this.messages = [];
+      this.showHistoryPanel = false;
+      try {
+        if (window.sys && window.sys.storage && typeof window.sys.storage.setAppData === 'function') {
+          window.sys.storage.setAppData('copilot', 'active_conversation_id', null);
+          window.sys.storage.setAppData('copilot', 'messages', []);
+        }
+      } catch (e) {}
+      this.renderAll();
+      setTimeout(() => {
+        const ta = document.getElementById('copilotPromptInput');
+        if (ta) ta.focus();
+      }, 30);
+    }
+
+    selectConversation(convId) {
+      const conv = this.conversations.find(c => c.id === convId);
+      if (!conv) return;
+      this.stop();
+      this.activeConversationId = conv.id;
+      this.messages = Array.isArray(conv.messages) ? conv.messages.slice(-MAX_MESSAGES_PER_CONVERSATION) : [];
+      this.showHistoryPanel = false;
+      try {
+        if (window.sys && window.sys.storage && typeof window.sys.storage.setAppData === 'function') {
+          window.sys.storage.setAppData('copilot', 'active_conversation_id', conv.id);
+          window.sys.storage.setAppData('copilot', 'messages', this.messages);
+        }
+      } catch (e) {}
+      this.renderAll();
+    }
+
+    togglePinConversation(convId) {
+      const conv = this.conversations.find(c => c.id === convId);
+      if (!conv) return;
+      conv.pinned = !conv.pinned;
+      this._sortConversations();
+      this.persistHistory();
+      this.renderHistoryPanel();
+    }
+
+    async renameConversation(convId) {
+      const conv = this.conversations.find(c => c.id === convId);
+      if (!conv) return;
+      const next = (window.sys && window.sys.dialog && typeof window.sys.dialog.prompt === 'function')
+        ? await window.sys.dialog.prompt({
+            title: this.t('copilot.history_rename'),
+            message: this.t('copilot.history_rename_prompt'),
+            defaultValue: conv.title || '',
+            selectAll: true
+          })
+        : window.prompt(this.t('copilot.history_rename_prompt'), conv.title || '');
+      if (!next || !next.trim()) return;
+      conv.title = next.trim().slice(0, 80);
+      conv.customTitle = true;
+      this.persistHistory();
+      this.renderAll();
+    }
+
+    async deleteConversation(convId) {
+      const idx = this.conversations.findIndex(c => c.id === convId);
+      if (idx === -1) return;
+      const ok = (window.sys && window.sys.dialog && typeof window.sys.dialog.confirm === 'function')
+        ? await window.sys.dialog.confirm(this.t('copilot.history_delete_confirm'), this.t('copilot.history_delete'), true)
+        : window.confirm(this.t('copilot.history_delete_confirm'));
+      if (!ok) return;
+
+      this.conversations.splice(idx, 1);
+      if (this.activeConversationId === convId) {
+        const next = this.conversations[0] || null;
+        this.activeConversationId = next ? next.id : null;
+        this.messages = next && Array.isArray(next.messages) ? next.messages.slice() : [];
+      }
+      this.persistHistory();
+      this.renderAll();
+    }
+
+    async clearAllConversations() {
+      if (this.conversations.length === 0) return;
+      const msg = this.t('copilot.history_clear_all_confirm', { count: this.conversations.length });
+      const ok = (window.sys && window.sys.dialog && typeof window.sys.dialog.confirm === 'function')
+        ? await window.sys.dialog.confirm(msg, this.t('copilot.history_clear_all'), true)
+        : window.confirm(msg);
+      if (!ok) return;
+      this.stop();
+      this.conversations = [];
+      this.activeConversationId = null;
+      this.messages = [];
+      this.persistHistory();
+      this.renderAll();
+    }
+
+    exportConversationMarkdown(convId) {
+      const conv = this.conversations.find(c => c.id === convId) || this.getActiveConversation();
+      if (!conv) return;
+      const lines = [
+        `# ${conv.title || this.t('copilot.history_untitled')}`,
+        `_${new Date(conv.updatedAt || Date.now()).toLocaleString()}_`,
+        ''
+      ];
+      (conv.messages || []).forEach(m => {
+        if (m.role === 'user') {
+          lines.push(`## 👤 Utilisateur\n\n${m.content}\n`);
+        } else if (m.role === 'assistant') {
+          lines.push(`## ✨ Compagnon\n\n${m.content}\n`);
+        } else if (m.role === 'tool_trace') {
+          lines.push(`> 🔧 \`${m.name}\` (${m.status || 'ok'})\n`);
+        }
+      });
+      const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const slug = (conv.title || 'compagnon').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'compagnon';
+      a.href = url;
+      a.download = `${slug}.md`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    searchConversations(query, limit = 8) {
+      const q = String(query || '').trim().toLowerCase();
+      const matches = [];
+      for (const conv of this.conversations) {
+        const msgs = Array.isArray(conv.messages) ? conv.messages : [];
+        const userAndAsst = msgs.filter(m => m && (m.role === 'user' || m.role === 'assistant') && m.content);
+        const titleMatch = q === '' || String(conv.title || '').toLowerCase().includes(q);
+        const hitMsg = q === '' ? userAndAsst[0] : userAndAsst.find(m => String(m.content || '').toLowerCase().includes(q));
+        if (titleMatch || hitMsg) {
+          matches.push({
+            id: conv.id,
+            title: conv.title || this.t('copilot.history_untitled'),
+            updated_at: conv.updatedAt ? new Date(conv.updatedAt).toISOString() : '',
+            pinned: Boolean(conv.pinned),
+            message_count: userAndAsst.length,
+            excerpt: hitMsg ? String(hitMsg.content).replace(/\s+/g, ' ').slice(0, 220) : ''
+          });
+          if (matches.length >= limit) break;
+        }
+      }
+      return matches;
+    }
+
+    addMemoryNote(rawText) {
+      const text = String(rawText || '').replace(/\s+/g, ' ').trim().slice(0, 280);
+      if (!text) return null;
+      if (this.memoryNotes.some(n => String(n.text || '').toLowerCase() === text.toLowerCase())) {
+        return this.memoryNotes.find(n => String(n.text || '').toLowerCase() === text.toLowerCase());
+      }
+      const note = { id: 'mem_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), text, createdAt: Date.now() };
+      this.memoryNotes.unshift(note);
+      if (this.memoryNotes.length > MAX_MEMORY_NOTES) {
+        this.memoryNotes = this.memoryNotes.slice(0, MAX_MEMORY_NOTES);
+      }
+      this.persistHistory();
+      if (this.showHistoryPanel) this.renderHistoryPanel();
+      return note;
+    }
+
+    removeMemoryNote(noteId) {
+      const before = this.memoryNotes.length;
+      this.memoryNotes = this.memoryNotes.filter(n => n.id !== noteId);
+      if (this.memoryNotes.length !== before) {
+        this.persistHistory();
+        if (this.showHistoryPanel) this.renderHistoryPanel();
+      }
+    }
+
+    getMemoryNotes() {
+      return this.memoryNotes.slice();
+    }
+
+    _buildPastDiscussionsDigest() {
+      if (!this.rememberHistory) return '';
+      const others = this.conversations.filter(c => c.id !== this.activeConversationId && Array.isArray(c.messages) && c.messages.length > 0).slice(0, 5);
+      if (others.length === 0) return '';
+      const lines = others.map(c => {
+        const dt = c.updatedAt ? new Date(c.updatedAt).toLocaleDateString() : '';
+        const turns = c.messages.filter(m => m && (m.role === 'user' || m.role === 'assistant') && m.content);
+        const lastAsst = [...turns].reverse().find(m => m.role === 'assistant');
+        const snippet = lastAsst ? String(lastAsst.content).replace(/\s+/g, ' ').slice(0, 140) : '';
+        return `- [${dt}] "${c.title}"${snippet ? ` -> ${snippet}` : ''}`;
+      });
+      return lines.join('\n').slice(0, 1200);
     }
 
     open(focusTextarea = true) {
@@ -375,40 +673,52 @@
     }
 
     clearConversation() {
-      this.stop();
-      this.messages = [];
-      this.persistHistory();
-      this.renderPopupBody();
+      this.startNewConversation();
     }
 
     renderAll() {
       const popup = document.getElementById('taskbarCopilotPopup');
       if (!popup) return;
 
+      const activeConv = this.getActiveConversation();
+      const convCount = this.conversations.length;
+      const threadTitleHtml = (activeConv && activeConv.title)
+        ? `<span class="copilot-active-thread-title" title="${esc(activeConv.title)}">${esc(activeConv.title)}</span>`
+        : '';
+
       popup.innerHTML = `
         <div class="copilot-header">
           <div class="copilot-title-group">
             <span class="copilot-spark">✨</span>
             <strong>${esc(this.t('copilot.title'))}</strong>
+            ${threadTitleHtml}
             ${this.isRunning ? `<span class="copilot-live-dot" title="${esc(this.t('copilot.running'))}"></span>` : ''}
           </div>
           <div class="copilot-header-actions">
+            <button type="button" id="copilotHistoryBtn" class="copilot-icon-btn ${this.showHistoryPanel ? 'active' : ''}" title="${esc(this.t('copilot.history_btn'))}">
+              🕒${convCount > 0 ? `<span class="copilot-history-badge">${convCount}</span>` : ''}
+            </button>
             <button type="button" id="copilotNewChatBtn" class="copilot-icon-btn" title="${esc(this.t('copilot.new_chat'))}">➕</button>
             <button type="button" id="copilotSettingsBtn" class="copilot-icon-btn" title="${esc(this.t('copilot.open_settings'))}">⚙️</button>
             <button type="button" id="copilotPinBtn" class="copilot-icon-btn ${this.isPinned ? 'active' : ''}" title="${esc(this.t('copilot.pin_popup'))}">📌</button>
             <button type="button" id="copilotCloseBtn" class="copilot-icon-btn" title="${esc(this.t('common.close'))}">✕</button>
           </div>
         </div>
-        <div id="copilotContextBar" class="copilot-context-bar"></div>
-        <div id="copilotMessages" class="copilot-messages"></div>
-        <div id="copilotFooter" class="copilot-footer"></div>
+        <div id="copilotHistoryPanel" class="copilot-history-panel" style="display:${this.showHistoryPanel ? 'flex' : 'none'};"></div>
+        <div id="copilotContextBar" class="copilot-context-bar" style="display:${this.showHistoryPanel ? 'none' : 'flex'};"></div>
+        <div id="copilotMessages" class="copilot-messages" style="display:${this.showHistoryPanel ? 'none' : 'flex'};"></div>
+        <div id="copilotFooter" class="copilot-footer" style="display:${this.showHistoryPanel ? 'none' : 'flex'};"></div>
       `;
 
       const bind = (id, fn) => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('click', fn);
       };
-      bind('copilotNewChatBtn', () => this.clearConversation());
+      bind('copilotHistoryBtn', () => {
+        this.showHistoryPanel = !this.showHistoryPanel;
+        this.renderAll();
+      });
+      bind('copilotNewChatBtn', () => this.startNewConversation());
       bind('copilotSettingsBtn', () => this.openSettingsTab());
       bind('copilotPinBtn', () => {
         this.isPinned = !this.isPinned;
@@ -422,9 +732,153 @@
       });
       bind('copilotCloseBtn', () => this.close());
 
-      this.renderContextBar();
-      this.renderPopupBody();
-      this.renderFooterControls();
+      if (this.showHistoryPanel) {
+        this.renderHistoryPanel();
+      } else {
+        this.renderContextBar();
+        this.renderPopupBody();
+        this.renderFooterControls();
+      }
+    }
+
+    renderHistoryPanel() {
+      const panel = document.getElementById('copilotHistoryPanel');
+      if (!panel) return;
+
+      const isChats = this.historyPanelTab !== 'memory';
+      const q = this.historySearchQuery.trim().toLowerCase();
+      const filtered = this.conversations.filter(c => {
+        if (!q) return true;
+        if (String(c.title || '').toLowerCase().includes(q)) return true;
+        return (c.messages || []).some(m => m && m.content && String(m.content).toLowerCase().includes(q));
+      });
+
+      const chatsBodyHtml = `
+        <div class="copilot-history-toolbar">
+          <input type="search" id="copilotHistorySearch" class="copilot-history-search" value="${esc(this.historySearchQuery)}" placeholder="${esc(this.t('copilot.history_search_ph'))}" />
+          ${this.conversations.length > 0 ? `<button type="button" id="copilotClearAllHistoryBtn" class="copilot-history-clear-btn" title="${esc(this.t('copilot.history_clear_all'))}">🗑️</button>` : ''}
+        </div>
+        <div class="copilot-conv-list">
+          ${filtered.length === 0
+            ? `<div class="copilot-history-empty">${esc(this.t('copilot.history_empty'))}</div>`
+            : filtered.map(c => {
+                const isActive = c.id === this.activeConversationId;
+                const msgCount = (c.messages || []).filter(m => m && (m.role === 'user' || m.role === 'assistant')).length;
+                const dt = c.updatedAt ? new Date(c.updatedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '';
+                return `
+                  <div class="copilot-conv-item ${isActive ? 'active' : ''}" data-conv-id="${esc(c.id)}">
+                    <div class="copilot-conv-main">
+                      <div class="copilot-conv-title">${c.pinned ? '📌 ' : ''}${esc(c.title || this.t('copilot.history_untitled'))}</div>
+                      <div class="copilot-conv-meta">${esc(dt)} · ${esc(this.t('copilot.history_msgs_count', { count: msgCount }))}</div>
+                    </div>
+                    <div class="copilot-conv-actions">
+                      <button type="button" class="copilot-conv-act-btn" data-act="pin" data-id="${esc(c.id)}" title="${esc(this.t('copilot.history_pin'))}">${c.pinned ? '📍' : '📌'}</button>
+                      <button type="button" class="copilot-conv-act-btn" data-act="rename" data-id="${esc(c.id)}" title="${esc(this.t('copilot.history_rename'))}">✏️</button>
+                      <button type="button" class="copilot-conv-act-btn" data-act="export" data-id="${esc(c.id)}" title="${esc(this.t('copilot.history_export'))}">⬇️</button>
+                      <button type="button" class="copilot-conv-act-btn danger" data-act="delete" data-id="${esc(c.id)}" title="${esc(this.t('copilot.history_delete'))}">🗑️</button>
+                    </div>
+                  </div>`;
+              }).join('')}
+        </div>
+      `;
+
+      const memoryBodyHtml = `
+        <label class="copilot-memory-toggle-row">
+          <input type="checkbox" id="copilotRememberHistoryChk" ${this.rememberHistory ? 'checked' : ''} />
+          <span>${esc(this.t('copilot.memory_recall_toggle'))}</span>
+        </label>
+        <p class="copilot-memory-desc">${esc(this.t('copilot.memory_notes_desc'))}</p>
+        <div class="copilot-memory-add-row">
+          <input type="text" id="copilotMemoryAddInput" class="copilot-history-search" placeholder="${esc(this.t('copilot.memory_add_ph'))}" />
+          <button type="button" id="copilotMemoryAddBtn" class="copilot-cta-btn">${esc(this.t('copilot.memory_add_btn'))}</button>
+        </div>
+        <div class="copilot-memory-list">
+          ${this.memoryNotes.length === 0
+            ? `<div class="copilot-history-empty">${esc(this.t('copilot.memory_empty'))}</div>`
+            : this.memoryNotes.map(n => `
+                <div class="copilot-memory-row">
+                  <span class="copilot-memory-text">🧠 ${esc(n.text)}</span>
+                  <button type="button" class="copilot-conv-act-btn danger" data-remove-mem="${esc(n.id)}" title="${esc(this.t('copilot.history_delete'))}">✕</button>
+                </div>`).join('')}
+        </div>
+      `;
+
+      panel.innerHTML = `
+        <div class="copilot-history-tabs">
+          <button type="button" class="copilot-htab-btn ${isChats ? 'active' : ''}" data-htab="chats">🕒 ${esc(this.t('copilot.history_tab_chats'))} (${this.conversations.length})</button>
+          <button type="button" class="copilot-htab-btn ${!isChats ? 'active' : ''}" data-htab="memory">🧠 ${esc(this.t('copilot.history_tab_memory'))} (${this.memoryNotes.length})</button>
+        </div>
+        <div class="copilot-history-body">
+          ${isChats ? chatsBodyHtml : memoryBodyHtml}
+        </div>
+      `;
+
+      panel.querySelectorAll('.copilot-htab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          this.historyPanelTab = btn.dataset.htab || 'chats';
+          this.renderHistoryPanel();
+        });
+      });
+
+      const searchInput = panel.querySelector('#copilotHistorySearch');
+      if (searchInput) {
+        searchInput.addEventListener('input', () => {
+          this.historySearchQuery = searchInput.value;
+          this.renderHistoryPanel();
+          const re = document.getElementById('copilotHistorySearch');
+          if (re) { re.focus(); re.setSelectionRange(re.value.length, re.value.length); }
+        });
+      }
+
+      const clearAllBtn = panel.querySelector('#copilotClearAllHistoryBtn');
+      if (clearAllBtn) {
+        clearAllBtn.addEventListener('click', () => this.clearAllConversations());
+      }
+
+      panel.querySelectorAll('.copilot-conv-item').forEach(row => {
+        row.addEventListener('click', (e) => {
+          if (e.target.closest('.copilot-conv-act-btn')) return;
+          this.selectConversation(row.dataset.convId);
+        });
+      });
+
+      panel.querySelectorAll('.copilot-conv-act-btn[data-act]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const act = btn.dataset.act;
+          const id = btn.dataset.id;
+          if (act === 'pin') this.togglePinConversation(id);
+          else if (act === 'rename') this.renameConversation(id);
+          else if (act === 'export') this.exportConversationMarkdown(id);
+          else if (act === 'delete') this.deleteConversation(id);
+        });
+      });
+
+      const recallChk = panel.querySelector('#copilotRememberHistoryChk');
+      if (recallChk) {
+        recallChk.addEventListener('change', () => {
+          this.rememberHistory = recallChk.checked;
+          this.persistHistory();
+        });
+      }
+
+      const memInput = panel.querySelector('#copilotMemoryAddInput');
+      const memAddBtn = panel.querySelector('#copilotMemoryAddBtn');
+      const submitMem = () => {
+        if (memInput && memInput.value.trim()) {
+          this.addMemoryNote(memInput.value.trim());
+          memInput.value = '';
+        }
+      };
+      if (memAddBtn) memAddBtn.addEventListener('click', submitMem);
+      if (memInput) {
+        memInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); submitMem(); }
+        });
+      }
+      panel.querySelectorAll('[data-remove-mem]').forEach(btn => {
+        btn.addEventListener('click', () => this.removeMemoryNote(btn.dataset.removeMem));
+      });
     }
 
     renderContextBar() {
@@ -784,10 +1238,41 @@
       if (this.config && this.config.system_prompt) {
         parts.push('User custom instructions: ' + this.config.system_prompt);
       }
+      if (this.memoryNotes && this.memoryNotes.length > 0) {
+        parts.push('User persistent memory notes (preferences/facts saved across sessions):\n' + this.memoryNotes.map(n => `- ${n.text}`).join('\n'));
+      }
+      const pastDigest = this._buildPastDiscussionsDigest();
+      if (pastDigest) {
+        parts.push('Recent past discussions digest (use copilot_search_history tool if the user asks for details from an older conversation):\n[UNTRUSTED_HISTORY_DIGEST]\n' + pastDigest + '\n[/UNTRUSTED_HISTORY_DIGEST]');
+      }
       if (this.includeContext && liveCtx) {
         parts.push('Current desktop context (JSON): ' + JSON.stringify(liveCtx));
       }
       return parts.join('\n\n');
+    }
+
+    _refreshHeaderMeta() {
+      const btn = document.getElementById('copilotHistoryBtn');
+      if (btn) {
+        const cnt = this.conversations.length;
+        btn.innerHTML = `🕒${cnt > 0 ? `<span class="copilot-history-badge">${cnt}</span>` : ''}`;
+      }
+      const group = document.querySelector('#taskbarCopilotPopup .copilot-title-group');
+      if (group) {
+        const activeConv = this.getActiveConversation();
+        let pill = group.querySelector('.copilot-active-thread-title');
+        if (activeConv && activeConv.title) {
+          if (!pill) {
+            pill = document.createElement('span');
+            pill.className = 'copilot-active-thread-title';
+            group.appendChild(pill);
+          }
+          pill.textContent = activeConv.title;
+          pill.title = activeConv.title;
+        } else if (pill) {
+          pill.remove();
+        }
+      }
     }
 
     async sendPrompt(userText) {
@@ -805,6 +1290,7 @@
       this.aborted = false;
       this.messages.push({ role: 'user', content: clean });
       this.persistHistory();
+      this._refreshHeaderMeta();
       this.renderPopupBody();
       this.renderFooterControls();
 
@@ -962,6 +1448,7 @@
         this.isRunning = false;
         this.pendingApproval = null;
         this.persistHistory();
+        this._refreshHeaderMeta();
         this.renderContextBar();
         this.renderPopupBody();
         this.renderFooterControls();

@@ -599,6 +599,52 @@
           return res || { success: false, error: 'Delete item failed.' };
         }
       });
+
+      this.registerTool({
+        name: 'copilot_search_history',
+        description: 'Searches the user\'s previous Compagnon discussions by keyword to recall past context, decisions, or answers.',
+        risk: 'read_only',
+        parameters: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'Optional keyword to search across past discussion titles and messages (empty lists most recent)' },
+            limit: { type: 'number', description: 'Max discussions to return (1-15, default 6)' }
+          }
+        },
+        handler: (args) => {
+          const cop = window.sys && window.sys.copilot;
+          if (!cop || typeof cop.searchConversations !== 'function') {
+            return { success: false, error: 'Copilot history unavailable.' };
+          }
+          const lim = Math.max(1, Math.min(15, Number(args.limit) || 6));
+          return {
+            success: true,
+            discussions: cop.searchConversations(String(args.query || ''), lim)
+          };
+        }
+      });
+
+      this.registerTool({
+        name: 'copilot_remember',
+        description: 'Saves a concise persistent memory note (preference, folder convention, or recurring fact) that Compagnon remembers across sessions.',
+        risk: 'mutate_app',
+        parameters: {
+          type: 'object',
+          properties: {
+            fact: { type: 'string', description: 'Short factual note to remember (max 280 chars)' }
+          },
+          required: ['fact']
+        },
+        handler: (args) => {
+          const cop = window.sys && window.sys.copilot;
+          if (!cop || typeof cop.addMemoryNote !== 'function') {
+            return { success: false, error: 'Copilot memory unavailable.' };
+          }
+          const note = cop.addMemoryNote(String(args.fact || ''));
+          if (!note) return { success: false, error: 'Empty fact cannot be saved.' };
+          return { success: true, note };
+        }
+      });
     }
 
     // -------------------------------------------------------------------------

@@ -960,6 +960,26 @@
     "copilot.max_steps_reached": "Limite d'étapes atteinte ({max}/{max}). Envoyez « continue » pour poursuivre ou augmentez le plafond dans Paramètres → IA & Agent.",
     "copilot.model_family_title": "Famille / version du modèle",
     "copilot.model_variant_title": "Variante du modèle",
-    "copilot.variant_default": "standard"
+    "copilot.variant_default": "standard",
+    "copilot.history_btn": "Discussions précédentes & Mémoire",
+    "copilot.history_tab_chats": "Discussions",
+    "copilot.history_tab_memory": "Mémoire",
+    "copilot.history_search_ph": "Rechercher dans les discussions…",
+    "copilot.history_empty": "Aucune discussion enregistrée pour le moment.",
+    "copilot.history_untitled": "Nouvelle discussion",
+    "copilot.history_msgs_count": "{count} msg",
+    "copilot.history_pin": "Épingler / Désépingler",
+    "copilot.history_rename": "Renommer",
+    "copilot.history_rename_prompt": "Nouveau titre pour cette discussion :",
+    "copilot.history_export": "Exporter en Markdown",
+    "copilot.history_delete": "Supprimer",
+    "copilot.history_delete_confirm": "Supprimer définitivement cette discussion ?",
+    "copilot.history_clear_all": "Tout effacer",
+    "copilot.history_clear_all_confirm": "Supprimer toutes les {count} discussions enregistrées ?",
+    "copilot.memory_recall_toggle": "Se souvenir des discussions précédentes",
+    "copilot.memory_notes_desc": "Faits persistants retenus par Compagnon entre vos sessions (modifiables à tout moment).",
+    "copilot.memory_add_ph": "Ex. Je travaille surtout dans /boulot…",
+    "copilot.memory_add_btn": "Retenir",
+    "copilot.memory_empty": "Aucun fait enregistré en mémoire."
   }
 }
