@@ -1,25 +1,28 @@
 /**
- * Atelier - Explorer Selection & Marquee Manager (apps/explorer/scripts/explorer-selection.js)
- * Handles item selection (single, Shift-range, toggle), rubber-band marquee selection, and keyboard navigation.
+ * Atelier by GallusTech - Explorer Selection & Marquee Manager (apps/explorer/scripts/explorer-selection.js)
+ * Handles item selection (single, Ctrl-toggle, Shift-range), scoped UI updates,
+ * and instance-isolated rubber-band marquee selection with full cleanup on destroy().
  */
-(function(window) {
+(function (window) {
   'use strict';
 
   class ExplorerSelectionManager {
     constructor(instance) {
       this.inst = instance;
+      this._marqueeEl = null;
+      this._cleanupMarquee = null;
     }
 
     clearSelection() {
       this.inst.state.selectedPaths.clear();
       this.inst.state.lastSelectedIndex = null;
-      this.inst.updateSelectionUI();
+      this.updateSelectionUI();
     }
 
     selectAll() {
       this.inst.state.selectedPaths.clear();
-      this.inst.state.filteredFiles.forEach(f => this.inst.state.selectedPaths.add(f.path));
-      this.inst.updateSelectionUI();
+      (this.inst.state.filteredFiles || []).forEach(f => this.inst.state.selectedPaths.add(f.path));
+      this.updateSelectionUI();
     }
 
     selectItem(index, e = null) {
@@ -29,170 +32,189 @@
       const isMulti = e && (e.ctrlKey || e.metaKey);
       const isRange = e && e.shiftKey;
 
-      if (isRange && this.inst.state.lastSelectedIndex !== null) {
-        const start = Math.min(this.inst.state.lastSelectedIndex, index);
-        const end = Math.max(this.inst.state.lastSelectedIndex, index);
-        this.inst.state.selectedPaths.clear();
+      if (isRange) {
+        const start = this.inst.state.lastSelectedIndex !== null ? Math.min(this.inst.state.lastSelectedIndex, index) : 0;
+        const end = this.inst.state.lastSelectedIndex !== null ? Math.max(this.inst.state.lastSelectedIndex, index) : index;
         for (let i = start; i <= end; i++) {
-          if (this.inst.state.filteredFiles[i]) {
-            this.inst.state.selectedPaths.add(this.inst.state.filteredFiles[i].path);
-          }
+          const item = this.inst.state.filteredFiles[i];
+          if (item) this.inst.state.selectedPaths.add(item.path);
         }
+        this.inst.state.lastSelectedIndex = index;
       } else if (isMulti) {
         if (this.inst.state.selectedPaths.has(file.path)) {
           this.inst.state.selectedPaths.delete(file.path);
         } else {
           this.inst.state.selectedPaths.add(file.path);
-          this.inst.state.lastSelectedIndex = index;
         }
+        this.inst.state.lastSelectedIndex = index;
       } else {
         this.inst.state.selectedPaths.clear();
         this.inst.state.selectedPaths.add(file.path);
         this.inst.state.lastSelectedIndex = index;
       }
 
-      this.inst.updateSelectionUI();
+      this.updateSelectionUI();
     }
 
     updateSelectionUI() {
       const count = this.inst.state.selectedPaths.size;
-      if (!this.inst.el.mediaGrid) return;
+      const el = this.inst.el;
 
-      this.inst.el.mediaGrid.querySelectorAll('[data-index]').forEach(card => {
-        const idx = parseInt(card.dataset.index, 10);
-        const f = this.inst.state.filteredFiles[idx];
-        if (f && this.inst.state.selectedPaths.has(f.path)) {
-          card.classList.add('selected');
-        } else {
-          card.classList.remove('selected');
-        }
-      });
-
-      if (this.inst.el.selectionToolbar) {
-        if (count > 0) {
-          this.inst.el.selectionToolbar.classList.add('visible');
-          if (this.inst.el.selectionToolbarCount) {
-            this.inst.el.selectionToolbarCount.textContent = `${count} sélectionné${count > 1 ? 's' : ''}`;
+      if (el.selectionToolbar) {
+        el.selectionToolbar.style.display = count > 0 ? 'flex' : 'none';
+      }
+      if (el.selectionToolbarCount) {
+        el.selectionToolbarCount.dataset.i18n = 'selection.selected_count';
+        el.selectionToolbarCount.dataset.i18nCount = String(count);
+        el.selectionToolbarCount.textContent = this.inst.t('selection.selected_count', { count });
+      }
+      if (el.mediaGrid) {
+        el.mediaGrid.querySelectorAll('[data-index]').forEach(card => {
+          const idx = parseInt(card.dataset.index, 10);
+          const file = this.inst.state.filteredFiles[idx];
+          if (file) {
+            card.classList.toggle('selected', this.inst.state.selectedPaths.has(file.path));
           }
-        } else {
-          this.inst.el.selectionToolbar.classList.remove('visible');
-        }
+        });
       }
 
-      // Update Inspector panel if open
-      if (this.inst.isInspectorOpen && count === 1) {
-        const first = Array.from(this.inst.state.selectedPaths)[0];
-        const file = this.inst.state.filteredFiles.find(f => f.path === first);
-        if (file) this.inst.updateInspectorUI(file);
-      }
+      this.inst.updateInspectorUI();
     }
 
     initMarqueeSelection() {
+      if (this._cleanupMarquee) {
+        this._cleanupMarquee();
+      }
+
+      const el = this.inst.el;
       const container = this.inst.containerEl;
       if (!container) return;
+
+      if (el.selectionSelectAllBtn) {
+        el.selectionSelectAllBtn.onclick = () => this.selectAll();
+      }
+      if (el.selectionClearBtn) {
+        el.selectionClearBtn.onclick = () => this.clearSelection();
+      }
+      if (el.selectionInfoBtn) {
+        el.selectionInfoBtn.onclick = () => {
+          if (this.inst.state.selectedPaths.size > 0) {
+            const firstPath = Array.from(this.inst.state.selectedPaths)[0];
+            const file = this.inst.state.filteredFiles.find(f => f.path === firstPath);
+            if (file && window.sys && window.sys.showMetadata) {
+              window.sys.showMetadata(file);
+            }
+          }
+        };
+      }
 
       let isSelecting = false;
       let startX = 0;
       let startY = 0;
-      let marqueeEl = null;
+      let initialSelectedPaths = new Set();
 
       const onMouseDown = (e) => {
         if (e.button !== 0) return;
-        const target = e.target;
-        if (target.closest('.media-card, .polaroid-card, .folder-card, button, input, a, .selection-toolbar, .explorer-inspector-drawer')) {
+        if (e.target.closest('button, input, a, select, .explorer-header-bar, .admin-modal, .selection-toolbar, .folder-card, .polaroid-card, .grid-card, .list-table-row, .mosaic-card, [data-index], .media-card, .sidebar, .explorer-inspector-drawer, .menubar')) {
           return;
+        }
+        if (!this.inst.el.mediaGrid) return;
+
+        const hasModifier = e.shiftKey || e.ctrlKey || e.metaKey;
+        if (!hasModifier) {
+          this.clearSelection();
+          initialSelectedPaths = new Set();
+        } else {
+          initialSelectedPaths = new Set(this.inst.state.selectedPaths);
         }
 
         isSelecting = true;
-        startX = e.clientX;
-        startY = e.clientY;
+        startX = e.pageX;
+        startY = e.pageY;
 
-        if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
-          this.clearSelection();
-        }
-
-        if (!marqueeEl) {
-          marqueeEl = document.createElement('div');
-          marqueeEl.className = 'explorer-selection-marquee';
-          marqueeEl.style.cssText = 'position:fixed;border:1.5px solid rgba(99,102,241,0.8);background:rgba(99,102,241,0.15);pointer-events:none;z-index:9999;border-radius:3px;display:none;';
-          document.body.appendChild(marqueeEl);
+        if (!this._marqueeEl) {
+          this._marqueeEl = document.createElement('div');
+          this._marqueeEl.className = 'selection-marquee';
+          this._marqueeEl.style.display = 'none';
+          document.body.appendChild(this._marqueeEl);
         }
       };
 
-      const onMouseMove = (e) => {
-        if (!isSelecting || !marqueeEl) return;
-        const currentX = e.clientX;
-        const currentY = e.clientY;
-        const minX = Math.min(startX, currentX);
-        const maxX = Math.max(startX, currentX);
-        const minY = Math.min(startY, currentY);
-        const maxY = Math.max(startY, currentY);
-        const width = maxX - minX;
-        const height = maxY - minY;
+      const onDocDragStart = () => {
+        isSelecting = false;
+        if (this._marqueeEl) this._marqueeEl.style.display = 'none';
+      };
 
-        if (width > 4 || height > 4) {
-          marqueeEl.style.display = 'block';
-          marqueeEl.style.left = `${minX}px`;
-          marqueeEl.style.top = `${minY}px`;
-          marqueeEl.style.width = `${width}px`;
-          marqueeEl.style.height = `${height}px`;
+      const onDocMouseMove = (e) => {
+        if (!isSelecting || !this._marqueeEl || !this.inst.el.mediaGrid) return;
 
-          const marqueeRect = { left: minX, right: maxX, top: minY, bottom: maxY };
-          if (this.inst.el.mediaGrid) {
-            this.inst.el.mediaGrid.querySelectorAll('[data-index]').forEach(card => {
-              const cardRect = card.getBoundingClientRect();
-              const intersects = !(
-                cardRect.right < marqueeRect.left ||
-                cardRect.left > marqueeRect.right ||
-                cardRect.bottom < marqueeRect.top ||
-                cardRect.top > marqueeRect.bottom
-              );
+        const currentX = e.pageX;
+        const currentY = e.pageY;
+        const width = Math.abs(currentX - startX);
+        const height = Math.abs(currentY - startY);
 
-              const idx = parseInt(card.dataset.index, 10);
-              const file = this.inst.state.filteredFiles[idx];
-              if (file) {
-                if (intersects) {
-                  this.inst.state.selectedPaths.add(file.path);
-                } else if (!e.ctrlKey && !e.metaKey) {
-                  this.inst.state.selectedPaths.delete(file.path);
-                }
-              }
-            });
-            this.updateSelectionUI();
-          }
+        if (width > 6 || height > 6) {
+          this._marqueeEl.style.display = 'block';
+          this._marqueeEl.style.left = `${Math.min(startX, currentX)}px`;
+          this._marqueeEl.style.top = `${Math.min(startY, currentY)}px`;
+          this._marqueeEl.style.width = `${width}px`;
+          this._marqueeEl.style.height = `${height}px`;
+
+          const marqueeRect = this._marqueeEl.getBoundingClientRect();
+          const currentSelection = new Set(initialSelectedPaths);
+
+          this.inst.el.mediaGrid.querySelectorAll('[data-index]').forEach(card => {
+            const cardRect = card.getBoundingClientRect();
+            const intersects = !(
+              marqueeRect.right < cardRect.left ||
+              marqueeRect.left > cardRect.right ||
+              marqueeRect.bottom < cardRect.top ||
+              marqueeRect.top > cardRect.bottom
+            );
+
+            const idx = parseInt(card.dataset.index, 10);
+            const file = this.inst.state.filteredFiles[idx];
+            if (file && intersects) {
+              currentSelection.add(file.path);
+            }
+          });
+
+          this.inst.state.selectedPaths = currentSelection;
+          this.updateSelectionUI();
         }
       };
 
-      const onMouseUp = () => {
+      const onDocMouseUp = () => {
         if (isSelecting) {
           isSelecting = false;
-          if (marqueeEl) {
-            marqueeEl.style.display = 'none';
-          }
+          if (this._marqueeEl) this._marqueeEl.style.display = 'none';
         }
       };
 
       container.addEventListener('mousedown', onMouseDown);
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
+      document.addEventListener('dragstart', onDocDragStart);
+      document.addEventListener('mousemove', onDocMouseMove);
+      document.addEventListener('mouseup', onDocMouseUp);
 
       this._cleanupMarquee = () => {
         container.removeEventListener('mousedown', onMouseDown);
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
-        if (marqueeEl && marqueeEl.parentNode) {
-          marqueeEl.parentNode.removeChild(marqueeEl);
+        document.removeEventListener('dragstart', onDocDragStart);
+        document.removeEventListener('mousemove', onDocMouseMove);
+        document.removeEventListener('mouseup', onDocMouseUp);
+        if (this._marqueeEl && this._marqueeEl.parentNode) {
+          this._marqueeEl.parentNode.removeChild(this._marqueeEl);
         }
+        this._marqueeEl = null;
       };
     }
 
     destroy() {
       if (this._cleanupMarquee) {
         this._cleanupMarquee();
+        this._cleanupMarquee = null;
       }
     }
   }
 
   window.ExplorerSelectionManager = ExplorerSelectionManager;
-
 })(window);

@@ -326,6 +326,56 @@ flowchart TB
 
 ---
 
+### 🗂️ Phase G — Refonte Complète de l'Explorateur WebOS (`apps/explorer/`)
+*Objectif : faire passer l'Explorateur d'une galerie historique monolithique (`3 508` lignes, conflits multi-instances, fonctions cloud non exposées) à un **véritable gestionnaire de fichiers d'OS moderne et ambitieux** (niveau Finder / Dolphin / Nautilus / Synology File Station), 100 % iso-fonctionnel avec l'existant (Autorun, GPS/EXIF, dotfiles, Agent IA).*
+
+#### 1. Principes Directeurs UX & Modes d'Affichage
+- **3 profils d'affichage hiérarchisés + mémorisation par dossier avec héritage (`inherit`)** :
+  1. **Mode Pro — Liste Détaillée & Commander *(Défaut)*** : dossiers affichés en premier dans un tableau unifié à colonnes triables (`Nom`, `Type`, `Taille`, `Date` avec indicateur `▲/▼` et cases à cocher), **Sidebar visible**, bascule instantanée en **Double Volet / Commander (`F3`)**.
+  2. **Mode Vignettes *(Intermédiaire)*** : aperçus larges (Grille moderne / Mosaïque) avec **Sidebar visible** et curseur de densité/taille des vignettes (`S / M / L / XL`) en barre d'état.
+  3. **Mode Multimédia — Polaroid & Bandes Vidéo** : présentation visuelle immersive (cartes Polaroid vintage, bandes/aperçus vidéo existants, bannières `.desc`/`.bg` et Autorun/VLog), **sans sidebar par défaut** (plein espace média, avec bouton pour la rouvrir ponctuellement).
+  - **Héritage hiérarchique par dossier** : le choix d'affichage est mémorisé par dossier (dans le scope utilisateur) ; tout sous-dossier **hérite automatiquement** du mode de son dossier parent le plus proche ayant un choix explicite, sauf si l'utilisateur change explicitement le mode dans ce sous-dossier (qui devient alors la nouvelle référence pour ses descendants).
+- **Panneau Latéral (Sidebar) complet, arborescent & redimensionnable** :
+  - **Arborescence interactive des dossiers** (chargement paresseux par niveau, synchronisée avec la navigation active, cible directe de glisser-déposer).
+  - **Points de montage** : Espace personnel (`Home`), Galerie publique, Dossiers partagés avec moi, Volumes Cloud externes (`ext://` S3/R2/WebDAV/Google Drive) avec badges `R`/`RW`.
+  - **Sections utiles** : Favoris, Récents, **Tags / Étiquettes**, **Corbeille** (avec compteur d'éléments) et **jauge de quota disque**.
+- **Menus Contextuels Partout — Zéro Clic Droit Navigateur** :
+  - Interception complète de `contextmenu` sur **l'intégralité de la surface de l'Explorateur** : le menu contextuel natif du navigateur ne doit apparaître nulle part.
+  - Menus dédiés, sensibles au contexte et filtrés par droits RBAC pour chaque cible : **fichiers**, **dossiers**, **fond du dossier**, **nœuds d'arborescence**, **points de montage**, **onglets**, **fil d'Ariane**, **en-têtes de colonnes**, **éléments de la Corbeille** et **barre d'état**.
+
+#### 2. Découpage de Livraison (6 Lots Incrémentaux)
+- [x] **Lot 1 — Assainissement, Bugfixes & Architecture Modulaire** *(Livré & Testé)* :
+  - Éliminer tous les conflits multi-instances (`document.getElementById` / `querySelectorAll` globaux remplacés par un scoping strict à `this.containerEl` et aux instances).
+  - Supprimer le double branchement Drag & Drop (`explorer.js` vs `scripts/explorer-dragdrop.js`), corriger l'appel invalide `postFormData()` vers `SyscallClient.upload()` / `uploadChunked()`, éliminer les chaînes françaises en dur.
+  - Créer `apps/explorer/locales/{fr,en,ja}.json` en parité stricte (zéro fallback hardcodé dans `this.t()`).
+  - Découper le monolithe `apps/explorer/explorer.js` (3 508 L → 2 097 L) en 9 sous-modules dédiés sous `apps/explorer/scripts/` : `explorer-state.js`, `explorer-selection.js`, `explorer-dragdrop.js`, `explorer-map.js`, `explorer-modals.js`, `explorer-operations.js`, `explorer-context-menu.js`, `explorer-inspector.js`, `explorer-search.js` (`explorer.js` devenant l'orchestrateur léger).
+- [ ] **Lot 2 — Shell Moderne : Sidebar Arborescente, Historique, Onglets, Double Volet & Héritage de Vues** :
+  - Barre de navigation : **Précédent (`Alt+←`) / Suivant (`Alt+→`) / Parent (`Alt+↑`) / Actualiser (`F5`)**, **Fil d'Ariane + Barre d'adresse éditable (`Ctrl+L`)**, menu rapide **« + Nouveau »**.
+  - **Sidebar** rétractable/redimensionnable (arborescence dépliable, points de montage, Favoris, Récents, Tags, Corbeille, quota disque).
+  - **Onglets multiples** (`Ctrl+T` / `Ctrl+W`, clic milieu sur un dossier, drop sur onglet) et **Mode Double Volet / Commander (`F3`)**.
+  - **Barre d'état** en pied de fenêtre (compteurs, taille cumulée de la sélection, curseur de zoom des miniatures).
+  - **Mode Pro par défaut** + profils **Vignettes** et **Multimédia/Polaroid (sans sidebar)** avec **mémorisation par dossier et héritage (`inherit`)** pour les sous-dossiers.
+- [ ] **Lot 3 — Opérations Fichiers Complètes, Menus Contextuels Exhaustifs & Transferts Chunked** :
+  - **Renommage direct en place (`F2`)** pour fichiers et dossiers (avec action backend sécurisée `rename_item` dans `FileActions.php`, contrôle anti-collisions, extensions interdites, ACL et support `ext://`).
+  - **Création de nouveaux fichiers** (`.md`, `.txt`, `.json`, etc.) avec ouverture directe optionnelle dans `doc-viewer`.
+  - **Système de menus contextuels unifié** couvrant toutes les zones de l'Explorateur et bloquant totalement le menu contextuel navigateur.
+  - **Gestionnaire de transferts non-bloquant** : bascule automatique sur `SyscallClient.uploadChunked()` pour les gros fichiers, support du **glisser-déposer de dossiers entiers** (`webkitGetAsEntry()`), file de progression par fichier avec annulation et récapitulatif d'erreurs.
+- [ ] **Lot 4 — Exploitation Complète du Backend Cloud/OS Existant** :
+  - **Vue Corbeille 30 jours** intégrée dans la sidebar (`list_trash`, `restore_trash_item`, `purge_trash_item`, `empty_trash`).
+  - **Inspecteur Latéral à 3 onglets** : *Détails & EXIF* (aperçu, métadonnées, commentaire, *Ouvrir avec*), *Tags* (`list_tags` / `set_item_tags`, édition simple ou en lot, filtrage sidebar), *Versions* (`list_file_versions` / `restore_file_version` en 1 clic).
+  - **Dialogue « Partager… »** accessible au clic droit (liens signés `/s/<token>` avec expiration/mot de passe/quota/boîte de dépôt + partages inter-utilisateurs/groupes).
+  - **Recherche instantanée multi-critères** branchée sur l'index SQLite (`search_file_index`) combinant texte, type, tag, taille, période et portée (dossier courant vs global).
+- [ ] **Lot 5 — Vues Modernisées, Quick Look (`Espace`) & Performance** :
+  - **Vue Liste / Détails Pro** : dossiers en premier dans le tableau, en-têtes de colonnes triables (`▲/▼`), cases à cocher, badges compacts Tags/GPS/Partage.
+  - **Quick Look instantané (`Espace`)** : aperçu léger centré (images, vidéos, audio, texte/Markdown/code, PDF, contenu ZIP) navigable aux flèches `←`/`→` sans quitter l'Explorateur.
+  - **Performance grandes galeries** : rendu progressif par lots (*chunked rendering* / `IntersectionObserver`) + cache de navigation invalidé sur `fs:changed`.
+- [ ] **Lot 6 — Clavier Complet, Intégration Agent IA & Validation Automatisée** :
+  - Raccourcis clavier complets (`F2`, `F3`, `F5`, `Espace`, `Entrée`, `Suppr`, `Ctrl+A/C/X/V`, `Ctrl+T/W`, `Ctrl+L`, `Ctrl+F`, `Ctrl+Shift+N`, `Alt+←/→/↑`, flèches 2D).
+  - Extension des outils Agent IA (`Compagnon`) dans `ExplorerApp` : onglets, double volet, renommage, tags, corbeille, recherche indexée et changement de mode d'affichage.
+  - Tests unitaires PHP (`rename_item`, ACL, sécurité) et Runtime JS Node (multi-instances, héritage de vues, sidebar/arborescence, onglets, zéro clic droit navigateur, corbeille/tags/versions, Quick Look, parité i18n FR/EN/JA).
+
+---
+
 ## 6. Modèles Économiques & Services Vendables
 
 ### 1. Modèle **Open-Core** *(acquisition organique + licences self-hosted)*
@@ -376,8 +426,8 @@ Grâce au déport du calcul lourd en **WebAssembly côté client**, la marge bru
 
 ## 9. Prochains Jalons Concrets Recommandés
 
-Les **Phases A, B, C** et les **Lots 1–2 de la Phase D (Studio Créatif & Apps Externes)** étant livrés et couverts par la suite de tests (981+ tests), l'ordre de plus fort retour sur investissement pour la suite est :
+Les **Phases A, B, C**, les **Lots 1–2 de la Phase D (Studio Créatif & Apps Externes)** et l'ensemble de la **Phase E (Agent IA Universel « Compagnon », Lots 1–4)** étant livrés et couverts par la suite de tests (**991 / 991 PASS**), l'ordre de plus fort retour sur investissement pour la suite est :
 
-1. **Phase D (fin)** : **Galeries de Livraison Client (proofing, filigrane, sélection) + Marque Blanche** *(effort `M` — différenciateur commercial immédiat)*.
-2. **Phase E (Lots 1 → 4)** : **Agent IA Universel (« Compagnon »)** — accès rapide bas-gauche, réglages multi-fournisseurs par utilisateur, pont `craft-web-api` et contrat universel `WebOSApp` pour apps natives et jeux *(effort `M–L` — avantage produit unique sur le marché WebOS)*.
+1. **Phase G (Lots 1 → 6)** : **Refonte complète de l'Explorateur WebOS (`apps/explorer/`)** — architecture modulaire, mode Pro par défaut (liste détaillée + sidebar arborescente + double volet Commander), héritage d'affichage par dossier, menus contextuels exhaustifs (zéro clic droit navigateur), transferts chunked, corbeille/tags/versions/partage intégrés et Quick Look *(effort `L` — cœur d'usage quotidien du WebOS)*.
+2. **Phase D (fin)** : **Galeries de Livraison Client (proofing, filigrane, sélection) + Marque Blanche** *(effort `M` — différenciateur commercial immédiat)*.
 3. **Phase F** : **Démo live publique + Control Plane SaaS (« Atelier Cloud »)** *(effort `L` — monétisation récurrente en silos isolés)*.

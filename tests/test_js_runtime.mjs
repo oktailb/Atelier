@@ -1447,7 +1447,8 @@ try {
   );
 
   // Verify Lot 2: Per-user default file associations override AppManager & MediaViewerRegistry + Admin External Apps UI
-  const explorerCodeLot2 = fs.readFileSync(path.join(appsDir, 'explorer', 'explorer.js'), 'utf8');
+  const explorerCodeLot2 = fs.readFileSync(path.join(appsDir, 'explorer', 'explorer.js'), 'utf8')
+    + '\n' + fs.readFileSync(path.join(appsDir, 'explorer', 'scripts', 'explorer-context-menu.js'), 'utf8');
   const webosServicesCode = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'services', 'WebOSServices.js'), 'utf8');
   const appMgrCodeLot2 = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'core', 'AppManager.js'), 'utf8');
   const mvrCodeLot2 = fs.readFileSync(path.join(rootDir, 'system', 'userland', 'core', 'MediaViewerRegistry.js'), 'utf8');
@@ -2123,6 +2124,103 @@ try {
     queensPlaceConflict && queensPlaceConflict.success && queensPlaceConflict.conflicts_count === 1 &&
     otherPilotsOk &&
     guideDocsOk
+  );
+
+  // ---------------------------------------------------------------------------
+  // Phase G (Lot 1): Explorer Modular Refactor, Multi-Instance Fixes & i18n
+  // ---------------------------------------------------------------------------
+  const lot1Scripts = [
+    'scripts/explorer-state.js',
+    'scripts/explorer-selection.js',
+    'scripts/explorer-dragdrop.js',
+    'scripts/explorer-map.js',
+    'scripts/explorer-modals.js',
+    'scripts/explorer-operations.js',
+    'scripts/explorer-context-menu.js',
+    'scripts/explorer-inspector.js',
+    'scripts/explorer-search.js'
+  ];
+  const lot1Manifest = JSON.parse(fs.readFileSync(path.join(appsDir, 'explorer', 'manifest.json'), 'utf8'));
+  const lot1ScriptsPresent = lot1Scripts.every(rel =>
+    fs.existsSync(path.join(appsDir, 'explorer', rel)) &&
+    Array.isArray(lot1Manifest.scripts) &&
+    lot1Manifest.scripts.includes(rel)
+  );
+  const lot1AllCode = [explorerJs, ...lot1Scripts.map(rel => fs.readFileSync(path.join(appsDir, 'explorer', rel), 'utf8'))].join('\n');
+
+  const expLocFr = JSON.parse(fs.readFileSync(path.join(appsDir, 'explorer', 'locales', 'fr.json'), 'utf8'));
+  const expLocEn = JSON.parse(fs.readFileSync(path.join(appsDir, 'explorer', 'locales', 'en.json'), 'utf8'));
+  const expLocJa = JSON.parse(fs.readFileSync(path.join(appsDir, 'explorer', 'locales', 'ja.json'), 'utf8'));
+  const expFrKeys = Object.keys(expLocFr).sort();
+  const expEnKeys = Object.keys(expLocEn).sort();
+  const expJaKeys = Object.keys(expLocJa).sort();
+  const expLocaleParity = expFrKeys.length >= 20 &&
+    JSON.stringify(expFrKeys) === JSON.stringify(expEnKeys) &&
+    JSON.stringify(expFrKeys) === JSON.stringify(expJaKeys);
+
+  // Sandbox runtime check of ExplorerStateManager + ExplorerSelectionManager multi-instance isolation
+  const expSandboxWin = {
+    IS_ADMIN: false,
+    ATELIER_CURRENT_USER: { username: 'alice' },
+    localStorage: (() => {
+      const m = new Map();
+      return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k) };
+    })()
+  };
+  const expStateSrc = fs.readFileSync(path.join(appsDir, 'explorer', 'scripts', 'explorer-state.js'), 'utf8');
+  const expSelSrc = fs.readFileSync(path.join(appsDir, 'explorer', 'scripts', 'explorer-selection.js'), 'utf8');
+  new Function('window', 'localStorage', expStateSrc)(expSandboxWin, expSandboxWin.localStorage);
+  new Function('window', expSelSrc)(expSandboxWin);
+
+  const mockInstA = {
+    state: {
+      files: [
+        { name: 'b.jpg', path: 'b.jpg', category: 'image', size: 200, mtime: 20, effective_mtime: 20 },
+        { name: 'a.jpg', path: 'a.jpg', category: 'image', size: 100, mtime: 10, effective_mtime: 10 }
+      ],
+      filteredFiles: [],
+      filterCategory: 'all',
+      showFavoritesOnly: false,
+      favorites: [],
+      searchQuery: '',
+      sortBy: 'name',
+      sortOrder: 'asc',
+      selectedPaths: new Set(),
+      lastSelectedIndex: null
+    },
+    el: {},
+    t: (k) => k,
+    showToast: () => {},
+    updateInspectorUI: () => {},
+    applyFilterAndRender: () => {},
+    manager: { updateMenuBarForActiveInstance: () => {} }
+  };
+  const stateMgr = new expSandboxWin.ExplorerStateManager(mockInstA);
+  mockInstA.state.filteredFiles = stateMgr.computeFilteredAndSortedFiles();
+  const selMgr = new expSandboxWin.ExplorerSelectionManager(mockInstA);
+  selMgr.selectItem(0, null);
+  selMgr.selectItem(1, { shiftKey: true });
+  const lot1RuntimeOk = (
+    stateMgr.getUserStorageScope() === 'user_alice' &&
+    stateMgr.normalizeThumbUrl('thumb.php?file=a.jpg') === 'system/endpoints/thumb.php?file=a.jpg' &&
+    mockInstA.state.filteredFiles[0].name === 'a.jpg' &&
+    mockInstA.state.selectedPaths.size === 2 &&
+    mockInstA.state.selectedPaths.has('a.jpg') &&
+    mockInstA.state.selectedPaths.has('b.jpg')
+  );
+
+  assert("Phase G (Lot 1): Explorer modulaire (9 scripts), zéro bug postFormData/updateSelectionToolbar/double-drop, isolation multi-instances & locales FR/EN/JA",
+    lot1ScriptsPresent &&
+    !lot1AllCode.includes('postFormData') &&
+    !lot1AllCode.includes('updateSelectionToolbar') &&
+    !explorerJs.includes("this.containerEl.addEventListener('drop'") &&
+    !lot1AllCode.includes("document.querySelectorAll('.is-dragging')") &&
+    !lot1AllCode.includes("document.querySelectorAll('.media-card.selected") &&
+    explorerJs.includes('updateViewModeUI()') &&
+    expTplSrc.includes('folder-desc-banner') &&
+    expTplSrc.includes('drop-zone-overlay') &&
+    expLocaleParity &&
+    lot1RuntimeOk
   );
 } catch (e) {
   assert("Phase 1 exécution runtime UI", false, e.stack);

@@ -1,8 +1,9 @@
 /**
- * Atelier - Explorer Map & Smart GPS Manager (apps/explorer/scripts/explorer-map.js)
- * Coordinates Leaflet interactive map modal, tile providers, route tracing and timeline GPS interpolation.
+ * Atelier by GallusTech - Explorer Map & Smart GPS Manager (apps/explorer/scripts/explorer-map.js)
+ * Coordinates smart GPS timeline deduction, folder map badge updates, standalone Maps handoff,
+ * and embedded Leaflet modal fallback.
  */
-(function(window) {
+(function (window) {
   'use strict';
 
   class ExplorerMapManager {
@@ -31,7 +32,35 @@
       return result;
     }
 
+    updateFolderMapButton() {
+      const mapped = this.computeSmartGpsLocations(this.inst.state.filteredFiles, this.inst.isSmartGpsEnabled);
+      const count = mapped.length;
+
+      if (this.inst.el.folderMapBtn) {
+        if (count === 0) {
+          this.inst.el.folderMapBtn.style.display = 'none';
+        } else {
+          this.inst.el.folderMapBtn.innerHTML = `🗺️ ${this.inst.escapeHtml(this.inst.t('nav.map'))} (${count})`;
+          this.inst.el.folderMapBtn.style.display = 'inline-flex';
+        }
+      }
+
+      const menuMapBtn = document.getElementById('menuFolderMapBtn');
+      if (menuMapBtn && this.inst.manager.getActiveInstance() === this.inst) {
+        menuMapBtn.style.display = count > 0 ? 'inline-flex' : 'none';
+      }
+    }
+
     openMapModal(focusPath = null) {
+      if (window.sys && typeof window.sys.openMaps === 'function') {
+        window.sys.openMaps({
+          files: this.inst.state.filteredFiles,
+          currentPath: this.inst.state.currentPath,
+          focusPath: focusPath,
+          singleItem: !!focusPath
+        });
+        return;
+      }
       if (!this.inst.el.mapModal) return;
       this.inst.el.mapModal.style.display = 'flex';
       this.initLeafletMap(focusPath);
@@ -44,94 +73,74 @@
     }
 
     initLeafletMap(focusPath = null) {
-      if (!this.inst.el.galleryLeafletMap || typeof L === 'undefined') return;
+      if (!window.L || !this.inst.el.galleryLeafletMap) return;
 
       const locations = this.computeSmartGpsLocations(this.inst.state.filteredFiles, this.inst.isSmartGpsEnabled);
-      if (locations.length === 0) return;
-
-      if (!this.inst.leafletMap) {
-        this.inst.leafletMap = L.map(this.inst.el.galleryLeafletMap, {
-          zoomControl: true,
-          attributionControl: false
-        });
-
-        this.inst.leafletTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19
-        }).addTo(this.inst.leafletMap);
-
-        this.inst.leafletMarkersLayer = L.layerGroup().addTo(this.inst.leafletMap);
-        this.inst.leafletRouteLayer = L.layerGroup().addTo(this.inst.leafletMap);
-      } else {
-        this.inst.leafletMarkersLayer.clearLayers();
-        this.inst.leafletRouteLayer.clearLayers();
+      if (this.inst.el.mapModalCountBadge) {
+        this.inst.el.mapModalCountBadge.textContent = this.inst.t('explorer.map_geotagged_count', { count: locations.length });
       }
 
-      const bounds = L.latLngBounds([]);
-      const routePoints = [];
+      if (!this.inst.leafletMap) {
+        this.inst.leafletMap = window.L.map(this.inst.el.galleryLeafletMap, { zoomControl: true });
+        this.inst.leafletTileLayer = window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap'
+        }).addTo(this.inst.leafletMap);
+        this.inst.leafletMarkersLayer = (window.L.markerClusterGroup
+          ? window.L.markerClusterGroup()
+          : window.L.layerGroup()
+        ).addTo(this.inst.leafletMap);
+      } else {
+        this.inst.leafletMarkersLayer.clearLayers();
+      }
+
+      if (locations.length === 0) return;
+
+      const bounds = [];
       let focusMarker = null;
 
-      locations.forEach(loc => {
-        const latLng = [loc.lat, loc.lng];
-        bounds.extend(latLng);
-        routePoints.push(latLng);
+      locations.forEach(item => {
+        const marker = window.L.marker([item.lat, item.lng]);
+        const gpsLabel = item.gps_source === 'native'
+          ? `📍 ${this.inst.escapeHtml(this.inst.t('explorer.map_gps_native'))}`
+          : `✨ ${this.inst.escapeHtml(this.inst.t('explorer.map_gps_deduced'))}`;
 
-        const isFocus = (focusPath && loc.file.path === focusPath);
-        const iconColor = (loc.gps_source === 'native') ? '#4f46e5' : '#10b981';
-        const marker = L.circleMarker(latLng, {
-          radius: isFocus ? 10 : 7,
-          fillColor: iconColor,
-          color: '#ffffff',
-          weight: 2,
-          opacity: 1,
-          fillOpacity: 0.9
-        });
-
-        const thumbUrl = loc.file.thumb_url || `system/endpoints/thumb.php?file=${encodeURIComponent(loc.file.path)}`;
-        const popupHtml = `
-          <div style="font-family:sans-serif;font-size:0.85rem;text-align:center;min-width:140px;">
-            <img src="${thumbUrl}" style="width:100%;max-height:100px;object-fit:cover;border-radius:4px;margin-bottom:4px;" alt="">
-            <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${this.inst.escapeHtml(loc.file.name)}</div>
-            <div style="font-size:0.75rem;color:#64748b;">${loc.gps_source === 'native' ? '📍 GPS Natif' : '✨ GPS Déduit'}</div>
+        marker.bindPopup(`
+          <div style="text-align:center;font-size:0.85rem;">
+            <img src="${this.inst.escapeHtml(item.file.thumb_url)}" style="width:120px;height:80px;object-fit:cover;border-radius:4px;margin-bottom:4px;" alt="" />
+            <div style="font-weight:600;">${this.inst.escapeHtml(item.file.name)}</div>
+            <div style="font-size:0.75rem;opacity:0.75;">${gpsLabel}</div>
           </div>
-        `;
-        marker.bindPopup(popupHtml);
-
-        marker.on('click', () => {
-          if (this.inst.el.mediaGrid) {
-            const card = this.inst.el.mediaGrid.querySelector(`[data-path="${CSS.escape(loc.file.path)}"]`);
-            if (card) {
-              card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              card.classList.add('selected');
-            }
-          }
-        });
-
-        marker.addTo(this.inst.leafletMarkersLayer);
-        if (isFocus) focusMarker = marker;
+        `);
+        this.inst.leafletMarkersLayer.addLayer(marker);
+        bounds.push([item.lat, item.lng]);
+        if (focusPath && item.file.path === focusPath) {
+          focusMarker = marker;
+        }
       });
 
-      if (this.inst.isRouteVisible && routePoints.length > 1) {
-        L.polyline(routePoints, {
-          color: '#6366f1',
-          weight: 3,
-          opacity: 0.7,
-          dashArray: '5, 8'
-        }).addTo(this.inst.leafletRouteLayer);
+      if (focusMarker) {
+        this.inst.leafletMap.setView(focusMarker.getLatLng(), 15);
+        focusMarker.openPopup();
+      } else if (bounds.length > 0) {
+        this.inst.leafletMap.fitBounds(bounds, { padding: [40, 40] });
       }
 
       setTimeout(() => {
-        if (!this.inst.leafletMap) return;
-        this.inst.leafletMap.invalidateSize();
-        if (focusMarker) {
-          this.inst.leafletMap.setView(focusMarker.getLatLng(), 15);
-          focusMarker.openPopup();
-        } else if (bounds.isValid()) {
-          this.inst.leafletMap.fitBounds(bounds, { padding: [30, 30] });
-        }
-      }, 100);
+        if (this.inst.leafletMap) this.inst.leafletMap.invalidateSize();
+      }, 250);
+    }
+
+    destroy() {
+      if (this.inst.leafletMap) {
+        try { this.inst.leafletMap.remove(); } catch (e) { }
+        this.inst.leafletMap = null;
+        this.inst.leafletMarkersLayer = null;
+        this.inst.leafletRouteLayer = null;
+        this.inst.leafletTileLayer = null;
+      }
     }
   }
 
   window.ExplorerMapManager = ExplorerMapManager;
-
 })(window);

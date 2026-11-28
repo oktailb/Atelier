@@ -25,10 +25,15 @@
   },
   "scripts": [
     "autorun-engine.js",
+    "scripts/explorer-state.js",
     "scripts/explorer-selection.js",
     "scripts/explorer-dragdrop.js",
     "scripts/explorer-map.js",
-    "scripts/explorer-modals.js"
+    "scripts/explorer-modals.js",
+    "scripts/explorer-operations.js",
+    "scripts/explorer-context-menu.js",
+    "scripts/explorer-inspector.js",
+    "scripts/explorer-search.js"
   ],
   "capabilities": [
     "multi-views",

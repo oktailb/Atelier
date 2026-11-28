@@ -1,6 +1,6 @@
 /**
- * Atelier by GallusTech - Explorer Application (apps/explorer/explorer.js)
- * Fully modular, autonomous, multi-instance Gallery Explorer with Cross-Window Drag & Drop.
+ * Atelier by GallusTech - Explorer Application Orchestrator (apps/explorer/explorer.js)
+ * Modular, multi-instance WebOS Explorer coordinating specialized managers in apps/explorer/scripts/.
  */
 (function (window) {
   'use strict';
@@ -49,6 +49,7 @@
       this.leafletTileLayer = null;
       this.isRouteVisible = true;
       this.currentTileLayerName = 'streets';
+      this.isSearchModalOpen = false;
 
       this.emptyDragImage = new Image();
 
@@ -57,16 +58,22 @@
       this.initWindow(options);
       this.initManagers();
       this.loadSavedPreferences();
+      this.updateViewModeButtonsUI();
       this.bindEvents();
       this.initMarqueeSelection();
       this.loadDirectory(this.state.currentPath);
     }
 
     initManagers() {
-      this.selectionManager = (window.ExplorerSelectionManager) ? new window.ExplorerSelectionManager(this) : null;
-      this.dragDropManager = (window.ExplorerDragDropManager) ? new window.ExplorerDragDropManager(this) : null;
-      this.mapManager = (window.ExplorerMapManager) ? new window.ExplorerMapManager(this) : null;
-      this.modalsManager = (window.ExplorerModalsManager) ? new window.ExplorerModalsManager(this) : null;
+      this.stateManager = window.ExplorerStateManager ? new window.ExplorerStateManager(this) : null;
+      this.selectionManager = window.ExplorerSelectionManager ? new window.ExplorerSelectionManager(this) : null;
+      this.dragDropManager = window.ExplorerDragDropManager ? new window.ExplorerDragDropManager(this) : null;
+      this.mapManager = window.ExplorerMapManager ? new window.ExplorerMapManager(this) : null;
+      this.modalsManager = window.ExplorerModalsManager ? new window.ExplorerModalsManager(this) : null;
+      this.operationsManager = window.ExplorerOperationsManager ? new window.ExplorerOperationsManager(this) : null;
+      this.contextMenuManager = window.ExplorerContextMenuManager ? new window.ExplorerContextMenuManager(this) : null;
+      this.inspectorManager = window.ExplorerInspectorManager ? new window.ExplorerInspectorManager(this) : null;
+      this.searchManager = window.ExplorerSearchManager ? new window.ExplorerSearchManager(this) : null;
 
       if (this.dragDropManager && typeof this.dragDropManager.init === 'function') {
         this.dragDropManager.init();
@@ -88,12 +95,12 @@
           this.containerEl.innerHTML = `
             <div style="padding: 2.5rem 1.5rem; text-align: center; color: var(--text-main, #e2e8f0); font-family: system-ui, sans-serif;">
               <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">⚠️</div>
-              <h3 style="margin-bottom: 0.5rem; font-size: 1.1rem;">Template de l'Explorateur introuvable</h3>
+              <h3 style="margin-bottom: 0.5rem; font-size: 1.1rem;">${this.escapeHtml(this.t('explorer.err_template_missing_title'))}</h3>
               <p style="color: var(--text-muted, #94a3b8); font-size: 0.9rem; max-width: 480px; margin: 0 auto 1.5rem auto;">
-                L'élément &lt;template id="explorerAppTemplate"&gt; est absent du DOM. Vérifiez la syntaxe de apps/explorer/template.php.
+                ${this.escapeHtml(this.t('explorer.err_template_missing_desc'))}
               </p>
               <button type="button" onclick="location.reload()" style="padding: 0.5rem 1.25rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(99,102,241,0.2); color: #fff; cursor: pointer;">
-                Rafraîchir la page
+                ${this.escapeHtml(this.t('explorer.refresh_page'))}
               </button>
             </div>
           `;
@@ -107,7 +114,7 @@
 
       const appTitle = (window.sys && window.sys.appManager)
         ? window.sys.appManager.getAppTitle('explorer')
-        : (this.t('apps.explorer.title'));
+        : this.t('apps.explorer.title');
 
       const isFirst = (this.manager.instances.size === 0);
       const offset = ((this.id - 1) * 32) % 160;
@@ -140,23 +147,17 @@
     }
 
     destroy() {
-      if (this._onDocDragStart) document.removeEventListener('dragstart', this._onDocDragStart);
-      if (this._onDocMouseMove) document.removeEventListener('mousemove', this._onDocMouseMove);
-      if (this._onDocMouseUp) document.removeEventListener('mouseup', this._onDocMouseUp);
-      if (this._marqueeEl && this._marqueeEl.parentNode) {
-        this._marqueeEl.parentNode.removeChild(this._marqueeEl);
-      }
-      if (this.leafletMap) {
-        try { this.leafletMap.remove(); } catch (e) { }
-        this.leafletMap = null;
-      }
-      if (this._onSearchModalKeyDown) document.removeEventListener('keydown', this._onSearchModalKeyDown);
-      if (this._onSearchModalResize) window.removeEventListener('resize', this._onSearchModalResize);
-      if (this.el && this.el.searchModal && this.el.searchModal.parentElement) {
-        this.el.searchModal.parentElement.removeChild(this.el.searchModal);
-      }
+      if (this.selectionManager && typeof this.selectionManager.destroy === 'function') this.selectionManager.destroy();
+      if (this.dragDropManager && typeof this.dragDropManager.destroy === 'function') this.dragDropManager.destroy();
+      if (this.mapManager && typeof this.mapManager.destroy === 'function') this.mapManager.destroy();
+      if (this.contextMenuManager && typeof this.contextMenuManager.destroy === 'function') this.contextMenuManager.destroy();
+      if (this.searchManager && typeof this.searchManager.destroy === 'function') this.searchManager.destroy();
+
       if (this.containerEl && this.containerEl.parentNode) {
         this.containerEl.parentNode.removeChild(this.containerEl);
+      }
+      if (this.manager.activeModalInstance === this) {
+        this.manager.activeModalInstance = null;
       }
       this.win = null;
       this.manager.removeInstance(this.id);
@@ -167,6 +168,7 @@
       this.el = {
         volumesBar: root.querySelector('.explorer-volumes-bar'),
         breadcrumbs: root.querySelector('.breadcrumbs'),
+        folderDescBanner: root.querySelector('.folder-desc-banner'),
         folderSection: root.querySelector('.folder-section'),
         foldersGrid: root.querySelector('.folders-grid'),
         mediaSection: root.querySelector('.media-section'),
@@ -189,7 +191,7 @@
         selectionInfoBtn: root.querySelector('.selection-info-btn'),
         selectionSelectAllBtn: root.querySelector('.selection-select-all-btn'),
         selectionClearBtn: root.querySelector('.selection-clear-btn'),
-        // Modals within instance
+        // Instance-scoped modals
         mapModal: root.querySelector('.map-modal'),
         mapModalCloseBtn: root.querySelector('.map-modal-close-btn'),
         mapModalCountBadge: root.querySelector('.map-modal-count-badge'),
@@ -214,7 +216,7 @@
         advSearchSize: root.querySelector('.adv-search-size'),
         advSearchGpsOnly: root.querySelector('.adv-search-gps-only'),
         advSearchFavOnly: root.querySelector('.adv-search-fav-only'),
-        // Global / shared modals
+        // Shared shell modal references (routed via manager.activeModalInstance)
         createFolderModal: document.getElementById('createFolderModal'),
         createFolderCloseBtn: document.getElementById('createFolderCloseBtn'),
         createFolderForm: document.getElementById('createFolderForm'),
@@ -246,7 +248,6 @@
         dotfileAccessModeSelect: document.getElementById('dotfileAccessModeSelect'),
         folderPasswordGroup: document.getElementById('folderPasswordGroup'),
         dotfilePasswordInput: document.getElementById('dotfilePasswordInput'),
-        folderDescBanner: document.getElementById('folderDescBanner'),
         // Multimodal Autorun Banner
         autorunBanner: root.querySelector('.explorer-autorun-banner'),
         autorunTitle: root.querySelector('.autorun-title'),
@@ -282,28 +283,11 @@
     }
 
     getUserStorageScope() {
-      const u = (window.sys && window.sys.shares && typeof window.sys.shares.getCurrentUser === 'function')
-        ? window.sys.shares.getCurrentUser()
-        : window.ATELIER_CURRENT_USER;
-      if (u && u.username) return `user_${u.username}`;
-      return window.IS_ADMIN ? 'admin' : 'guest';
+      return this.stateManager ? this.stateManager.getUserStorageScope() : 'guest';
     }
 
     loadSavedPreferences() {
-      try {
-        const scope = this.getUserStorageScope();
-        let savedView = null;
-        if (window.sys && window.sys.storage && typeof window.sys.storage.getPref === 'function') {
-          savedView = window.sys.storage.getPref('explorer_view_mode', null, 'atelier_explorer_view_mode');
-        }
-        if (!savedView && !scope.startsWith('user_')) {
-          savedView = localStorage.getItem('atelier_explorer_view_mode') || localStorage.getItem('gallery_view_mode');
-        }
-        if (savedView) this.state.viewMode = savedView;
-        const rawFavs = localStorage.getItem(`atelier_favorites_${scope}`) || (scope === 'guest' ? localStorage.getItem('atelier_favorites') : null) || '[]';
-        const savedFavs = JSON.parse(rawFavs);
-        this.state.favorites = Array.isArray(savedFavs) ? savedFavs : [];
-      } catch (e) { }
+      if (this.stateManager) this.stateManager.loadSavedPreferences();
     }
 
     t(key, params = {}) {
@@ -357,46 +341,39 @@
       try {
         const json = await window.sys.api.get('get_gallery', { dir: cleanPath, _t: Date.now() });
 
-        if (!json.success) {
+        if (!json || !json.success) {
           this.state.directories = [];
           this.state.files = [];
           this.state.filteredFiles = [];
           this.renderFolders([]);
           this.updateStats();
 
-          if (json.is_protected) {
-            this.openFolderUnlockModal(dirPath);
-            this.renderProtectedState(dirPath);
+          if (json && json.is_protected) {
+            this.openFolderUnlockModal(cleanPath);
+            this.renderProtectedState(cleanPath);
           } else {
-            this.renderPrivateState(json.error || 'Accès refusé');
+            this.renderPrivateState((json && json.error) || this.t('explorer.err_access_denied'));
           }
-          this.showLoading(false);
           return;
         }
 
         this.state.isSearchActive = false;
         if (this.el.searchResultsBanner) this.el.searchResultsBanner.style.display = 'none';
 
-        const normalizeThumbUrl = (url) => {
-          if (!url) return url;
-          if (typeof url === 'string' && url.startsWith('thumb.php?')) {
-            return 'system/endpoints/' + url;
-          }
-          return url;
-        };
+        const norm = (url) => this.stateManager ? this.stateManager.normalizeThumbUrl(url) : url;
 
         this.state.directories = (json.directories || []).map(d => ({
           ...d,
-          cover: normalizeThumbUrl(d.cover)
+          cover: norm(d.cover)
         }));
         this.state.files = (json.files || []).map(f => ({
           ...f,
-          thumb_url: normalizeThumbUrl(f.thumb_url),
-          file_url: normalizeThumbUrl(f.file_url)
+          thumb_url: norm(f.thumb_url),
+          file_url: norm(f.file_url)
         }));
         this.state.overrides = json.overrides || {};
         if (this.state.overrides.background) {
-          this.state.overrides.background = normalizeThumbUrl(this.state.overrides.background);
+          this.state.overrides.background = norm(this.state.overrides.background);
         }
 
         this.state.isAdmin = !!json.is_admin;
@@ -409,11 +386,9 @@
         }
         if (json.available_archives) this.state.availableArchives = json.available_archives;
 
-        // Apply folder theme / background overrides directly to explorer instance window
         this.applyFolderOverrides(this.state.overrides);
 
-        // Restore per-folder persistent sort
-        const savedSort = this.getFolderSort(dirPath);
+        const savedSort = this.getFolderSort(cleanPath);
         if (savedSort && savedSort.sortBy) {
           this.state.sortBy = savedSort.sortBy;
           this.state.sortOrder = savedSort.sortOrder || 'asc';
@@ -426,13 +401,11 @@
 
         this.renderBreadcrumbs(json.breadcrumbs || []);
         this.renderVolumesBar();
-        this.renderFolders(json.directories || []);
+        this.renderFolders(this.state.directories);
 
-        // Reset category filter on navigation
         this.state.filterCategory = 'all';
         this.updateFilterPillsUI();
         this.applyFilterAndRender();
-
       } catch (err) {
         console.error('[Explorer] Error fetching directory:', err);
       } finally {
@@ -471,16 +444,11 @@
         }
       }
 
-      // Handle Autorun / VLog Presentation Banner
       if (this.el.autorunBanner) {
         if (overrides && overrides.has_autorun && overrides.autorun) {
           const ar = overrides.autorun;
-          if (this.el.autorunTitle) {
-            this.el.autorunTitle.textContent = ar.title || this.t('autorun.badge');
-          }
-          if (this.el.autorunDescription) {
-            this.el.autorunDescription.textContent = ar.description || '';
-          }
+          if (this.el.autorunTitle) this.el.autorunTitle.textContent = ar.title || this.t('autorun.badge');
+          if (this.el.autorunDescription) this.el.autorunDescription.textContent = ar.description || '';
           if (this.el.autorunPlayBtn) {
             this.el.autorunPlayBtn.onclick = (e) => {
               e.preventDefault();
@@ -546,7 +514,7 @@
         }
         const targetPath = (crumb.path === undefined || crumb.path === null || crumb.path === '.') ? '' : crumb.path;
         return `
-          <button type="button" class="crumb-item crumb-btn ${isRoot ? 'crumb-root-item' : ''}" data-path="${targetPath}" ${titleAttr}>
+          <button type="button" class="crumb-item crumb-btn ${isRoot ? 'crumb-root-item' : ''}" data-path="${this.escapeHtml(targetPath)}" ${titleAttr}>
             ${contentHtml}
           </button>
           <span class="crumb-separator">/</span>
@@ -564,51 +532,16 @@
 
       nav.querySelectorAll('.crumb-btn').forEach(btn => {
         const destPath = btn.getAttribute('data-path') !== null ? btn.getAttribute('data-path') : '';
-
-        // Direct Click Navigation
         btn.onclick = (e) => {
           e.preventDefault();
           e.stopPropagation();
           this.navigateTo(destPath);
         };
-
-        // Breadcrumb as Drop Target (Cross-window & local)
-        btn.ondragover = (e) => {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = 'move';
-        };
-        btn.ondragenter = (e) => {
-          e.preventDefault();
-          btn.classList.add('drag-over');
-        };
-        btn.ondragleave = (e) => {
-          if (!btn.contains(e.relatedTarget)) btn.classList.remove('drag-over');
-        };
-        btn.ondrop = async (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          btn.classList.remove('drag-over');
-          if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0 && !window.ATELIER_DRAGGING_PATHS) {
-            this.handleUploadFiles(e.dataTransfer.files, destPath);
-            return;
-          }
-          let paths = this.state.draggingPaths || window.ATELIER_DRAGGING_PATHS;
-          if (!paths) {
-            try {
-              const text = e.dataTransfer.getData('application/json') || e.dataTransfer.getData('text/plain');
-              if (text) paths = JSON.parse(text);
-            } catch (err) { }
-          }
-          if (paths) {
-            const arr = Array.isArray(paths) ? paths : [paths];
-            if (arr.length > 0) {
-              await this.moveItems(arr, destPath);
-            }
-          }
-        };
+        if (this.dragDropManager) {
+          this.dragDropManager.bindDropTarget(btn, destPath);
+        }
       });
 
-      // Update Explorer Window Title
       if (window.WindowManager) {
         const lastCrumb = (crumbs && crumbs.length) ? crumbs[crumbs.length - 1] : null;
         const isRootLast = (!crumbs || crumbs.length <= 1);
@@ -633,16 +566,16 @@
       this.el.foldersGrid.innerHTML = folders.map(folder => {
         const badge = folder.is_protected ? '<span class="folder-badge lock-badge">🔒</span>' : '';
         const handleClass = canMove ? 'drag-handle' : '';
-        const deleteBtnHtml = this.state.isAdmin ? `<button class="delete-item-btn" data-path="${folder.path}" data-name="${this.escapeHtml(folder.name)}" data-type="folder" title="${this.escapeHtml(this.t('folder.delete_title'))}">🗑️</button>` : '';
-        const settingsBtnHtml = this.state.isAdmin ? `<button type="button" class="folder-settings-btn" data-path="${folder.path}" data-name="${this.escapeHtml(folder.name)}" title="${this.escapeHtml(this.t('nav.folder_settings'))}">⚙️</button>` : '';
+        const deleteBtnHtml = this.state.isAdmin ? `<button class="delete-item-btn" data-path="${this.escapeHtml(folder.path)}" data-name="${this.escapeHtml(folder.name)}" data-type="folder" title="${this.escapeHtml(this.t('folder.delete_title'))}">🗑️</button>` : '';
+        const settingsBtnHtml = this.state.isAdmin ? `<button type="button" class="folder-settings-btn" data-path="${this.escapeHtml(folder.path)}" data-name="${this.escapeHtml(folder.name)}" title="${this.escapeHtml(this.t('nav.folder_settings'))}">⚙️</button>` : '';
 
         return `
-          <div class="folder-card ${handleClass} ${folder.is_protected && !folder.is_unlocked && !this.state.isAdmin ? 'protected-card' : ''}" data-path="${folder.path}" data-protected="${folder.is_protected ? '1' : '0'}" data-unlocked="${folder.is_unlocked ? '1' : '0'}" draggable="true" role="button" tabindex="0">
+          <div class="folder-card ${handleClass} ${folder.is_protected && !folder.is_unlocked && !this.state.isAdmin ? 'protected-card' : ''}" data-path="${this.escapeHtml(folder.path)}" data-protected="${folder.is_protected ? '1' : '0'}" data-unlocked="${folder.is_unlocked ? '1' : '0'}" draggable="true" role="button" tabindex="0">
             ${deleteBtnHtml}
             ${settingsBtnHtml}
             ${badge}
             <div class="folder-icon-wrapper">
-              ${folder.is_protected && !folder.is_unlocked && !this.state.isAdmin ? '<div class="folder-lock-icon">🔒</div>' : (folder.cover ? `<img src="${folder.cover}" alt="${this.escapeHtml(folder.name)}" class="folder-cover-img" loading="lazy" draggable="false" />` : '📁')}
+              ${folder.is_protected && !folder.is_unlocked && !this.state.isAdmin ? '<div class="folder-lock-icon">🔒</div>' : (folder.cover ? `<img src="${this.escapeHtml(folder.cover)}" alt="${this.escapeHtml(folder.name)}" class="folder-cover-img" loading="lazy" draggable="false" />` : '📁')}
             </div>
             <div class="folder-name">${this.escapeHtml(folder.name)}</div>
             <div class="folder-meta">
@@ -689,7 +622,6 @@
           };
         }
 
-        // Folder as Drag Source
         card.ondragstart = (e) => {
           this.state.draggingPaths = [folderPath];
           this.state.draggingItemPath = folderPath;
@@ -720,83 +652,19 @@
             window.ATELIER_DRAG_SOURCE_INSTANCE = null;
             window.ATELIER_DRAGGING_ITEM_DATA = null;
           }, 300);
-          document.querySelectorAll('.is-dragging').forEach(c => c.classList.remove('is-dragging'));
-          document.querySelectorAll('.drag-over').forEach(c => c.classList.remove('drag-over'));
+          if (this.dragDropManager) this.dragDropManager.clearVisualDragClasses();
         };
 
-        // Folder as Drop Target (Cross-window & local)
-        card.ondragover = (e) => {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = 'move';
-        };
-        card.ondragenter = (e) => {
-          e.preventDefault();
-          card.classList.add('drag-over');
-        };
-        card.ondragleave = (e) => {
-          if (!card.contains(e.relatedTarget)) card.classList.remove('drag-over');
-        };
-        card.ondrop = async (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          card.classList.remove('drag-over');
-
-          if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0 && !window.ATELIER_DRAGGING_PATHS) {
-            this.handleUploadFiles(e.dataTransfer.files, folderPath);
-            return;
-          }
-
-          let pathsToMove = this.state.draggingPaths || window.ATELIER_DRAGGING_PATHS;
-          if (!pathsToMove) {
-            try {
-              const data = e.dataTransfer.getData('application/json') || e.dataTransfer.getData('text/plain');
-              if (data) pathsToMove = JSON.parse(data);
-            } catch (err) { }
-          }
-
-          if (pathsToMove) {
-            const arr = Array.isArray(pathsToMove) ? pathsToMove : [pathsToMove];
-            if (arr.length > 0) {
-              await this.moveItems(arr, folderPath);
-            }
-          }
-        };
+        if (this.dragDropManager) {
+          this.dragDropManager.bindFolderDropTarget(card, folderPath);
+        }
       });
     }
 
     applyFilterAndRender() {
-      let list = [...this.state.files];
-
-      if (this.state.filterCategory !== 'all') {
-        list = list.filter(f => f.category === this.state.filterCategory);
-      }
-
-      if (this.state.showFavoritesOnly) {
-        list = list.filter(f => this.state.favorites.includes(f.path));
-      }
-
-      if (this.state.searchQuery) {
-        list = list.filter(f =>
-          f.name.toLowerCase().includes(this.state.searchQuery) ||
-          (f.comment && f.comment.toLowerCase().includes(this.state.searchQuery))
-        );
-      }
-
-      list.sort((a, b) => {
-        let res = 0;
-        if (this.state.sortBy === 'name') {
-          res = a.name.localeCompare(b.name, undefined, { numeric: true });
-        } else if (this.state.sortBy === 'exif_date') {
-          res = (a.effective_mtime || a.mtime) - (b.effective_mtime || b.mtime);
-        } else if (this.state.sortBy === 'date') {
-          res = a.mtime - b.mtime;
-        } else if (this.state.sortBy === 'size') {
-          res = a.size - b.size;
-        }
-        return (this.state.sortOrder === 'asc') ? res : -res;
-      });
-
-      this.state.filteredFiles = list;
+      this.state.filteredFiles = this.stateManager
+        ? this.stateManager.computeFilteredAndSortedFiles()
+        : [...(this.state.files || [])];
       this.updateStats();
       this.updateFolderMapButton();
       this.renderMedia();
@@ -885,21 +753,23 @@
       this.bindMediaCardEvents();
     }
 
+    updateViewModeButtonsUI() {
+      if (!this.el || !this.el.viewModeBtns) return;
+      this.el.viewModeBtns.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === this.state.viewMode);
+      });
+    }
+
     setViewMode(mode) {
       if (!mode) return;
       this.state.viewMode = mode;
-      try {
-        if (window.sys && window.sys.storage && typeof window.sys.storage.setPref === 'function') {
-          window.sys.storage.setPref('explorer_view_mode', mode, { legacyLocalKey: 'atelier_explorer_view_mode' });
-        } else {
-          localStorage.setItem(`atelier_explorer_view_mode_${this.getUserStorageScope()}`, mode);
-        }
-      } catch (e) { }
+      if (this.stateManager) this.stateManager.saveViewMode(mode);
 
+      this.updateViewModeButtonsUI();
       this.renderMedia();
 
-      if (window.explorerApp && typeof window.explorerApp.updateViewModeUI === 'function') {
-        window.explorerApp.updateViewModeUI();
+      if (this.manager) {
+        this.manager.updateViewModeUI();
       }
     }
 
@@ -914,7 +784,6 @@
 
       // 1. Delegated Click Listener
       this.el.mediaGrid.addEventListener('click', (e) => {
-        // Fast button dispatch
         const gpsBtn = e.target.closest('.gps-badge[data-path]');
         if (gpsBtn) {
           e.stopPropagation();
@@ -939,7 +808,6 @@
           return this.openMediaCommentModal(commBtn.dataset.filename, commBtn.dataset.comment);
         }
 
-        // Card Selection & Open
         const card = e.target.closest('[data-index]');
         if (card && this.el.mediaGrid.contains(card)) {
           if (e.target.closest('button, input, a, .pip-card-btn')) return;
@@ -948,30 +816,12 @@
           const file = this.state.filteredFiles[index];
           if (!file) return;
 
-          if (e.ctrlKey || e.metaKey) {
+          if (e.ctrlKey || e.metaKey || e.shiftKey) {
             e.preventDefault();
             e.stopPropagation();
-            if (this.state.selectedPaths.has(file.path)) {
-              this.state.selectedPaths.delete(file.path);
-            } else {
-              this.state.selectedPaths.add(file.path);
+            if (this.selectionManager) {
+              this.selectionManager.selectItem(index, e);
             }
-            this.state.lastSelectedIndex = index;
-            this.updateSelectionUI();
-            return;
-          }
-
-          if (e.shiftKey) {
-            e.preventDefault();
-            e.stopPropagation();
-            const start = this.state.lastSelectedIndex !== null ? Math.min(this.state.lastSelectedIndex, index) : 0;
-            const end = this.state.lastSelectedIndex !== null ? Math.max(this.state.lastSelectedIndex, index) : index;
-            for (let i = start; i <= end; i++) {
-              const item = this.state.filteredFiles[i];
-              if (item) this.state.selectedPaths.add(item.path);
-            }
-            this.state.lastSelectedIndex = index;
-            this.updateSelectionUI();
             return;
           }
 
@@ -1003,7 +853,7 @@
         }
       });
 
-      // 3. Delegated Drag Start Listener
+      // 3. Delegated Drag Start Listener (scoped to this instance)
       this.el.mediaGrid.addEventListener('dragstart', (e) => {
         const card = e.target.closest('[data-index]');
         if (!card || !canMove()) return;
@@ -1049,9 +899,7 @@
         e.dataTransfer.effectAllowed = 'copyMove';
 
         card.classList.add('is-dragging');
-        document.querySelectorAll('.media-card.selected, .polaroid-card.selected, .grid-card.selected, .list-row.selected').forEach(c => {
-          c.classList.add('is-dragging');
-        });
+        this.el.mediaGrid.querySelectorAll('.selected').forEach(c => c.classList.add('is-dragging'));
       });
 
       // 4. Delegated Drag End Listener
@@ -1063,8 +911,7 @@
           window.ATELIER_DRAG_SOURCE_INSTANCE = null;
           window.ATELIER_DRAGGING_ITEM_DATA = null;
         }, 300);
-        document.querySelectorAll('.is-dragging').forEach(c => c.classList.remove('is-dragging'));
-        document.querySelectorAll('.drag-over').forEach(c => c.classList.remove('drag-over'));
+        if (this.dragDropManager) this.dragDropManager.clearVisualDragClasses();
       });
 
       // 5. Delegated Context Menu ("Ouvrir avec...") on Media Cards
@@ -1080,207 +927,18 @@
       });
     }
 
+    // -------------------------------------------------------------
+    // DELEGATED PUBLIC FACADE METHODS (100% Iso-Functional)
+    // -------------------------------------------------------------
     showFileContextMenu(file, index, clientX, clientY) {
-      document.querySelectorAll('.explorer-open-with-menu').forEach(m => m.remove());
-
-      const appMgr = window.sys && window.sys.appManager;
-      const compatibleApps = (appMgr && typeof appMgr.getAppsForFile === 'function')
-        ? appMgr.getAppsForFile(file)
-        : [];
-
-      const menu = document.createElement('div');
-      menu.className = 'explorer-open-with-menu';
-
-      const openBtn = document.createElement('button');
-      openBtn.type = 'button';
-      openBtn.className = 'explorer-open-with-item';
-      openBtn.innerHTML = `<span>▶️</span><span>${this.escapeHtml(this.t('explorer.open'))}</span>`;
-      openBtn.onclick = () => {
-        menu.remove();
-        this.openMedia(file, index);
-      };
-      menu.appendChild(openBtn);
-
-      if (compatibleApps.length > 0) {
-        const sep = document.createElement('div');
-        sep.className = 'explorer-open-with-sep';
-        menu.appendChild(sep);
-
-        const hdr = document.createElement('div');
-        hdr.className = 'explorer-open-with-header';
-        hdr.textContent = this.t('explorer.open_with');
-        menu.appendChild(hdr);
-
-        const fileExt = (file.extension || (file.name && file.name.includes('.') ? file.name.split('.').pop() : '') || '').toLowerCase();
-        const currentDefaultEntry = (appMgr && typeof appMgr.getAppForFile === 'function') ? appMgr.getAppForFile(file) : null;
-        const currentDefaultId = currentDefaultEntry && currentDefaultEntry.manifest ? currentDefaultEntry.manifest.id : null;
-
-        compatibleApps.forEach((app) => {
-          const isDef = (app.id === currentDefaultId);
-          const row = document.createElement('div');
-          row.className = 'explorer-open-with-row';
-          row.style.cssText = 'display:flex;align-items:center;gap:4px;';
-
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'explorer-open-with-item';
-          btn.style.flex = '1';
-          btn.innerHTML = `<span>${app.icon || '🗔'}</span><span>${this.escapeHtml(app.name)}</span>`;
-          btn.onclick = () => {
-            menu.remove();
-            if (appMgr && typeof appMgr.launchApp === 'function') {
-              appMgr.launchApp(app.id, { file, index });
-            }
-          };
-          row.appendChild(btn);
-
-          if (fileExt && appMgr && typeof appMgr.setDefaultAppForExtension === 'function') {
-            const starBtn = document.createElement('button');
-            starBtn.type = 'button';
-            starBtn.className = 'explorer-open-with-default-btn';
-            starBtn.dataset.ext = fileExt;
-            starBtn.dataset.appId = app.id;
-            starBtn.title = isDef
-              ? this.t('explorer.default_app_active', { ext: fileExt })
-              : this.t('explorer.set_default_app', { ext: fileExt });
-            starBtn.style.cssText = `background:transparent;border:none;cursor:pointer;padding:4px 6px;font-size:0.9rem;color:${isDef ? '#f59e0b' : 'var(--text-muted, #94a3b8)'};`;
-            starBtn.textContent = isDef ? '★' : '☆';
-            starBtn.onclick = (evt) => {
-              evt.stopPropagation();
-              appMgr.setDefaultAppForExtension(fileExt, app.id);
-              menu.remove();
-              this.showToast(this.t('explorer.default_app_saved', { ext: fileExt, name: app.name }), 'success');
-            };
-            row.appendChild(starBtn);
-          }
-
-          menu.appendChild(row);
-        });
+      if (this.contextMenuManager) {
+        this.contextMenuManager.showFileContextMenu(file, index, clientX, clientY);
       }
-
-      const sep2 = document.createElement('div');
-      sep2.className = 'explorer-open-with-sep';
-      menu.appendChild(sep2);
-
-      const inspectBtn = document.createElement('button');
-      inspectBtn.type = 'button';
-      inspectBtn.className = 'explorer-open-with-item';
-      inspectBtn.innerHTML = `<span>ℹ️</span><span>${this.escapeHtml(this.t('explorer.details'))}</span>`;
-      inspectBtn.onclick = () => {
-        menu.remove();
-        this.state.selectedPaths.clear();
-        this.state.selectedPaths.add(file.path);
-        this.updateSelectionUI();
-        this.toggleInspector(true);
-      };
-      menu.appendChild(inspectBtn);
-
-      document.body.appendChild(menu);
-
-      const rect = menu.getBoundingClientRect();
-      const left = Math.min(clientX, Math.max(8, window.innerWidth - rect.width - 8));
-      const top = Math.min(clientY, Math.max(8, window.innerHeight - rect.height - 8));
-      menu.style.left = `${left}px`;
-      menu.style.top = `${top}px`;
-
-      const dismiss = (evt) => {
-        if (!menu.contains(evt.target)) {
-          menu.remove();
-          document.removeEventListener('click', dismiss, true);
-          document.removeEventListener('contextmenu', dismiss, true);
-        }
-      };
-      setTimeout(() => {
-        document.addEventListener('click', dismiss, true);
-        document.addEventListener('contextmenu', dismiss, true);
-      }, 0);
     }
 
     async moveItems(sourcePaths, targetDir) {
-      const paths = Array.isArray(sourcePaths) ? sourcePaths : [sourcePaths];
-      const validPaths = paths.filter(p => typeof p === 'string' && p.trim().length > 0);
-      if (validPaths.length === 0) return;
-      if (typeof targetDir !== 'string') return;
-
-      const canMove = this.state.isAdmin || (this.state.userRights && this.state.userRights.can_move);
-      if (!canMove) {
-        this.showToast('⚠️ Droits de déplacement manquants', 'error');
-        return;
-      }
-
-      const cleanTarget = (targetDir === '.' || !targetDir) ? '' : String(targetDir).replace(/\/+$/, '').trim();
-
-      // Don't attempt to move items into their current folder
-      const itemsToMove = validPaths.filter(p => {
-        const cleanP = String(p).replace(/\/+$/, '').trim();
-        const parts = cleanP.split('/');
-        parts.pop();
-        const parentDir = parts.join('/');
-        return parentDir !== cleanTarget;
-      });
-
-      if (itemsToMove.length === 0) {
-        return;
-      }
-
-      try {
-        let success = false;
-        let errMsg = null;
-        let movedCount = itemsToMove.length;
-
-        // If single item, send as single string for universal backend compatibility
-        if (itemsToMove.length === 1) {
-          const json = await window.sys.api.fs.moveItem(itemsToMove[0], cleanTarget);
-          if (json && json.success) {
-            success = true;
-          } else {
-            errMsg = json ? json.error : null;
-          }
-        } else {
-          // Try batch move first
-          const json = await window.sys.api.fs.moveItem(itemsToMove, cleanTarget);
-          if (json && json.success) {
-            success = true;
-            movedCount = json.moved_count || itemsToMove.length;
-          } else {
-            // Fallback: move item-by-item
-            let count = 0;
-            for (const item of itemsToMove) {
-              try {
-                const res = await window.sys.api.fs.moveItem(item, cleanTarget);
-                if (res && res.success) count++;
-                else if (res && res.error) errMsg = res.error;
-              } catch (e) {
-                errMsg = e.message;
-              }
-            }
-            if (count > 0) {
-              success = true;
-              movedCount = count;
-            }
-          }
-        }
-
-        if (success) {
-          this.clearSelection();
-          const targetName = cleanTarget ? cleanTarget.split('/').pop() : this.t('nav.root');
-          this.showToast(this.t('clipboard.items_pasted', { count: movedCount }), 'success');
-
-          // Notify all open instances (source, destination and others) in real time
-          if (window.EventBus && typeof window.EventBus.emit === 'function') {
-            window.EventBus.emit('fs:changed', { action: 'move', sourcePaths: itemsToMove, targetDir: cleanTarget });
-          } else {
-            if (this.manager && this.manager.instances) {
-              this.manager.instances.forEach(inst => {
-                inst.loadDirectory(inst.state.currentPath);
-              });
-            }
-          }
-        } else {
-          this.showToast('⚠️ ' + (errMsg || this.t('api.err_save_failed')), 'error');
-        }
-      } catch (err) {
-        this.showToast(`⚠️ Erreur réseau : ${err.message}`, 'error');
+      if (this.operationsManager) {
+        return this.operationsManager.moveItems(sourcePaths, targetDir);
       }
     }
 
@@ -1291,9 +949,6 @@
       }
     }
 
-    // -------------------------------------------------------------
-    // SORT & FAVORITES ENGINE
-    // -------------------------------------------------------------
     toggleSortOrder() {
       this.state.sortOrder = (this.state.sortOrder === 'asc') ? 'desc' : 'asc';
       this.saveFolderSort(this.state.currentPath, this.state.sortBy, this.state.sortOrder);
@@ -1302,39 +957,15 @@
     }
 
     saveFolderSort(dirPath, sortBy, sortOrder) {
-      try {
-        const key = `atelier_folder_sorts_${this.getUserStorageScope()}`;
-        const sorts = JSON.parse(localStorage.getItem(key) || '{}');
-        sorts[dirPath || '__root__'] = { sortBy, sortOrder };
-        localStorage.setItem(key, JSON.stringify(sorts));
-      } catch (e) { }
+      if (this.stateManager) this.stateManager.saveFolderSort(dirPath, sortBy, sortOrder);
     }
 
     getFolderSort(dirPath) {
-      try {
-        const key = `atelier_folder_sorts_${this.getUserStorageScope()}`;
-        const sorts = JSON.parse(localStorage.getItem(key) || '{}');
-        return sorts[dirPath || '__root__'] || null;
-      } catch (e) {
-        return null;
-      }
+      return this.stateManager ? this.stateManager.getFolderSort(dirPath) : null;
     }
 
     toggleFavorite(filePath) {
-      const idx = this.state.favorites.indexOf(filePath);
-      if (idx !== -1) {
-        this.state.favorites.splice(idx, 1);
-        this.showToast(this.t('lightbox.favorite_removed'), 'info');
-      } else {
-        this.state.favorites.push(filePath);
-        this.showToast(this.t('lightbox.favorite_added'), 'success');
-      }
-      try {
-        localStorage.setItem(`atelier_favorites_${this.getUserStorageScope()}`, JSON.stringify(this.state.favorites));
-      } catch (e) { }
-
-      this.manager.updateMenuBarForActiveInstance();
-      this.applyFilterAndRender();
+      if (this.stateManager) this.stateManager.toggleFavorite(filePath);
     }
 
     toggleFavoritesFilter() {
@@ -1343,9 +974,6 @@
       this.applyFilterAndRender();
     }
 
-    // -------------------------------------------------------------
-    // FILTER PILLS & STATS
-    // -------------------------------------------------------------
     setFilterCategory(category) {
       this.state.filterCategory = category || 'all';
       this.updateFilterPillsUI();
@@ -1369,740 +997,144 @@
       this.updateFolderMapButton();
     }
 
-    // -------------------------------------------------------------
-    // SELECTION & MARQUEE
-    // -------------------------------------------------------------
     clearSelection() {
-      this.state.selectedPaths.clear();
-      this.state.lastSelectedIndex = null;
-      this.updateSelectionUI();
+      if (this.selectionManager) this.selectionManager.clearSelection();
     }
 
     selectAll() {
-      this.state.filteredFiles.forEach(f => this.state.selectedPaths.add(f.path));
-      this.updateSelectionUI();
+      if (this.selectionManager) this.selectionManager.selectAll();
     }
 
     updateSelectionUI() {
-      const count = this.state.selectedPaths.size;
-      if (this.el.selectionToolbar) {
-        this.el.selectionToolbar.style.display = count > 0 ? 'flex' : 'none';
-      }
-      if (this.el.selectionToolbarCount) {
-        this.el.selectionToolbarCount.dataset.i18n = 'selection.selected_count';
-        this.el.selectionToolbarCount.dataset.i18nCount = count;
-        this.el.selectionToolbarCount.textContent = this.t('selection.selected_count', { count });
-      }
-      if (this.el.mediaGrid) {
-        this.el.mediaGrid.querySelectorAll('[data-index]').forEach(card => {
-          const idx = parseInt(card.dataset.index, 10);
-          const file = this.state.filteredFiles[idx];
-          if (file) {
-            card.classList.toggle('selected', this.state.selectedPaths.has(file.path));
-          }
-        });
-      }
-      this.updateInspectorUI();
+      if (this.selectionManager) this.selectionManager.updateSelectionUI();
     }
 
     initMarqueeSelection() {
-      if (this.el.selectionSelectAllBtn) {
-        this.el.selectionSelectAllBtn.onclick = () => this.selectAll();
-      }
-      if (this.el.selectionClearBtn) {
-        this.el.selectionClearBtn.onclick = () => this.clearSelection();
-      }
-      if (this.el.selectionInfoBtn) {
-        this.el.selectionInfoBtn.onclick = () => {
-          if (this.state.selectedPaths.size > 0) {
-            const firstPath = Array.from(this.state.selectedPaths)[0];
-            const file = this.state.filteredFiles.find(f => f.path === firstPath);
-            if (file && window.sys && window.sys.showMetadata) {
-              window.sys.showMetadata(file);
-            }
-          }
-        };
-      }
-
-      let isSelecting = false;
-      let startX = 0, startY = 0;
-      let marqueeEl = null;
-      let initialSelectedPaths = new Set();
-
-      this.containerEl.addEventListener('mousedown', (e) => {
-        if (e.button !== 0) return;
-        if (e.target.closest('button, input, a, select, .explorer-header-bar, .admin-modal, .selection-toolbar, .folder-card, .polaroid-card, .grid-card, .list-table-row, .mosaic-card, [data-index], .media-card, .sidebar, .menubar')) {
-          return;
-        }
-        if (!this.el.mediaGrid) return;
-
-        const hasModifier = e.shiftKey || e.ctrlKey || e.metaKey;
-        if (!hasModifier) {
-          this.clearSelection();
-          initialSelectedPaths = new Set();
-        } else {
-          initialSelectedPaths = new Set(this.state.selectedPaths);
-        }
-
-        isSelecting = true;
-        startX = e.pageX;
-        startY = e.pageY;
-
-        if (!marqueeEl) {
-          marqueeEl = document.createElement('div');
-          marqueeEl.className = 'selection-marquee';
-          marqueeEl.style.display = 'none';
-          document.body.appendChild(marqueeEl);
-        }
-      });
-
-      this._onDocDragStart = () => {
-        isSelecting = false;
-        if (marqueeEl) marqueeEl.style.display = 'none';
-      };
-
-      this._onDocMouseMove = (e) => {
-        if (!isSelecting || !marqueeEl) return;
-
-        const currentX = e.pageX;
-        const currentY = e.pageY;
-        const width = Math.abs(currentX - startX);
-        const height = Math.abs(currentY - startY);
-
-        if (width > 6 || height > 6) {
-          marqueeEl.style.display = 'block';
-          marqueeEl.style.left = `${Math.min(startX, currentX)}px`;
-          marqueeEl.style.top = `${Math.min(startY, currentY)}px`;
-          marqueeEl.style.width = `${width}px`;
-          marqueeEl.style.height = `${height}px`;
-
-          const marqueeRect = marqueeEl.getBoundingClientRect();
-          const currentSelection = new Set(initialSelectedPaths);
-
-          this.el.mediaGrid.querySelectorAll('[data-index]').forEach(card => {
-            const cardRect = card.getBoundingClientRect();
-            const intersects = !(
-              marqueeRect.right < cardRect.left ||
-              marqueeRect.left > cardRect.right ||
-              marqueeRect.bottom < cardRect.top ||
-              marqueeRect.top > cardRect.bottom
-            );
-
-            const idx = parseInt(card.dataset.index, 10);
-            const file = this.state.filteredFiles[idx];
-            if (file && intersects) {
-              currentSelection.add(file.path);
-            }
-          });
-
-          this.state.selectedPaths = currentSelection;
-          this.updateSelectionUI();
-        }
-      };
-
-      this._onDocMouseUp = () => {
-        if (isSelecting) {
-          isSelecting = false;
-          if (marqueeEl) marqueeEl.style.display = 'none';
-        }
-      };
-
-      this._marqueeEl = marqueeEl;
-      document.addEventListener('dragstart', this._onDocDragStart);
-      document.addEventListener('mousemove', this._onDocMouseMove);
-      document.addEventListener('mouseup', this._onDocMouseUp);
+      if (this.selectionManager) this.selectionManager.initMarqueeSelection();
     }
 
-    // -------------------------------------------------------------
-    // GPS MAP & SMART TIMELINE GPS
-    // -------------------------------------------------------------
     computeSmartGpsLocations(files) {
-      if (!files || files.length === 0) return [];
-      if (window.sys && typeof window.sys.computeSmartGpsLocations === 'function') {
-        return window.sys.computeSmartGpsLocations(files, this.isSmartGpsEnabled);
-      }
-      const result = [];
-      files.forEach(f => {
-        if (f.exif && f.exif.gps && typeof f.exif.gps.lat === 'number' && typeof f.exif.gps.lng === 'number') {
-          result.push({
-            file: f,
-            lat: f.exif.gps.lat,
-            lng: f.exif.gps.lng,
-            gps_source: 'native',
-            time: (f.effective_mtime || f.mtime) * 1000
-          });
-        }
-      });
-      return result;
+      return this.mapManager ? this.mapManager.computeSmartGpsLocations(files, this.isSmartGpsEnabled) : [];
     }
 
     updateFolderMapButton() {
-      const mapped = this.computeSmartGpsLocations(this.state.filteredFiles);
-      const count = mapped.length;
-
-      if (this.el.folderMapBtn) {
-        if (count === 0) {
-          this.el.folderMapBtn.style.display = 'none';
-        } else {
-          this.el.folderMapBtn.innerHTML = `🗺️ ${this.escapeHtml(this.t('nav.map'))} (${count})`;
-          this.el.folderMapBtn.style.display = 'inline-flex';
-        }
-      }
-
-      const menuMapBtn = document.getElementById('menuFolderMapBtn');
-      if (menuMapBtn && this.manager.getActiveInstance() === this) {
-        menuMapBtn.style.display = count > 0 ? 'inline-flex' : 'none';
-      }
+      if (this.mapManager) this.mapManager.updateFolderMapButton();
     }
 
     openMapModal(focusPath = null) {
-      if (window.sys && typeof window.sys.openMaps === 'function') {
-        window.sys.openMaps({
-          files: this.state.filteredFiles,
-          currentPath: this.state.currentPath,
-          focusPath: focusPath,
-          singleItem: !!focusPath
-        });
-        return;
-      }
-      if (!this.el.mapModal) return;
-      this.el.mapModal.style.display = 'flex';
-      this.initLeafletMap(focusPath);
+      if (this.mapManager) this.mapManager.openMapModal(focusPath);
     }
 
     closeMapModal() {
-      if (this.el.mapModal) this.el.mapModal.style.display = 'none';
+      if (this.mapManager) this.mapManager.closeMapModal();
     }
 
     initLeafletMap(focusPath = null) {
-      if (!window.L || !this.el.galleryLeafletMap) return;
-
-      const locations = this.computeSmartGpsLocations(this.state.filteredFiles);
-      if (this.el.mapModalCountBadge) {
-        this.el.mapModalCountBadge.textContent = `${locations.length} photos géolocalisées`;
-      }
-
-      if (!this.leafletMap) {
-        this.leafletMap = window.L.map(this.el.galleryLeafletMap, { zoomControl: true });
-        this.leafletTileLayer = window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-          attribution: '&copy; OpenStreetMap'
-        }).addTo(this.leafletMap);
-        this.leafletMarkersLayer = (window.L.markerClusterGroup ? window.L.markerClusterGroup() : window.L.layerGroup()).addTo(this.leafletMap);
-      } else {
-        this.leafletMarkersLayer.clearLayers();
-      }
-
-      if (locations.length === 0) return;
-
-      const bounds = [];
-      locations.forEach(item => {
-        const marker = window.L.marker([item.lat, item.lng]);
-        marker.bindPopup(`
-          <div style="text-align:center;font-size:0.85rem;">
-            <img src="${this.escapeHtml(item.file.thumb_url)}" style="width:120px;height:80px;object-fit:cover;border-radius:4px;margin-bottom:4px;" />
-            <div style="font-weight:600;">${this.escapeHtml(item.file.name)}</div>
-          </div>
-        `);
-        this.leafletMarkersLayer.addLayer(marker);
-        bounds.push([item.lat, item.lng]);
-      });
-
-      if (bounds.length > 0) {
-        this.leafletMap.fitBounds(bounds, { padding: [40, 40] });
-      }
-
-      setTimeout(() => { if (this.leafletMap) this.leafletMap.invalidateSize(); }, 300);
+      if (this.mapManager) this.mapManager.initLeafletMap(focusPath);
     }
 
-    // -------------------------------------------------------------
-    // ADVANCED SEARCH MODAL (GOOGLE DRIVE STYLE POPOVER)
-    // -------------------------------------------------------------
     openSearchModal() {
-      if (!this.el.searchModal) return;
-      // Teleport modal to document.body so it is never clipped or trapped by window CSS transforms
-      if (this.el.searchModal.parentElement !== document.body) {
-        document.body.appendChild(this.el.searchModal);
-      }
-      this.el.searchModal.style.display = 'block';
-      this.el.searchModal.classList.add('open');
-      this.isSearchModalOpen = true;
-
-      this.positionSearchModal();
-      requestAnimationFrame(() => {
-        this.positionSearchModal();
-      });
-
-      setTimeout(() => {
-        if (this.el.advSearchName) this.el.advSearchName.focus();
-      }, 50);
+      if (this.searchManager) this.searchManager.openSearchModal();
     }
 
     closeSearchModal() {
-      if (!this.el.searchModal) return;
-      this.el.searchModal.style.display = 'none';
-      this.el.searchModal.classList.remove('open');
-      this.isSearchModalOpen = false;
+      if (this.searchManager) this.searchManager.closeSearchModal();
     }
 
     positionSearchModal() {
-      if (!this.el.searchModal) return;
-      const card = this.el.searchModalCard || this.el.searchModal.querySelector('.search-modal-card');
-      if (!card) return;
-
-      const advBtn = document.getElementById('advancedSearchBtn');
-      const searchBox = (advBtn && advBtn.closest('.search-box'))
-                     || document.getElementById('searchInput')
-                     || (this.el && this.el.quickSearchInput)
-                     || (this.containerEl && this.containerEl.querySelector('.explorer-quick-search-wrapper'));
-
-      let top = 48;
-      let left = 20;
-      const cardWidth = Math.min(580, window.innerWidth - 24);
-
-      if (searchBox) {
-        const rect = searchBox.getBoundingClientRect();
-        top = rect.bottom + 6;
-        left = rect.left;
-
-        if (left + cardWidth > window.innerWidth - 12) {
-          left = window.innerWidth - cardWidth - 12;
-        }
-        if (left < 12) left = 12;
-
-        const estimatedHeight = card.offsetHeight || 440;
-        if (top + estimatedHeight > window.innerHeight - 12 && rect.top > estimatedHeight + 12) {
-          top = Math.max(12, rect.top - estimatedHeight - 6);
-        }
-      } else {
-        left = Math.max(12, (window.innerWidth - cardWidth) / 2);
-        top = Math.max(20, (window.innerHeight - 450) / 2);
-      }
-
-      card.style.position = 'fixed';
-      card.style.top = `${Math.round(top)}px`;
-      card.style.left = `${Math.round(left)}px`;
-      card.style.width = `${cardWidth}px`;
+      if (this.searchManager) this.searchManager.positionSearchModal();
     }
 
     exitSearch() {
-      this.state.searchQuery = '';
-      this.state.isSearchActive = false;
-      const searchInput = document.getElementById('searchInput');
-      const searchClearBtn = document.getElementById('searchClearBtn');
-      if (searchInput) searchInput.value = '';
-      if (searchClearBtn) searchClearBtn.style.display = 'none';
-      if (this.el.searchResultsBanner) this.el.searchResultsBanner.style.display = 'none';
-      this.loadDirectory(this.state.currentPath);
+      if (this.searchManager) this.searchManager.exitSearch();
     }
 
-    // -------------------------------------------------------------
-    // ADMIN EXPLORER MODALS
-    // -------------------------------------------------------------
     openCreateFolderModal() {
-      const canCreate = this.state.isAdmin || (this.state.userRights && this.state.userRights.can_create_folder);
-      if (!canCreate) return;
-
-      if (window.sys && window.sys.dialog && typeof window.sys.dialog.prompt === 'function') {
-        window.sys.dialog.prompt(
-          this.t('folder.new_name_placeholder'),
-          this.t('nav.create_folder'),
-          ''
-        ).then(async name => {
-          if (name && name.trim()) {
-            try {
-              const json = await window.sys.api.fs.createFolder(this.state.currentPath, name.trim());
-              if (json.success) {
-                this.showToast(this.t('folder.create_success'), 'success');
-                if (window.EventBus) {
-                  window.EventBus.emit('fs:changed', { action: 'create_folder', dir: this.state.currentPath });
-                } else {
-                  await this.loadDirectory(this.state.currentPath);
-                }
-              } else {
-                this.showToast('⚠️ ' + (json.error || this.t('api.err_save_failed')), 'error');
-              }
-            } catch (err) {
-              this.showToast(`⚠️ Erreur: ${err.message}`, 'error');
-            }
-          }
-        });
-        return;
-      }
-
-      this.manager.activeModalInstance = this;
-      const modal = this.el.createFolderModal || document.getElementById('createFolderModal');
-      if (!modal) return;
-      this.el.createFolderModal = modal;
-      this.el.newFolderNameInput = this.el.newFolderNameInput || document.getElementById('createFolderNameInput') || document.getElementById('newFolderNameInput');
-      this.el.createFolderError = this.el.createFolderError || document.getElementById('createFolderError');
-
-      if (this.el.createFolderError) this.el.createFolderError.style.display = 'none';
-      modal.style.display = 'flex';
-      modal.classList.add('open');
-      if (this.el.newFolderNameInput) {
-        this.el.newFolderNameInput.value = '';
-        setTimeout(() => this.el.newFolderNameInput.focus(), 50);
-      }
+      if (this.modalsManager) this.modalsManager.openCreateFolderModal();
     }
 
     closeCreateFolderModal() {
-      const modal = this.el.createFolderModal || document.getElementById('createFolderModal');
-      if (!modal) return;
-      modal.style.display = 'none';
-      modal.classList.remove('open');
+      if (this.modalsManager) this.modalsManager.closeCreateFolderModal();
     }
 
     async createFolder() {
-      if (!this.el.newFolderNameInput) return;
-      const name = this.el.newFolderNameInput.value.trim();
-      if (!name) return;
-
-      try {
-        const json = await window.sys.api.fs.createFolder(this.state.currentPath, name);
-        if (json.success) {
-          this.closeCreateFolderModal();
-          this.showToast(this.t('folder.create_success'), 'success');
-          if (window.EventBus) {
-            window.EventBus.emit('fs:changed', { action: 'create_folder', dir: this.state.currentPath });
-          } else {
-            await this.loadDirectory(this.state.currentPath);
-          }
-        } else {
-          this.showToast('⚠️ ' + (json.error || 'Erreur lors de la création'), 'error');
-        }
-      } catch (err) {
-        this.showToast(`⚠️ Erreur: ${err.message}`, 'error');
-      }
+      if (this.modalsManager) return this.modalsManager.createFolder();
     }
 
     openDeleteConfirmModal(path, name, type = 'file') {
-      const message = (type === 'folder')
-        ? this.t('delete_confirm.prompt_folder', { name })
-        : this.t('delete_confirm.prompt_file', { name });
-      const title = this.t('delete_confirm.title');
-
-      if (window.sys && window.sys.dialog && typeof window.sys.dialog.confirm === 'function') {
-        window.sys.dialog.confirm(
-          message,
-          title,
-          true
-        ).then(async confirmed => {
-          if (confirmed) {
-            this.pendingDeletePath = path;
-            await this.confirmDeleteItem();
-          }
-        });
-        return;
-      }
-
-      this.manager.activeModalInstance = this;
-      this.pendingDeletePath = path;
-      this.pendingDeleteType = type;
-      if (!this.el.deleteConfirmModal) return;
-      if (this.el.deleteConfirmMessage) {
-        this.el.deleteConfirmMessage.innerHTML = this.escapeHtml(message);
-      }
-      if (this.el.deleteConfirmItemName) this.el.deleteConfirmItemName.textContent = name;
-      if (this.el.deleteConfirmItemType) this.el.deleteConfirmItemType.textContent = (type === 'folder' ? 'dossier' : 'fichier');
-      this.el.deleteConfirmModal.style.display = 'flex';
-      this.el.deleteConfirmModal.classList.add('open');
+      if (this.modalsManager) this.modalsManager.openDeleteConfirmModal(path, name, type);
     }
 
     closeDeleteConfirmModal() {
-      if (!this.el.deleteConfirmModal) return;
-      this.el.deleteConfirmModal.style.display = 'none';
-      this.el.deleteConfirmModal.classList.remove('open');
-      this.pendingDeletePath = null;
+      if (this.modalsManager) this.modalsManager.closeDeleteConfirmModal();
     }
 
     async confirmDeleteItem() {
-      if (!this.pendingDeletePath) return;
-      const path = this.pendingDeletePath;
-
-      try {
-        const json = await window.sys.api.fs.deleteItem(path);
-        if (json.success) {
-          this.closeDeleteConfirmModal();
-          this.showToast(json.message || this.t('api.success_deleted'), 'success');
-          if (window.EventBus) {
-            window.EventBus.emit('fs:changed', { action: 'delete_item', target_path: path });
-          } else {
-            await this.loadDirectory(this.state.currentPath);
-          }
-        } else {
-          this.showToast('⚠️ ' + (json.error || 'Erreur lors de la suppression'), 'error');
-        }
-      } catch (err) {
-        this.showToast(`⚠️ Erreur: ${err.message}`, 'error');
-      }
+      if (this.modalsManager) return this.modalsManager.confirmDeleteItem();
     }
 
     deleteSelection() {
-      if (!this.state.selectedPaths || this.state.selectedPaths.size === 0) return;
-      const canDelete = this.state.isAdmin || (this.state.userRights && this.state.userRights.can_delete);
-      if (!canDelete) {
-        this.showToast('⚠️ Action non autorisée', 'error');
-        return;
-      }
-
-      const selected = Array.from(this.state.selectedPaths);
-      if (selected.length === 1) {
-        const first = selected[0];
-        const name = first.split('/').pop();
-        const folders = this.state.directories || this.state.folders || [];
-        const isFolder = folders.some(f => f.path === first);
-        this.openDeleteConfirmModal(first, name, isFolder ? 'folder' : 'file');
-      } else {
-        if (window.sys && window.sys.dialog && typeof window.sys.dialog.confirm === 'function') {
-          const message = this.t('delete_confirm.prompt_multiple', { count: selected.length });
-          const title = this.t('delete_confirm.title');
-          window.sys.dialog.confirm(
-            message,
-            title,
-            true
-          ).then(async confirmed => {
-            if (confirmed) {
-              let deletedCount = 0;
-              for (const p of selected) {
-                try {
-                  const res = await window.sys.api.fs.deleteItem(p);
-                  if (res && res.success) deletedCount++;
-                } catch (err) {}
-              }
-              this.state.selectedPaths.clear();
-              this.updateSelectionToolbar();
-              this.showToast(`${deletedCount} élément(s) supprimé(s)`, 'success');
-              if (window.EventBus) {
-                window.EventBus.emit('fs:changed', { action: 'delete_item', dir: this.state.currentPath });
-              } else {
-                await this.loadDirectory(this.state.currentPath);
-              }
-            }
-          });
-        }
-      }
+      if (this.modalsManager) this.modalsManager.deleteSelection();
     }
 
     openMediaCommentModal(filename, comment = '') {
-      this.manager.activeModalInstance = this;
-      if (!this.el.mediaCommentModal) return;
-      this.pendingCommentFilename = filename;
-      if (this.el.mediaCommentFilenameBadge) this.el.mediaCommentFilenameBadge.textContent = filename;
-      if (this.el.mediaCommentInput) this.el.mediaCommentInput.value = comment;
-      this.el.mediaCommentModal.style.display = 'block';
-      this.el.mediaCommentModal.classList.add('open');
+      if (this.modalsManager) this.modalsManager.openMediaCommentModal(filename, comment);
     }
 
     closeMediaCommentModal() {
-      if (!this.el.mediaCommentModal) return;
-      this.el.mediaCommentModal.style.display = 'none';
-      this.el.mediaCommentModal.classList.remove('open');
-      this.pendingCommentFilename = null;
+      if (this.modalsManager) this.modalsManager.closeMediaCommentModal();
     }
 
     async saveMediaComment() {
-      if (!this.pendingCommentFilename || !this.el.mediaCommentInput) return;
-      const comment = this.el.mediaCommentInput.value.trim();
-
-      try {
-        const json = await window.sys.api.fs.saveComment(this.state.currentPath, this.pendingCommentFilename, comment);
-        if (json.success) {
-          this.closeMediaCommentModal();
-          this.showToast('Légende enregistrée', 'success');
-          if (window.EventBus) {
-            window.EventBus.emit('fs:changed', { action: 'save_comment', dir: this.state.currentPath });
-          } else {
-            await this.loadDirectory(this.state.currentPath);
-          }
-        } else {
-          this.showToast('⚠️ ' + (json.error || 'Erreur d\'enregistrement'), 'error');
-        }
-      } catch (err) {
-        this.showToast(`⚠️ Erreur: ${err.message}`, 'error');
-      }
+      if (this.modalsManager) return this.modalsManager.saveMediaComment();
     }
 
     openFolderUnlockModal(dirPath) {
-      this.manager.activeModalInstance = this;
-      if (!this.el.folderUnlockModal) return;
-      this.pendingUnlockDirPath = dirPath;
-      if (this.el.folderPasswordInput) this.el.folderPasswordInput.value = '';
-      if (this.el.folderUnlockError) this.el.folderUnlockError.style.display = 'none';
-      this.el.folderUnlockModal.style.display = 'flex';
-      this.el.folderUnlockModal.classList.add('open');
-      if (this.el.folderPasswordInput) {
-        setTimeout(() => this.el.folderPasswordInput.focus(), 50);
-      }
+      if (this.modalsManager) this.modalsManager.openFolderUnlockModal(dirPath);
     }
 
     closeFolderUnlockModal() {
-      if (!this.el.folderUnlockModal) return;
-      this.el.folderUnlockModal.style.display = 'none';
-      this.el.folderUnlockModal.classList.remove('open');
-      this.pendingUnlockDirPath = null;
+      if (this.modalsManager) this.modalsManager.closeFolderUnlockModal();
     }
 
     async unlockFolder() {
-      if (!this.pendingUnlockDirPath || !this.el.folderPasswordInput) return;
-      const password = this.el.folderPasswordInput.value;
-
-      try {
-        const json = await window.sys.api.fs.unlockFolder(this.pendingUnlockDirPath, password);
-        if (json.success) {
-          const unlockedPath = this.pendingUnlockDirPath;
-          this.closeFolderUnlockModal();
-          this.showToast('Dossier déverrouillé', 'success');
-          await this.navigateTo(unlockedPath);
-        } else {
-          if (this.el.folderUnlockError) {
-            this.el.folderUnlockError.textContent = json.error || 'Mot de passe incorrect';
-            this.el.folderUnlockError.style.display = 'block';
-          }
-        }
-      } catch (err) {
-        this.showToast(`⚠️ Erreur: ${err.message}`, 'error');
-      }
+      if (this.modalsManager) return this.modalsManager.unlockFolder();
     }
 
     async openFolderSettingsModal(targetDir = null) {
-      this.manager.activeModalInstance = this;
-      const modal = this.el.folderSettingsModal || document.getElementById('folderSettingsModal');
-      if (!this.state.isAdmin || !modal) return;
-      this.el.folderSettingsModal = modal;
-
-      this.el.dotfileTitleInput = this.el.dotfileTitleInput || document.getElementById('dotfileTitleInput');
-      this.el.dotfileDescInput = this.el.dotfileDescInput || document.getElementById('dotfileDescInput');
-      this.el.dotfileBgInput = this.el.dotfileBgInput || document.getElementById('dotfileBgInput');
-      this.el.dotfileAccessModeSelect = this.el.dotfileAccessModeSelect || document.getElementById('dotfileAccessModeSelect');
-      this.el.folderPasswordGroup = this.el.folderPasswordGroup || document.getElementById('folderPasswordGroup');
-      this.el.dotfilePasswordInput = this.el.dotfilePasswordInput || document.getElementById('dotfilePasswordInput');
-
-      const target = (typeof targetDir === 'string') ? targetDir : (this.state.currentPath || '');
-      this.modalFolderSettingsDir = target;
-
-      let overrides = this.state.overrides || {};
-      if (target !== (this.state.currentPath || '')) {
-        try {
-          const res = await window.sys.api.get('get_gallery', { dir: target, _t: Date.now() });
-          if (res && res.success && res.overrides) {
-            overrides = res.overrides;
-          }
-        } catch (e) {
-          console.warn('[Explorer] Could not fetch overrides for folder:', target, e);
-        }
-      }
-
-      if (this.el.dotfileTitleInput) this.el.dotfileTitleInput.value = overrides.title || '';
-      if (this.el.dotfileDescInput) this.el.dotfileDescInput.value = overrides.description || '';
-      if (this.el.dotfileBgInput) this.el.dotfileBgInput.value = overrides.background || '';
-      if (this.el.dotfileAccessModeSelect) {
-        this.el.dotfileAccessModeSelect.value = overrides.access_mode || 'public';
-        this.el.dotfileAccessModeSelect.onchange = () => {
-          if (this.el.folderPasswordGroup) {
-            this.el.folderPasswordGroup.style.display = (this.el.dotfileAccessModeSelect.value === 'password') ? 'block' : 'none';
-          }
-        };
-      }
-      if (this.el.dotfilePasswordInput) this.el.dotfilePasswordInput.value = '';
-      if (this.el.folderPasswordGroup) {
-        this.el.folderPasswordGroup.style.display = (overrides.access_mode === 'password') ? 'block' : 'none';
-      }
-      modal.style.display = 'flex';
-      modal.classList.add('open');
+      if (this.modalsManager) return this.modalsManager.openFolderSettingsModal(targetDir);
     }
 
     closeFolderSettingsModal() {
-      const modal = this.el.folderSettingsModal || document.getElementById('folderSettingsModal');
-      if (!modal) return;
-      modal.style.display = 'none';
-      modal.classList.remove('open');
+      if (this.modalsManager) this.modalsManager.closeFolderSettingsModal();
     }
 
     async saveFolderSettings() {
-      try {
-        const targetDir = (this.modalFolderSettingsDir !== undefined && this.modalFolderSettingsDir !== null)
-          ? this.modalFolderSettingsDir
-          : (this.state.currentPath || '');
-
-        const json = await window.sys.api.fs.saveFolderSettings({
-          dir: targetDir,
-          title: this.el.dotfileTitleInput ? this.el.dotfileTitleInput.value.trim() : '',
-          description: this.el.dotfileDescInput ? this.el.dotfileDescInput.value.trim() : '',
-          background: this.el.dotfileBgInput ? this.el.dotfileBgInput.value.trim() : '',
-          access_mode: this.el.dotfileAccessModeSelect ? this.el.dotfileAccessModeSelect.value : 'public',
-          password: this.el.dotfilePasswordInput ? this.el.dotfilePasswordInput.value : ''
-        });
-        if (json.success) {
-          this.closeFolderSettingsModal();
-          this.showToast(json.message || this.t('api.msg_folder_settings_saved'), 'success');
-          if (window.EventBus) {
-            window.EventBus.emit('fs:changed', { action: 'save_folder_settings', dir: targetDir });
-          } else {
-            await this.loadDirectory(this.state.currentPath);
-          }
-        } else {
-          this.showToast('⚠️ ' + (json.error || this.t('api.err_save_failed')), 'error');
-        }
-      } catch (err) {
-        this.showToast(`⚠️ Erreur: ${err.message}`, 'error');
-      }
+      if (this.modalsManager) return this.modalsManager.saveFolderSettings();
     }
 
     async handleUploadFiles(files, targetDir = null) {
-      if (!files || files.length === 0) return;
-      const destination = (targetDir !== null && typeof targetDir === 'string') ? targetDir : this.state.currentPath;
+      if (this.operationsManager) return this.operationsManager.handleUploadFiles(files, targetDir);
+    }
 
-      const formData = new FormData();
-      formData.append('dir', destination);
-      for (let i = 0; i < files.length; i++) {
-        formData.append('files[]', files[i]);
-      }
+    copySelection() {
+      if (this.operationsManager) this.operationsManager.copySelection();
+    }
 
-      const progressModal = document.getElementById('uploadProgressModal');
-      const progressBar = document.getElementById('uploadProgressBar');
-      const progressStatus = document.getElementById('uploadProgressStatus');
+    cutSelection() {
+      if (this.operationsManager) this.operationsManager.cutSelection();
+    }
 
-      if (progressModal) {
-        if (progressBar) {
-          progressBar.style.width = '0%';
-          progressBar.textContent = '0%';
-        }
-        if (progressStatus) {
-          progressStatus.textContent = `Téléversement de ${files.length} fichier(s)...`;
-        }
-        progressModal.style.display = 'flex';
-        progressModal.classList.add('open');
-      } else {
-        this.showToast(`Téléversement de ${files.length} fichier(s)...`, 'info');
-      }
+    async pasteClipboard() {
+      if (this.operationsManager) return this.operationsManager.pasteClipboard();
+    }
 
-      try {
-        const json = await window.sys.api.upload('upload_file', formData, (percent) => {
-          if (progressBar) {
-            progressBar.style.width = `${percent}%`;
-            progressBar.textContent = `${percent}%`;
-          }
-        });
+    toggleInspector(forceState) {
+      if (this.inspectorManager) this.inspectorManager.toggleInspector(forceState);
+    }
 
-        if (json && json.success) {
-          this.showToast(json.message || this.t('api.success_uploaded', { count: files.length }), 'success');
-          if (window.EventBus) {
-            window.EventBus.emit('fs:changed', { action: 'upload', dir: destination });
-          } else {
-            await this.loadDirectory(this.state.currentPath);
-          }
-        } else {
-          this.showToast('⚠️ ' + ((json && json.error) || this.t('api.err_upload_failed')), 'error');
-        }
-      } catch (err) {
-        this.showToast(`⚠️ ${err.message}`, 'error');
-      } finally {
-        if (progressModal) {
-          progressModal.style.display = 'none';
-          progressModal.classList.remove('open');
-        }
-      }
+    updateInspectorUI() {
+      if (this.inspectorManager) this.inspectorManager.updateInspectorUI();
     }
 
     renderProtectedState(dirPath) {
@@ -2132,90 +1164,7 @@
       `;
     }
 
-    copySelection() {
-      const selectedPaths = Array.from(this.state.selectedPaths || []);
-      if (selectedPaths.length === 0) return;
-      const files = this.state.files || [];
-      const folders = this.state.directories || this.state.folders || [];
-      const items = [];
-      selectedPaths.forEach(p => {
-        const f = files.find(item => item.path === p);
-        const folder = folders.find(item => item.path === p);
-        if (f) items.push(f);
-        else if (folder) items.push({ ...folder, is_folder: true });
-        else items.push({ path: p, name: p.split('/').pop() });
-      });
-
-      if (window.sys && window.sys.clipboard) {
-        window.sys.clipboard.copyFiles(items);
-        this.showToast(this.t('clipboard.items_copied', { count: items.length }), 'info');
-      }
-    }
-
-    cutSelection() {
-      const selectedPaths = Array.from(this.state.selectedPaths || []);
-      if (selectedPaths.length === 0) return;
-      const files = this.state.files || [];
-      const folders = this.state.directories || this.state.folders || [];
-      const items = [];
-      selectedPaths.forEach(p => {
-        const f = files.find(item => item.path === p);
-        const folder = folders.find(item => item.path === p);
-        if (f) items.push(f);
-        else if (folder) items.push({ ...folder, is_folder: true });
-        else items.push({ path: p, name: p.split('/').pop() });
-      });
-
-      if (window.sys && window.sys.clipboard) {
-        window.sys.clipboard.cutFiles(items);
-        this.showToast(this.t('clipboard.items_cut', { count: items.length }), 'info');
-      }
-    }
-
-    async pasteClipboard() {
-      if (!window.sys || !window.sys.clipboard || !window.sys.clipboard.hasData()) return;
-      const clip = window.sys.clipboard.paste();
-      if (clip.type !== 'files' || !Array.isArray(clip.data) || clip.data.length === 0) return;
-
-      const dest = this.state.currentPath;
-      let successCount = 0;
-      let lastError = null;
-
-      for (const item of clip.data) {
-        const sourcePath = item.path || item;
-        try {
-          if (clip.op === 'cut') {
-            const res = await window.sys.api.fs.moveItem(sourcePath, dest);
-            if (res && res.success) successCount++;
-            else if (res && res.error) lastError = res.error;
-          } else {
-            const res = await window.sys.api.fs.copyItem(sourcePath, dest);
-            if (res && res.success) successCount++;
-            else if (res && res.error) lastError = res.error;
-          }
-        } catch (e) {
-          lastError = e.message;
-        }
-      }
-
-      if (clip.op === 'cut' && successCount > 0) {
-        window.sys.clipboard.clear();
-      }
-
-      if (successCount > 0) {
-        this.showToast(this.t('clipboard.items_pasted', { count: successCount }), 'success');
-        if (window.EventBus) {
-          window.EventBus.emit('fs:changed', { action: clip.op, dir: dest });
-        } else {
-          await this.loadDirectory(this.state.currentPath);
-        }
-      } else if (lastError) {
-        this.showToast(`⚠️ ${lastError}`, 'error');
-      }
-    }
-
     onLocaleChanged() {
-      // Re-apply DOM translations inside this instance container
       if (this.containerEl) {
         this.containerEl.querySelectorAll('[data-i18n]').forEach(el => {
           const key = el.dataset.i18n;
@@ -2242,15 +1191,12 @@
         });
       }
 
-      // Update dynamic selection UI
       this.updateSelectionUI();
 
-      // Refresh breadcrumbs
       if (this.state && Array.isArray(this.state.currentBreadcrumbs)) {
         this.renderBreadcrumbs(this.state.currentBreadcrumbs);
       }
 
-      // Refresh file/folder grid
       this.applyFilterAndRender();
       if (typeof this.updateSortUI === 'function') {
         this.updateSortUI();
@@ -2258,10 +1204,9 @@
     }
 
     // -------------------------------------------------------------
-    // INSTANCE EVENTS & DRAG-AND-DROP RECEPTION
+    // INSTANCE EVENTS (KEYBOARD, TOOLBARS, INSPECTOR, SEARCH)
     // -------------------------------------------------------------
     bindEvents() {
-      // Keyboard shortcuts within Explorer instance
       this.containerEl.setAttribute('tabindex', '-1');
       this.containerEl.addEventListener('keydown', (e) => {
         const tag = e.target.tagName ? e.target.tagName.toLowerCase() : '';
@@ -2298,8 +1243,7 @@
           if (this.state.selectedPaths && this.state.selectedPaths.size > 0) {
             e.preventDefault();
             const first = Array.from(this.state.selectedPaths)[0];
-            const files = this.state.files || [];
-            const file = files.find(f => f.path === first);
+            const file = (this.state.files || []).find(f => f.path === first);
             if (file && window.sys && window.sys.openFile) {
               window.sys.openFile(file);
             }
@@ -2313,8 +1257,7 @@
             if (folder) {
               this.loadDirectory(folder.path);
             } else {
-              const files = this.state.files || [];
-              const file = files.find(f => f.path === first);
+              const file = (this.state.files || []).find(f => f.path === first);
               if (file && window.sys && window.sys.openFile) {
                 window.sys.openFile(file);
               }
@@ -2323,21 +1266,17 @@
         } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           if (this.state.filteredFiles && this.state.filteredFiles.length > 0) {
             e.preventDefault();
-            let currentIndex = this.state.lastSelectedIndex !== null ? this.state.lastSelectedIndex : -1;
-            let nextIndex = currentIndex;
-            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-              nextIndex = Math.min(this.state.filteredFiles.length - 1, currentIndex + 1);
-            } else {
-              nextIndex = Math.max(0, currentIndex - 1);
-            }
+            const currentIndex = this.state.lastSelectedIndex !== null ? this.state.lastSelectedIndex : -1;
+            const nextIndex = (e.key === 'ArrowRight' || e.key === 'ArrowDown')
+              ? Math.min(this.state.filteredFiles.length - 1, currentIndex + 1)
+              : Math.max(0, currentIndex - 1);
             if (nextIndex >= 0 && nextIndex < this.state.filteredFiles.length) {
               const targetFile = this.state.filteredFiles[nextIndex];
               this.state.selectedPaths.clear();
               this.state.selectedPaths.add(targetFile.path);
               this.state.lastSelectedIndex = nextIndex;
               this.updateSelectionUI();
-              // Scroll card into view
-              const card = this.el.mediaGrid.querySelector(`[data-index="${nextIndex}"]`);
+              const card = this.el.mediaGrid && this.el.mediaGrid.querySelector(`[data-index="${nextIndex}"]`);
               if (card && typeof card.scrollIntoView === 'function') {
                 card.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
               }
@@ -2347,54 +1286,6 @@
           if (!e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
             this.toggleInspector();
-          }
-        }
-      });
-
-      // Cross-window and OS file drop target on main instance container
-      this.containerEl.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        const hasExternalFiles = e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files');
-        const hasInternalItems = !!window.ATELIER_DRAGGING_PATHS;
-
-        if (hasInternalItems) {
-          e.dataTransfer.dropEffect = 'move';
-        } else if (hasExternalFiles) {
-          e.dataTransfer.dropEffect = 'copy';
-        }
-      });
-
-      this.containerEl.addEventListener('drop', async (e) => {
-        // If dropped onto a specific subfolder card or breadcrumb item, let child handle it
-        if (e.target && (e.target.closest('.folder-card') || e.target.closest('.crumb-item'))) {
-          return;
-        }
-
-        e.preventDefault();
-        e.stopPropagation();
-
-        // 1. External files from OS
-        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0 && !window.ATELIER_DRAGGING_PATHS) {
-          const canUpload = this.state.isAdmin || (this.state.userRights && this.state.userRights.can_upload);
-          if (canUpload) {
-            this.handleUploadFiles(e.dataTransfer.files, this.state.currentPath);
-          }
-          return;
-        }
-
-        // 2. Internal Drag & Drop from another explorer window or same window
-        let pathsToMove = this.state.draggingPaths || window.ATELIER_DRAGGING_PATHS;
-        if (!pathsToMove) {
-          try {
-            const data = e.dataTransfer.getData('application/json') || e.dataTransfer.getData('text/plain');
-            if (data) pathsToMove = JSON.parse(data);
-          } catch (err) { }
-        }
-
-        if (pathsToMove) {
-          const arr = Array.isArray(pathsToMove) ? pathsToMove : [pathsToMove];
-          if (arr.length > 0) {
-            await this.moveItems(arr, this.state.currentPath);
           }
         }
       });
@@ -2411,152 +1302,16 @@
       if (this.el.folderMapBtn) this.el.folderMapBtn.onclick = () => this.openMapModal();
       if (this.el.folderSettingsBtn) this.el.folderSettingsBtn.onclick = () => this.openFolderSettingsModal();
       if (this.el.mapModalCloseBtn) this.el.mapModalCloseBtn.onclick = () => this.closeMapModal();
-      if (this.el.exitSearchBtn) this.el.exitSearchBtn.onclick = () => this.exitSearch();
       if (this.el.selectionCopyBtn) this.el.selectionCopyBtn.onclick = () => this.copySelection();
       if (this.el.selectionCutBtn) this.el.selectionCutBtn.onclick = () => this.cutSelection();
       if (this.el.selectionDeleteBtn) this.el.selectionDeleteBtn.onclick = () => this.deleteSelection();
       if (this.el.selectionSelectAllBtn) this.el.selectionSelectAllBtn.onclick = () => this.selectAll();
       if (this.el.selectionClearBtn) this.el.selectionClearBtn.onclick = () => this.clearSelection();
 
-      if (this.el.searchModalCloseBtn) this.el.searchModalCloseBtn.onclick = () => this.closeSearchModal();
-
-      if (this.el.searchModal) {
-        this.el.searchModal.onclick = (e) => {
-          if (e.target === this.el.searchModal) {
-            this.closeSearchModal();
-          }
-        };
+      if (this.searchManager) {
+        this.searchManager.bindEvents();
       }
 
-      this._onSearchModalKeyDown = (e) => {
-        if (e.key === 'Escape' && this.isSearchModalOpen) {
-          this.closeSearchModal();
-        }
-      };
-      document.addEventListener('keydown', this._onSearchModalKeyDown);
-
-      this._onSearchModalResize = () => {
-        if (this.isSearchModalOpen) {
-          this.positionSearchModal();
-        }
-      };
-      window.addEventListener('resize', this._onSearchModalResize);
-
-      if (this.el.advSearchTiming) {
-        this.el.advSearchTiming.onchange = () => {
-          if (this.el.advSearchCustomDateRow) {
-            this.el.advSearchCustomDateRow.style.display = (this.el.advSearchTiming.value === 'custom') ? 'flex' : 'none';
-          }
-        };
-      }
-
-      if (this.el.advSearchResetBtn) {
-        this.el.advSearchResetBtn.onclick = () => {
-          if (this.el.searchAdvancedForm) this.el.searchAdvancedForm.reset();
-          if (this.el.advSearchCustomDateRow) this.el.advSearchCustomDateRow.style.display = 'none';
-          this.exitSearch();
-          this.closeSearchModal();
-        };
-      }
-
-      if (this.el.exitSearchBtn) {
-        this.el.exitSearchBtn.onclick = () => this.exitSearch();
-      }
-
-      if (this.el.searchAdvancedForm) {
-        this.el.searchAdvancedForm.onsubmit = async (e) => {
-          e.preventDefault();
-          const name = this.el.advSearchName ? this.el.advSearchName.value.trim() : '';
-          const words = this.el.advSearchWords ? this.el.advSearchWords.value.trim() : '';
-          const category = this.el.advSearchCategory ? this.el.advSearchCategory.value : 'all';
-          const location = this.el.advSearchLocation ? this.el.advSearchLocation.value : 'current';
-          const timing = this.el.advSearchTiming ? this.el.advSearchTiming.value : 'all';
-          const dateFrom = this.el.advSearchDateFrom ? this.el.advSearchDateFrom.value : '';
-          const dateTo = this.el.advSearchDateTo ? this.el.advSearchDateTo.value : '';
-          const sizeRange = this.el.advSearchSize ? this.el.advSearchSize.value : 'all';
-          const gpsOnly = this.el.advSearchGpsOnly ? this.el.advSearchGpsOnly.checked : false;
-          const favOnly = this.el.advSearchFavOnly ? this.el.advSearchFavOnly.checked : false;
-
-          this.closeSearchModal();
-          this.showLoading(true);
-
-          try {
-            const params = {
-              dir: this.state.currentPath,
-              name: name,
-              words: words,
-              category: category,
-              timing: timing,
-              date_from: dateFrom,
-              date_to: dateTo,
-              size_range: sizeRange,
-              gps_only: gpsOnly ? 1 : 0,
-              recursive: location === 'everywhere' ? 1 : 0
-            };
-
-            const json = await window.sys.api.get('search_media', params);
-            if (json && json.success && Array.isArray(json.results)) {
-              let results = json.results;
-              if (favOnly) {
-                results = results.filter(f => (this.state.favorites || []).includes(f.path));
-              }
-
-              this.state.isSearchActive = true;
-              this.state.searchQuery = '';
-              this.state.files = results;
-              this.state.directories = [];
-
-              if (this.el.folderSection) this.el.folderSection.style.display = 'none';
-              if (this.el.searchResultsBanner) {
-                this.el.searchResultsBanner.style.display = 'flex';
-                if (this.el.searchResultsCountText) {
-                  this.el.searchResultsCountText.textContent = `${results.length} ${this.t('search.results_found')}`;
-                }
-              }
-
-              this.applyFilterAndRender();
-              this.showToast(`${results.length} ${this.t('search.results_found')}`, 'info');
-            } else {
-              this.showToast(this.t('search.results_found') + ': 0', 'info');
-            }
-          } catch (err) {
-            this.showToast(`⚠️ ${err.message}`, 'error');
-          } finally {
-            this.showLoading(false);
-          }
-        };
-      }
-
-      // Quick Live Filter Search Input
-      if (this.el.quickSearchInput) {
-        this.el.quickSearchInput.oninput = (e) => {
-          const val = (e.target.value || '').trim().toLowerCase();
-          this.state.searchQuery = val;
-          if (this.el.quickSearchClearBtn) {
-            this.el.quickSearchClearBtn.style.display = val ? 'block' : 'none';
-          }
-          this.applyFilterAndRender();
-        };
-        this.el.quickSearchInput.onkeydown = (e) => {
-          if (e.key === 'Escape') {
-            e.preventDefault();
-            this.el.quickSearchInput.value = '';
-            this.state.searchQuery = '';
-            if (this.el.quickSearchClearBtn) this.el.quickSearchClearBtn.style.display = 'none';
-            this.applyFilterAndRender();
-          }
-        };
-      }
-      if (this.el.quickSearchClearBtn) {
-        this.el.quickSearchClearBtn.onclick = () => {
-          if (this.el.quickSearchInput) this.el.quickSearchInput.value = '';
-          this.state.searchQuery = '';
-          this.el.quickSearchClearBtn.style.display = 'none';
-          this.applyFilterAndRender();
-        };
-      }
-
-      // Quick View Switcher Buttons
       if (this.el.viewModeBtns) {
         this.el.viewModeBtns.forEach(btn => {
           btn.onclick = () => {
@@ -2566,7 +1321,6 @@
         });
       }
 
-      // Inspector Drawer Toggle
       if (this.el.inspectorToggleBtn) {
         this.el.inspectorToggleBtn.onclick = () => this.toggleInspector();
       }
@@ -2590,105 +1344,7 @@
     }
 
     // -------------------------------------------------------------
-    // INSPECTOR DRAWER LOGIC
-    // -------------------------------------------------------------
-    toggleInspector(forceState) {
-      if (!this.el.inspectorDrawer) return;
-      const isVisible = (this.el.inspectorDrawer.style.display !== 'none');
-      const newState = (forceState !== undefined) ? forceState : !isVisible;
-      this.el.inspectorDrawer.style.display = newState ? 'flex' : 'none';
-      if (this.el.inspectorToggleBtn) {
-        this.el.inspectorToggleBtn.classList.toggle('active', newState);
-      }
-      if (newState) {
-        this.updateInspectorUI();
-      }
-    }
-
-    updateInspectorUI() {
-      if (!this.el.inspectorDrawer || this.el.inspectorDrawer.style.display === 'none') return;
-      const selected = Array.from(this.state.selectedPaths);
-      if (selected.length === 0) {
-        if (this.el.inspectorEmptyState) this.el.inspectorEmptyState.style.display = 'block';
-        if (this.el.inspectorDetails) this.el.inspectorDetails.style.display = 'none';
-        return;
-      }
-
-      const firstPath = selected[0];
-      const file = (this.state.files || []).find(f => f.path === firstPath);
-      if (!file) {
-        if (this.el.inspectorEmptyState) this.el.inspectorEmptyState.style.display = 'block';
-        if (this.el.inspectorDetails) this.el.inspectorDetails.style.display = 'none';
-        return;
-      }
-
-      if (this.el.inspectorEmptyState) this.el.inspectorEmptyState.style.display = 'none';
-      if (this.el.inspectorDetails) this.el.inspectorDetails.style.display = 'block';
-
-      if (this.el.inspectorFilenameBadge) this.el.inspectorFilenameBadge.textContent = file.name;
-      if (this.el.inspectorMetaName) this.el.inspectorMetaName.textContent = file.name;
-      if (this.el.inspectorMetaSize) this.el.inspectorMetaSize.textContent = file.size_formatted || `${file.size || 0} octets`;
-      if (this.el.inspectorMetaDim) this.el.inspectorMetaDim.textContent = file.dimensions || '-';
-      if (this.el.inspectorMetaDate) {
-        const d = new Date((file.effective_mtime || file.mtime || Date.now() / 1000) * 1000);
-        this.el.inspectorMetaDate.textContent = d.toLocaleString();
-      }
-      if (this.el.inspectorMetaComment) this.el.inspectorMetaComment.textContent = file.comment || '-';
-      if (this.el.inspectorMetaCamera) {
-        const exif = file.exif || {};
-        const cam = [exif.make, exif.model].filter(Boolean).join(' ');
-        this.el.inspectorMetaCamera.textContent = cam || '-';
-      }
-      if (this.el.inspectorMetaGps) {
-        const gps = (file.exif && file.exif.gps) ? `${file.exif.gps.lat.toFixed(4)}, ${file.exif.gps.lng.toFixed(4)}` : '-';
-        this.el.inspectorMetaGps.textContent = gps;
-      }
-
-      // Preview rendering
-      if (this.el.inspectorPreviewImg && this.el.inspectorPreviewIcon) {
-        if (file.category === 'image' || file.thumb_url) {
-          this.el.inspectorPreviewImg.src = file.thumb_url || file.file_url;
-          this.el.inspectorPreviewImg.style.display = 'block';
-          this.el.inspectorPreviewIcon.style.display = 'none';
-        } else {
-          this.el.inspectorPreviewImg.style.display = 'none';
-          this.el.inspectorPreviewIcon.style.display = 'block';
-          this.el.inspectorPreviewIcon.textContent = window.IconHelper ? window.IconHelper.getFileIcon(file) : '📄';
-        }
-      }
-
-      // Open-with compatible apps (native + standalone third-party web apps)
-      if (this.el.inspectorOpenWithSection && this.el.inspectorOpenWithList) {
-        const appMgr = window.sys && window.sys.appManager;
-        const compatibleApps = (appMgr && typeof appMgr.getAppsForFile === 'function')
-          ? appMgr.getAppsForFile(file)
-          : [];
-
-        if (compatibleApps.length > 0) {
-          this.el.inspectorOpenWithSection.style.display = 'block';
-          this.el.inspectorOpenWithList.innerHTML = '';
-          compatibleApps.forEach((app) => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'inspector-open-with-btn';
-            btn.innerHTML = `<span>${app.icon || '🗔'}</span><span>${this.escapeHtml(app.name)}</span>`;
-            btn.onclick = () => {
-              if (appMgr && typeof appMgr.launchApp === 'function') {
-                appMgr.launchApp(app.id, { file });
-              }
-            };
-            this.el.inspectorOpenWithList.appendChild(btn);
-          });
-        } else {
-          this.el.inspectorOpenWithSection.style.display = 'none';
-          this.el.inspectorOpenWithList.innerHTML = '';
-        }
-      }
-    }
-
-    // -------------------------------------------------------------
-    // -------------------------------------------------------------
-    // MULTIMODAL BLOG & AUTORUN PRESENTATION LAUNCHER & BUILDER
+    // MULTIMODAL BLOG & AUTORUN PRESENTATION LAUNCHER & DELEGATES
     // -------------------------------------------------------------
     launchAutorun(autorunConfig) {
       const config = autorunConfig || (this.state.overrides && this.state.overrides.autorun);
@@ -2702,7 +1358,7 @@
       if (window.sys && window.sys.autorun && typeof window.sys.autorun.launch === 'function') {
         window.sys.autorun.launch(cleanConfig, this.state.currentPath, this);
       } else {
-        this.showToast('Moteur autorun non disponible', 'error');
+        this.showToast(this.t('explorer.err_autorun_unavailable'), 'error');
       }
     }
 
@@ -2713,7 +1369,6 @@
       }
       if (window.sys && window.sys.appManager && typeof window.sys.appManager.open === 'function') {
         window.sys.appManager.open('autorun-editor', { path: this.state.currentPath, config: existingConfig });
-        return;
       }
     }
 
@@ -2808,25 +1463,22 @@
       this.bindMenuBar();
       this.bindGlobalModals();
 
-      // Listen for filesystem & mounted volume changes across all instances
       if (window.EventBus && typeof window.EventBus.on === 'function') {
         window.EventBus.on('fs:changed', () => {
           this.instances.forEach(inst => {
             inst.loadDirectory(inst.state.currentPath);
           });
         });
-        const refreshVolumes = (evtPayload) => {
+
+        const refreshVolumes = () => {
           const vols = (window.sys && window.sys.shares && typeof window.sys.shares.getVolumes === 'function')
             ? window.sys.shares.getVolumes()
             : [];
           const mountedPaths = vols.map(v => String(v.path || '').replace(/^\/+|\/+$/g, ''));
           this.instances.forEach(inst => {
-            if (typeof inst.loadSavedPreferences === 'function') {
-              inst.loadSavedPreferences();
-            }
-            if (typeof inst.renderVolumesBar === 'function') {
-              inst.renderVolumesBar();
-            }
+            if (typeof inst.loadSavedPreferences === 'function') inst.loadSavedPreferences();
+            if (typeof inst.updateViewModeButtonsUI === 'function') inst.updateViewModeButtonsUI();
+            if (typeof inst.renderVolumesBar === 'function') inst.renderVolumesBar();
             const cur = String(inst.state.currentPath || '').replace(/^\/+|\/+$/g, '');
             const isScopedPath = cur.startsWith('ext://') || cur.startsWith('users/');
             if (isScopedPath) {
@@ -2841,7 +1493,6 @@
         window.EventBus.on('auth:changed', refreshVolumes);
       }
 
-      // Initial window on DOMContentLoaded handled by OS Boot / Autostart Processor
       if (!window.ATELIER_AUTOSTART_CONFIG) {
         this.createInstance();
       }
@@ -2857,9 +1508,6 @@
       if (active) active.state = val;
     }
 
-    /**
-     * Reload directory across all running Explorer instances or active instance
-     */
     loadDirectory(path) {
       if (this.instances && this.instances.size > 0) {
         this.instances.forEach(inst => {
@@ -2910,12 +1558,10 @@
     }
 
     open(params = {}) {
-      // If params.dir is given or user explicitly requests a new window
       if (params.newWindow || this.instances.size === 0) {
         return this.createInstance(params);
       }
 
-      // Normalize initialPath -> dir for callers like DesktopShortcuts / ShareVolumesService
       const targetDir = params.dir !== undefined ? params.dir : params.initialPath;
       if (targetDir !== undefined) {
         const normalizedParams = Object.assign({}, params, { dir: targetDir });
@@ -2926,16 +1572,14 @@
             return inst;
           }
         }
-        // If not found, open a new instance for this folder
         return this.createInstance(normalizedParams);
       }
 
-      // If launched without params, create a new explorer instance or focus the active one
       return this.createInstance(params);
     }
 
     // -------------------------------------------------------------
-    // CONTEXTUAL TOP MENUBAR INTEGRATION (macOS Style)
+    // CONTEXTUAL TOP MENUBAR INTEGRATION
     // -------------------------------------------------------------
     bindMenuBar() {
       if (!window.MenuBarManager) return;
@@ -2946,10 +1590,9 @@
 
         container.innerHTML = `
           <div class="explorer-header-bar">
-            <!-- Search Box -->
             <div class="search-box">
               <span class="search-icon">🔍</span>
-              <input type="text" id="searchInput" class="search-input" placeholder="${this.escapeHtml(this.t('nav.search_placeholder'))}" value="${this.escapeHtml(activeState.searchQuery || '')}" aria-label="Rechercher des médias">
+              <input type="text" id="searchInput" class="search-input" placeholder="${this.escapeHtml(this.t('nav.search_placeholder'))}" value="${this.escapeHtml(activeState.searchQuery || '')}" aria-label="${this.escapeHtml(this.t('nav.search_placeholder'))}">
               <button type="button" id="searchClearBtn" class="search-clear-btn" title="${this.escapeHtml(this.t('nav.search_clear'))}" style="${activeState.searchQuery ? 'display:inline-flex;' : 'display:none;'}">✕</button>
               <button type="button" id="advancedSearchBtn" class="search-filter-btn" title="${this.escapeHtml(this.t('nav.search_advanced'))}">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2961,9 +1604,8 @@
               </button>
             </div>
 
-            <!-- Sort Group -->
             <div class="sort-group">
-              <select id="sortSelect" class="sort-select" aria-label="Sort options">
+              <select id="sortSelect" class="sort-select" aria-label="${this.escapeHtml(this.t('sort.title'))}">
                 <option value="name" ${activeState.sortBy === 'name' ? 'selected' : ''}>${this.escapeHtml(this.t('sort.name'))}</option>
                 <option value="exif_date" ${activeState.sortBy === 'exif_date' ? 'selected' : ''}>${this.escapeHtml(this.t('sort.date'))}</option>
                 <option value="date" ${activeState.sortBy === 'date' ? 'selected' : ''}>${this.escapeHtml(this.t('sort.mtime'))}</option>
@@ -2974,17 +1616,14 @@
               </button>
             </div>
 
-            <!-- Favorites Toggle -->
             <button id="toggleFavoritesBtn" class="btn-toggle ${activeState.showFavoritesOnly ? 'active' : ''}" title="${this.escapeHtml(this.t('nav.favorites'))}">
               <span>❤️</span><span id="favCountBadge" class="fav-count-badge" style="${(activeState.favorites && activeState.favorites.length > 0) ? 'display:inline-flex;' : 'display:none;'}">${(activeState.favorites && activeState.favorites.length) || 0}</span>
             </button>
 
-            <!-- GPS Map Button -->
             <button type="button" id="menuFolderMapBtn" class="btn-toggle" style="display: none;" title="${this.escapeHtml(this.t('nav.map'))}">
               <span>🗺️</span>
             </button>
 
-            <!-- Archive Dropdown -->
             <div class="archive-dropdown-container" id="archiveDropdownContainer" style="${(activeState.userRights && activeState.userRights.can_download_archive === false && !activeState.isAdmin) ? 'display:none;' : 'display:inline-flex;'}">
               <button id="downloadArchiveBtn" class="btn-toggle" title="${this.escapeHtml(this.t('nav.download_archive'))}">
                 <span>⇲</span> ▾
@@ -2992,7 +1631,6 @@
               <div id="archiveMenu" class="archive-dropdown-menu"></div>
             </div>
 
-            <!-- View Mode Selector Dropdown -->
             <div class="view-selector-container" id="viewSelectorContainer">
               <button type="button" id="viewSelectorBtn" class="btn-toggle view-btn" title="${this.escapeHtml(this.t('view.switch_mode'))}">
                 <span id="currentViewIcon">${this.getViewModeIcon(activeState.viewMode || 'polaroid')}</span>
@@ -3002,12 +1640,10 @@
               <div id="viewDropdownMenu" class="view-dropdown-menu" style="display: none;"></div>
             </div>
 
-            <!-- New Window / Instance Action -->
             <button id="newExplorerWindowBtn" class="btn-toggle" title="${this.escapeHtml(this.t('explorer.new_window'))}" style="display:inline-flex;">
               <span>🗂️+</span>
             </button>
 
-            <!-- Folder & Upload Actions -->
             <button id="createFolderBtn" class="btn-toggle" title="${this.escapeHtml(this.t('nav.create_folder'))}" style="${(activeState.isAdmin || (activeState.userRights && activeState.userRights.can_create_folder)) ? 'display:inline-flex;' : 'display:none;'}">
               <span>📁+</span>
             </button>
@@ -3043,6 +1679,7 @@
       const uploadFileInput = document.getElementById('uploadFileInput');
       const folderSettingsBtn = document.getElementById('folderSettingsBtn');
       const newWinBtn = document.getElementById('newExplorerWindowBtn');
+      const menuMapBtn = document.getElementById('menuFolderMapBtn');
 
       if (searchInput) {
         searchInput.oninput = (e) => {
@@ -3067,11 +1704,8 @@
           if (e) e.stopPropagation();
           const active = this.getActiveInstance();
           if (active) {
-            if (active.isSearchModalOpen) {
-              active.closeSearchModal();
-            } else {
-              active.openSearchModal();
-            }
+            if (active.isSearchModalOpen) active.closeSearchModal();
+            else active.openSearchModal();
           }
         };
       }
@@ -3103,6 +1737,13 @@
         };
       }
 
+      if (menuMapBtn) {
+        menuMapBtn.onclick = () => {
+          const active = this.getActiveInstance();
+          if (active) active.openMapModal();
+        };
+      }
+
       if (dlArchiveBtn) {
         dlArchiveBtn.onclick = (e) => {
           e.stopPropagation();
@@ -3119,9 +1760,7 @@
       }
 
       if (newWinBtn) {
-        newWinBtn.onclick = () => {
-          this.createInstance();
-        };
+        newWinBtn.onclick = () => this.createInstance();
       }
 
       if (createFolderBtn) {
@@ -3143,6 +1782,7 @@
           if (active && e.target.files && e.target.files.length > 0) {
             active.handleUploadFiles(e.target.files);
           }
+          e.target.value = '';
         };
       }
 
@@ -3153,6 +1793,11 @@
         };
       }
 
+      this.updateViewDropdownUI();
+    }
+
+    updateViewModeUI() {
+      this.updateMenuBarForActiveInstance();
       this.updateViewDropdownUI();
     }
 
@@ -3197,7 +1842,7 @@
       if (views.length === 0) return;
 
       menu.innerHTML = views.map(v => `
-        <button type="button" class="view-option-btn ${currentMode === v.id ? 'active' : ''}" data-view-mode="${v.id}">
+        <button type="button" class="view-option-btn ${currentMode === v.id ? 'active' : ''}" data-view-mode="${this.escapeHtml(v.id)}">
           <span>${v.icon || '🖼️'}</span> <span>${this.escapeHtml(this.t(v.nameKey))}</span>
         </button>
       `).join('');
@@ -3256,24 +1901,27 @@
 
       let itemsHtml = '';
       if (Array.isArray(archives) && archives.length > 0) {
-        itemsHtml = archives.map(arch => `
-          <a href="${arch.url || `system/endpoints/archive.php?dir=${currentDir}&format=${arch.format || 'zip'}`}" download class="archive-menu-item">
-            <span>📦</span> <span>${this.escapeHtml(arch.name || `Télécharger (${(arch.format || 'ZIP').toUpperCase()})`)}</span>
-          </a>
-        `).join('');
+        itemsHtml = archives.map(arch => {
+          const fmt = (arch.format || 'zip').toUpperCase();
+          return `
+            <a href="${arch.url || `system/endpoints/archive.php?dir=${currentDir}&format=${encodeURIComponent(arch.format || 'zip')}`}" download class="archive-menu-item">
+              <span>📦</span> <span>${this.escapeHtml(arch.name || this.t('explorer.download_folder_format', { format: fmt }))}</span>
+            </a>
+          `;
+        }).join('');
       } else if (archives && typeof archives === 'object' && Object.keys(archives).length > 0) {
         itemsHtml = Object.keys(archives).map(fmt => {
           const label = fmt.toUpperCase();
           return `
             <a href="system/endpoints/archive.php?dir=${currentDir}&format=${encodeURIComponent(fmt)}" download class="archive-menu-item">
-              <span>📦</span> <span>Télécharger le dossier (${this.escapeHtml(label)})</span>
+              <span>📦</span> <span>${this.escapeHtml(this.t('explorer.download_folder_format', { format: label }))}</span>
             </a>
           `;
         }).join('');
       } else {
         itemsHtml = `
           <a href="system/endpoints/archive.php?dir=${currentDir}&format=zip" download class="archive-menu-item">
-            <span>📦</span> <span>Télécharger le dossier (ZIP)</span>
+            <span>📦</span> <span>${this.escapeHtml(this.t('explorer.download_folder_format', { format: 'ZIP' }))}</span>
           </a>
         `;
       }
@@ -3294,92 +1942,34 @@
         }
       });
 
-      // Bind global admin modal forms to delegate to activeModalInstance
+      const resolveModalInst = () => this.activeModalInstance || this.getActiveInstance();
+
       const createFolderCloseBtn = document.getElementById('createFolderCloseBtn');
       const createFolderForm = document.getElementById('createFolderForm');
-      if (createFolderCloseBtn) {
-        createFolderCloseBtn.onclick = () => {
-          const inst = this.activeModalInstance || this.getActiveInstance();
-          if (inst) inst.closeCreateFolderModal();
-        };
-      }
-      if (createFolderForm) {
-        createFolderForm.onsubmit = (e) => {
-          e.preventDefault();
-          const inst = this.activeModalInstance || this.getActiveInstance();
-          if (inst) inst.createFolder();
-        };
-      }
+      if (createFolderCloseBtn) createFolderCloseBtn.onclick = () => { const i = resolveModalInst(); if (i) i.closeCreateFolderModal(); };
+      if (createFolderForm) createFolderForm.onsubmit = (e) => { e.preventDefault(); const i = resolveModalInst(); if (i) i.createFolder(); };
 
       const deleteConfirmCloseBtn = document.getElementById('deleteConfirmCloseBtn');
       const deleteCancelBtn = document.getElementById('deleteCancelBtn');
       const deleteConfirmActionBtn = document.getElementById('deleteConfirmActionBtn');
-      if (deleteConfirmCloseBtn) {
-        deleteConfirmCloseBtn.onclick = () => {
-          const inst = this.activeModalInstance || this.getActiveInstance();
-          if (inst) inst.closeDeleteConfirmModal();
-        };
-      }
-      if (deleteCancelBtn) {
-        deleteCancelBtn.onclick = () => {
-          const inst = this.activeModalInstance || this.getActiveInstance();
-          if (inst) inst.closeDeleteConfirmModal();
-        };
-      }
-      if (deleteConfirmActionBtn) {
-        deleteConfirmActionBtn.onclick = () => {
-          const inst = this.activeModalInstance || this.getActiveInstance();
-          if (inst) inst.confirmDeleteItem();
-        };
-      }
+      if (deleteConfirmCloseBtn) deleteConfirmCloseBtn.onclick = () => { const i = resolveModalInst(); if (i) i.closeDeleteConfirmModal(); };
+      if (deleteCancelBtn) deleteCancelBtn.onclick = () => { const i = resolveModalInst(); if (i) i.closeDeleteConfirmModal(); };
+      if (deleteConfirmActionBtn) deleteConfirmActionBtn.onclick = () => { const i = resolveModalInst(); if (i) i.confirmDeleteItem(); };
 
       const mediaCommentCloseBtn = document.getElementById('mediaCommentCloseBtn');
       const mediaCommentForm = document.getElementById('mediaCommentForm');
-      if (mediaCommentCloseBtn) {
-        mediaCommentCloseBtn.onclick = () => {
-          const inst = this.activeModalInstance || this.getActiveInstance();
-          if (inst) inst.closeMediaCommentModal();
-        };
-      }
-      if (mediaCommentForm) {
-        mediaCommentForm.onsubmit = (e) => {
-          e.preventDefault();
-          const inst = this.activeModalInstance || this.getActiveInstance();
-          if (inst) inst.saveMediaComment();
-        };
-      }
+      if (mediaCommentCloseBtn) mediaCommentCloseBtn.onclick = () => { const i = resolveModalInst(); if (i) i.closeMediaCommentModal(); };
+      if (mediaCommentForm) mediaCommentForm.onsubmit = (e) => { e.preventDefault(); const i = resolveModalInst(); if (i) i.saveMediaComment(); };
 
       const folderUnlockCloseBtn = document.getElementById('folderUnlockCloseBtn');
       const folderUnlockForm = document.getElementById('folderUnlockForm');
-      if (folderUnlockCloseBtn) {
-        folderUnlockCloseBtn.onclick = () => {
-          const inst = this.activeModalInstance || this.getActiveInstance();
-          if (inst) inst.closeFolderUnlockModal();
-        };
-      }
-      if (folderUnlockForm) {
-        folderUnlockForm.onsubmit = (e) => {
-          e.preventDefault();
-          const inst = this.activeModalInstance || this.getActiveInstance();
-          if (inst) inst.unlockFolder();
-        };
-      }
+      if (folderUnlockCloseBtn) folderUnlockCloseBtn.onclick = () => { const i = resolveModalInst(); if (i) i.closeFolderUnlockModal(); };
+      if (folderUnlockForm) folderUnlockForm.onsubmit = (e) => { e.preventDefault(); const i = resolveModalInst(); if (i) i.unlockFolder(); };
 
       const folderSettingsCloseBtn = document.getElementById('folderSettingsCloseBtn');
       const folderSettingsForm = document.getElementById('folderSettingsForm');
-      if (folderSettingsCloseBtn) {
-        folderSettingsCloseBtn.onclick = () => {
-          const inst = this.activeModalInstance || this.getActiveInstance();
-          if (inst) inst.closeFolderSettingsModal();
-        };
-      }
-      if (folderSettingsForm) {
-        folderSettingsForm.onsubmit = (e) => {
-          e.preventDefault();
-          const inst = this.activeModalInstance || this.getActiveInstance();
-          if (inst) inst.saveFolderSettings();
-        };
-      }
+      if (folderSettingsCloseBtn) folderSettingsCloseBtn.onclick = () => { const i = resolveModalInst(); if (i) i.closeFolderSettingsModal(); };
+      if (folderSettingsForm) folderSettingsForm.onsubmit = (e) => { e.preventDefault(); const i = resolveModalInst(); if (i) i.saveFolderSettings(); };
     }
 
     t(key, params = {}) {
@@ -3450,7 +2040,7 @@
             type: 'object',
             properties: {
               view_mode: { type: 'string', description: 'View mode: polaroid, grid, mosaic, or list' },
-              sort_by: { type: 'string', description: 'Sort key: name, date, mtime, size, or rating' },
+              sort_by: { type: 'string', description: 'Sort key: name, date, exif_date, mtime, or size' },
               sort_order: { type: 'string', description: 'Sort direction: asc or desc' },
               filter_category: { type: 'string', description: 'Media filter: all, image, video, audio, doc, or archive' }
             }
@@ -3477,8 +2067,8 @@
           if (typeof inst.setViewMode === 'function') inst.setViewMode(String(args.view_mode));
           else inst.state.viewMode = String(args.view_mode);
         }
-        if (args.sort_by && ['name', 'date', 'mtime', 'size', 'rating'].includes(String(args.sort_by))) {
-          inst.state.sortBy = String(args.sort_by);
+        if (args.sort_by && ['name', 'date', 'exif_date', 'mtime', 'size'].includes(String(args.sort_by))) {
+          inst.state.sortBy = String(args.sort_by) === 'mtime' ? 'date' : String(args.sort_by);
         }
         if (args.sort_order && ['asc', 'desc'].includes(String(args.sort_order))) {
           inst.state.sortOrder = String(args.sort_order);
@@ -3500,7 +2090,6 @@
     }
   }
 
-  // Instantiate Explorer Application Manager
   document.addEventListener('DOMContentLoaded', () => {
     window.explorerApp = new ExplorerApp();
   });

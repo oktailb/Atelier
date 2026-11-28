@@ -117,6 +117,9 @@
         </div>
       <?php endif; ?>
 
+      <!-- Per-Instance Folder Description Banner (.desc) -->
+      <div class="folder-desc-banner" style="display: none;"></div>
+
       <!-- Search Active Results Banner -->
       <div class="search-results-banner" style="display: none;">
         <div class="search-results-left">
@@ -374,6 +377,14 @@
           </div>
         </div>
         <div class="gallery-leaflet-map map-canvas"></div>
+      </div>
+    </div>
+
+    <!-- Per-Instance External Drag & Drop Overlay -->
+    <div class="drop-zone-overlay" style="display: none;">
+      <div class="drop-zone-content">
+        <div class="drop-zone-icon">📤</div>
+        <div class="drop-zone-text" data-i18n="explorer.drop_files_hint"><?php echo htmlspecialchars(__t('explorer.drop_files_hint'), ENT_QUOTES, 'UTF-8'); ?></div>
       </div>
     </div>
   </div>
